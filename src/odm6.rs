@@ -3,7 +3,11 @@ use std::{
     io::{BufRead, Cursor, Read, Seek},
 };
 
-use crate::raw;
+use byteorder::{LittleEndian, ReadBytesExt};
+
+use crate::utils;
+
+const COMPRESSED_HEADER_SIZE: usize = 8;
 
 const MAP_SIZE: usize = 128;
 const MAP_PLAY_SIZE: usize = 88;
@@ -39,13 +43,29 @@ pub struct Odm6 {
     tile_map: Vec<u8>,
 }
 
-impl TryFrom<raw::Raw> for Odm6 {
+impl TryFrom<Vec<u8>> for Odm6 {
     type Error = Box<dyn Error>;
 
-    fn try_from(raw: raw::Raw) -> Result<Self, Self::Error> {
-        let data = raw.data.as_slice();
-        let mut cursor = Cursor::new(data);
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        Self::try_from(data.as_slice())
+    }
+}
 
+impl TryFrom<&[u8]> for Odm6 {
+    type Error = Box<dyn Error>;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let mut cursor = Cursor::new(data);
+        let compressed_size = cursor.read_u32::<LittleEndian>()? as usize;
+        let uncompressed_size = cursor.read_u32::<LittleEndian>()? as usize;
+
+        let compressed_data = &data[COMPRESSED_HEADER_SIZE..];
+        utils::check_size(compressed_data.len(), compressed_size)?;
+
+        let uncompressed_data = utils::decompress(compressed_data, uncompressed_size)?;
+        utils::check_size(uncompressed_data.len(), uncompressed_size)?;
+
+        let mut cursor = Cursor::new(uncompressed_data.as_slice());
         cursor.seek(std::io::SeekFrom::Start(2 * 32))?;
         let odm_version = read_string(&mut cursor)?;
 
@@ -79,3 +99,5 @@ fn read_string(cursor: &mut Cursor<&[u8]>) -> Result<String, Box<dyn Error>> {
     cursor.read_until(0, &mut buf)?;
     Ok(String::from_utf8(buf)?)
 }
+
+impl Odm6 {}
