@@ -34,8 +34,8 @@ impl TryFrom<&[u8]> for Image {
         cursor.seek(std::io::SeekFrom::Start(16))?;
         let pixel_size = cursor.read_u32::<LittleEndian>()? as usize;
         let compressed_size = cursor.read_u32::<LittleEndian>()? as usize;
-        let width = cursor.read_u16::<LittleEndian>()?;
-        let height = cursor.read_u16::<LittleEndian>()?;
+        let width = cursor.read_u16::<LittleEndian>()? as usize;
+        let height = cursor.read_u16::<LittleEndian>()? as usize;
         cursor.seek(std::io::SeekFrom::Current(12))?;
         let uncompressed_size = cursor.read_u32::<LittleEndian>()? as usize;
 
@@ -53,8 +53,8 @@ impl TryFrom<&[u8]> for Image {
         let palette: [u8; PALETTE_SIZE] = palette_slice.try_into()?;
 
         Ok(Self {
-            height: height as usize,
-            width: width as usize,
+            height,
+            width,
             data: uncompressed_data,
             palette,
         })
@@ -62,33 +62,35 @@ impl TryFrom<&[u8]> for Image {
 }
 
 impl Image {
-    /// Converts the image into a versatile generic image buffer.
-    /// The image contains more pixels than needed with dimensions (h*w) to account for mipmaps,
-    /// but we are currently not utilizing those extra pixels.
-    /// It PANICS if the input is not appropriate.
-    pub fn to_image_buffer(
-        &self,
-    ) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, Box<dyn std::error::Error>> {
-        let mut image_buffer =
-            ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.width as u32, self.height as u32);
-
-        for (i, pixel_index) in self.data[..(self.width * self.height)].iter().enumerate() {
-            let x = (i).rem_euclid(self.width) as u32;
-            let y = (i).div_euclid(self.width) as u32;
-            let idx = 3 * (*pixel_index as usize);
-            let pixel = Rgb([
-                self.palette[idx],
-                self.palette[idx + 1],
-                self.palette[idx + 2],
-            ]);
-            image_buffer.put_pixel(x, y, pixel);
-        }
-        Ok(image_buffer)
-    }
-
     pub fn to_png_file(&self, path: &str) -> Result<(), Box<dyn Error>> {
-        self.to_image_buffer()?
-            .save_with_format(path, image::ImageFormat::Png)?;
+        raw_to_image_buffer(
+            &self.data,
+            &self.palette,
+            self.width as u32,
+            self.height as u32,
+        )?
+        .save_with_format(path, image::ImageFormat::Png)?;
         Ok(())
     }
+}
+
+/// Converts the image into a versatile generic image buffer.
+/// The image contains more pixels than needed with dimensions (h*w) to account for mipmaps,
+/// but we are currently not utilizing those extra pixels.
+/// It PANICS if the input is not appropriate.
+pub fn raw_to_image_buffer(
+    data: &[u8],
+    palette: &[u8; 768],
+    width: u32,
+    height: u32,
+) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, Box<dyn std::error::Error>> {
+    let mut image_buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(width, height);
+
+    for (i, pixel_index) in data[..(width * height) as usize].iter().enumerate() {
+        let x = (i as u32).rem_euclid(width);
+        let y = (i as u32).div_euclid(width);
+        let idx = 3 * (*pixel_index as usize);
+        image_buffer.put_pixel(x, y, Rgb(palette[idx..idx + 3].try_into()?));
+    }
+    Ok(image_buffer)
 }

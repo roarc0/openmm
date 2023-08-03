@@ -34,9 +34,3 @@ fn main() {
         Err(e) => println!("ko: {}", e),
     }
 }
-
-fn dump_image_to_file(lod: &lod::Lod, name: &str) -> Result<(), Box<dyn Error>> {
-    lod.get::<image::Image>(name)?
-        .to_png_file(&format!("{}.png", name))?;
-    Ok(())
-}
