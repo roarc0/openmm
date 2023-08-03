@@ -30,9 +30,6 @@ impl TryFrom<&[u8]> for Sprite {
     type Error = Box<dyn Error>;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        // let first_zero_idx = data.iter().position(|&x| x == 0).unwrap_or(data.len());
-        // let name: &str = std::str::from_utf8(&data[0..first_zero_idx])?;
-
         let mut cursor = Cursor::new(data);
         cursor.seek(std::io::SeekFrom::Start(12))?;
 
@@ -52,7 +49,12 @@ impl TryFrom<&[u8]> for Sprite {
         let uncompressed_data = utils::decompress(compressed_data, uncompressed_size)?;
         utils::check_size(uncompressed_data.len(), uncompressed_size)?;
 
-        let data = process_image_data(height, width, table, uncompressed_data.as_slice())?;
+        let data = process_image_data(
+            height as usize,
+            width as usize,
+            table,
+            uncompressed_data.as_slice(),
+        )?;
 
         Ok(Self {
             height: height as usize,
@@ -64,44 +66,23 @@ impl TryFrom<&[u8]> for Sprite {
 }
 
 fn process_image_data(
-    height: u16,
-    width: u16,
+    height: usize,
+    width: usize,
     table: &[u8],
     data: &[u8],
 ) -> Result<Vec<u8>, Box<dyn Error>> {
-    let img_size = (width * height) as usize;
-    let mut img: Vec<u8> = vec![0; img_size];
+    let mut img: Vec<u8> = vec![0; width * height];
     let mut img_index = 0;
-
-    for i in 0..height {
-        let mut cursor = Cursor::new(table);
-        cursor.seek(std::io::SeekFrom::Start((i as u64) * 8))?;
-        let start = cursor.read_i16::<LittleEndian>()?;
-        let end = cursor.read_i16::<LittleEndian>()?;
-        let offset = cursor.read_u32::<LittleEndian>()?;
-
-        if img_index >= img_size {
-            continue;
-        }
-
-        if start != -1 && end != -1 {
-            for _ in 0..start {
-                img[img_index] = 0;
-                img_index += 1;
-            }
-            let mut off_index = offset as usize;
-            for _ in start..=end {
-                img[img_index] += data[off_index];
-                img_index += 1;
-                off_index += 1;
-            }
-        }
-        for _ in (end as u16)..(width - 1) {
-            img[img_index] = 0;
-            img_index += 1;
-        }
+    let mut cursor = Cursor::new(table);
+    for _ in 0..height {
+        let start = cursor.read_u16::<LittleEndian>()? as usize;
+        let end = cursor.read_u16::<LittleEndian>()? as usize;
+        let offset = cursor.read_u32::<LittleEndian>()? as usize;
+        img_index += start;
+        let data_size = end - start + 1;
+        img[img_index..img_index + data_size].copy_from_slice(&data[offset..offset + data_size]);
+        img_index += data_size + width - 1 - end;
     }
-
     Ok(img)
 }
 
