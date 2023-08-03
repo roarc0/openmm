@@ -30,10 +30,6 @@ impl TryFrom<&[u8]> for Image {
     type Error = Box<dyn Error>;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
-        // we don't actually need the name
-        // let first_zero_idx = data.iter().position(|&x| x == 0).unwrap_or(data.len());
-        // let name: &str = std::str::from_utf8(&data[0..first_zero_idx])?;
-
         let mut cursor = Cursor::new(data);
         cursor.seek(std::io::SeekFrom::Start(16))?;
         let pixel_size = cursor.read_u32::<LittleEndian>()? as usize;
