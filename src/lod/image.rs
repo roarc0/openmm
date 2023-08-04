@@ -3,9 +3,10 @@ use image::{ImageBuffer, Rgb};
 use std::{
     error::Error,
     io::{Cursor, Seek},
+    path::Path,
 };
 
-use crate::utils;
+use super::zlib;
 
 #[derive(Debug)]
 pub struct Image {
@@ -42,12 +43,14 @@ impl TryFrom<&[u8]> for Image {
         if pixel_size == 0 {
             return Err("Pixel size is zero, this is not a valid image".into());
         }
+        if data.len() <= IMAGE_HEADER_SIZE + PALETTE_SIZE {
+            return Err("Not enough data".into());
+        }
 
+        // crash games.lod
         let compressed_data = &data[IMAGE_HEADER_SIZE..data.len() - PALETTE_SIZE];
-        utils::check_size(compressed_data.len(), compressed_size)?;
-
-        let uncompressed_data = utils::decompress(compressed_data, uncompressed_size)?;
-        utils::check_size(uncompressed_data.len(), uncompressed_size)?;
+        let uncompressed_data =
+            zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
 
         let palette_slice = &data[data.len() - PALETTE_SIZE..];
         let palette: [u8; PALETTE_SIZE] = palette_slice.try_into()?;
@@ -62,7 +65,10 @@ impl TryFrom<&[u8]> for Image {
 }
 
 impl Image {
-    pub fn to_png_file(&self, path: &str) -> Result<(), Box<dyn Error>> {
+    pub fn dump<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
+    where
+        Q: AsRef<Path>,
+    {
         raw_to_image_buffer(
             &self.data,
             &self.palette,

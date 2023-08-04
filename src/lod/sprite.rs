@@ -2,9 +2,8 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use std::{
     error::Error,
     io::{Cursor, Seek},
+    path::Path,
 };
-
-use crate::{image, palette, utils};
 
 const SPRITE_HEADER_SIZE: usize = 32;
 
@@ -40,15 +39,18 @@ impl TryFrom<&[u8]> for Sprite {
         let uncompressed_size = cursor.read_u32::<LittleEndian>()? as usize;
 
         let table_size: usize = height * 8;
+
+        if data.len() <= SPRITE_HEADER_SIZE + table_size {
+            return Err("Not enough data".into());
+        }
+
         let table = &data[SPRITE_HEADER_SIZE..(SPRITE_HEADER_SIZE + table_size)];
 
         let compressed_data = &data[SPRITE_HEADER_SIZE + table_size..];
-        utils::check_size(compressed_data.len(), compressed_size)?;
+        let uncompressed_data =
+            super::zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
 
-        let uncompressed_data = utils::decompress(compressed_data, uncompressed_size)?;
-        utils::check_size(uncompressed_data.len(), uncompressed_size)?;
-
-        let data = process_image_data(height, width, table, uncompressed_data.as_slice())?;
+        let data = process_sprite_data(uncompressed_data.as_slice(), table, width, height)?;
 
         Ok(Self {
             height,
@@ -59,43 +61,50 @@ impl TryFrom<&[u8]> for Sprite {
     }
 }
 
-fn process_image_data(
-    height: usize,
-    width: usize,
-    table: &[u8],
+fn process_sprite_data(
     data: &[u8],
+    table: &[u8],
+    width: usize,
+    height: usize,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
-    let mut img: Vec<u8> = vec![0; width * height];
-    let mut img_index = 0;
+    let img_size = width * height;
+    let mut img: Vec<u8> = vec![0; img_size];
+    let mut current: usize = 0;
     let mut cursor = Cursor::new(table);
+
     for _ in 0..height {
-        let start = cursor.read_u16::<LittleEndian>()? as usize;
-        let end = cursor.read_u16::<LittleEndian>()? as usize;
+        let start = cursor.read_i16::<LittleEndian>()?;
+        let end = cursor.read_i16::<LittleEndian>()?;
         let offset = cursor.read_u32::<LittleEndian>()? as usize;
-        img_index += start;
-        let data_size = end - start + 1;
-        img[img_index..img_index + data_size].copy_from_slice(&data[offset..offset + data_size]);
-        img_index += data_size + width - 1 - end;
+
+        if start < 0 || end < 0 {
+            current += width - 1;
+            continue;
+        }
+
+        current += start as usize;
+        let chunk_size = (end - start + 1) as usize;
+        img[current..current + chunk_size].copy_from_slice(&data[offset..offset + chunk_size]);
+        current += width - start as usize;
     }
     Ok(img)
 }
 
 impl Sprite {
-    pub fn to_png_file(
+    pub fn dump<Q>(
         &self,
-        path: &str,
-        palettes: &palette::Palettes,
-    ) -> Result<(), Box<dyn Error>> {
-        let palette_name = format!("pal{:03}", self.palette_id);
-        let palette = palettes
-            .map
-            .get(&palette_name)
-            .ok_or_else(|| "palette not found!".to_string())?;
-        let palette = palette.data;
-
-        crate::image::raw_to_image_buffer(
+        palettes: &super::palette::Palettes,
+        path: Q,
+    ) -> Result<(), Box<dyn Error>>
+    where
+        Q: AsRef<Path>,
+    {
+        super::image::raw_to_image_buffer(
             &self.data,
-            &palette,
+            &palettes
+                .get(self.palette_id)
+                .ok_or_else(|| "palette not found!".to_string())?
+                .data,
             self.width as u32,
             self.height as u32,
         )?

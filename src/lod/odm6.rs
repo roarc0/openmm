@@ -5,8 +5,6 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::utils;
-
 const COMPRESSED_HEADER_SIZE: usize = 8;
 
 const MAP_SIZE: usize = 128;
@@ -57,15 +55,13 @@ impl TryFrom<&[u8]> for Odm6 {
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut cursor = Cursor::new(data);
         let compressed_size = cursor.read_u32::<LittleEndian>()? as usize;
-        let uncompressed_size = cursor.read_u32::<LittleEndian>()? as usize;
-
+        let decompressed_size = cursor.read_u32::<LittleEndian>()? as usize;
         let compressed_data = &data[COMPRESSED_HEADER_SIZE..];
-        utils::check_size(compressed_data.len(), compressed_size)?;
 
-        let uncompressed_data = utils::decompress(compressed_data, uncompressed_size)?;
-        utils::check_size(uncompressed_data.len(), uncompressed_size)?;
+        let decompressed_data =
+            super::zlib::decompress(compressed_data, compressed_size, decompressed_size)?;
 
-        let mut cursor = Cursor::new(uncompressed_data.as_slice());
+        let mut cursor = Cursor::new(decompressed_data.as_slice());
         cursor.seek(std::io::SeekFrom::Start(2 * 32))?;
         let odm_version = read_string(&mut cursor)?;
 
