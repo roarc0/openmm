@@ -1,6 +1,7 @@
 use std::{
     error::Error,
     io::{BufRead, Cursor, Read, Seek},
+    path::Path,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -33,15 +34,11 @@ const SPRITES_HDR_SIZE: usize = 0x20;
 
 #[allow(dead_code)]
 #[derive(Debug)]
-pub struct Odm6 {
-    odm_version: String,
-    sky_texture: String,
-    ground_texture: String,
-    height_map: Vec<u8>,
-    tile_map: Vec<u8>,
+pub struct Odm {
+    data: Vec<u8>,
 }
 
-impl TryFrom<Vec<u8>> for Odm6 {
+impl TryFrom<Vec<u8>> for Odm {
     type Error = Box<dyn Error>;
 
     fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
@@ -49,7 +46,7 @@ impl TryFrom<Vec<u8>> for Odm6 {
     }
 }
 
-impl TryFrom<&[u8]> for Odm6 {
+impl TryFrom<&[u8]> for Odm {
     type Error = Box<dyn Error>;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
@@ -61,31 +58,26 @@ impl TryFrom<&[u8]> for Odm6 {
         let decompressed_data =
             super::zlib::decompress(compressed_data, compressed_size, decompressed_size)?;
 
-        let mut cursor = Cursor::new(decompressed_data.as_slice());
-        cursor.seek(std::io::SeekFrom::Start(2 * 32))?;
-        let odm_version = read_string(&mut cursor)?;
+        // let mut cursor = Cursor::new(decompressed_data.as_slice());
+        // cursor.seek(std::io::SeekFrom::Start(2 * 32))?;
+        // let odm_version = read_string(&mut cursor)?;
 
-        cursor.seek(std::io::SeekFrom::Start(3 * 32))?;
-        let sky_texture = read_string(&mut cursor)?;
+        // cursor.seek(std::io::SeekFrom::Start(3 * 32))?;
+        // let sky_texture = read_string(&mut cursor)?;
 
-        cursor.seek(std::io::SeekFrom::Start(4 * 32))?;
-        let ground_texture = read_string(&mut cursor)?;
+        // cursor.seek(std::io::SeekFrom::Start(4 * 32))?;
+        // let ground_texture = read_string(&mut cursor)?;
 
-        cursor.seek(std::io::SeekFrom::Start(HEIGHT_MAP_OFFSET))?;
-        let mut height_map: [u8; HEIGHT_MAP_SIZE] = [0; HEIGHT_MAP_SIZE];
-        cursor.read_exact(&mut height_map)?;
+        // cursor.seek(std::io::SeekFrom::Start(HEIGHT_MAP_OFFSET))?;
+        // let mut height_map: [u8; HEIGHT_MAP_SIZE] = [0; HEIGHT_MAP_SIZE];
+        // cursor.read_exact(&mut height_map)?;
 
-        cursor.seek(std::io::SeekFrom::Start(TILE_MAP_OFFSET))?;
-        let mut tile_map: [u8; HEIGHT_MAP_SIZE] = [0; HEIGHT_MAP_SIZE];
-        cursor.read_exact(&mut tile_map)?;
+        // cursor.seek(std::io::SeekFrom::Start(TILE_MAP_OFFSET))?;
+        // let mut tile_map: [u8; HEIGHT_MAP_SIZE] = [0; HEIGHT_MAP_SIZE];
+        // cursor.read_exact(&mut tile_map)?;
 
         Ok(Self {
-            odm_version,
-            sky_texture,
-            ground_texture,
-            height_map: height_map.to_vec(),
-            tile_map: tile_map.to_vec(),
-            //attribute_map: attribute_map.to_vec(),
+            data: decompressed_data,
         })
     }
 }
@@ -96,4 +88,13 @@ fn read_string(cursor: &mut Cursor<&[u8]>) -> Result<String, Box<dyn Error>> {
     Ok(String::from_utf8(buf)?)
 }
 
-impl Odm6 {}
+impl Odm {
+    pub fn dump<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
+    where
+        Q: AsRef<Path>,
+    {
+        use std::fs::write;
+        write(path, &self.data)?;
+        Ok(())
+    }
+}
