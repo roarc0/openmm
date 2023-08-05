@@ -69,9 +69,3 @@ impl TryFrom<&[u8]> for Odm {
         })
     }
 }
-
-// fn read_string(cursor: &mut Cursor<&[u8]>) -> Result<String, Box<dyn Error>> {
-//     let mut buf = Vec::new();
-//     cursor.read_until(0, &mut buf)?;
-//     Ok(String::from_utf8(buf)?)
-// }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fs::{self, File};
-use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 
 pub mod image;
@@ -23,19 +23,18 @@ impl Lod {
     where
         P: AsRef<Path>,
     {
-        let mut file: File = File::open(path)?;
+        let file: File = File::open(path)?;
+        let mut buf_reader = BufReader::new(file);
 
-        let magic = read_until_zero_byte::<std::io::Error>(&mut file)?;
-        let magic = String::from_utf8_lossy(&magic);
+        let magic = read_string(&mut buf_reader)?;
         if magic != "LOD" {
             return Err("Invalid file format".into());
         }
 
-        let version =
-            Version::try_from(read_until_zero_byte::<std::io::Error>(&mut file)?.as_slice())?;
+        let version = Version::try_from(read_string(&mut buf_reader)?.as_str())?;
 
-        let file_headers = read_file_headers(&mut file)?;
-        let files = read_files(file_headers, file)?;
+        let file_headers = read_file_headers(&mut buf_reader)?;
+        let files = read_files(file_headers, buf_reader)?;
 
         Ok(Lod { version, files })
     }
@@ -83,49 +82,48 @@ impl Lod {
     }
 }
 
-fn read_file_headers(file: &mut File) -> Result<Vec<FileHeader>, Box<dyn Error>> {
-    file.seek(SeekFrom::Start(FILE_INDEX_OFFSET))?;
-    let initial_file_header: FileHeader = read_file_header(file)?;
+fn read_file_headers(buf_reader: &mut BufReader<File>) -> Result<Vec<FileHeader>, Box<dyn Error>> {
+    buf_reader.seek(SeekFrom::Start(FILE_INDEX_OFFSET))?;
+    let initial_file_header: FileHeader = read_file_header(buf_reader)?;
     let initial_offset = initial_file_header.offset;
     let num_files = initial_file_header.count as usize;
     let mut file_headers = Vec::with_capacity(num_files);
     file_headers.push(initial_file_header);
     for _ in 0..num_files {
-        let mut file_header = read_file_header(file)?;
+        let mut file_header = read_file_header(buf_reader)?;
         file_header.offset += initial_offset;
         file_headers.push(file_header);
     }
     Ok(file_headers)
 }
 
-fn read_file_header(file: &mut File) -> Result<FileHeader, Box<dyn Error>> {
+fn read_file_header(buf_reader: &mut BufReader<File>) -> Result<FileHeader, Box<dyn Error>> {
     let mut buf: [u8; FILE_HEADER_SIZE] = [0; FILE_HEADER_SIZE];
-    file.read_exact(&mut buf)?;
+    buf_reader.read_exact(&mut buf)?;
     let file_header = FileHeader::try_from(&buf)?;
     Ok(file_header)
 }
 
 fn read_files(
     file_headers: Vec<FileHeader>,
-    mut file: File,
+    mut buf_reader: BufReader<File>,
 ) -> Result<HashMap<String, Vec<u8>>, Box<dyn Error>> {
     let mut files: HashMap<String, Vec<u8>> = HashMap::new();
     for fh in file_headers {
-        let buf = read_file(&mut file, &fh)?;
+        let buf = read_file(&mut buf_reader, &fh)?;
         files.insert(fh.name, buf);
     }
     Ok(files)
 }
 
-fn read_file(file: &mut File, fh: &FileHeader) -> Result<Vec<u8>, Box<dyn Error>> {
-    file.seek(SeekFrom::Start(fh.offset as u64))?;
+fn read_file(buf_reader: &mut BufReader<File>, fh: &FileHeader) -> Result<Vec<u8>, Box<dyn Error>> {
+    buf_reader.seek(SeekFrom::Start(fh.offset as u64))?;
     let mut buf = Vec::new();
     buf.resize(fh.size, 0);
-    file.read_exact(&mut buf)?;
+    buf_reader.read_exact(&mut buf)?;
     Ok(buf)
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 struct FileHeader {
     name: String,
@@ -165,30 +163,25 @@ pub enum Version {
     MM8,
 }
 
-impl TryFrom<&[u8]> for Version {
+impl TryFrom<&str> for Version {
     type Error = &'static str;
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+    fn try_from(data: &str) -> Result<Self, Self::Error> {
         match data {
-            b"GameMMVI" | b"MMVI" => Ok(Version::MM6),
-            b"GameMMVII" | b"MMVII" => Ok(Version::MM7),
-            b"GameMMVIII" | b"MMVIII" => Ok(Version::MM8),
+            "GameMMVI" | "MMVI" => Ok(Version::MM6),
+            "GameMMVII" | "MMVII" => Ok(Version::MM7),
+            "GameMMVIII" | "MMVIII" => Ok(Version::MM8),
             _ => Err("Invalid game version"),
         }
     }
 }
 
-fn read_until_zero_byte<E>(r: &mut dyn Read) -> Result<Vec<u8>, E>
+fn read_string<R>(r: &mut R) -> Result<String, Box<dyn Error>>
 where
-    E: From<std::io::Error>,
+    R: Read + BufRead,
 {
     let mut buffer = Vec::new();
-    while let Some(byte) = r.bytes().next() {
-        let byte = byte?;
-        if byte == 0 {
-            break;
-        }
-        buffer.push(byte);
-    }
-    Ok(buffer)
+    let _ = r.read_until(b'\0', &mut buffer);
+    _ = buffer.pop();
+    Ok(String::from_utf8(buffer)?)
 }
