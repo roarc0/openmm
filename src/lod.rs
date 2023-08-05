@@ -10,7 +10,6 @@ pub mod image;
 pub mod odm;
 pub mod palette;
 pub mod raw;
-pub mod raw_unpacked;
 mod zlib;
 
 #[allow(dead_code)]
@@ -62,9 +61,8 @@ impl Lod {
     pub fn dump(&self, path: &Path, palettes: &palette::Palettes) {
         fs::create_dir_all(path).unwrap();
         for file_name in self.files() {
-            match self.get::<raw::Raw>(file_name) {
-                Ok(raw) => {
-                    let data = raw.data;
+            match self.get_raw(file_name) {
+                Some(data) => {
                     if let Ok(image) = image::Image::try_from(data) {
                         if let Err(e) = image.dump(path.join(format!("{}.png", file_name))) {
                             println!("Error saving image {} : {}", file_name, e);
@@ -73,19 +71,13 @@ impl Lod {
                         if let Err(e) = sprite.dump(path.join(format!("{}.png", file_name))) {
                             println!("Error saving sprite {} : {}", file_name, e)
                         }
-                    } else if let Ok(odm) = odm::Odm::try_from(data) {
-                        if let Err(e) = odm.dump(path.join(file_name)) {
-                            println!("Error saving odm {} : {}", file_name, e)
+                    } else if let Ok(raw) = raw::Raw::try_from(data) {
+                        if let Err(e) = raw.dump(path.join(file_name)) {
+                            println!("Error saving raw {} : {}", file_name, e)
                         }
-                    } else if let Ok(raw_unpacked) = raw_unpacked::RawUnpacked::try_from(data) {
-                        if let Err(e) = raw_unpacked.dump(path.join(file_name)) {
-                            println!("Error saving raw_unpacked {} : {}", file_name, e)
-                        }
-                    } else if let Err(e) = raw.dump(path.join(file_name)) {
-                        println!("Error saving raw {} : {}", file_name, e);
                     }
                 }
-                Err(e) => println!("Error extracting file {} : {}", file_name, e),
+                None => println!("Error extracting file {}", file_name),
             }
         }
     }

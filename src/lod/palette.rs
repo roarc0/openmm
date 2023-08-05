@@ -18,7 +18,7 @@ impl TryFrom<&[u8]> for Palette {
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         if data.len() != PALETTE_DATA_SIZE {
-            return Err("malformed palette".into());
+            return Err("Malformed palette, expected size is 768B".into());
         }
         let palette = &data[PALETTE_HEADER_SIZE..];
         Ok(Self {

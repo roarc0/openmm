@@ -1,15 +1,11 @@
-use std::{
-    error::Error,
-    io::{BufRead, Cursor, Read, Seek},
-    path::Path,
-};
+use std::{error::Error, io::Cursor};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
 const COMPRESSED_HEADER_SIZE: usize = 8;
 
-const MAP_SIZE: usize = 128;
-const MAP_PLAY_SIZE: usize = 88;
+// const MAP_SIZE: usize = 128;
+// const MAP_PLAY_SIZE: usize = 88;
 //const MAP_TILE_SIZE: usize = 512;
 //const MAP_HEIGHT_SIZE: usize = 32;
 //const _MAP_OFFSET: u64 = 64;
@@ -17,20 +13,20 @@ const MAP_PLAY_SIZE: usize = 88;
 //const TILE_IDX_SIZE: usize = 16;
 //const TILE_HDR_SIZE: usize = 4;
 
-const HEIGHT_MAP_OFFSET: u64 = 176;
-const HEIGHT_MAP_SIZE: usize = MAP_SIZE * MAP_SIZE;
+// const HEIGHT_MAP_OFFSET: u64 = 176;
+// const HEIGHT_MAP_SIZE: usize = MAP_SIZE * MAP_SIZE;
 
-const TILE_MAP_OFFSET: u64 = HEIGHT_MAP_OFFSET + HEIGHT_MAP_SIZE as u64;
-const TILEMAP_SIZE: usize = MAP_SIZE * MAP_SIZE;
+// const TILE_MAP_OFFSET: u64 = HEIGHT_MAP_OFFSET + HEIGHT_MAP_SIZE as u64;
+// const TILEMAP_SIZE: usize = MAP_SIZE * MAP_SIZE;
 
 // const ATTRIBUTE_MAP_OFFSET: u64 = HEIGHT_MAP_OFFSET + HEIGHT_MAP_SIZE as u64;
 // const ATTRIBUTE_MAP_SIZE: usize = MAP_SIZE * MAP_SIZE;
 
-const BMODELS_OFFSET: u64 = TILE_MAP_OFFSET + TILEMAP_SIZE as u64;
-const BMODELS_HDR_SIZE: usize = 0xbc;
+// const BMODELS_OFFSET: u64 = TILE_MAP_OFFSET + TILEMAP_SIZE as u64;
+// const BMODELS_HDR_SIZE: usize = 0xbc;
 
-const SPRITES_OFFSET: u64 = 0;
-const SPRITES_HDR_SIZE: usize = 0x20;
+// const SPRITES_OFFSET: u64 = 0;
+// const SPRITES_HDR_SIZE: usize = 0x20;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -74,19 +70,8 @@ impl TryFrom<&[u8]> for Odm {
     }
 }
 
-fn read_string(cursor: &mut Cursor<&[u8]>) -> Result<String, Box<dyn Error>> {
-    let mut buf = Vec::new();
-    cursor.read_until(0, &mut buf)?;
-    Ok(String::from_utf8(buf)?)
-}
-
-impl Odm {
-    pub fn dump<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
-    where
-        Q: AsRef<Path>,
-    {
-        use std::fs::write;
-        write(path, &self.data)?;
-        Ok(())
-    }
-}
+// fn read_string(cursor: &mut Cursor<&[u8]>) -> Result<String, Box<dyn Error>> {
+//     let mut buf = Vec::new();
+//     cursor.read_until(0, &mut buf)?;
+//     Ok(String::from_utf8(buf)?)
+// }
