@@ -38,14 +38,6 @@ pub struct Odm {
     data: Vec<u8>,
 }
 
-impl TryFrom<Vec<u8>> for Odm {
-    type Error = Box<dyn Error>;
-
-    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(data.as_slice())
-    }
-}
-
 impl TryFrom<&[u8]> for Odm {
     type Error = Box<dyn Error>;
 

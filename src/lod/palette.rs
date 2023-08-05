@@ -13,14 +13,6 @@ pub struct Palette {
     pub data: [u8; PALETTE_SIZE],
 }
 
-impl TryFrom<Vec<u8>> for Palette {
-    type Error = Box<dyn Error>;
-
-    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(data.as_slice())
-    }
-}
-
 impl TryFrom<&[u8]> for Palette {
     type Error = Box<dyn Error>;
 

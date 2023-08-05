@@ -1,40 +1,30 @@
 use byteorder::{LittleEndian, ReadBytesExt};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::{Cursor, Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub mod image;
 pub mod odm;
 pub mod palette;
 pub mod raw;
 pub mod raw_unpacked;
-pub mod sprite;
 mod zlib;
 
 #[allow(dead_code)]
-#[derive(Debug)]
-struct FileHeader {
-    name: String,
-    offset: i32,
-    size: usize,
-    count: i32,
-}
-
-const FILE_HEADER_SIZE: usize = 32;
-const FILE_INDEX_OFFSET: u64 = 256;
-
-#[allow(dead_code)]
 pub struct Lod {
-    lod_path: PathBuf,
     pub version: Version,
-    files: Vec<FileHeader>,
+    files: HashMap<String, Vec<u8>>,
 }
 
 impl Lod {
-    pub fn open(path: PathBuf) -> Result<Lod, Box<dyn std::error::Error>> {
-        let mut file: File = File::open(&path)?;
+    pub fn open<P>(path: P) -> Result<Lod, Box<dyn std::error::Error>>
+    where
+        P: AsRef<Path>,
+    {
+        let mut file: File = File::open(path)?;
 
         let magic = read_until_zero_byte::<std::io::Error>(&mut file)?;
         let magic = String::from_utf8_lossy(&magic);
@@ -45,50 +35,28 @@ impl Lod {
         let version =
             Version::try_from(read_until_zero_byte::<std::io::Error>(&mut file)?.as_slice())?;
 
-        file.seek(SeekFrom::Start(FILE_INDEX_OFFSET))?;
+        let file_headers = read_file_headers(&mut file)?;
+        let files = read_files(file_headers, file)?;
 
-        let initial_file_header: FileHeader = read_file_header(&mut file)?;
-        let initial_offset = initial_file_header.offset;
-        let num_files = initial_file_header.count as usize;
-        let mut files = Vec::with_capacity(num_files);
-        files.push(initial_file_header);
-        for _ in 0..num_files {
-            let mut file_header = read_file_header(&mut file)?;
-            file_header.offset += initial_offset;
-            files.push(file_header);
-        }
-        Ok(Lod {
-            lod_path: path,
-            version,
-            files,
-        })
+        Ok(Lod { version, files })
     }
 
     pub fn files(&self) -> Vec<&str> {
-        self.files.iter().map(|f| f.name.as_str()).collect()
+        self.files.keys().map(|f| f.as_str()).collect()
     }
 
-    pub fn get<T: TryFrom<Vec<u8>, Error = Box<dyn Error>>>(
-        &self,
+    pub fn get<'a, T: TryFrom<&'a [u8], Error = Box<dyn Error>>>(
+        &'a self,
         name: &str,
     ) -> Result<T, Box<dyn Error>> {
-        T::try_from(self.get_raw(name)?)
+        T::try_from(
+            self.get_raw(name)
+                .ok_or_else(|| "Entry not found".to_string())?,
+        )
     }
 
-    pub fn get_raw(&self, name: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-        // TODO avoid re-opening the file?
-        let lf = self.files.iter().find(|f| f.name == name);
-        match lf {
-            Some(lf) => {
-                let mut file: File = File::open(&self.lod_path)?;
-                file.seek(SeekFrom::Start(lf.offset as u64))?;
-                let mut buf = Vec::new();
-                buf.resize(lf.size, 0);
-                file.read_exact(&mut buf)?;
-                Ok(buf)
-            }
-            None => Err("file not found!".into()),
-        }
+    pub fn get_raw<'a>(&'a self, name: &str) -> Option<&'a [u8]> {
+        self.files.get(name).map(|v| v.as_slice())
     }
 
     pub fn dump(&self, path: &Path, palettes: &palette::Palettes) {
@@ -96,15 +64,13 @@ impl Lod {
         for file_name in self.files() {
             match self.get::<raw::Raw>(file_name) {
                 Ok(raw) => {
-                    let data = raw.data.as_slice();
+                    let data = raw.data;
                     if let Ok(image) = image::Image::try_from(data) {
                         if let Err(e) = image.dump(path.join(format!("{}.png", file_name))) {
                             println!("Error saving image {} : {}", file_name, e);
                         }
-                    } else if let Ok(sprite) = sprite::Sprite::try_from(data) {
-                        if let Err(e) =
-                            sprite.dump(palettes, path.join(format!("{}.png", file_name)))
-                        {
+                    } else if let Ok(sprite) = image::Image::try_from((data, palettes)) {
+                        if let Err(e) = sprite.dump(path.join(format!("{}.png", file_name))) {
                             println!("Error saving sprite {} : {}", file_name, e)
                         }
                     } else if let Ok(odm) = odm::Odm::try_from(data) {
@@ -124,6 +90,60 @@ impl Lod {
         }
     }
 }
+
+fn read_file_headers(file: &mut File) -> Result<Vec<FileHeader>, Box<dyn Error>> {
+    file.seek(SeekFrom::Start(FILE_INDEX_OFFSET))?;
+    let initial_file_header: FileHeader = read_file_header(file)?;
+    let initial_offset = initial_file_header.offset;
+    let num_files = initial_file_header.count as usize;
+    let mut file_headers = Vec::with_capacity(num_files);
+    file_headers.push(initial_file_header);
+    for _ in 0..num_files {
+        let mut file_header = read_file_header(file)?;
+        file_header.offset += initial_offset;
+        file_headers.push(file_header);
+    }
+    Ok(file_headers)
+}
+
+fn read_file_header(file: &mut File) -> Result<FileHeader, Box<dyn Error>> {
+    let mut buf: [u8; FILE_HEADER_SIZE] = [0; FILE_HEADER_SIZE];
+    file.read_exact(&mut buf)?;
+    let file_header = FileHeader::try_from(&buf)?;
+    Ok(file_header)
+}
+
+fn read_files(
+    file_headers: Vec<FileHeader>,
+    mut file: File,
+) -> Result<HashMap<String, Vec<u8>>, Box<dyn Error>> {
+    let mut files: HashMap<String, Vec<u8>> = HashMap::new();
+    for fh in file_headers {
+        let buf = read_file(&mut file, &fh)?;
+        files.insert(fh.name, buf);
+    }
+    Ok(files)
+}
+
+fn read_file(file: &mut File, fh: &FileHeader) -> Result<Vec<u8>, Box<dyn Error>> {
+    file.seek(SeekFrom::Start(fh.offset as u64))?;
+    let mut buf = Vec::new();
+    buf.resize(fh.size, 0);
+    file.read_exact(&mut buf)?;
+    Ok(buf)
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+struct FileHeader {
+    name: String,
+    offset: i32,
+    size: usize,
+    count: i32,
+}
+
+const FILE_HEADER_SIZE: usize = 32;
+const FILE_INDEX_OFFSET: u64 = 256;
 
 impl TryFrom<&[u8; FILE_HEADER_SIZE]> for FileHeader {
     type Error = Box<dyn Error>;
@@ -164,13 +184,6 @@ impl TryFrom<&[u8]> for Version {
             _ => Err("Invalid game version"),
         }
     }
-}
-
-fn read_file_header(file: &mut File) -> Result<FileHeader, Box<dyn Error>> {
-    let mut buf: [u8; FILE_HEADER_SIZE] = [0; FILE_HEADER_SIZE];
-    file.read_exact(&mut buf)?;
-    let file_header = FileHeader::try_from(&buf)?;
-    Ok(file_header)
 }
 
 fn read_until_zero_byte<E>(r: &mut dyn Read) -> Result<Vec<u8>, E>

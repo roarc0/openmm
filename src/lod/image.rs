@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use super::zlib;
+use super::{palette::Palettes, zlib};
 
 #[derive(Debug)]
 pub struct Image {
@@ -17,16 +17,10 @@ pub struct Image {
 }
 
 const PALETTE_SIZE: usize = 256 * 3;
-const IMAGE_HEADER_SIZE: usize = 48;
+const BITMAP_HEADER_SIZE: usize = 48;
+const SPRITE_HEADER_SIZE: usize = 32;
 
-impl TryFrom<Vec<u8>> for Image {
-    type Error = Box<dyn Error>;
-
-    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(data.as_slice())
-    }
-}
-
+/// This is for bitmap images
 impl TryFrom<&[u8]> for Image {
     type Error = Box<dyn Error>;
 
@@ -43,12 +37,11 @@ impl TryFrom<&[u8]> for Image {
         if pixel_size == 0 {
             return Err("Pixel size is zero, this is not a valid image".into());
         }
-        if data.len() <= IMAGE_HEADER_SIZE + PALETTE_SIZE {
+        if data.len() <= BITMAP_HEADER_SIZE + PALETTE_SIZE {
             return Err("Not enough data".into());
         }
 
-        // crash games.lod
-        let compressed_data = &data[IMAGE_HEADER_SIZE..data.len() - PALETTE_SIZE];
+        let compressed_data = &data[BITMAP_HEADER_SIZE..data.len() - PALETTE_SIZE];
         let uncompressed_data =
             zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
 
@@ -62,6 +55,82 @@ impl TryFrom<&[u8]> for Image {
             palette,
         })
     }
+}
+
+/// This is for sprite images
+impl TryFrom<(&[u8], &Palettes)> for Image {
+    type Error = Box<dyn Error>;
+
+    fn try_from(data: (&[u8], &Palettes)) -> Result<Self, Self::Error> {
+        let palettes = data.1;
+        let data = data.0;
+
+        let mut cursor = Cursor::new(data);
+        cursor.seek(std::io::SeekFrom::Start(12))?;
+
+        let compressed_size = cursor.read_u32::<LittleEndian>()? as usize;
+        let width = cursor.read_u16::<LittleEndian>()? as usize;
+        let height = cursor.read_u16::<LittleEndian>()? as usize;
+
+        let palette_id = cursor.read_u16::<LittleEndian>()?;
+        let palette = palettes
+            .get(palette_id)
+            .ok_or_else(|| "Palette not found!".to_string())?;
+
+        cursor.seek(std::io::SeekFrom::Current(6))?;
+        let uncompressed_size = cursor.read_u32::<LittleEndian>()? as usize;
+
+        let table_size: usize = height * 8;
+
+        if data.len() <= SPRITE_HEADER_SIZE + table_size {
+            return Err("Not enough data".into());
+        }
+
+        let table = &data[SPRITE_HEADER_SIZE..(SPRITE_HEADER_SIZE + table_size)];
+
+        let compressed_data = &data[SPRITE_HEADER_SIZE + table_size..];
+        let uncompressed_data =
+            super::zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
+
+        let processed_data =
+            process_sprite_data(uncompressed_data.as_slice(), table, width, height)?;
+
+        Ok(Self {
+            height,
+            width,
+            data: processed_data,
+            palette: palette.data,
+        })
+    }
+}
+
+fn process_sprite_data(
+    data: &[u8],
+    table: &[u8],
+    width: usize,
+    height: usize,
+) -> Result<Vec<u8>, Box<dyn Error>> {
+    let img_size = width * height;
+    let mut img: Vec<u8> = vec![0; img_size];
+    let mut current: usize = 0;
+    let mut cursor = Cursor::new(table);
+
+    for _ in 0..height {
+        let start = cursor.read_i16::<LittleEndian>()?;
+        let end = cursor.read_i16::<LittleEndian>()?;
+        let offset = cursor.read_u32::<LittleEndian>()? as usize;
+
+        if start < 0 || end < 0 {
+            current += width - 1;
+            continue;
+        }
+
+        current += start as usize;
+        let chunk_size = (end - start + 1) as usize;
+        img[current..current + chunk_size].copy_from_slice(&data[offset..offset + chunk_size]);
+        current += width - start as usize;
+    }
+    Ok(img)
 }
 
 impl Image {

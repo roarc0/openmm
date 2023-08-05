@@ -1,5 +1,4 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use image::{ImageBuffer, Rgb};
 use std::{
     error::Error,
     io::{Cursor, Seek},
@@ -11,14 +10,6 @@ const COMPRESSED_HEADER_SIZE: usize = 48;
 #[derive(Debug)]
 pub struct RawUnpacked {
     data: Vec<u8>,
-}
-
-impl TryFrom<Vec<u8>> for RawUnpacked {
-    type Error = Box<dyn Error>;
-
-    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
-        Self::try_from(data.as_slice())
-    }
 }
 
 impl TryFrom<&[u8]> for RawUnpacked {
