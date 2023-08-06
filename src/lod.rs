@@ -57,28 +57,27 @@ impl Lod {
         self.files.get(name).map(|v| v.as_slice())
     }
 
-    pub fn dump(&self, path: &Path, palettes: &palette::Palettes) {
-        fs::create_dir_all(path).unwrap();
+    pub fn save(&self, path: &Path, palettes: &palette::Palettes) -> Result<(), Box<dyn Error>> {
+        fs::create_dir_all(path)?;
         for file_name in self.files() {
-            match self.get_raw(file_name) {
-                Some(data) => {
-                    if let Ok(image) = image::Image::try_from(data) {
-                        if let Err(e) = image.dump(path.join(format!("{}.png", file_name))) {
-                            println!("Error saving image {} : {}", file_name, e);
-                        }
-                    } else if let Ok(sprite) = image::Image::try_from((data, palettes)) {
-                        if let Err(e) = sprite.dump(path.join(format!("{}.png", file_name))) {
-                            println!("Error saving sprite {} : {}", file_name, e)
-                        }
-                    } else if let Ok(raw) = raw::Raw::try_from(data) {
-                        if let Err(e) = raw.dump(path.join(file_name)) {
-                            println!("Error saving raw {} : {}", file_name, e)
-                        }
-                    }
+            let data = self
+                .get_raw(file_name)
+                .ok_or_else(|| format!("Error reading file {}", file_name))?;
+            if let Ok(image) = image::Image::try_from(data) {
+                if let Err(e) = image.save(path.join(format!("{}.png", file_name))) {
+                    println!("Error saving image {} : {}", file_name, e);
                 }
-                None => println!("Error extracting file {}", file_name),
+            } else if let Ok(sprite) = image::Image::try_from((data, palettes)) {
+                if let Err(e) = sprite.save(path.join(format!("{}.png", file_name))) {
+                    println!("Error saving sprite {} : {}", file_name, e)
+                }
+            } else if let Ok(raw) = raw::Raw::try_from(data) {
+                if let Err(e) = raw.dump(path.join(file_name)) {
+                    println!("Error saving raw {} : {}", file_name, e)
+                }
             }
         }
+        Ok(())
     }
 }
 

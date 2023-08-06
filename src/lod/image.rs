@@ -134,7 +134,7 @@ fn process_sprite_data(
 }
 
 impl Image {
-    pub fn dump<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
+    pub fn save<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
     where
         Q: AsRef<Path>,
     {
