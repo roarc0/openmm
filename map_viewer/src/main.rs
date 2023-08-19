@@ -18,7 +18,7 @@ use player::MovementSettings;
 mod debug_area;
 mod odm_mesh;
 mod player;
-mod shader;
+//mod shader;
 
 fn main() {
     App::new()

@@ -220,6 +220,38 @@ fn join_images_vertically(images: &[DynamicImage]) -> DynamicImage {
     DynamicImage::ImageRgba8(combined_image)
 }
 
+fn join_images_in_grid(
+    images: &[DynamicImage],
+    grid_width: usize,
+    image_width: u32,
+    image_height: u32,
+) -> DynamicImage {
+    let num_images = images.len();
+    if num_images == 0 {
+        panic!("No images provided.");
+    }
+
+    let images_per_column = (num_images as f64 / grid_width as f64) as usize;
+    let combined_width = image_width * grid_width as u32;
+    let combined_height = image_height * images_per_column as u32;
+
+    let mut combined_image = ImageBuffer::new(combined_width, combined_height);
+
+    for (i, image) in images.iter().enumerate() {
+        let x_offset = (i % grid_width) as u32 * image_width;
+        let y_offset = (i / grid_width) as u32 * image_height;
+
+        for y in 0..image_height {
+            for x in 0..image_width {
+                let pixel = image.get_pixel(x, y);
+                combined_image.put_pixel(x + x_offset, y + y_offset, pixel);
+            }
+        }
+    }
+
+    DynamicImage::ImageRgba8(combined_image)
+}
+
 pub fn get_atlas(lod: &Lod, names: &[&str]) -> Result<DynamicImage, Box<dyn Error>> {
     let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
     for n in names {
@@ -239,7 +271,7 @@ pub fn get_atlas(lod: &Lod, names: &[&str]) -> Result<DynamicImage, Box<dyn Erro
             images.push(DynamicImage::ImageRgba8(image_buffer));
         }
     }
-    Ok(join_images_vertically(&images))
+    Ok(join_images_in_grid(&images, 12, 128, 128))
 }
 
 #[cfg(test)]

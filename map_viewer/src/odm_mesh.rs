@@ -108,16 +108,36 @@ pub fn odm_to_mesh(
 }
 
 fn calculate_uv_coordinate(col: usize, row: usize, tile_table: &DtileTable, idx: u8) -> (f32, f32) {
-    let atlas_index = tile_table.atlas_index(idx) as f32;
+    let (atlas_y, atlas_x) = tile_table.atlas_index(idx);
+    let (atlas_x, atlas_y) = (atlas_x as f32, atlas_y as f32);
+
     let atlas_count = tile_table.names().len() as f32;
-    let block_start = atlas_index / atlas_count;
-    let block_end = block_start + 1.0 / atlas_count;
+    let atlas_width_x = 1.0 / 12.0;
+    let atlas_width_y = 1.0 / 10.0;
+
+    let block_a_start = (atlas_x - 1.0) * atlas_width_x;
+    let block_a_end = block_a_start + atlas_width_x;
+    let block_b_start = atlas_y * atlas_width_y;
+    let block_b_end = block_b_start + atlas_width_y;
+
+    if idx == 126 {
+        println!(
+            "cnt{} {} {}, as:{} ae:{}, bs:{} be:{}",
+            atlas_count,
+            atlas_width_x,
+            atlas_width_y,
+            block_a_start,
+            block_a_end,
+            block_b_start,
+            block_b_end
+        );
+    }
 
     match (col % 2 == 0, row % 2 == 0) {
-        (true, true) => (0.0, block_start),
-        (false, true) => (0.0, block_end),
-        (false, false) => (1.0, block_end),
-        (true, false) => (1.0, block_start),
+        (true, true) => (block_a_start, block_b_end),
+        (false, true) => (block_a_end, block_b_start),
+        (false, false) => (block_a_end, block_b_end),
+        (true, false) => (block_a_start, block_b_start),
     }
 }
 

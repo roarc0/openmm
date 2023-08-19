@@ -114,9 +114,9 @@ impl DtileTable {
         self.table[table_index as usize].name.as_str()
     }
 
-    pub fn atlas_index(&self, table_index: u8) -> u8 {
+    pub fn atlas_index(&self, table_index: u8) -> (u8, u8) {
         let names = self.names();
-        names
+        let idx = names
             .iter()
             .enumerate()
             .find_map(|n| {
@@ -126,7 +126,8 @@ impl DtileTable {
                     None
                 }
             })
-            .unwrap_or(names.len()) as u8
+            .unwrap_or(0) as u8;
+        (idx.div_euclid(12), idx.rem_euclid(12))
     }
 
     pub fn names(&self) -> Vec<String> {
@@ -134,6 +135,7 @@ impl DtileTable {
             .table
             .iter()
             .map(|d| d.name.to_owned())
+            .filter(|s| !s.starts_with("drr"))
             .collect::<Vec<String>>();
 
         add_missing_textures(&mut tile_names);
@@ -393,6 +395,8 @@ mod tests {
         print!("{:?}", &tile_table);
         let tile_set = tile_table.names();
         print!("{:?}, ", &tile_set);
+
+        print!("{:?}", &tile_table.atlas_index(0));
 
         let ts: Vec<&str> = tile_set.iter().map(|s| s.as_str()).collect();
         get_atlas(&bitmaps_lod, ts.as_slice())
