@@ -1,0 +1,14 @@
+[package]
+name = "map_viewer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lod = { path = "../lod" }
+bevy = { version = "0.11.1", features = ["dynamic_linking"] }
+bevy_prototype_debug_lines = { version = "0.11.1", features = ["3d"] }
+nalgebra = "0.32.3"
+
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold"]

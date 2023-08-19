@@ -1,19 +1,22 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use image::{ImageBuffer, Rgb};
+use image::{imageops, DynamicImage, GenericImageView, ImageBuffer, Rgba};
 use std::{
     error::Error,
     io::{Cursor, Seek},
     path::Path,
 };
 
+use crate::Lod;
+
 use super::{palette::Palettes, zlib};
 
 #[derive(Debug)]
 pub struct Image {
-    height: usize,
-    width: usize,
-    data: Vec<u8>,
-    palette: [u8; PALETTE_SIZE],
+    pub height: usize,
+    pub width: usize,
+    pub data: Vec<u8>,
+    pub palette: [u8; PALETTE_SIZE],
+    pub transparency: bool,
 }
 
 const PALETTE_SIZE: usize = 256 * 3;
@@ -53,6 +56,7 @@ impl TryFrom<&[u8]> for Image {
             width,
             data: uncompressed_data,
             palette,
+            transparency: false,
         })
     }
 }
@@ -100,6 +104,7 @@ impl TryFrom<(&[u8], &Palettes)> for Image {
             width,
             data: processed_data,
             palette: palette.data,
+            transparency: true,
         })
     }
 }
@@ -134,17 +139,33 @@ fn process_sprite_data(
 }
 
 impl Image {
+    pub fn to_image_buffer(&self) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, Box<dyn Error>> {
+        raw_to_image_buffer(
+            &self.data,
+            &self.palette,
+            |index, pixel: &[u8; 3]| {
+                Rgba([
+                    pixel[0],
+                    pixel[1],
+                    pixel[2],
+                    if self.transparency && index == self.data[0] {
+                        0
+                    } else {
+                        255
+                    },
+                ])
+            },
+            self.width as u32,
+            self.height as u32,
+        )
+    }
+
     pub fn save<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
     where
         Q: AsRef<Path>,
     {
-        raw_to_image_buffer(
-            &self.data,
-            &self.palette,
-            self.width as u32,
-            self.height as u32,
-        )?
-        .save_with_format(path, image::ImageFormat::Png)?;
+        self.to_image_buffer()?
+            .save_with_format(path, image::ImageFormat::Png)?;
         Ok(())
     }
 }
@@ -152,20 +173,94 @@ impl Image {
 /// Converts the image into a versatile generic image buffer.
 /// The image contains more pixels than needed with dimensions (h*w) to account for mipmaps,
 /// but we are currently not utilizing those extra pixels.
-/// It PANICS if the input is not appropriate.
-pub fn raw_to_image_buffer(
+/// # Panics
+/// if the input accesses outside the bounds of the palette.
+fn raw_to_image_buffer<P>(
     data: &[u8],
     palette: &[u8; 768],
+    pixel_converter: impl Fn(u8, &[u8; 3]) -> P,
     width: u32,
     height: u32,
-) -> Result<ImageBuffer<Rgb<u8>, Vec<u8>>, Box<dyn std::error::Error>> {
-    let mut image_buffer = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(width, height);
+) -> Result<ImageBuffer<P, Vec<P::Subpixel>>, Box<dyn std::error::Error>>
+where
+    P: image::Pixel<Subpixel = u8> + 'static,
+{
+    let mut image_buffer = ImageBuffer::<P, Vec<P::Subpixel>>::new(width, height);
 
-    for (i, pixel_index) in data[..(width * height) as usize].iter().enumerate() {
+    for (i, pi) in data[..(width * height) as usize].iter().enumerate() {
         let x = (i as u32).rem_euclid(width);
         let y = (i as u32).div_euclid(width);
-        let idx = 3 * (*pixel_index as usize);
-        image_buffer.put_pixel(x, y, Rgb(palette[idx..idx + 3].try_into()?));
+        let index = 3 * (*pi as usize);
+        let pixel = pixel_converter(*pi, &palette[index..index + 3].try_into()?);
+        image_buffer.put_pixel(x, y, pixel);
     }
     Ok(image_buffer)
+}
+
+fn join_images_vertically(images: &[DynamicImage]) -> DynamicImage {
+    let mut combined_width = 0;
+    let mut combined_height = 0;
+    for image in images {
+        let (width, height) = image.dimensions();
+        combined_width = combined_width.max(width);
+        combined_height += height;
+    }
+
+    let mut combined_image = ImageBuffer::new(combined_width, combined_height);
+    let mut y_offset = 0;
+    for image in images {
+        let (width, height) = image.dimensions();
+        for y in 0..height {
+            for x in 0..width {
+                combined_image.put_pixel(x, y + y_offset, image.get_pixel(x, y));
+            }
+        }
+        y_offset += height;
+    }
+    DynamicImage::ImageRgba8(combined_image)
+}
+
+pub fn get_atlas(lod: &Lod, names: &[&str]) -> Result<DynamicImage, Box<dyn Error>> {
+    let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
+    for n in names {
+        let raw_image = lod
+            .try_get_bytes(n)
+            .ok_or_else(|| format!("file {} should exist", &n));
+        if !raw_image.is_ok() {
+            println!("Atlas image '{n}' not found");
+            continue;
+        }
+        let image_buffer = Image::try_from(raw_image.unwrap())?.to_image_buffer()?;
+        if image_buffer.dimensions() != (128, 128) {
+            let resized_image =
+                imageops::resize(&image_buffer, 128, 128, imageops::FilterType::Triangle);
+            images.push(DynamicImage::ImageRgba8(resized_image));
+        } else {
+            images.push(DynamicImage::ImageRgba8(image_buffer));
+        }
+    }
+    Ok(join_images_vertically(&images))
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::Path;
+
+    use image::GenericImageView;
+
+    use crate::{get_lod_path, Lod};
+
+    use super::get_atlas;
+
+    #[test]
+    fn join_images() {
+        let lod_path = get_lod_path();
+        let lod_path = Path::new(&lod_path);
+
+        let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
+
+        let atlas_image =
+            get_atlas(&bitmaps_lod, &["grastyl", "dirttyl", "wtrtyl", "pending"]).unwrap();
+        assert_eq!(atlas_image.dimensions(), (128, 4 * 128));
+    }
 }

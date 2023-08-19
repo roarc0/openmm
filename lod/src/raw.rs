@@ -17,9 +17,9 @@ impl<'a> TryFrom<&'a [u8]> for Raw<'a> {
     type Error = Box<dyn Error>;
 
     fn try_from(data: &'a [u8]) -> Result<Self, Self::Error> {
-        if let Ok(raw) = decompress_8_bytes_header(data) {
+        if let Ok(raw) = decompress_with_8_bytes_header(data) {
             Ok(raw)
-        } else if let Ok(raw) = decompress_48_bytes_header(data) {
+        } else if let Ok(raw) = decompress_with_48_bytes_header(data) {
             Ok(raw)
         } else {
             Ok(Self {
@@ -30,7 +30,7 @@ impl<'a> TryFrom<&'a [u8]> for Raw<'a> {
     }
 }
 
-fn decompress_48_bytes_header(data: &[u8]) -> Result<Raw, Box<dyn Error>> {
+fn decompress_with_48_bytes_header(data: &[u8]) -> Result<Raw, Box<dyn Error>> {
     let mut cursor = Cursor::new(data);
     cursor.seek(std::io::SeekFrom::Start(20))?;
     let compressed_size = cursor.read_u32::<LittleEndian>()? as usize;
@@ -42,10 +42,9 @@ fn decompress_48_bytes_header(data: &[u8]) -> Result<Raw, Box<dyn Error>> {
     })
 }
 
-fn decompress_8_bytes_header(data: &[u8]) -> Result<Raw, Box<dyn Error>> {
-    let mut cursor = Cursor::new(data);
-    let compressed_size = cursor.read_u32::<LittleEndian>()? as usize;
-    let decompressed_size = cursor.read_u32::<LittleEndian>()? as usize;
+fn decompress_with_8_bytes_header(data: &[u8]) -> Result<Raw, Box<dyn Error>> {
+    let compressed_size = u32::from_le_bytes(data[0..=3].try_into()?) as usize;
+    let decompressed_size = u32::from_le_bytes(data[4..=7].try_into()?) as usize;
     Ok(Raw {
         header: Some(&data[..8]),
         data: super::zlib::decompress(&data[8..], compressed_size, decompressed_size)?.to_vec(),
