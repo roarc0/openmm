@@ -254,19 +254,26 @@ fn join_images_in_grid(
 
 pub fn get_atlas(lod: &Lod, names: &[&str]) -> Result<DynamicImage, Box<dyn Error>> {
     let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
+    println!("len:{}", names.len());
     for n in names {
+        if *n == "pending" {
+            continue;
+        }
         let raw_image = lod
             .try_get_bytes(n)
             .ok_or_else(|| format!("file {} should exist", &n));
-        if !raw_image.is_ok() {
+        if raw_image.is_err() {
             println!("Atlas image '{n}' not found");
             continue;
         }
         let image_buffer = Image::try_from(raw_image.unwrap())?.to_image_buffer()?;
         if image_buffer.dimensions() != (128, 128) {
-            let resized_image =
-                imageops::resize(&image_buffer, 128, 128, imageops::FilterType::Triangle);
-            images.push(DynamicImage::ImageRgba8(resized_image));
+            images.push(DynamicImage::ImageRgba8(imageops::resize(
+                &image_buffer,
+                128,
+                128,
+                imageops::FilterType::Triangle,
+            )));
         } else {
             images.push(DynamicImage::ImageRgba8(image_buffer));
         }

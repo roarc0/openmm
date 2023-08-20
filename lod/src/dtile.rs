@@ -126,16 +126,16 @@ impl DtileTable {
                     None
                 }
             })
-            .unwrap_or(0) as u8;
-        (idx.div_euclid(12), idx.rem_euclid(12))
+            .unwrap_or(self.names().len() - 1) as u8;
+        (idx.rem_euclid(12), idx.div_euclid(12))
     }
 
     pub fn names(&self) -> Vec<String> {
         let mut tile_names = self
             .table
             .iter()
-            .map(|d| d.name.to_owned())
-            .filter(|s| !s.starts_with("drr"))
+            .filter(|d| !d.name.starts_with("drr"))
+            .map(|d| d.name.to_string())
             .collect::<Vec<String>>();
 
         add_missing_textures(&mut tile_names);
@@ -157,7 +157,7 @@ impl DtileTable {
 #[deprecated]
 fn index_to_tile_name_hack(tile_data: &[u16; 8], index: u8) -> String {
     if (1..=0x34).contains(&index) {
-        return "drttyl".into();
+        return "dirttyl".into();
     }
 
     if (0x5a..=0x65).contains(&index) {

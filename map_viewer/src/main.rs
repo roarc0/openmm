@@ -62,20 +62,23 @@ fn setup(
     //load dtile.bin
     let dtile_data = raw::Raw::try_from(icons_lod.try_get_bytes("dtile.bin").unwrap()).unwrap();
     let dtile_table = DtileBin::new(&dtile_data.data).table(map.tile_data);
-    print!("{:?}", &dtile_table);
+    // print!("{:?}", &dtile_table);
     let tile_set = dtile_table.names();
-    print!("{:?}, ", &tile_set);
+    // print!("{:?}, ", &tile_set);
 
+    info!("generating atlas");
     let ts: Vec<&str> = tile_set.iter().map(|s| s.as_str()).collect();
     get_atlas(&bitmaps_lod, ts.as_slice())
         .unwrap()
         .save("map_viewer/assets/terrain_atlas.png")
         .unwrap();
+    info!("generating atlas done");
 
     let image = asset_server.load("terrain_atlas.png");
     let material_handle = materials.add(StandardMaterial {
         base_color_texture: Some(image.clone()),
         unlit: true,
+        cull_mode: None,
         alpha_mode: AlphaMode::Opaque,
         ..default()
     });
