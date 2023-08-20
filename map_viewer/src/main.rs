@@ -8,6 +8,7 @@ use bevy::pbr::CascadeShadowConfigBuilder;
 use bevy::prelude::*;
 use bevy::render::render_resource::{AddressMode, PrimitiveTopology, SamplerDescriptor};
 
+use bevy::render::texture::ImageSampler;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
 use lod::dtile::DtileBin;
 use lod::image::get_atlas;
@@ -30,10 +31,28 @@ fn main() {
         .add_plugins(debug_area::DebugAreaPlugin)
         .insert_resource(MovementSettings {
             sensitivity: 0.0002,  // default: 0.00012
-            speed: 10.0 * 1024.0, // default: 12.0
+            speed: 12.0 * 1024.0, // default: 12.0
         })
+        .add_systems(Startup, set_texture)
         .add_systems(Startup, setup)
+        .add_systems(Startup, set_texture)
         .run();
+}
+
+fn set_texture(asset_server: Res<AssetServer>, mut images: ResMut<Assets<Image>>) {
+    let image = asset_server.load("terrain_atlas.png");
+
+    let mut image = images.get_mut(&image);
+    if let Some(image) = image {
+        match &mut image.sampler_descriptor {
+            ImageSampler::Descriptor(descriptor) => {
+                descriptor.address_mode_u = AddressMode::ClampToBorder;
+                descriptor.address_mode_v = AddressMode::ClampToBorder;
+            }
+
+            _ => (),
+        }
+    }
 }
 
 fn setup(

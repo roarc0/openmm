@@ -76,16 +76,6 @@ pub fn odm_to_mesh(
             indices.push(i + 1);
             indices.push(i + width_u32);
             indices.push(i + width_u32 + 1);
-
-            // // First triangle (clockwise order)
-            // indices.push(i);
-            // indices.push(i + 1);
-            // indices.push(i + width_u32);
-
-            // // Second triangle (clockwise order)
-            // indices.push(i + 1);
-            // indices.push(i + width_u32 + 1);
-            // indices.push(i + width_u32);
         }
     }
 
@@ -93,7 +83,7 @@ pub fn odm_to_mesh(
     use std::fs::write;
     let _ = write(format!("positions.txt"), format!("{:?}", &positions));
     let _ = write(format!("normals.txt"), format!("{:?}", &normals));
-    let _ = write(format!("uvs.txt"), format!("{:?}", &uvs));
+    let _ = write(format!("uvs.txt"), print_chunks(uvs.as_slice()));
     let dtile_set = dtile_table.names();
     let _ = write(
         format!("dtile.txt"),
@@ -120,8 +110,7 @@ pub fn odm_to_mesh(
 fn calculate_uv_coordinate(col: usize, row: usize, tile_table: &DtileTable, idx: u8) -> (f32, f32) {
     let (atlas_x, atlas_y) = tile_table.atlas_index(idx);
     let (atlas_x, atlas_y) = (atlas_x as f32, atlas_y as f32);
-
-    let atlas_count = tile_table.names().len() as f32;
+    //let atlas_count = tile_table.names().len() as f32;
     let atlas_width = 1.0 / 12.0;
     let atlas_height = 1.0 / 10.0;
 
@@ -131,10 +120,10 @@ fn calculate_uv_coordinate(col: usize, row: usize, tile_table: &DtileTable, idx:
     let block_h_end = block_h_start + atlas_height;
 
     match (col % 2 == 0, row % 2 == 0) {
-        (false, false) => (block_w_start, block_h_start),
-        (false, true) => (block_w_end, block_h_end),
-        (true, false) => (block_w_end, block_h_start),
         (true, true) => (block_w_start, block_h_end),
+        (false, true) => (block_w_end, block_h_end),
+        (true, false) => (block_w_start, block_h_start),
+        (false, false) => (block_w_end, block_h_start),
     }
 }
 
@@ -155,6 +144,17 @@ fn print_table(table: &DtileTable, data: [u8; 16384]) -> String {
         output.push_str(&format!("{:03} -> {}\n", i, table.name(i)));
     }
 
+    output
+}
+
+fn print_chunks(data: &[[f32; 2]]) -> String {
+    let mut output = String::new();
+    for chunk in data.chunks(4) {
+        for &element in chunk {
+            output.push_str(&format!("{:?} ", element));
+        }
+        output.push('\n');
+    }
     output
 }
 
