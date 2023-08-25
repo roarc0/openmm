@@ -1,20 +1,14 @@
+use crate::{image::get_atlas, read_string, Lod};
+use byteorder::{LittleEndian, ReadBytesExt};
+use image::DynamicImage;
 use std::{
     error::Error,
     io::{Cursor, Seek},
 };
 
-use byteorder::{LittleEndian, ReadBytesExt};
-
-use crate::read_string;
-
 #[derive(Debug)]
 pub struct DtileBin {
     data: Vec<u8>,
-}
-
-#[derive(Debug)]
-pub struct DtileTable {
-    table: [DtileData; 256],
 }
 
 #[derive(Debug, Clone, Default)]
@@ -55,33 +49,27 @@ impl DtileBin {
         Ok(DtileData { name, a, b, c })
     }
 
-    pub fn table(&self, tile_data: [u16; 8]) -> DtileTable {
-        let mut table: Vec<DtileData> = Vec::with_capacity(256);
-        println!("{:?}", tile_data);
-        for i in 0..256 {
+    pub fn table(&self, tile_data: [u16; 8]) -> TileTable {
+        let mut names_table: Vec<String> = Vec::with_capacity(256);
+        for i in 0..=255 {
             // This is an hardcoded decoding of the index since I can't yet make full sense of the dtile.bin
             let name = index_to_tile_name_hack(&tile_data, i as u8);
             if name != "pending" {
-                println!("idx:{}, name:{} (hack)", i, name);
-                table.push(DtileData {
-                    name,
-                    a: 0,
-                    b: 0,
-                    c: 0,
-                });
+                //println!("idx:{}, name:{} (hack)", i, name);
+                names_table.push(name);
                 continue;
             }
 
             let index = if i >= 198 {
                 // roads
-                i - 198 + tile_data[7]
+                i as u16 - 198 + tile_data[7]
             } else if i < 90 {
-                i //+ tile_data[1]
-                  // } else if (126..198).contains(&i) {
-                  //     i - 126 + tile_data[5]
+                i as u16 //+ tile_data[1]
+                         // } else if (126..198).contains(&i) {
+                         //     i - 126 + tile_data[5]
             } else {
                 // borders
-                let n = 2 * (i - 90) / 36;
+                let n = 2 * (i as u16 - 90) / 36;
                 tile_data[n as usize]
             };
 
@@ -97,50 +85,85 @@ impl DtileBin {
                     }
                 }
             }
+            //println!("idx:{}, name:{} (dtile)", i, dtile.name);
+            names_table.push(dtile.name);
+        }
 
-            println!("idx:{}, name:{} (dtile)", i, dtile.name);
-            table.push(dtile);
-        }
-        DtileTable {
-            table: table.try_into().unwrap(),
-        }
+        TileTable::new(names_table.try_into().unwrap())
     }
 }
 
-impl DtileTable {
+#[derive(Debug)]
+pub struct TileTable {
+    size: (u8, u8),
+    names_table: [String; 256],
+    names_set: Vec<String>,
+    coordinates_table: [(u8, u8); 256],
+}
+
+impl TileTable {
+    pub fn new(names_table: [String; 256]) -> Self {
+        let names_set = Self::names_set(&names_table);
+        let mut t = TileTable {
+            size: Self::matrix_dimensions(names_set.len() as u8, 10),
+            names_set,
+            names_table,
+            coordinates_table: [(0, 0); 256],
+        };
+        t.generate_coordinates_table();
+        t
+    }
+
+    fn matrix_dimensions(total_elements: u8, row_size: u8) -> (u8, u8) {
+        let num_rows = (total_elements as f32 / row_size as f32).ceil();
+        let num_cols = if total_elements < row_size {
+            total_elements
+        } else {
+            row_size
+        };
+        (num_cols as u8, num_rows as u8)
+    }
+
+    pub fn size(&self) -> (u8, u8) {
+        self.size
+    }
+
+    fn index_to_coordinate(&self, i: u8) -> (u8, u8) {
+        (i.rem_euclid(self.size.0), i.div_euclid(self.size.0))
+    }
+
     pub fn name(&self, tile_index: u8) -> &str {
-        self.table[tile_index as usize].name.as_str()
+        self.names_table[tile_index as usize].as_str()
     }
 
-    pub fn atlas_coordinates(&self, tile_index: u8) -> (u8, u8) {
-        let tile_name = self.name(tile_index);
-        let idx = self
-            .names()
-            .iter()
-            .enumerate()
-            .find_map(|n| {
-                if *n.1 == tile_name {
-                    println!("found {} at {}", tile_name, n.0);
-                    Some(n.0)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(self.names().len() - 1) as u8;
-        (idx.rem_euclid(12), idx.div_euclid(12))
+    pub fn coordinate(&self, tile_index: u8) -> (u8, u8) {
+        self.coordinates_table[tile_index as usize]
     }
 
-    pub fn names(&self) -> Vec<String> {
-        let mut tile_names = self
-            .table
+    fn generate_coordinates_table(&mut self) {
+        let set: Vec<(usize, &String)> = self.names_set.iter().enumerate().collect();
+        for i in 0..=255 {
+            self.coordinates_table[i] = self.index_to_coordinate(
+                set.iter()
+                    .find_map(|v| {
+                        if *v.1 == self.names_table[i] {
+                            Some(v.0)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(set.len() - 1) as u8,
+            );
+        }
+    }
+
+    fn names_set(name_table: &[String; 256]) -> Vec<String> {
+        let mut set: Vec<String> = name_table
             .iter()
-            .filter(|d| !d.name.starts_with("drr"))
-            .map(|d| d.name.to_string())
-            .collect::<Vec<String>>();
-
-        add_missing_textures(&mut tile_names);
-
-        tile_names.sort_by(|a, b| {
+            .cloned()
+            .filter(|d| !d.starts_with("drr"))
+            .collect();
+        set.sort_by(|a, b| {
             if a == &"pending" {
                 std::cmp::Ordering::Greater
             } else if b == &"pending" {
@@ -149,15 +172,19 @@ impl DtileTable {
                 a.cmp(b)
             }
         });
-        tile_names.dedup();
-        tile_names
+        set.dedup();
+        set
+    }
+
+    pub fn atlas_image(&self, lod: Lod) -> DynamicImage {
+        let ts: Vec<&str> = self.names_set.iter().map(|s| s.as_str()).collect();
+        get_atlas(&lod, ts.as_slice(), self.size.0 as usize).unwrap()
     }
 }
 
 #[deprecated]
 fn index_to_tile_name_hack(tile_data: &[u16; 8], index: u8) -> String {
-    if (1..=89).contains(&index) {
-        // 0x34
+    if (1..=0x34).contains(&index) {
         return "dirttyl".into();
     }
 
@@ -248,115 +275,111 @@ fn get_tile_type(index: u8, code: u8) -> Option<&'static str> {
     }
 }
 
-#[deprecated]
-fn add_missing_textures(imglist: &mut Vec<String>) {
-    let textures = [
-        "dirttyl",
-        "wtrtyl",
-        "wtrdre",
-        "wtrdrn",
-        "wtrdrs",
-        "wtrdrw",
-        "wtrdrnw",
-        "wtrdrne",
-        "wtrdrsw",
-        "wtrdrse",
-        "wtrdrxne",
-        "wtrdrxnw",
-        "wtrdrxse",
-        "wtrdrxsw",
-        "voltyl",
-        "voldrte",
-        "voldrtn",
-        "voldrts",
-        "voldrtw",
-        "voldrtnw",
-        "voldrtne",
-        "voldrtsw",
-        "voldrtse",
-        "voldrtxne",
-        "voldrtxnw",
-        "voldrtxse",
-        "voldrtxsw",
-        "troptyl",
-        "trope",
-        "tropn",
-        "trops",
-        "tropw",
-        "tropnw",
-        "tropne",
-        "tropsw",
-        "tropse",
-        "tropxne",
-        "tropxnw",
-        "tropxse",
-        "tropxsw",
-        "snotyl",
-        "snodre",
-        "snodrn",
-        "snodrs",
-        "snodrw",
-        "snodrnw",
-        "snodrne",
-        "snodrsw",
-        "snodrse",
-        "snodrxne",
-        "snodrxnw",
-        "snodrxse",
-        "snodrxsw",
-        "sandtyl",
-        "sndrte",
-        "sndrtn",
-        "sndrts",
-        "sndrtw",
-        "sndrtnw",
-        "sndrtne",
-        "sndrtsw",
-        "sndrtse",
-        "sndrtxne",
-        "sndrtxnw",
-        "sndrtxse",
-        "sndrtxsw",
-        "swmtyl",
-        "swmdre",
-        "swmdrn",
-        "swmdrs",
-        "swmdrw",
-        "swmdrnw",
-        "swmdrne",
-        "swmdrsw",
-        "swmdrse",
-        "swmdrxne",
-        "swmdrxnw",
-        "swmdrxse",
-        "swmdrxsw",
-        "crktyl",
-        "crkdrte",
-        "crkdrtn",
-        "crkdrts",
-        "crkdrtw",
-        "crkdrtnw",
-        "crkdrtne",
-        "crkdrtsw",
-        "crkdrtse",
-        "crkdrtxne",
-        "crkdrtxnw",
-        "crkdrtxse",
-        "crkdrtxsw",
-    ];
+// #[deprecated]
+// fn add_missing_textures(imglist: &mut Vec<String>) {
+//     let textures = [
+//         "wtrtyl",
+//         "wtrdre",
+//         "wtrdrn",
+//         "wtrdrs",
+//         "wtrdrw",
+//         "wtrdrnw",
+//         "wtrdrne",
+//         "wtrdrsw",
+//         "wtrdrse",
+//         "wtrdrxne",
+//         "wtrdrxnw",
+//         "wtrdrxse",
+//         "wtrdrxsw",
+//         "voltyl",
+//         "voldrte",
+//         "voldrtn",
+//         "voldrts",
+//         "voldrtw",
+//         "voldrtnw",
+//         "voldrtne",
+//         "voldrtsw",
+//         "voldrtse",
+//         "voldrtxne",
+//         "voldrtxnw",
+//         "voldrtxse",
+//         "voldrtxsw",
+//         "troptyl",
+//         "trope",
+//         "tropn",
+//         "trops",
+//         "tropw",
+//         "tropnw",
+//         "tropne",
+//         "tropsw",
+//         "tropse",
+//         "tropxne",
+//         "tropxnw",
+//         "tropxse",
+//         "tropxsw",
+//         "snotyl",
+//         "snodre",
+//         "snodrn",
+//         "snodrs",
+//         "snodrw",
+//         "snodrnw",
+//         "snodrne",
+//         "snodrsw",
+//         "snodrse",
+//         "snodrxne",
+//         "snodrxnw",
+//         "snodrxse",
+//         "snodrxsw",
+//         "sandtyl",
+//         "sndrte",
+//         "sndrtn",
+//         "sndrts",
+//         "sndrtw",
+//         "sndrtnw",
+//         "sndrtne",
+//         "sndrtsw",
+//         "sndrtse",
+//         "sndrtxne",
+//         "sndrtxnw",
+//         "sndrtxse",
+//         "sndrtxsw",
+//         "swmtyl",
+//         "swmdre",
+//         "swmdrn",
+//         "swmdrs",
+//         "swmdrw",
+//         "swmdrnw",
+//         "swmdrne",
+//         "swmdrsw",
+//         "swmdrse",
+//         "swmdrxne",
+//         "swmdrxnw",
+//         "swmdrxse",
+//         "swmdrxsw",
+//         "crktyl",
+//         "crkdrte",
+//         "crkdrtn",
+//         "crkdrts",
+//         "crkdrtw",
+//         "crkdrtnw",
+//         "crkdrtne",
+//         "crkdrtsw",
+//         "crkdrtse",
+//         "crkdrtxne",
+//         "crkdrtxnw",
+//         "crkdrtxse",
+//         "crkdrtxsw",
+//     ];
 
-    for x in textures {
-        imglist.push(x.to_string());
-    }
-}
+//     for x in textures {
+//         imglist.push(x.to_string());
+//     }
+// }
 
 mod tests {
-
-    use std::path::Path;
-
-    use crate::{dtile::DtileData, get_lod_path, image::get_atlas, odm::Odm, raw, Lod};
-
     use super::DtileBin;
+    use crate::{dtile::DtileData, get_lod_path, image::get_atlas, odm::Odm, raw, Lod};
+    use std::path::Path;
 
     #[test]
     fn read_dtile_data_works() {
@@ -379,31 +402,29 @@ mod tests {
         let lod_path = Path::new(&lod_path);
         let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
         let games_lod = Lod::open(lod_path.join("games.lod")).unwrap();
-
-        let map_name = "oute3";
-        let map = raw::Raw::try_from(
-            games_lod
-                .try_get_bytes(&format!("{}.odm", map_name))
-                .unwrap(),
-        )
-        .unwrap();
-        let map = Odm::try_from(map.data.as_slice()).unwrap();
-
         let icons_lod = Lod::open(lod_path.join("icons.lod")).unwrap();
+
+        let map = raw::Raw::try_from(games_lod.try_get_bytes("oute3.odm").unwrap()).unwrap();
+        let map = Odm::try_from(map.data.as_slice()).unwrap();
         let dtile = raw::Raw::try_from(icons_lod.try_get_bytes("dtile.bin").unwrap()).unwrap();
         let dtile = DtileBin::new(dtile.data.as_slice());
 
         let tile_table = dtile.table(map.tile_data);
-        print!("{:?}", &tile_table);
-        let tile_set = tile_table.names();
-        print!("{:?}, ", &tile_set);
-
-        print!("{:?}", &tile_table.atlas_coordinates(0));
-
-        let ts: Vec<&str> = tile_set.iter().map(|s| s.as_str()).collect();
-        get_atlas(&bitmaps_lod, ts.as_slice())
-            .unwrap()
+        tile_table
+            .atlas_image(bitmaps_lod)
             .save("map_viewer/assets/terrain_atlas.png")
             .unwrap();
+        println!("{:?}", tile_table.size());
+        println!(
+            "{:?} -> {:?}",
+            tile_table.name(22),
+            tile_table.coordinate(22)
+        );
+        println!(
+            "{:?} -> {:?}",
+            tile_table.name(90),
+            tile_table.coordinate(90)
+        );
+        println!("");
     }
 }

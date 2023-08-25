@@ -231,9 +231,8 @@ fn join_images_in_grid(
         panic!("No images provided.");
     }
 
-    let images_per_column = (num_images as f64 / grid_width as f64) as usize;
     let combined_width = image_width * grid_width as u32;
-    let combined_height = image_height * images_per_column as u32;
+    let combined_height = image_height * ((num_images as f32 / grid_width as f32).ceil() as u32);
 
     let mut combined_image = ImageBuffer::new(combined_width, combined_height);
 
@@ -251,21 +250,17 @@ fn join_images_in_grid(
     DynamicImage::ImageRgba8(combined_image)
 }
 
-pub fn get_atlas(lod: &Lod, names: &[&str]) -> Result<DynamicImage, Box<dyn Error>> {
+pub fn get_atlas(
+    lod: &Lod,
+    names: &[&str],
+    row_size: usize,
+) -> Result<DynamicImage, Box<dyn Error>> {
     let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
-    println!("len:{}", names.len());
     for n in names {
-        if *n == "pending" {
-            continue;
-        }
         let raw_image = lod
             .try_get_bytes(n)
-            .ok_or_else(|| format!("file {} should exist", &n));
-        if raw_image.is_err() {
-            println!("Atlas image '{n}' not found");
-            continue;
-        }
-        let image_buffer = Image::try_from(raw_image.unwrap())?.to_image_buffer()?;
+            .ok_or_else(|| format!("file {} should exist", &n))?;
+        let image_buffer = Image::try_from(raw_image)?.to_image_buffer()?;
         if image_buffer.dimensions() != (128, 128) {
             images.push(DynamicImage::ImageRgba8(imageops::resize(
                 &image_buffer,
@@ -278,7 +273,7 @@ pub fn get_atlas(lod: &Lod, names: &[&str]) -> Result<DynamicImage, Box<dyn Erro
             images.push(DynamicImage::ImageRgba8(image_buffer));
         }
     }
-    Ok(join_images_in_grid(&images, 12, 128, 128))
+    Ok(join_images_in_grid(&images, row_size, 128, 128))
 }
 
 #[cfg(test)]
@@ -298,8 +293,12 @@ mod test {
 
         let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
 
-        let atlas_image =
-            get_atlas(&bitmaps_lod, &["grastyl", "dirttyl", "wtrtyl", "pending"]).unwrap();
-        assert_eq!(atlas_image.dimensions(), (128, 4 * 128));
+        let atlas_image = get_atlas(
+            &bitmaps_lod,
+            &["grastyl", "dirttyl", "voltyl", "wtrtyl", "pending"],
+            2,
+        )
+        .unwrap();
+        assert_eq!(atlas_image.dimensions(), (128 * 2, 128 * 3));
     }
 }

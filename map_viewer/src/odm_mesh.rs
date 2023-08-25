@@ -1,9 +1,8 @@
 use bevy::{prelude::*, render::render_resource::PrimitiveTopology};
 use lod::{
-    dtile::DtileTable,
+    dtile::TileTable,
     odm::{Odm, ODM_MAP_HEIGHT_SIZE, ODM_MAP_SIZE, ODM_MAP_TILE_SIZE},
 };
-use nalgebra::Vector3;
 
 const HEIGHT_SCALE: f32 = ODM_MAP_HEIGHT_SIZE as f32;
 const TILE_SCALE: f32 = ODM_MAP_TILE_SIZE as f32;
@@ -12,7 +11,7 @@ const TILE_SCALE: f32 = ODM_MAP_TILE_SIZE as f32;
 pub fn odm_to_mesh(
     odm: &Odm,
     primitive_topology: PrimitiveTopology,
-    dtile_table: &DtileTable,
+    tile_table: &TileTable,
 ) -> Mesh {
     let width: usize = ODM_MAP_SIZE;
     let depth: usize = ODM_MAP_SIZE;
@@ -32,7 +31,7 @@ pub fn odm_to_mesh(
                 (d as f32 - depth_f32 / 2.) * TILE_SCALE,
             ];
             positions.push(pos);
-            uvs.push(calculate_uv_coordinate(w, d, dtile_table, odm.tile_map[i]).into());
+            uvs.push(calculate_uv_coordinate(w, d, tile_table, odm.tile_map[i]).into());
         }
     }
 
@@ -56,17 +55,10 @@ pub fn odm_to_mesh(
     /// debug
     use std::fs::write;
     let _ = write(format!("positions.txt"), format!("{:?}", &positions));
-    //let _ = write(format!("normals.txt"), format!("{:?}", &normals));
     let _ = write(format!("uvs.txt"), print_chunks(uvs.as_slice()));
-    let dtile_set = dtile_table.names();
     let _ = write(
         format!("dtile.txt"),
-        format!(
-            "set_count:{}\nset:{:?}\n\n{}",
-            dtile_set.len(),
-            dtile_set,
-            print_table(dtile_table, odm.tile_map)
-        ),
+        format!("{}", print_table(tile_table, odm.tile_map)),
     );
     let _ = write(format!("tile_map.txt"), print_square_map(odm.tile_map));
 
@@ -80,23 +72,21 @@ pub fn odm_to_mesh(
         mesh.duplicate_vertices();
         mesh.compute_flat_normals();
         mesh.compute_aabb();
-        mesh.generate_tangents();
     }
 
     mesh
 }
 
-fn calculate_uv_coordinate(col: usize, row: usize, tile_table: &DtileTable, idx: u8) -> (f32, f32) {
-    let (atlas_x, atlas_y) = tile_table.atlas_coordinates(idx);
+fn calculate_uv_coordinate(col: usize, row: usize, tile_table: &TileTable, idx: u8) -> (f32, f32) {
+    let (atlas_x, atlas_y) = tile_table.coordinate(idx);
     let (atlas_x, atlas_y) = (atlas_x as f32, atlas_y as f32);
-    //let atlas_count = tile_table.names().len() as f32;
-    let atlas_width = 1.0 / 12.0;
-    let atlas_height = 1.0 / 10.0;
+    let (atlas_size_x, atlas_size_y) = tile_table.size();
+    let (atlas_size_x, atlas_size_y) = (atlas_size_x as f32, atlas_size_y as f32);
 
-    let block_w_start = atlas_x * atlas_width;
-    let block_w_end = block_w_start + atlas_width;
-    let block_h_start = atlas_y * atlas_height;
-    let block_h_end = block_h_start + atlas_height;
+    let block_w_start = atlas_x / atlas_size_x;
+    let block_w_end = (atlas_x + 1.0) / atlas_size_x;
+    let block_h_start = atlas_y / atlas_size_y;
+    let block_h_end = (atlas_y + 1.0) / atlas_size_y;
 
     let even_col = col % 2 == 0;
     let even_row = row % 2 == 0;
@@ -108,12 +98,17 @@ fn calculate_uv_coordinate(col: usize, row: usize, tile_table: &DtileTable, idx:
     }
 }
 
-fn print_table(table: &DtileTable, data: [u8; 16384]) -> String {
+fn print_table(table: &TileTable, data: [u8; 16384]) -> String {
     let mut output = String::new();
     output.push_str(&format!("indexes in the table: \n"));
 
     for i in 0..=255 {
-        output.push_str(&format!("{:03} -> {}\n", i, table.name(i)));
+        output.push_str(&format!(
+            "{:03} | {:?} -> {}\n",
+            i,
+            table.coordinate(i),
+            table.name(i)
+        ));
     }
 
     output.push_str(&format!("\nindexes that the map uses: \n"));

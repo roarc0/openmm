@@ -46,8 +46,8 @@ fn set_texture(asset_server: Res<AssetServer>, mut images: ResMut<Assets<Image>>
     if let Some(image) = image {
         match &mut image.sampler_descriptor {
             ImageSampler::Descriptor(descriptor) => {
-                descriptor.address_mode_u = AddressMode::ClampToBorder;
-                descriptor.address_mode_v = AddressMode::ClampToBorder;
+                descriptor.address_mode_u = AddressMode::ClampToEdge;
+                descriptor.address_mode_v = AddressMode::ClampToEdge;
             }
 
             _ => (),
@@ -80,18 +80,11 @@ fn setup(
 
     //load dtile.bin
     let dtile_data = raw::Raw::try_from(icons_lod.try_get_bytes("dtile.bin").unwrap()).unwrap();
-    let dtile_table = DtileBin::new(&dtile_data.data).table(map.tile_data);
-    // print!("{:?}", &dtile_table);
-    let tile_set = dtile_table.names();
-    // print!("{:?}, ", &tile_set);
-
-    info!("generating atlas");
-    let ts: Vec<&str> = tile_set.iter().map(|s| s.as_str()).collect();
-    get_atlas(&bitmaps_lod, ts.as_slice())
-        .unwrap()
+    let tile_table = DtileBin::new(&dtile_data.data).table(map.tile_data);
+    tile_table
+        .atlas_image(bitmaps_lod)
         .save("map_viewer/assets/terrain_atlas.png")
         .unwrap();
-    info!("generating atlas done");
 
     let image = asset_server.load("terrain_atlas.png");
     let material_handle = materials.add(StandardMaterial {
@@ -105,14 +98,14 @@ fn setup(
         ..default()
     });
 
-    let mesh = odm_mesh::odm_to_mesh(&map, PrimitiveTopology::TriangleList, &dtile_table);
+    let mesh = odm_mesh::odm_to_mesh(&map, PrimitiveTopology::TriangleList, &tile_table);
     commands.spawn(PbrBundle {
         mesh: meshes.add(mesh),
         material: material_handle.clone(),
         ..default()
     });
 
-    let mesh = odm_mesh::odm_to_mesh(&map, PrimitiveTopology::LineList, &dtile_table);
+    let mesh = odm_mesh::odm_to_mesh(&map, PrimitiveTopology::LineList, &tile_table);
     commands.spawn(PbrBundle {
         mesh: meshes.add(mesh),
         material: material_handle,
