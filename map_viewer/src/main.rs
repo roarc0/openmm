@@ -1,4 +1,4 @@
-#![feature(exclusive_range_pattern)]
+//#![feature(exclusive_range_pattern)]
 
 use std::f32::consts::PI;
 use std::path::Path;
@@ -96,9 +96,12 @@ fn setup(
     let image = asset_server.load("terrain_atlas.png");
     let material_handle = materials.add(StandardMaterial {
         base_color_texture: Some(image.clone()),
-        unlit: true,
+        unlit: false,
         cull_mode: None,
         alpha_mode: AlphaMode::Opaque,
+        fog_enabled: false,
+        perceptual_roughness: 1.0,
+        reflectance: 0.1,
         ..default()
     });
 
@@ -117,38 +120,38 @@ fn setup(
     });
 
     commands.insert_resource(AmbientLight {
-        brightness: 1.,
-        ..default()
-    });
-
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        transform: Transform {
-            translation: Vec3::new(0.0, 2000.0, 0.0),
-            rotation: Quat::from_rotation_x(-PI / 4.),
-            ..default()
-        },
-        cascade_shadow_config: CascadeShadowConfigBuilder {
-            first_cascade_far_bound: 4.0,
-            maximum_distance: 1000.0,
-            ..default()
-        }
-        .into(),
+        brightness: 0.4,
         ..default()
     });
 
     // commands.spawn(DirectionalLightBundle {
     //     directional_light: DirectionalLight {
     //         shadows_enabled: true,
-    //         illuminance: 10000.,
     //         ..default()
     //     },
-    //     transform: Transform::from_xyz(-18.0, 12.0, 6.0),
+    //     transform: Transform {
+    //         translation: Vec3::new(0.0, 6000.0, 0.0),
+    //         rotation: Quat::from_rotation_x(-PI / 4.),
+    //         ..default()
+    //     },
+    //     cascade_shadow_config: CascadeShadowConfigBuilder {
+    //         first_cascade_far_bound: 4.0,
+    //         maximum_distance: 1000.0,
+    //         ..default()
+    //     }
+    //     .into(),
     //     ..default()
     // });
+
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            shadows_enabled: true,
+            illuminance: 10000.,
+            ..default()
+        },
+        transform: Transform::from_xyz(0.0, 1000.0, 0.0),
+        ..default()
+    });
 
     info!("Running...");
 }

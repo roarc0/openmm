@@ -36,32 +36,6 @@ pub fn odm_to_mesh(
         }
     }
 
-    let mut normals: Vec<[f32; 3]> = Vec::with_capacity(vertices_count);
-    // Calculate normals
-    for d in 0..depth {
-        for w in 0..width {
-            let i = d * width + w;
-            let mut normal = Vector3::new(0.0, 0.0, 0.0);
-            if w > 0 && d > 0 {
-                let prev_row = d * width + (w - 1);
-                let prev_col = (d - 1) * width + w;
-                let edge1 = Vector3::new(
-                    positions[i][0] - positions[prev_row][0],
-                    positions[i][1] - positions[prev_row][1],
-                    positions[i][2] - positions[prev_row][2],
-                );
-                let edge2 = Vector3::new(
-                    positions[i][0] - positions[prev_col][0],
-                    positions[i][1] - positions[prev_col][1],
-                    positions[i][2] - positions[prev_col][2],
-                );
-                normal = edge1.cross(&edge2);
-            }
-            normal = normal.normalize();
-            normals.push([normal.x, normal.y, normal.z]);
-        }
-    }
-
     // Defining triangles indices.
     let indices_count: usize = (width - 1) * (depth - 1) * 6;
     let mut indices: Vec<u32> = Vec::with_capacity(indices_count);
@@ -82,7 +56,7 @@ pub fn odm_to_mesh(
     /// debug
     use std::fs::write;
     let _ = write(format!("positions.txt"), format!("{:?}", &positions));
-    let _ = write(format!("normals.txt"), format!("{:?}", &normals));
+    //let _ = write(format!("normals.txt"), format!("{:?}", &normals));
     let _ = write(format!("uvs.txt"), print_chunks(uvs.as_slice()));
     let dtile_set = dtile_table.names();
     let _ = write(
@@ -99,16 +73,21 @@ pub fn odm_to_mesh(
     let mut mesh = Mesh::new(primitive_topology);
     mesh.set_indices(Some(bevy::render::mesh::Indices::U32(indices)));
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-    if primitive_topology != PrimitiveTopology::LineList {
+
+    if primitive_topology == PrimitiveTopology::TriangleList {
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+
+        mesh.duplicate_vertices();
+        mesh.compute_flat_normals();
+        mesh.compute_aabb();
+        mesh.generate_tangents();
     }
 
     mesh
 }
 
 fn calculate_uv_coordinate(col: usize, row: usize, tile_table: &DtileTable, idx: u8) -> (f32, f32) {
-    let (atlas_x, atlas_y) = tile_table.atlas_index(idx);
+    let (atlas_x, atlas_y) = tile_table.atlas_coordinates(idx);
     let (atlas_x, atlas_y) = (atlas_x as f32, atlas_y as f32);
     //let atlas_count = tile_table.names().len() as f32;
     let atlas_width = 1.0 / 12.0;
@@ -119,11 +98,13 @@ fn calculate_uv_coordinate(col: usize, row: usize, tile_table: &DtileTable, idx:
     let block_h_start = atlas_y * atlas_height;
     let block_h_end = block_h_start + atlas_height;
 
-    match (col % 2 == 0, row % 2 == 0) {
-        (true, true) => (block_w_start, block_h_end),
-        (false, true) => (block_w_end, block_h_end),
-        (true, false) => (block_w_start, block_h_start),
-        (false, false) => (block_w_end, block_h_start),
+    let even_col = col % 2 == 0;
+    let even_row = row % 2 == 0;
+    match (even_col, even_row) {
+        (true, true) => (block_w_start, block_h_start),
+        (false, true) => (block_w_end, block_h_start),
+        (true, false) => (block_w_start, block_h_end),
+        (false, false) => (block_w_end, block_h_end),
     }
 }
 

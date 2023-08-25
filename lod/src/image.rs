@@ -274,7 +274,7 @@ pub fn get_atlas(lod: &Lod, names: &[&str]) -> Result<DynamicImage, Box<dyn Erro
                 imageops::FilterType::Triangle,
             )));
         } else {
-            let image_buffer = imageops::flip_vertical(&image_buffer);
+            //let image_buffer = //imageops::flip_vertical(&image_buffer);
             images.push(DynamicImage::ImageRgba8(image_buffer));
         }
     }

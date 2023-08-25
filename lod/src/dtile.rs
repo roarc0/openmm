@@ -72,7 +72,6 @@ impl DtileBin {
                 continue;
             }
 
-            // Actual
             let index = if i >= 198 {
                 // roads
                 i - 198 + tile_data[7]
@@ -100,7 +99,6 @@ impl DtileBin {
             }
 
             println!("idx:{}, name:{} (dtile)", i, dtile.name);
-
             table.push(dtile);
         }
         DtileTable {
@@ -110,17 +108,19 @@ impl DtileBin {
 }
 
 impl DtileTable {
-    pub fn name(&self, table_index: u8) -> &str {
-        self.table[table_index as usize].name.as_str()
+    pub fn name(&self, tile_index: u8) -> &str {
+        self.table[tile_index as usize].name.as_str()
     }
 
-    pub fn atlas_index(&self, table_index: u8) -> (u8, u8) {
-        let names = self.names();
-        let idx = names
+    pub fn atlas_coordinates(&self, tile_index: u8) -> (u8, u8) {
+        let tile_name = self.name(tile_index);
+        let idx = self
+            .names()
             .iter()
             .enumerate()
             .find_map(|n| {
-                if *n.1 == *self.name(table_index) {
+                if *n.1 == tile_name {
+                    println!("found {} at {}", tile_name, n.0);
                     Some(n.0)
                 } else {
                     None
@@ -156,7 +156,8 @@ impl DtileTable {
 
 #[deprecated]
 fn index_to_tile_name_hack(tile_data: &[u16; 8], index: u8) -> String {
-    if (1..=0x34).contains(&index) {
+    if (1..=89).contains(&index) {
+        // 0x34
         return "dirttyl".into();
     }
 
@@ -250,6 +251,7 @@ fn get_tile_type(index: u8, code: u8) -> Option<&'static str> {
 #[deprecated]
 fn add_missing_textures(imglist: &mut Vec<String>) {
     let textures = [
+        "dirttyl",
         "wtrtyl",
         "wtrdre",
         "wtrdrn",
@@ -367,7 +369,7 @@ mod tests {
         assert_eq!(dtile.count(), 882);
 
         for i in 0..882 {
-            let dtile_data = dtile.read(i).unwrap();
+            let _ = dtile.read(i).unwrap();
         }
     }
 
@@ -396,7 +398,7 @@ mod tests {
         let tile_set = tile_table.names();
         print!("{:?}, ", &tile_set);
 
-        print!("{:?}", &tile_table.atlas_index(0));
+        print!("{:?}", &tile_table.atlas_coordinates(0));
 
         let ts: Vec<&str> = tile_set.iter().map(|s| s.as_str()).collect();
         get_atlas(&bitmaps_lod, ts.as_slice())
