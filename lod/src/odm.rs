@@ -14,9 +14,6 @@ pub const ODM_MAP_AREA: usize = ODM_MAP_SIZE * ODM_MAP_SIZE;
 pub const ODM_MAP_TILE_SIZE: usize = 512;
 pub const ODM_MAP_HEIGHT_SIZE: usize = 32;
 
-const TILE_HDR_SIZE: usize = 4;
-const TILE_IDX_SIZE: usize = 16;
-
 const HEIGHT_MAP_OFFSET: u64 = 176;
 const HEIGHT_MAP_SIZE: usize = ODM_MAP_AREA;
 
@@ -94,6 +91,10 @@ impl TryFrom<&[u8]> for Odm {
 }
 
 impl Odm {
+    pub fn size(&self) -> (usize, usize) {
+        (ODM_MAP_SIZE, ODM_MAP_SIZE)
+    }
+
     fn save_heightmap(&self) {
         raw_to_image_buffer(
             &self.height_map,

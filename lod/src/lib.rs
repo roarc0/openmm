@@ -208,12 +208,6 @@ mod tests {
 
         let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
 
-        let f: Vec<_> = bitmaps_lod
-            .files()
-            .iter()
-            .filter(|s| s.contains("drr"))
-            .collect();
-
         let palettes = palette::Palettes::try_from(&bitmaps_lod).unwrap();
         let _ = bitmaps_lod.save_all(&dump_path.join("bitmaps_lod"), &palettes);
 

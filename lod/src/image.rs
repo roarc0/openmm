@@ -197,29 +197,6 @@ where
     Ok(image_buffer)
 }
 
-fn join_images_vertically(images: &[DynamicImage]) -> DynamicImage {
-    let mut combined_width = 0;
-    let mut combined_height = 0;
-    for image in images {
-        let (width, height) = image.dimensions();
-        combined_width = combined_width.max(width);
-        combined_height += height;
-    }
-
-    let mut combined_image = ImageBuffer::new(combined_width, combined_height);
-    let mut y_offset = 0;
-    for image in images {
-        let (width, height) = image.dimensions();
-        for y in 0..height {
-            for x in 0..width {
-                combined_image.put_pixel(x, y + y_offset, image.get_pixel(x, y));
-            }
-        }
-        y_offset += height;
-    }
-    DynamicImage::ImageRgba8(combined_image)
-}
-
 fn join_images_in_grid(
     images: &[DynamicImage],
     grid_width: usize,
@@ -239,11 +216,12 @@ fn join_images_in_grid(
     for (i, image) in images.iter().enumerate() {
         let x_offset = (i % grid_width) as u32 * image_width;
         let y_offset = (i / grid_width) as u32 * image_height;
-
         for y in 0..image_height {
             for x in 0..image_width {
                 let pixel = image.get_pixel(x, y);
-                combined_image.put_pixel(x + x_offset, y + y_offset, pixel);
+                if pixel.0[0..2] != [0, 255, 255] {
+                    combined_image.put_pixel(x + x_offset, y + y_offset, pixel);
+                }
             }
         }
     }
@@ -269,7 +247,6 @@ pub fn get_atlas(
                 imageops::FilterType::Triangle,
             )));
         } else {
-            //let image_buffer = //imageops::flip_vertical(&image_buffer);
             images.push(DynamicImage::ImageRgba8(image_buffer));
         }
     }
