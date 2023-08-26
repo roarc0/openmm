@@ -1,9 +1,4 @@
-use bevy::{
-    prelude::{
-        App, Color, Input, KeyCode, Plugin, Query, Res, ResMut, Resource, Update, Vec3, With,
-    },
-    window::{PrimaryWindow, Window},
-};
+use bevy::prelude::{App, Color, Input, KeyCode, Plugin, Res, ResMut, Resource, Update, Vec3};
 use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 
 /// Keeps track of mouse motion events, pitch, and yaw
@@ -26,7 +21,9 @@ pub struct KeyBindings {
 
 impl Default for KeyBindings {
     fn default() -> Self {
-        Self { toggle: KeyCode::M }
+        Self {
+            toggle: KeyCode::BracketRight,
+        }
     }
 }
 
@@ -64,17 +61,11 @@ fn debug_area(state: Res<DebugAreaState>, mut lines: ResMut<DebugLines>) {
 /// Handles keyboard input for enabling/disabling debug area
 fn debug_area_input(
     mut state: ResMut<DebugAreaState>,
-    primary_window: Query<&Window, With<PrimaryWindow>>,
     key_bindings: Res<KeyBindings>,
     keys: Res<Input<KeyCode>>,
 ) {
-    if let Ok(_window) = primary_window.get_single() {
-        for key in keys.get_pressed() {
-            let key = *key;
-            if key == key_bindings.toggle {
-                state.enabled = !state.enabled;
-            }
-        }
+    if keys.just_pressed(key_bindings.toggle) {
+        state.enabled = !state.enabled;
     }
 }
 

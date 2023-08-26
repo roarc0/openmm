@@ -1,7 +1,6 @@
 use std::error::Error;
 
 use bevy::{prelude::*, render::render_resource::PrimitiveTopology};
-use image::DynamicImage;
 use lod::{
     dtile::{Dtile, TileTable},
     lod_data::LodData,

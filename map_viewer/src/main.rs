@@ -21,10 +21,11 @@ fn main() {
         ))
         .insert_resource(Msaa::Sample8)
         .insert_resource(MovementSettings {
-            sensitivity: 0.0002,  // default: 0.00012
+            sensitivity: 0.00012, // default: 0.00012
             speed: 12.0 * 1024.0, // default: 12.0
         })
         .add_systems(Startup, setup)
+        .add_systems(Update, wireframe_debug)
         .run();
 }
 
@@ -62,4 +63,15 @@ fn setup(
     });
 
     info!("Running...");
+}
+
+fn wireframe_debug(
+    //mut commands: Commands,
+    keys: Res<Input<KeyCode>>,
+    mut wireframe_config: ResMut<WireframeConfig>,
+) {
+    if keys.just_pressed(KeyCode::BracketLeft) {
+        info!("Changed wireframe");
+        wireframe_config.global = !wireframe_config.global;
+    }
 }
