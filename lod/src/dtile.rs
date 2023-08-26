@@ -1,4 +1,4 @@
-use crate::{image::get_atlas, read_string, Lod};
+use crate::{image::get_atlas, read_string, LodManager};
 use byteorder::{LittleEndian, ReadBytesExt};
 use image::DynamicImage;
 use std::{
@@ -7,10 +7,11 @@ use std::{
 };
 
 #[derive(Debug)]
-pub struct DtileBin {
+pub struct Dtile {
     data: Vec<u8>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 struct DtileData {
     name: String,
@@ -19,7 +20,7 @@ struct DtileData {
     c: u16,
 }
 
-impl DtileBin {
+impl Dtile {
     pub fn new(data: &[u8]) -> Self {
         Self {
             data: data.to_vec(),
@@ -115,13 +116,13 @@ impl TileTable {
     }
 
     fn matrix_dimensions(total_elements: u8, row_size: u8) -> (u8, u8) {
-        let num_rows = (total_elements as f32 / row_size as f32).ceil();
+        let num_rows = (total_elements as f32 / row_size as f32).ceil() as u8;
         let num_cols = if total_elements < row_size {
             total_elements
         } else {
             row_size
         };
-        (num_cols as u8, num_rows as u8)
+        (num_cols, num_rows)
     }
 
     pub fn size(&self) -> (u8, u8) {
@@ -164,9 +165,9 @@ impl TileTable {
             .filter(|d| !d.starts_with("drr"))
             .collect();
         set.sort_by(|a, b| {
-            if a == &"pending" {
+            if a == "pending" {
                 std::cmp::Ordering::Greater
-            } else if b == &"pending" {
+            } else if b == "pending" {
                 std::cmp::Ordering::Less
             } else {
                 a.cmp(b)
@@ -176,9 +177,9 @@ impl TileTable {
         set
     }
 
-    pub fn atlas_image(&self, lod: Lod) -> DynamicImage {
+    pub fn atlas_image(&self, lod_manager: LodManager) -> DynamicImage {
         let ts: Vec<&str> = self.names_set.iter().map(|s| s.as_str()).collect();
-        get_atlas(&lod, ts.as_slice(), self.size.0 as usize).unwrap()
+        get_atlas(&lod_manager, ts.as_slice(), self.size.0 as usize).unwrap()
     }
 }
 
@@ -209,7 +210,7 @@ fn index_to_tile_name_hack(tile_data: &[u16; 8], index: u8) -> String {
         return name.1;
     }
 
-    return "pending".into();
+    "pending".into()
 }
 
 #[deprecated]
@@ -276,18 +277,16 @@ fn get_tile_type(index: u8, code: u8) -> Option<&'static str> {
 }
 
 mod tests {
-    use super::DtileBin;
-    use crate::{dtile::DtileData, get_lod_path, image::get_atlas, odm::Odm, raw, Lod};
-    use std::path::Path;
+    use crate::{dtile::Dtile, get_lod_path, lod_data::LodData, odm::Odm, LodManager};
 
     #[test]
     fn read_dtile_data_works() {
         let lod_path = get_lod_path();
-        let lod_path = Path::new(&lod_path);
+        let lod_manager = LodManager::new(lod_path).unwrap();
 
-        let icons_lod = Lod::open(lod_path.join("icons.lod")).unwrap();
-        let dtile = raw::Raw::try_from(icons_lod.try_get_bytes("dtile.bin").unwrap()).unwrap();
-        let dtile = DtileBin::new(dtile.data.as_slice());
+        let dtile =
+            LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin").unwrap()).unwrap();
+        let dtile = Dtile::new(dtile.data.as_slice());
         assert_eq!(dtile.count(), 882);
 
         for i in 0..882 {
@@ -298,19 +297,17 @@ mod tests {
     #[test]
     fn atlas_generation_works() {
         let lod_path = get_lod_path();
-        let lod_path = Path::new(&lod_path);
-        let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
-        let games_lod = Lod::open(lod_path.join("games.lod")).unwrap();
-        let icons_lod = Lod::open(lod_path.join("icons.lod")).unwrap();
+        let lod_manager = LodManager::new(lod_path).unwrap();
 
-        let map = raw::Raw::try_from(games_lod.try_get_bytes("oute3.odm").unwrap()).unwrap();
+        let map = LodData::try_from(lod_manager.try_get_bytes("games/oute3.odm").unwrap()).unwrap();
         let map = Odm::try_from(map.data.as_slice()).unwrap();
-        let dtile = raw::Raw::try_from(icons_lod.try_get_bytes("dtile.bin").unwrap()).unwrap();
-        let dtile = DtileBin::new(dtile.data.as_slice());
+        let dtile =
+            LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin").unwrap()).unwrap();
+        let dtile = Dtile::new(dtile.data.as_slice());
 
         let tile_table = dtile.table(map.tile_data);
         tile_table
-            .atlas_image(bitmaps_lod)
+            .atlas_image(lod_manager)
             .save("map_viewer/assets/terrain_atlas.png")
             .unwrap();
         println!("{:?}", tile_table.size());
@@ -324,6 +321,5 @@ mod tests {
             tile_table.name(90),
             tile_table.coordinate(90)
         );
-        println!("");
     }
 }

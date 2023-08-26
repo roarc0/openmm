@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use crate::Lod;
+use crate::{Lod, LodManager};
 
 use super::{palette::Palettes, zlib};
 
@@ -229,16 +229,15 @@ fn join_images_in_grid(
 }
 
 pub fn get_atlas(
-    lod: &Lod,
+    lod_manager: &LodManager,
     names: &[&str],
     row_size: usize,
 ) -> Result<DynamicImage, Box<dyn Error>> {
     let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
-    for n in names {
-        let raw_image = lod
-            .try_get_bytes(n)
-            .ok_or_else(|| format!("file {} should exist", &n))?;
-        let image_buffer = Image::try_from(raw_image)?.to_image_buffer()?;
+    for name in names {
+        let path = format!("bitmaps/{}", name);
+        let image_bytes = lod_manager.try_get_bytes(path)?;
+        let image_buffer = Image::try_from(image_bytes)?.to_image_buffer()?;
         if image_buffer.dimensions() != (128, 128) {
             images.push(DynamicImage::ImageRgba8(imageops::resize(
                 &image_buffer,
@@ -255,23 +254,17 @@ pub fn get_atlas(
 
 #[cfg(test)]
 mod test {
-    use std::path::Path;
-
-    use image::GenericImageView;
-
-    use crate::{get_lod_path, Lod};
-
     use super::get_atlas;
+    use crate::{get_lod_path, LodManager};
+    use image::GenericImageView;
 
     #[test]
     fn join_images() {
         let lod_path = get_lod_path();
-        let lod_path = Path::new(&lod_path);
-
-        let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
+        let lod_manager = LodManager::new(lod_path).unwrap();
 
         let atlas_image = get_atlas(
-            &bitmaps_lod,
+            &lod_manager,
             &["grastyl", "dirttyl", "voltyl", "wtrtyl", "pending"],
             2,
         )

@@ -1,17 +1,18 @@
 use byteorder::{LittleEndian, ReadBytesExt};
+use lod_data::LodData;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::env;
 use std::error::Error;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub mod dtile;
 pub mod image;
+pub mod lod_data;
 pub mod odm;
 pub mod palette;
-pub mod raw;
 mod zlib;
 
 pub const ENV_OMM_LOD_PATH: &str = "OMM_LOD_PATH";
@@ -19,15 +20,12 @@ pub const ENV_OMM_DUMP_PATH: &str = "OMM_DUMP_PATH";
 
 #[allow(dead_code)]
 pub struct Lod {
-    pub version: Version,
+    version: Version,
     files: HashMap<String, Vec<u8>>,
 }
 
 impl Lod {
-    pub fn open<P>(path: P) -> Result<Lod, Box<dyn std::error::Error>>
-    where
-        P: AsRef<Path>,
-    {
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Lod, Box<dyn std::error::Error>> {
         let file: File = File::open(path)?;
         let mut buf_reader = BufReader::new(file);
 
@@ -69,9 +67,9 @@ impl Lod {
                 if let Err(e) = sprite.save(path.join(format!("{}.png", file_name))) {
                     println!("Error saving sprite {} : {}", file_name, e)
                 }
-            } else if let Ok(raw) = raw::Raw::try_from(data) {
-                if let Err(e) = raw.dump(path.join(file_name)) {
-                    println!("Error saving raw {} : {}", file_name, e)
+            } else if let Ok(lod_data) = LodData::try_from(data) {
+                if let Err(e) = lod_data.dump(path.join(file_name)) {
+                    println!("Error saving lod data {} : {}", file_name, e)
                 }
             }
         }
@@ -182,22 +180,100 @@ where
     Ok(String::from_utf8(buffer)?)
 }
 
+#[allow(dead_code)]
+pub struct LodManager {
+    lods: HashMap<String, Lod>,
+}
+
+impl LodManager {
+    pub fn new<P>(path: P) -> Result<Self, Box<dyn Error>>
+    where
+        P: AsRef<Path>,
+    {
+        let lod_files = Self::list_lod_files(path)?;
+        let lod_map = Self::create_lod_file_map(lod_files)?;
+        Ok(LodManager { lods: lod_map })
+    }
+
+    fn list_lod_files<P>(path: P) -> Result<Vec<PathBuf>, std::io::Error>
+    where
+        P: AsRef<Path>,
+    {
+        let mut lod_files = Vec::new();
+        let entries = fs::read_dir(&path)?;
+
+        for entry in entries {
+            let entry = entry?;
+            let file_name = entry.file_name();
+            if let Some(name) = file_name.to_str() {
+                if name.to_lowercase().ends_with(".lod") {
+                    lod_files.push(Path::join(path.as_ref(), name));
+                }
+            }
+        }
+
+        Ok(lod_files)
+    }
+
+    fn create_lod_file_map(
+        lod_files: Vec<PathBuf>,
+    ) -> Result<HashMap<String, Lod>, Box<dyn Error>> {
+        let mut lod_file_map: HashMap<String, Lod> = HashMap::new();
+
+        for path in lod_files.iter() {
+            let lod = Lod::open(path)?;
+            let key = path
+                .file_stem()
+                .ok_or("file should have a .lod extension")?
+                .to_string_lossy()
+                .to_ascii_lowercase();
+            lod_file_map.insert(key, lod);
+        }
+
+        Ok(lod_file_map)
+    }
+
+    pub fn try_get_bytes<P: AsRef<Path>>(&self, path: P) -> Result<&[u8], Box<dyn Error>> {
+        let lod_file: String = path
+            .as_ref()
+            .parent()
+            .ok_or("invalid path")?
+            .to_string_lossy()
+            .to_string();
+        let lod = self.lods.get(&lod_file).ok_or("lod file not found")?;
+        let lod_entry: String = path
+            .as_ref()
+            .file_name()
+            .ok_or("invalid lod entry")?
+            .to_string_lossy()
+            .to_string();
+        let lod_data = lod
+            .try_get_bytes(&lod_entry)
+            .ok_or("unable to open lod entry")?;
+        Ok(lod_data)
+    }
+}
+
 pub fn get_lod_path() -> String {
-    let lod_path = env::var(ENV_OMM_LOD_PATH).unwrap_or("./target/mm6/data".into());
-    println!("lod_path: {}", lod_path);
-    lod_path
+    env::var(ENV_OMM_LOD_PATH).unwrap_or("./target/mm6/data".into())
 }
 
 pub fn get_dump_path() -> String {
-    let dump_path = env::var(ENV_OMM_DUMP_PATH).unwrap_or("./target/assets".into());
-    println!("dump_path: {}", dump_path);
-    dump_path
+    env::var(ENV_OMM_DUMP_PATH).unwrap_or("./target/assets".into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::path::Path;
+
+    #[test]
+    fn lod_manager_works() {
+        let lod_path = get_lod_path();
+        let lod_manager = LodManager::new(lod_path).unwrap();
+        let grastyl = lod_manager.try_get_bytes("bitmaps/grastyl");
+        assert_eq!(17676, grastyl.unwrap().len());
+    }
 
     #[test]
     fn save_works() {

@@ -94,38 +94,6 @@ impl Odm {
     pub fn size(&self) -> (usize, usize) {
         (ODM_MAP_SIZE, ODM_MAP_SIZE)
     }
-
-    fn save_heightmap(&self) {
-        raw_to_image_buffer(
-            &self.height_map,
-            &self.tile_map,
-            ODM_MAP_SIZE as u32,
-            ODM_MAP_SIZE as u32,
-        )
-        .unwrap()
-        .save_with_format(
-            format!("{}_height_map.bmp", self.name),
-            image::ImageFormat::Bmp,
-        )
-        .unwrap();
-    }
-}
-
-fn raw_to_image_buffer(
-    data: &[u8],
-    data2: &[u8],
-    width: u32,
-    height: u32,
-) -> Result<RgbImage, Box<dyn std::error::Error>> {
-    let mut image_buffer = RgbImage::new(width, height);
-
-    for (i, pi) in data[..(width * height) as usize].iter().enumerate() {
-        let x = (i as u32).rem_euclid(width);
-        let y = (i as u32).div_euclid(width);
-        let pixel = Rgb([*pi, *pi, data2[i]]);
-        image_buffer.put_pixel(x, y, pixel);
-    }
-    Ok(image_buffer)
 }
 
 #[cfg(test)]
@@ -133,35 +101,22 @@ mod tests {
     use std::fs::write;
     use std::path::Path;
 
-    use crate::{get_lod_path, raw, Lod};
+    use crate::{get_lod_path, lod_data::LodData, Lod, LodManager};
 
     use super::*;
 
     #[test]
-    fn get_image_works() {
+    fn get_map_works() {
         let lod_path = get_lod_path();
-        let lod_path = Path::new(&lod_path);
-
-        let games_lod = Lod::open(lod_path.join("games.lod")).unwrap();
-
+        let lod_manager = LodManager::new(lod_path).unwrap();
         let map_name = "oute3";
-        let map = raw::Raw::try_from(
-            games_lod
+        let map = LodData::try_from(
+            lod_manager
                 .try_get_bytes(&format!("{}.odm", map_name))
                 .unwrap(),
         )
         .unwrap();
-        let _ = write(format!("{}.odm", map_name), &map.data);
-        let map = Odm::try_from(map.data.as_slice()).unwrap();
-
-        let _ = write(
-            format!("{}.rs", map_name),
-            format!(
-                "pub const HEIGHT_MAP: [u8; 128 * 128] = {:?};\npub const TILE_MAP: [u8; 128 * 128] = {:?};",
-                map.height_map, map.tile_map
-            ),
-        );
-
-        map.save_heightmap();
+        //let _ = write(format!("{}.odm", map_name), &map.data);
+        let _ = Odm::try_from(map.data.as_slice()).unwrap();
     }
 }

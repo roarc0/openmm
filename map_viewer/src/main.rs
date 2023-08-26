@@ -1,21 +1,20 @@
 //#![feature(exclusive_range_pattern)]
 
-use std::path::Path;
-
 use bevy::pbr::wireframe::WireframePlugin;
 use bevy::prelude::*;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy_prototype_debug_lines::DebugLinesPlugin;
+use lod::lod_data::LodData;
 use player::MovementSettings;
 
-use lod::dtile::DtileBin;
+use lod::dtile::Dtile;
 use lod::odm::Odm;
-use lod::{raw, Lod};
+use lod::LodManager;
 
 mod debug_area;
+mod lod_asset;
 mod odm_mesh;
 mod player;
-//mod shader;
 
 fn main() {
     App::new()
@@ -40,15 +39,12 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let lod_path = lod::get_lod_path();
-    let lod_path = Path::new(&lod_path);
-    let games_lod = Lod::open(lod_path.join("games.lod")).unwrap();
-    let icons_lod = Lod::open(lod_path.join("icons.lod")).unwrap();
-    let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
+    let lod_manager = LodManager::new(lod_path).unwrap();
 
     //load map
-    let map_name = "outc1";
-    let map = raw::Raw::try_from(
-        games_lod
+    let map_name = "games/oute3";
+    let map = LodData::try_from(
+        lod_manager
             .try_get_bytes(&format!("{}.odm", map_name))
             .unwrap(),
     )
@@ -56,10 +52,11 @@ fn setup(
     let map = Odm::try_from(map.data.as_slice()).unwrap();
 
     //load dtile.bin
-    let dtile_data = raw::Raw::try_from(icons_lod.try_get_bytes("dtile.bin").unwrap()).unwrap();
-    let tile_table = DtileBin::new(&dtile_data.data).table(map.tile_data);
+    let dtile_data: LodData<'_> =
+        LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin").unwrap()).unwrap();
+    let tile_table = Dtile::new(&dtile_data.data).table(map.tile_data);
     tile_table
-        .atlas_image(bitmaps_lod)
+        .atlas_image(lod_manager)
         .save("map_viewer/assets/terrain_atlas.png")
         .unwrap();
 
