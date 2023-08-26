@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 
-use crate::lod;
+use super::Lod;
 
 const PALETTE_HEADER_SIZE: usize = 48;
 const PALETTE_SIZE: usize = 768;
@@ -33,10 +33,10 @@ pub struct Palettes {
     palettes: HashMap<u16, Palette>,
 }
 
-impl TryFrom<&lod::Lod> for Palettes {
+impl TryFrom<&Lod> for Palettes {
     type Error = Box<dyn Error>;
 
-    fn try_from(lod: &lod::Lod) -> Result<Self, Self::Error> {
+    fn try_from(lod: &Lod) -> Result<Self, Self::Error> {
         let palette_files: Vec<_> = lod
             .files()
             .iter()
@@ -51,7 +51,7 @@ impl TryFrom<&lod::Lod> for Palettes {
 
         let mut palettes: HashMap<u16, Palette> = HashMap::new();
         for file_name in palette_files {
-            let palette = lod.get::<Palette>(&file_name)?;
+            let palette = Palette::try_from(lod.try_get_bytes(&file_name).ok_or("expected file")?)?;
             let id = extract_palette_id(&file_name)?;
             palettes.insert(id, palette);
         }

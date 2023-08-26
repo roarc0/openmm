@@ -1,0 +1,9 @@
+[package]
+name = "lod"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+byteorder = "1.4.3"
+flate2 = "1.0.26"
+image = "0.24.6"

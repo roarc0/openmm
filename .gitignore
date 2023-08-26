@@ -1,3 +1,7 @@
+assets/
 *.odm
 *.png
+*.bmp
+*.bin
+*.txt
 /target
