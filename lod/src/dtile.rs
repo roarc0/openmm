@@ -50,7 +50,7 @@ impl Dtile {
         Ok(DtileData { name, a, b, c })
     }
 
-    pub fn table(&self, tile_data: [u16; 8]) -> TileTable {
+    pub fn table(&self, tile_data: [u16; 8]) -> Result<TileTable, Box<dyn Error>> {
         let mut names_table: Vec<String> = Vec::with_capacity(256);
         for i in 0..=255 {
             // This is an hardcoded decoding of the index since I can't yet make full sense of the dtile.bin
@@ -74,14 +74,14 @@ impl Dtile {
                 tile_data[n as usize]
             };
 
-            let mut dtile = self.read(index as usize).unwrap();
+            let mut dtile = self.read(index as usize)?;
 
             if dtile.c == 0x300 {
                 let group = dtile.a;
                 for j in 0..4 {
                     if tile_data[j * 2] == group {
                         let index2 = tile_data[j * 2 + 1];
-                        dtile = self.read(index2 as usize).unwrap();
+                        dtile = self.read(index2 as usize)?;
                         break;
                     }
                 }
@@ -90,7 +90,7 @@ impl Dtile {
             names_table.push(dtile.name);
         }
 
-        TileTable::new(names_table.try_into().unwrap())
+        Ok(TileTable::new(names_table.try_into().unwrap()))
     }
 }
 
@@ -177,9 +177,9 @@ impl TileTable {
         set
     }
 
-    pub fn atlas_image(&self, lod_manager: LodManager) -> DynamicImage {
+    pub fn atlas_image(&self, lod_manager: &LodManager) -> Result<DynamicImage, Box<dyn Error>> {
         let ts: Vec<&str> = self.names_set.iter().map(|s| s.as_str()).collect();
-        get_atlas(&lod_manager, ts.as_slice(), self.size.0 as usize).unwrap()
+        get_atlas(&lod_manager, ts.as_slice(), self.size.0 as usize)
     }
 }
 
@@ -305,9 +305,10 @@ mod tests {
             LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin").unwrap()).unwrap();
         let dtile = Dtile::new(dtile.data.as_slice());
 
-        let tile_table = dtile.table(map.tile_data);
+        let tile_table = dtile.table(map.tile_data).unwrap();
         tile_table
-            .atlas_image(lod_manager)
+            .atlas_image(&lod_manager)
+            .unwrap()
             .save("map_viewer/assets/terrain_atlas.png")
             .unwrap();
         println!("{:?}", tile_table.size());

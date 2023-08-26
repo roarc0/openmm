@@ -4,7 +4,7 @@ use bevy::{
     },
     window::{PrimaryWindow, Window},
 };
-use bevy_prototype_debug_lines::DebugLines;
+use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 
 /// Keeps track of mouse motion events, pitch, and yaw
 #[derive(Resource)]
@@ -82,6 +82,7 @@ pub struct DebugAreaPlugin;
 impl Plugin for DebugAreaPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugAreaState>()
+            .add_plugins(DebugLinesPlugin::default())
             .init_resource::<KeyBindings>()
             .add_systems(Update, debug_area)
             .add_systems(Update, debug_area_input);

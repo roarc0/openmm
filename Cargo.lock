@@ -2235,6 +2235,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_prototype_debug_lines",
+ "image",
  "lod",
 ]
 
