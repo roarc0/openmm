@@ -7,7 +7,7 @@ use lod::{
 const HEIGHT_SCALE: f32 = ODM_MAP_HEIGHT_SIZE as f32;
 const TILE_SCALE: f32 = ODM_MAP_TILE_SIZE as f32;
 
-pub fn odm_to_mesh(
+pub fn generate_mesh(
     odm: &Odm,
     tile_table: &TileTable,
     primitive_topology: PrimitiveTopology,
@@ -58,16 +58,15 @@ fn push_uvs(uvs: &mut Vec<[f32; 2]>, tile_table: &TileTable, tile_index: u8) {
     let (tile_table_size_x, tile_table_size_y) =
         (tile_table_size_x as f32, tile_table_size_y as f32);
 
-    let uv_scale = 1.;
-    let w_start = (tile_x / tile_table_size_x) * uv_scale;
-    let w_end = ((tile_x + 1.0) / tile_table_size_x) * uv_scale;
-    let h_start = (tile_y / tile_table_size_y) * uv_scale;
-    let h_end = ((tile_y + 1.0) / tile_table_size_y) * uv_scale;
+    let uv_scale: f32 = 1.0;
+    let w_start = (tile_x / tile_table_size_x) / uv_scale;
+    let w_end = ((tile_x + 1.0) / tile_table_size_x) / uv_scale;
+    let h_start = (tile_y / tile_table_size_y) / uv_scale;
+    let h_end = ((tile_y + 1.0) / tile_table_size_y) / uv_scale;
 
     uvs.push([w_start, h_start]);
     uvs.push([w_start, h_end]);
     uvs.push([w_end, h_start]);
-
     uvs.push([w_end, h_start]);
     uvs.push([w_start, h_end]);
     uvs.push([w_end, h_end]);

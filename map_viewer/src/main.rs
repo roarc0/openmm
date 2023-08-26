@@ -1,5 +1,3 @@
-//#![feature(exclusive_range_pattern)]
-
 use bevy::pbr::wireframe::WireframePlugin;
 use bevy::prelude::*;
 use bevy::render::render_resource::PrimitiveTopology;
@@ -18,7 +16,7 @@ mod player;
 
 fn main() {
     App::new()
-        //.insert_resource(Msaa::Sample4)
+        .insert_resource(Msaa::Sample8)
         .add_plugins(DefaultPlugins)
         .add_plugins(DebugLinesPlugin::default())
         .add_plugins(WireframePlugin)
@@ -71,7 +69,7 @@ fn setup(
         ..default()
     });
 
-    let mesh = odm_mesh::odm_to_mesh(&map, &tile_table, PrimitiveTopology::TriangleList);
+    let mesh = odm_mesh::generate_mesh(&map, &tile_table, PrimitiveTopology::TriangleList);
     commands.spawn(PbrBundle {
         mesh: meshes.add(mesh),
         material: material_handle.clone(),

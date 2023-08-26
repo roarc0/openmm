@@ -16,7 +16,6 @@ struct LodAssetIo {
 impl AssetIo for LodAssetIo {
     fn load_path<'a>(&'a self, path: &'a Path) -> BoxedFuture<'a, Result<Vec<u8>, AssetIoError>> {
         //if let Some(data) = self.lod_manager.try_get_bytes(path) {}
-
         self.default_io.load_path(path)
     }
 
