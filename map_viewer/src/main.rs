@@ -56,13 +56,13 @@ fn setup(
     let mut c = 0;
     for b in odm_asset.map.bmodels {
         let color = if c == 0 {
-            Color::rgba(1.0, 0.0, 0.0, 0.1)
+            Color::rgba(1.0, 0.0, 0.0, 0.3)
         } else {
-            Color::rgba(1.0, 0.0, 1.0, 0.1)
+            Color::rgba(1.0, 0.0, 1.0, 0.3)
         };
 
         commands.spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 200.0 })),
+            mesh: meshes.add(Mesh::from(shape::Cube { size: 100.0 })),
             material: materials.add(color.into()),
             transform: Transform::from_xyz(
                 b.header.origin1[0] as f32,
@@ -76,22 +76,15 @@ fn setup(
         if c > 1 {
             continue;
         }
+
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-
-        let mut indices: Vec<u32> = Vec::new();
-        for i in 0..(b.header.num_vertex * 3 - 2) {
-            indices.push(i as u32);
-            indices.push((i + 2) as u32);
-            indices.push((i + 1) as u32);
-        }
-
-        mesh.set_indices(Some(bevy::render::mesh::Indices::U32(indices)));
+        mesh.set_indices(Some(bevy::render::mesh::Indices::U32(b.indices)));
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, b.vertexes);
+        //mesh.duplicate_vertices();
 
         commands.spawn(PbrBundle {
             mesh: meshes.add(mesh.clone()),
             material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
-            transform: Transform::from_xyz(0., 0., 0.),
             ..default()
         });
     }

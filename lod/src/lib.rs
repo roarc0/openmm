@@ -8,6 +8,7 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Cursor, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
+pub mod bmodel;
 pub mod dtile;
 pub mod image;
 pub mod lod_data;
@@ -176,7 +177,9 @@ where
 {
     let mut buffer = Vec::new();
     let _ = r.read_until(b'\0', &mut buffer);
-    _ = buffer.pop();
+    if !buffer.is_empty() {
+        _ = buffer.pop();
+    }
     Ok(String::from_utf8(buffer)?)
 }
 

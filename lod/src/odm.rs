@@ -6,7 +6,10 @@ use std::{
 use byteorder::{LittleEndian, ReadBytesExt};
 use image::{Rgb, RgbImage};
 
-use crate::read_string;
+use crate::{
+    bmodel::{read_bmodels, BModel},
+    read_string,
+};
 
 pub const ODM_MAP_SIZE: usize = 128;
 pub const ODM_MAP_PLAY_SIZE: usize = 88;
@@ -42,38 +45,6 @@ pub struct Odm {
     pub attribute_map: [u8; ATTRIBUTE_MAP_SIZE],
     pub bmodels: Vec<BModel>,
 }
-
-#[derive(Debug)]
-pub struct BModel {
-    pub header: BModelHeader,
-    pub vertexes: Vec<[f32; 3]>,
-    pub faces: Vec<BModelFace>,
-}
-
-#[derive(Debug)]
-pub struct BModelHeader {
-    pub name1: String,
-    pub name2: String,
-    pub attrib: i32,
-    pub num_vertex: i32,
-    // p_vertexes: *mut i32, // Change to appropriate pointer type
-    pub num_faces: i32,
-    unk02: i32,
-    // p_faces: *mut i32,pub  // Change to appropriate pointer type
-    // p_unk_array: *mut i32, // Change to appropriate pointer type
-    num3: i32,
-    unk03a: i32,
-    unk03b: i32,
-    unk03: [i32; 2],
-    pub origin1: [i32; 3],
-    pub bbox: [[i32; 3]; 2],
-    unk04: [i32; 6],
-    pub origin2: [i32; 3],
-    unk05: i32,
-}
-
-#[derive(Debug)]
-pub struct BModelFace {}
 
 impl TryFrom<&[u8]> for Odm {
     type Error = Box<dyn Error>;
@@ -111,9 +82,7 @@ impl TryFrom<&[u8]> for Odm {
         cursor.read_exact(&mut attribute_map)?;
 
         let bmodel_count = cursor.read_u32::<LittleEndian>()? as usize;
-        let mut bmodels: Vec<BModel> = Vec::with_capacity(bmodel_count);
-
-        read_bmodels(cursor, bmodel_count, &mut bmodels)?;
+        let bmodels = read_bmodels(cursor, bmodel_count)?;
 
         Ok(Self {
             name: "test".into(),
@@ -127,125 +96,6 @@ impl TryFrom<&[u8]> for Odm {
             bmodels,
         })
     }
-}
-
-fn read_bmodels(
-    mut cursor: Cursor<&[u8]>,
-    bmodel_count: usize,
-    bmodels: &mut Vec<BModel>,
-) -> Result<(), Box<dyn Error>> {
-    let pos = cursor.position();
-    for i in 0..bmodel_count {
-        cursor.seek(std::io::SeekFrom::Start(pos + i as u64 * 0xbc_u64))?; // BModelSize==0xbc
-        let pos = cursor.position();
-        let name1 = read_string(&mut cursor)?.to_owned();
-        cursor.seek(std::io::SeekFrom::Start(pos + 0x20))?;
-        let pos = cursor.position();
-        let name2 = read_string(&mut cursor)?.to_owned();
-        cursor.seek(std::io::SeekFrom::Start(pos + 0x20))?;
-        let attrib = cursor.read_i32::<LittleEndian>()?;
-        let num_vertex = cursor.read_i32::<LittleEndian>()?;
-        let _p_vertex = cursor.read_i32::<LittleEndian>()?;
-        let num_faces = cursor.read_i32::<LittleEndian>()?;
-        let unk02 = cursor.read_i32::<LittleEndian>()?;
-        let _p_faces = cursor.read_i32::<LittleEndian>()?;
-        let _p_unk_array = cursor.read_i32::<LittleEndian>()?;
-        let num3 = cursor.read_i32::<LittleEndian>()?;
-        let unk03a = cursor.read_i32::<LittleEndian>()?;
-        let unk03b = cursor.read_i32::<LittleEndian>()?;
-        let unk03 = [
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-        ];
-        let origin1 = [
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-        ];
-        let bbox = [
-            [
-                cursor.read_i32::<LittleEndian>()?,
-                cursor.read_i32::<LittleEndian>()?,
-                cursor.read_i32::<LittleEndian>()?,
-            ],
-            [
-                cursor.read_i32::<LittleEndian>()?,
-                cursor.read_i32::<LittleEndian>()?,
-                cursor.read_i32::<LittleEndian>()?,
-            ],
-        ];
-
-        let unk04 = [
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-        ];
-
-        let origin2 = [
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-            cursor.read_i32::<LittleEndian>()?,
-        ];
-        let unk05 = cursor.read_i32::<LittleEndian>()?;
-
-        bmodels.push(BModel {
-            header: BModelHeader {
-                name1,
-                name2,
-                attrib,
-                num_vertex,
-                // p_vertexes,
-                num_faces,
-                unk02,
-                // p_faces,
-                // p_unk_array,
-                num3,
-                unk03a,
-                unk03b,
-                unk03,
-                origin1,
-                bbox,
-                unk04,
-                origin2,
-                unk05,
-            },
-            vertexes: Vec::new(),
-            faces: Vec::new(),
-        });
-    }
-
-    // read other stuff
-    for i in 0..bmodel_count {
-        let bmodel = bmodels.get_mut(i).ok_or("expected bmodel")?;
-
-        let mut vs: Vec<f32> = Vec::new();
-        for _i in 0..bmodel.header.num_vertex {
-            vs.push(cursor.read_i32::<LittleEndian>()? as f32);
-        }
-
-        let mut indices: Vec<u32> = Vec::new();
-        for i in 0..(vs.len() - 2) {
-            indices.push(i as u32);
-            indices.push((i + 2) as u32);
-            indices.push((i + 1) as u32);
-        }
-
-        fn group_into_triplets(input: Vec<f32>) -> Vec<[f32; 3]> {
-            input
-                .chunks_exact(3)
-                .map(|chunk| [chunk[0], chunk[2], -chunk[1]])
-                .collect()
-        }
-
-        bmodel.vertexes = group_into_triplets(vs)
-    }
-
-    dbg!("here");
-
-    Ok(())
 }
 
 impl Odm {
