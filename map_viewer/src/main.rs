@@ -1,5 +1,5 @@
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
-use bevy::pbr::wireframe::{WireframeConfig, WireframePlugin};
+use bevy::pbr::wireframe::{Wireframe, WireframeConfig, WireframePlugin};
 use bevy::prelude::*;
 use bevy::render::render_resource::PrimitiveTopology;
 use player::{FlyCam, MovementSettings};
@@ -25,7 +25,7 @@ fn main() {
         .insert_resource(Msaa::Sample8)
         .insert_resource(MovementSettings {
             sensitivity: 0.00012, // default: 0.00012
-            speed: 12.0 * 1024.0, // default: 12.0
+            speed: 7.0 * 1024.0,  // default: 12.0
         })
         .add_systems(Startup, setup)
         .add_systems(
@@ -55,36 +55,58 @@ fn setup(
 
     let mut c = 0;
     for b in odm_asset.map.bmodels {
-        let color = if c == 0 {
-            Color::rgba(1.0, 0.0, 0.0, 0.3)
+        let color = if c % 2 == 0 {
+            Color::rgba(1.0, 0.1, 0.0, 0.9)
         } else {
-            Color::rgba(1.0, 0.0, 1.0, 0.3)
+            Color::rgba(1.0, 0.1, 1.0, 0.9)
         };
-
-        commands.spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Cube { size: 100.0 })),
-            material: materials.add(color.into()),
-            transform: Transform::from_xyz(
-                b.header.origin1[0] as f32,
-                b.header.origin1[2] as f32,
-                -b.header.origin1[1] as f32,
-            ),
-            ..default()
-        });
-
         c += 1;
-        if c > 1 {
-            continue;
-        }
+
+        commands.spawn((
+            PbrBundle {
+                mesh: meshes.add(
+                    shape::Box::from_corners(
+                        [
+                            b.header.bbox[0][0] as f32,
+                            b.header.bbox[0][2] as f32,
+                            -b.header.bbox[0][1] as f32,
+                        ]
+                        .into(),
+                        [
+                            b.header.bbox[1][0] as f32,
+                            b.header.bbox[1][2] as f32,
+                            -b.header.bbox[1][1] as f32,
+                        ]
+                        .into(),
+                    )
+                    .into(),
+                ),
+                material: materials.add(color.into()),
+                visibility: Visibility::Hidden,
+                ..default()
+            },
+            Wireframe,
+        ));
 
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         mesh.set_indices(Some(bevy::render::mesh::Indices::U32(b.indices)));
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, b.vertexes);
-        //mesh.duplicate_vertices();
+        mesh.duplicate_vertices();
+        mesh.compute_flat_normals();
 
         commands.spawn(PbrBundle {
             mesh: meshes.add(mesh.clone()),
-            material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+            material: materials.add(StandardMaterial {
+                base_color: color,
+                unlit: false,
+                alpha_mode: AlphaMode::Opaque,
+                fog_enabled: true,
+                perceptual_roughness: 0.5,
+
+                reflectance: 0.1,
+                //cull_mode: None, // remove
+                ..default()
+            }),
             ..default()
         });
     }

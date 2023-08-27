@@ -189,7 +189,7 @@ pub(super) fn read_bmodels(
         }
 
         bmodel.vertexes = decode_vertices(vertices);
-        bmodel.indices = generate_indices(bmodel.header.num_vertex as usize);
+        bmodel.indices = decode_indices(bmodel);
 
         let bsp_nodes_count = bmodel.header.num3;
         if bsp_nodes_count > 0 {
@@ -201,9 +201,6 @@ pub(super) fn read_bmodels(
             bmodel.bsp_nodes = bsp_nodes;
         }
     }
-
-    dbg!("here");
-
     Ok(bmodels)
 }
 
@@ -231,16 +228,19 @@ fn decode_vertices(input: Vec<f32>) -> Vec<[f32; 3]> {
         .collect()
 }
 
-fn generate_indices(vertices_count: usize) -> Vec<u32> {
-    let mut indices = Vec::new();
-    for i in (0..vertices_count).step_by(3) {
-        indices.push(i as u32);
-        indices.push((i + 1) as u32);
-        indices.push((i + 2) as u32);
-
-        indices.push((i + 2) as u32);
-        indices.push(i as u32);
-        indices.push((i + 1) as u32);
-    }
-    indices
+fn decode_indices(bmodel: &BModel) -> Vec<u32> {
+    bmodel
+        .faces
+        .iter()
+        .flat_map(|f| {
+            [
+                f.v_idx[0] as u32,
+                f.v_idx[1] as u32,
+                f.v_idx[2] as u32,
+                f.v_idx[2] as u32,
+                f.v_idx[3] as u32,
+                f.v_idx[0] as u32,
+            ]
+        })
+        .collect()
 }
