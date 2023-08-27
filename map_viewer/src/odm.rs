@@ -41,6 +41,7 @@ impl OdmAsset {
             fog_enabled: false,
             perceptual_roughness: 1.0,
             reflectance: 0.05,
+            cull_mode: None, // remove
             ..default()
         };
 

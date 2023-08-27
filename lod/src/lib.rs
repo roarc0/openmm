@@ -234,13 +234,16 @@ impl LodManager {
     }
 
     pub fn try_get_bytes<P: AsRef<Path>>(&self, path: P) -> Result<&[u8], Box<dyn Error>> {
-        let lod_file: String = path
+        let lod_archive: String = path
             .as_ref()
             .parent()
             .ok_or("invalid path")?
             .to_string_lossy()
             .to_string();
-        let lod = self.lods.get(&lod_file).ok_or("lod file not found")?;
+        let lod = self
+            .lods
+            .get(&lod_archive)
+            .ok_or(format!("lod file not found in {lod_archive} "))?;
         let lod_entry: String = path
             .as_ref()
             .file_name()

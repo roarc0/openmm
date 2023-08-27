@@ -56,7 +56,7 @@ impl Dtile {
             // This is an hardcoded decoding of the index since I can't yet make full sense of the dtile.bin
             let name = index_to_tile_name_hack(&tile_data, i as u8);
             if name != "pending" {
-                //println!("idx:{}, name:{} (hack)", i, name);
+                //dbg!("idx:{}, name:{} (hack)", i, name);
                 names_table.push(name);
                 continue;
             }
@@ -86,7 +86,7 @@ impl Dtile {
                     }
                 }
             }
-            //println!("idx:{}, name:{} (dtile)", i, dtile.name);
+            //dbg!("idx:{}, name:{} (dtile)", i, dtile.name);
             names_table.push(dtile.name);
         }
 
@@ -311,13 +311,13 @@ mod tests {
             .unwrap()
             .save("map_viewer/assets/terrain_atlas.png")
             .unwrap();
-        println!("{:?}", tile_table.size());
-        println!(
+        dbg!("{:?}", tile_table.size());
+        dbg!(
             "{:?} -> {:?}",
             tile_table.name(22),
             tile_table.coordinate(22)
         );
-        println!(
+        dbg!(
             "{:?} -> {:?}",
             tile_table.name(90),
             tile_table.coordinate(90)
