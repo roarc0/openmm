@@ -6,9 +6,8 @@ use std::{
     path::Path,
 };
 
-use crate::{Lod, LodManager};
-
 use super::{palette::Palettes, zlib};
+use crate::LodManager;
 
 #[derive(Debug)]
 pub struct Image {
@@ -139,8 +138,8 @@ fn process_sprite_data(
 }
 
 impl Image {
-    pub fn to_image_buffer(&self) -> Result<ImageBuffer<Rgba<u8>, Vec<u8>>, Box<dyn Error>> {
-        raw_to_image_buffer(
+    pub fn to_image_buffer(&self) -> Result<DynamicImage, Box<dyn Error>> {
+        let image = raw_to_image_buffer(
             &self.data,
             &self.palette,
             |index, pixel: &[u8; 3]| {
@@ -157,7 +156,8 @@ impl Image {
             },
             self.width as u32,
             self.height as u32,
-        )
+        )?;
+        Ok(DynamicImage::ImageRgba8(image))
     }
 
     pub fn save<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
@@ -181,7 +181,7 @@ fn raw_to_image_buffer<P>(
     pixel_converter: impl Fn(u8, &[u8; 3]) -> P,
     width: u32,
     height: u32,
-) -> Result<ImageBuffer<P, Vec<P::Subpixel>>, Box<dyn std::error::Error>>
+) -> Result<ImageBuffer<P, Vec<P::Subpixel>>, Box<dyn Error>>
 where
     P: image::Pixel<Subpixel = u8> + 'static,
 {
@@ -237,16 +237,16 @@ pub fn get_atlas(
     for name in names {
         let path = format!("bitmaps/{}", name);
         let image_bytes = lod_manager.try_get_bytes(path)?;
-        let image_buffer = Image::try_from(image_bytes)?.to_image_buffer()?;
-        if image_buffer.dimensions() != (128, 128) {
+        let image = Image::try_from(image_bytes)?.to_image_buffer()?;
+        if image.dimensions() != (128, 128) {
             images.push(DynamicImage::ImageRgba8(imageops::resize(
-                &image_buffer,
+                &image,
                 128,
                 128,
                 imageops::FilterType::Triangle,
             )));
         } else {
-            images.push(DynamicImage::ImageRgba8(image_buffer));
+            images.push(image);
         }
     }
     Ok(join_images_in_grid(&images, row_size, 128, 128))
