@@ -1,4 +1,4 @@
-use crate::{image::get_atlas, read_string, LodManager};
+use crate::{image::get_atlas, utils::read_string, LodManager};
 use byteorder::{LittleEndian, ReadBytesExt};
 use image::DynamicImage;
 use std::{
