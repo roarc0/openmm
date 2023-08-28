@@ -54,7 +54,7 @@ fn setup(
     });
 
     let mut c = 0;
-    for b in odm_asset.map.bmodels {
+    for b in odm_asset.map.bsp_models {
         let color = if c % 2 == 0 {
             Color::rgba(1.0, 0.1, 0.0, 0.9)
         } else {
@@ -67,22 +67,22 @@ fn setup(
                 mesh: meshes.add(
                     shape::Box::from_corners(
                         [
-                            b.header.bbox[0][0] as f32,
-                            b.header.bbox[0][2] as f32,
-                            -b.header.bbox[0][1] as f32,
+                            b.header.bounding_box.min_x as f32,
+                            b.header.bounding_box.min_z as f32,
+                            -b.header.bounding_box.min_y as f32,
                         ]
                         .into(),
                         [
-                            b.header.bbox[1][0] as f32,
-                            b.header.bbox[1][2] as f32,
-                            -b.header.bbox[1][1] as f32,
+                            b.header.bounding_box.max_x as f32,
+                            b.header.bounding_box.max_z as f32,
+                            -b.header.bounding_box.max_y as f32,
                         ]
                         .into(),
                     )
                     .into(),
                 ),
-                material: materials.add(color.into()),
-                visibility: Visibility::Hidden,
+                material: materials.add(Color::rgba(0.0, 0.0, 0.0, 0.1).into()),
+                //visibility: Visibility::Hidden,
                 ..default()
             },
             Wireframe,
@@ -90,25 +90,28 @@ fn setup(
 
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         mesh.set_indices(Some(bevy::render::mesh::Indices::U32(b.indices)));
-        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, b.vertexes);
+        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, b.vertices);
         mesh.duplicate_vertices();
         mesh.compute_flat_normals();
 
-        commands.spawn(PbrBundle {
-            mesh: meshes.add(mesh.clone()),
-            material: materials.add(StandardMaterial {
-                base_color: color,
-                unlit: false,
-                alpha_mode: AlphaMode::Opaque,
-                fog_enabled: true,
-                perceptual_roughness: 0.5,
-
-                reflectance: 0.1,
-                //cull_mode: None, // remove
+        commands.spawn((
+            PbrBundle {
+                mesh: meshes.add(mesh.clone()),
+                material: materials.add(StandardMaterial {
+                    base_color: color,
+                    unlit: false,
+                    alpha_mode: AlphaMode::Opaque,
+                    fog_enabled: true,
+                    perceptual_roughness: 0.5,
+                    reflectance: 0.1,
+                    //double_sided: true,
+                    cull_mode: None,
+                    ..default()
+                }),
                 ..default()
-            }),
-            ..default()
-        });
+            },
+            Wireframe,
+        ));
     }
 
     commands.insert_resource(AmbientLight {
@@ -196,7 +199,7 @@ struct PositionText;
 
 fn update_position_text(
     mut query: Query<&mut Text, With<PositionText>>,
-    mut query2: Query<&Transform, With<FlyCam>>,
+    query2: Query<&Transform, With<FlyCam>>,
 ) {
     let transform = query2.get_single().unwrap();
     for mut text in &mut query {
