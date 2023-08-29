@@ -7,8 +7,10 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{
     bsp_model::{read_bsp_models, BSPModel},
-    dtile::TileTable,
+    dtile::{Dtile, TileTable},
+    lod_data::LodData,
     utils::read_string_block,
+    LodManager,
 };
 
 pub const ODM_SIZE: usize = 128;
@@ -96,6 +98,11 @@ impl TryFrom<&[u8]> for Odm {
 impl Odm {
     pub fn size(&self) -> (usize, usize) {
         (ODM_SIZE, ODM_SIZE)
+    }
+
+    pub fn tile_table(&self, lod_manager: &LodManager) -> Result<TileTable, Box<dyn Error>> {
+        let dtile_data = LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin").unwrap())?;
+        Dtile::new(&dtile_data.data).table(self.tile_data)
     }
 }
 
