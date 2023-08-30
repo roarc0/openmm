@@ -691,6 +691,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_mod_billboard"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1680dd7d6ff174dc86f50465a37d89aec8b6ae22f1b62c6579152fb399bfae21"
+dependencies = [
+ "bevy",
+ "bitflags 2.3.3",
+]
+
+[[package]]
 name = "bevy_pbr"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2268,6 +2278,7 @@ name = "map_viewer"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_mod_billboard",
  "bevy_prototype_debug_lines",
  "image",
  "lod",

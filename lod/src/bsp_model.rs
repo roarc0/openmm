@@ -118,12 +118,12 @@ const MODEL_NAME_MAX_SIZE: usize = 32;
 const TEXTURE_NAME_MAX_SIZE: usize = 10;
 
 pub(super) fn read_bsp_models(
-    mut cursor: Cursor<&[u8]>,
-    model_count: usize,
+    cursor: &mut Cursor<&[u8]>,
+    count: usize,
 ) -> Result<Vec<BSPModel>, Box<dyn Error>> {
-    let mut models: Vec<BSPModel> = Vec::with_capacity(model_count);
-    for header in read_bsp_model_headers(&mut cursor, model_count)? {
-        models.push(read_bsp_model(&mut cursor, header)?);
+    let mut models: Vec<BSPModel> = Vec::with_capacity(count);
+    for header in read_bsp_model_headers(cursor, count)? {
+        models.push(read_bsp_model(cursor, header)?);
     }
     Ok(models)
 }
@@ -148,12 +148,11 @@ fn read_bsp_model(
     model.vertices = decode_vertices(vertices);
     for _i in 0..model.header.faces_count {
         let mut face = BSPModelFace::default();
-        let face_size = std::mem::size_of::<BSPModelFace>();
-
-        //hexdump_next_bytes(&mut cursor.clone(), face_size);
-
         cursor.read_exact(unsafe {
-            std::slice::from_raw_parts_mut(&mut face as *mut _ as *mut u8, face_size)
+            std::slice::from_raw_parts_mut(
+                &mut face as *mut _ as *mut u8,
+                std::mem::size_of::<BSPModelFace>(),
+            )
         })?;
         model.faces.push(face);
     }
@@ -167,7 +166,6 @@ fn read_bsp_model(
     model.indices = decode_indices(&model);
     let bsp_nodes_count = model.header.num3;
     if bsp_nodes_count > 0 {
-        println!("bsp node: {bsp_nodes_count}");
         for _i in 0..bsp_nodes_count * 2 {
             model.bsp_nodes.push(BSPNode {
                 front: cursor.read_i32::<LittleEndian>()?,

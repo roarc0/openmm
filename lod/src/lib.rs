@@ -5,11 +5,13 @@ use std::fs::{self};
 use std::io::{BufRead, Read};
 use std::path::{Path, PathBuf};
 
+use ::image::DynamicImage;
 use lod::Lod;
+use palette::Palettes;
 
 pub mod bsp_model;
 pub mod dtile;
-mod image;
+pub mod image;
 mod lod;
 pub mod lod_data;
 pub mod odm;
@@ -65,7 +67,7 @@ impl LodManager {
                 .file_stem()
                 .ok_or("file should have a .lod extension")?
                 .to_string_lossy()
-                .to_ascii_lowercase();
+                .to_lowercase();
             lod_file_map.insert(key, lod);
         }
 
@@ -89,10 +91,28 @@ impl LodManager {
             .ok_or("invalid lod entry")?
             .to_string_lossy()
             .to_string();
-        let lod_data = lod
-            .try_get_bytes(&lod_entry)
-            .ok_or("unable to open lod entry")?;
+        let lod_data = lod.try_get_bytes(&lod_entry).ok_or(format!(
+            "unable to open lod entry {:?}",
+            path.as_ref().to_str()
+        ))?;
         Ok(lod_data)
+    }
+
+    fn palettes(&self) -> Result<Palettes, Box<dyn Error>> {
+        // TODO cache palettes
+        let bitmaps_lod = self
+            .lods
+            .get("bitmaps")
+            .ok_or("expected to have bitmaps.lod")?;
+        let palettes = palette::Palettes::try_from(bitmaps_lod)?;
+        Ok(palettes)
+    }
+
+    pub fn sprite(&self, name: &str) -> Result<DynamicImage, Box<dyn Error>> {
+        let sprite = self.try_get_bytes(format!("sprites/{}", name))?;
+        let palettes = self.palettes()?;
+        let sprite = crate::image::Image::try_from((sprite, &palettes))?;
+        sprite.to_image_buffer()
     }
 }
 
@@ -114,5 +134,13 @@ mod tests {
         let lod_manager = LodManager::new(lod_path).unwrap();
         let grastyl = lod_manager.try_get_bytes("bitmaps/grastyl");
         assert_eq!(17676, grastyl.unwrap().len());
+    }
+
+    #[test]
+    fn sprite_works() {
+        let lod_path = get_lod_path();
+        let lod_manager = LodManager::new(lod_path).unwrap();
+        let rock = lod_manager.sprite("rok1");
+        assert!(rock.is_ok());
     }
 }

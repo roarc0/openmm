@@ -1,8 +1,13 @@
+use std::borrow::Cow;
+
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     pbr::wireframe::{Wireframe, WireframeConfig},
-    prelude::*,
-    render::{color, render_resource::PrimitiveTopology},
+    prelude::{shape::Quad, *},
+};
+use bevy_mod_billboard::{
+    prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
+    BillboardTextureBundle,
 };
 use lod::LodManager;
 use random_color::{Luminosity, RandomColor};
@@ -10,9 +15,13 @@ use random_color::{Luminosity, RandomColor};
 use crate::{
     despawn_screen,
     odm::{bsp_model_bounding_box, bsp_model_generate_mesh, OdmAsset},
-    player::{self, FlyCam, MovementSettings},
+    player::{self, FlyCam},
     GameState,
 };
+
+use self::sun::SunPlugin;
+
+pub(crate) mod sun;
 
 #[derive(Component)]
 pub struct OnGameScreen;
@@ -21,16 +30,22 @@ pub struct OnGameScreen;
 pub(super) struct WorldSettings {
     pub lod_manager: LodManager,
     pub map_name: String,
-    pub show_wireframe: bool,
 }
 
 impl Default for WorldSettings {
     fn default() -> Self {
-        Self {
+        let mut default = Self {
             lod_manager: LodManager::new(lod::get_lod_path()).unwrap(),
-            map_name: "oute3.odm".into(),
-            show_wireframe: false,
-        }
+            map_name: "outc2.odm".into(),
+        };
+
+        default
+    }
+}
+
+impl WorldSettings {
+    fn get_odm(&self) -> Option<OdmAsset> {
+        OdmAsset::new(&self.lod_manager, self.map_name.as_str()).ok()
     }
 }
 
@@ -51,29 +66,17 @@ impl Plugin for WorldPlugin {
             )
             .add_plugins((
                 //debug_area::DebugAreaPlugin,
+                SunPlugin,
                 player::PlayerPlugin,
+                BillboardPlugin,
             ))
             .add_systems(OnEnter(GameState::Game), world_setup)
             .add_systems(OnExit(GameState::Game), despawn_screen::<OnGameScreen>);
     }
 }
 
-// #[derive(Resource, Deref, DerefMut)]
-// struct GameTimer(Timer);
-
-// fn game(
-//     time: Res<Time>,
-//     mut game_state: ResMut<NextState<GameState>>,
-//     mut timer: ResMut<GameTimer>,
-// ) {
-//     if timer.tick(time.delta()).finished() {
-//         game_state.set(GameState::Menu);
-//     }
-// }
-
 fn random_color() -> Color {
     let color = RandomColor::new()
-        .hue(random_color::Color::Red)
         .luminosity(Luminosity::Dark)
         .to_rgb_array();
 
@@ -87,29 +90,30 @@ fn random_color() -> Color {
 
 fn world_setup(
     mut commands: Commands,
-    settings: Res<WorldSettings>,
+    mut settings: Res<WorldSettings>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut billboard_textures: ResMut<Assets<BillboardTexture>>,
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
-    // if current_level.is_some() {
-    //     return;
-    // }
+    let odm = settings.get_odm();
+    if !odm.is_some() {
+        return;
+    }
+    let odm = odm.unwrap();
 
     wireframe_config.global = false;
-    let odm_asset = OdmAsset::new(&settings).unwrap();
-
-    let image_handle = images.add(odm_asset.image.clone());
-    let material = odm_asset.material(image_handle);
+    let image_handle = images.add(odm.image.clone());
+    let material = odm.material(image_handle);
 
     commands.spawn(PbrBundle {
-        mesh: meshes.add(odm_asset.mesh),
+        mesh: meshes.add(odm.mesh.clone()),
         material: materials.add(material),
         ..default()
     });
 
-    for b in odm_asset.map.bsp_models {
+    for b in odm.map.bsp_models {
         let color = random_color();
         commands.spawn((
             PbrBundle {
@@ -143,20 +147,44 @@ fn world_setup(
         ));
     }
 
-    commands.insert_resource(AmbientLight {
-        brightness: 0.3,
-        ..default()
-    });
+    for e in odm.map.entities {
+        let color = random_color();
 
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            shadows_enabled: true,
-            illuminance: 15000.,
-            ..default()
-        },
-        transform: Transform::from_xyz(1000.0, 1500.0, 0.0),
-        ..default()
-    });
+        let name = if e.declist_name == "rock01" {
+            "rok1"
+        } else {
+            &e.declist_name
+        }
+        .to_string();
+
+        if let Ok(image) = settings.lod_manager.sprite(name.as_str()) {
+            let image = bevy::render::texture::Image::from_dynamic(image, true);
+            let image_handle = images.add(image);
+
+            commands.spawn(BillboardTextureBundle {
+                texture: billboard_textures.add(BillboardTexture::Single(image_handle)),
+                transform: Transform::from_xyz(
+                    e.data.origin[0] as f32,
+                    e.data.origin[2] as f32 + 128.,
+                    -e.data.origin[1] as f32,
+                ),
+                mesh: BillboardMeshHandle(meshes.add(Quad::new(Vec2::new(256., 256.)).into())),
+                ..default()
+            });
+        } else {
+            println!("failed to read {}", e.declist_name);
+            commands.spawn(PbrBundle {
+                mesh: meshes.add(Mesh::from(shape::Cube { size: 120.0 })),
+                material: materials.add(color.into()),
+                transform: Transform::from_xyz(
+                    e.data.origin[0] as f32,
+                    e.data.origin[2] as f32,
+                    -e.data.origin[1] as f32,
+                ),
+                ..default()
+            });
+        }
+    }
 
     commands.spawn((
         TextBundle::from_sections([
@@ -239,12 +267,12 @@ fn update_map_input(keys: Res<Input<KeyCode>>, mut settings: ResMut<WorldSetting
     if keys.just_pressed(KeyCode::Key1) {
         // let pattern = r"out([a-e][1-3]).odm";
         // let re = Regex::new(pattern).unwrap();
-        settings.map_name = if settings.map_name == "oute3.odm" {
-            "oute2.odm"
-        } else {
-            "oute3.odm"
-        }
-        .into();
-        info!("Changing map: {}", &settings.map_name);
+        // settings.map_name = if settings.map_name == "oute3.odm" {
+        //     "oute2.odm"
+        // } else {
+        //     "oute3.odm"
+        // }
+        // .into();
+        // info!("Changing map: {}", &settings.map_name);
     }
 }

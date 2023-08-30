@@ -28,7 +28,7 @@ pub(super) fn read_string_block(
 }
 
 // debug
-fn hexdump_next_bytes(cursor: &mut Cursor<&[u8]>, n: usize) {
+pub(super) fn hexdump_next_bytes(cursor: &mut Cursor<&[u8]>, n: usize) {
     let mut t: Vec<u8> = Vec::new();
     for _i in 0..n {
         t.push(cursor.read_u8().unwrap())

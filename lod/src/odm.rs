@@ -9,7 +9,7 @@ use crate::{
     bsp_model::{read_bsp_models, BSPModel},
     dtile::{Dtile, TileTable},
     lod_data::LodData,
-    utils::read_string_block,
+    utils::{hexdump_next_bytes, read_string_block},
     LodManager,
 };
 
@@ -44,6 +44,7 @@ pub struct Odm {
     pub tile_map: [u8; TILEMAP_SIZE],
     pub attribute_map: [u8; ATTRIBUTE_MAP_SIZE],
     pub bsp_models: Vec<BSPModel>,
+    pub entities: Vec<Entity>,
 }
 
 impl TryFrom<&[u8]> for Odm {
@@ -79,7 +80,10 @@ impl TryFrom<&[u8]> for Odm {
         cursor.read_exact(&mut attribute_map)?;
 
         let bsp_model_count = cursor.read_u32::<LittleEndian>()? as usize;
-        let bsp_models = read_bsp_models(cursor, bsp_model_count)?;
+        let bsp_models: Vec<BSPModel> = read_bsp_models(&mut cursor, bsp_model_count)?;
+
+        let entities_count = cursor.read_u32::<LittleEndian>()? as usize;
+        let entities: Vec<Entity> = read_entities(&mut cursor, entities_count)?;
 
         Ok(Self {
             name: "test".into(),
@@ -91,8 +95,61 @@ impl TryFrom<&[u8]> for Odm {
             tile_map,
             attribute_map,
             bsp_models,
+            entities,
         })
     }
+}
+
+#[repr(C)]
+#[derive(Default, Debug)]
+pub struct EntityData {
+    pub declist_id: u16,
+    pub ai_attr_markers: u16,
+    pub origin: [i32; 3],
+    pub facing: i32,
+    pub evt1: u16,
+    pub evt2: u16,
+    pub var1: u16,
+    pub var2: u16,
+}
+
+#[derive(Default, Debug)]
+pub struct Entity {
+    pub declist_name: String,
+    pub data: EntityData,
+}
+
+pub(super) fn read_entities(
+    cursor: &mut Cursor<&[u8]>,
+    count: usize,
+) -> Result<Vec<Entity>, Box<dyn Error>> {
+    let mut entities_data = Vec::new();
+
+    for _i in 0..count {
+        let size = std::mem::size_of::<EntityData>();
+        let mut entity_data = EntityData::default();
+        cursor.read_exact(unsafe {
+            std::slice::from_raw_parts_mut(&mut entity_data as *mut _ as *mut u8, size)
+        })?;
+        entities_data.push(entity_data);
+    }
+
+    let mut entities_names = Vec::new();
+    for _i in 0..count {
+        let name = read_string_block(cursor, 32);
+        entities_names.push(name?.to_lowercase());
+    }
+
+    let entities = entities_data
+        .into_iter()
+        .zip(entities_names)
+        .map(|(data, name)| Entity {
+            declist_name: name,
+            data,
+        })
+        .collect();
+
+    Ok(entities)
 }
 
 impl Odm {

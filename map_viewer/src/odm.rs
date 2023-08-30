@@ -1,10 +1,14 @@
 use std::error::Error;
 
-use bevy::{prelude::*, render::render_resource::PrimitiveTopology};
+use bevy::{
+    prelude::*,
+    render::render_resource::{Face, PrimitiveTopology},
+};
 use lod::{
     dtile::TileTable,
     lod_data::LodData,
     odm::{Odm, OdmData},
+    LodManager,
 };
 
 pub(super) struct OdmAsset {
@@ -14,21 +18,15 @@ pub(super) struct OdmAsset {
 }
 
 impl OdmAsset {
-    pub(super) fn new(settings: &super::world::WorldSettings) -> Result<Self, Box<dyn Error>> {
-        let map = LodData::try_from(
-            settings
-                .lod_manager
-                .try_get_bytes(format!("games/{}", &settings.map_name))?,
-        )?;
+    pub(super) fn new(lod_manager: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>> {
+        let map = LodData::try_from(lod_manager.try_get_bytes(format!("games/{}", &map_name))?)?;
         let map = Odm::try_from(map.data.as_slice())?;
 
-        let tile_table = map.tile_table(&settings.lod_manager)?;
+        let tile_table = map.tile_table(&lod_manager)?;
         let mesh = Self::generate_mesh(&map, &tile_table);
 
-        let image = bevy::render::texture::Image::from_dynamic(
-            tile_table.atlas_image(&settings.lod_manager)?,
-            true,
-        );
+        let image =
+            bevy::render::texture::Image::from_dynamic(tile_table.atlas_image(&lod_manager)?, true);
 
         Ok(OdmAsset { map, mesh, image })
     }
@@ -41,6 +39,9 @@ impl OdmAsset {
             fog_enabled: true,
             perceptual_roughness: 1.0,
             reflectance: 0.2,
+            flip_normal_map_y: true,
+
+            cull_mode: Some(Face::Back),
             ..default()
         }
     }
@@ -48,14 +49,60 @@ impl OdmAsset {
     fn generate_mesh(odm: &Odm, tile_table: &TileTable) -> Mesh {
         let odm_data = OdmData::new(odm, tile_table);
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        mesh.set_indices(Some(bevy::render::mesh::Indices::U32(odm_data.indices)));
+        mesh.set_indices(Some(bevy::render::mesh::Indices::U32(
+            odm_data.indices.clone(),
+        )));
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, odm_data.positions);
         mesh.duplicate_vertices();
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, odm_data.uvs);
+
+        // let normals = calculate_normals(
+        //     mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+        //         .unwrap()
+        //         .as_float3()
+        //         .unwrap(),
+        //     &odm_data.indices,
+        // );
+        //mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+
         mesh.compute_flat_normals();
         mesh.compute_aabb();
         mesh
     }
+}
+
+fn calculate_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
+    let mut normals = vec![[0.0, 0.0, 0.0]; vertices.len()];
+
+    for face_indices in indices.chunks(3) {
+        let v0 = vertices[face_indices[0] as usize];
+        let v1 = vertices[face_indices[1] as usize];
+        let v2 = vertices[face_indices[2] as usize];
+
+        let edge1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
+        let edge2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
+
+        let cross_product = [
+            edge1[1] * edge2[2] - edge1[2] * edge2[1],
+            edge1[2] * edge2[0] - edge1[0] * edge2[2],
+            edge1[0] * edge2[1] - edge1[1] * edge2[0],
+        ];
+
+        for index in face_indices {
+            normals[*index as usize][0] += cross_product[0];
+            normals[*index as usize][1] += cross_product[1];
+            normals[*index as usize][2] += cross_product[2];
+        }
+    }
+
+    for normal in normals.iter_mut() {
+        let length = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();
+        normal[0] /= length;
+        normal[1] /= length;
+        normal[2] /= length;
+    }
+
+    normals
 }
 
 pub(super) fn bsp_model_generate_mesh(model: lod::bsp_model::BSPModel) -> Mesh {

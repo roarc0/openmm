@@ -94,7 +94,7 @@ fn read_files(
     let mut files: HashMap<String, Vec<u8>> = HashMap::new();
     for fh in file_headers {
         let buf = read_file(&mut buf_reader, &fh)?;
-        files.insert(fh.name.to_ascii_lowercase(), buf);
+        files.insert(fh.name.to_lowercase(), buf);
     }
     Ok(files)
 }
@@ -206,5 +206,15 @@ mod tests {
         .unwrap();
         assert_eq!(goblin_image.width(), 355);
         assert_eq!(goblin_image.height(), 289);
+    }
+
+    #[test]
+    fn get_sprite() {
+        let lod_path = get_lod_path();
+        let lod_path = Path::new(&lod_path);
+
+        let sprites_lod = Lod::open(lod_path.join("SPRITES.LOD")).unwrap();
+        let rock01 = sprites_lod.try_get_bytes("rock01");
+        assert!(rock01.is_some());
     }
 }

@@ -27,9 +27,9 @@ fn splash_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .spawn((
             NodeBundle {
                 style: Style {
+                    width: Val::Percent(100.0),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::Center,
-                    width: Val::Percent(100.0),
                     ..default()
                 },
                 ..default()
@@ -47,7 +47,7 @@ fn splash_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             });
         });
 
-    commands.insert_resource(SplashTimer(Timer::from_seconds(2.0, TimerMode::Once)));
+    commands.insert_resource(SplashTimer(Timer::from_seconds(1.0, TimerMode::Once)));
 }
 
 fn countdown(

@@ -4,7 +4,7 @@ use crate::APP_NAME;
 
 use super::{despawn_screen, GameState};
 
-const TEXT_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
+const TEXT_COLOR: Color = Color::rgb(0.3, 0.9, 0.3);
 
 pub struct MenuPlugin;
 
@@ -147,8 +147,15 @@ fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         color: TEXT_COLOR,
         ..default()
     };
+    let column_center_style = Style {
+        flex_direction: FlexDirection::Column,
+        align_items: AlignItems::Center,
+        ..default()
+    };
 
     commands.spawn((Camera2dBundle::default(), OnMainMenuScreen));
+
+    let mm6title = asset_server.load("mm6title.png");
 
     commands
         .spawn((
@@ -164,14 +171,19 @@ fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             OnMainMenuScreen,
         ))
         .with_children(|parent| {
+            parent.spawn(ImageBundle {
+                style: Style {
+                    flex_grow: 1.,
+                    position_type: PositionType::Absolute,
+                    ..default()
+                },
+                image: UiImage::new(mm6title),
+                ..default()
+            });
+
             parent
                 .spawn(NodeBundle {
-                    style: Style {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    background_color: Color::CRIMSON.into(),
+                    style: column_center_style,
                     ..default()
                 })
                 .with_children(|parent| {

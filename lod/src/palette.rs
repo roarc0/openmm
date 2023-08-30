@@ -41,7 +41,7 @@ impl TryFrom<&Lod> for Palettes {
             .files()
             .iter()
             .filter_map(|f| {
-                if f.to_ascii_lowercase().starts_with("pal") && f.len() == 6 {
+                if f.to_lowercase().starts_with("pal") && f.len() == 6 {
                     Some(f.to_string())
                 } else {
                     None
