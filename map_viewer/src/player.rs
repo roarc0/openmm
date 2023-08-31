@@ -3,6 +3,8 @@ use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
 
+use crate::GameState;
+
 /// Keeps track of mouse motion events, pitch, and yaw
 #[derive(Resource, Default)]
 struct InputState {
@@ -20,7 +22,7 @@ impl Default for MovementSettings {
     fn default() -> Self {
         Self {
             sensitivity: 0.00012,
-            speed: 12.,
+            speed: 4096.,
         }
     }
 }
@@ -186,47 +188,50 @@ fn cursor_grab(
 }
 
 // Grab cursor when an entity with FlyCam is added
-fn initial_grab_on_flycam_spawn(
-    mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
-    query_added: Query<Entity, Added<FlyCam>>,
-) {
-    if query_added.is_empty() {
-        return;
-    }
+// fn initial_grab_on_flycam_spawn(
+//     mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
+//     query_added: Query<Entity, Added<FlyCam>>,
+// ) {
+//     if query_added.is_empty() {
+//         return;
+//     }
 
-    if let Ok(window) = &mut primary_window.get_single_mut() {
-        toggle_grab_cursor(window);
-    } else {
-        warn!("Primary window not found for `initial_grab_cursor`!");
-    }
-}
+//     if let Ok(window) = &mut primary_window.get_single_mut() {
+//         toggle_grab_cursor(window);
+//     } else {
+//         warn!("Primary window not found for `initial_grab_cursor`!");
+//     }
+// }
 
-/// Contains everything needed to add first-person fly camera behavior to your game
+/// Contains everything needed to add first-person fly camera behaviour to your game
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InputState>()
             .init_resource::<MovementSettings>()
             .init_resource::<KeyBindings>()
-            .add_systems(Startup, setup_player)
-            .add_systems(Startup, initial_grab_cursor)
-            .add_systems(Update, player_move)
-            .add_systems(Update, player_look)
-            .add_systems(Update, cursor_grab);
+            .add_systems(
+                OnEnter(GameState::Game),
+                (setup_player, initial_grab_cursor),
+            )
+            .add_systems(
+                Update,
+                (player_move, player_look, cursor_grab).run_if(in_state(GameState::Game)),
+            );
     }
 }
 
-/// Same as [`PlayerPlugin`] but does not spawn a camera
-pub struct NoCameraPlayerPlugin;
-impl Plugin for NoCameraPlayerPlugin {
-    fn build(&self, app: &mut App) {
-        app.init_resource::<InputState>()
-            .init_resource::<MovementSettings>()
-            .init_resource::<KeyBindings>()
-            .add_systems(Startup, initial_grab_cursor)
-            .add_systems(Startup, initial_grab_on_flycam_spawn)
-            .add_systems(Update, player_move)
-            .add_systems(Update, player_look)
-            .add_systems(Update, cursor_grab);
-    }
-}
+// Same as [`PlayerPlugin`] but does not spawn a camera
+// pub struct NoCameraPlayerPlugin;
+// impl Plugin for NoCameraPlayerPlugin {
+//     fn build(&self, app: &mut App) {
+//         app.init_resource::<InputState>()
+//             .init_resource::<MovementSettings>()
+//             .init_resource::<KeyBindings>()
+//             .add_systems(Startup, initial_grab_cursor)
+//             .add_systems(Startup, initial_grab_on_flycam_spawn)
+//             .add_systems(Update, player_move)
+//             .add_systems(Update, player_look)
+//             .add_systems(Update, cursor_grab);
+//     }
+// }

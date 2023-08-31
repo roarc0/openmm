@@ -52,7 +52,6 @@ impl Dtile {
 
     pub fn table(&self, tile_data: [u16; 8]) -> Result<TileTable, Box<dyn Error>> {
         let mut names_table: Vec<String> = Vec::with_capacity(256);
-        println!("{tile_data:?}");
         for i in 0_u16..=255_u16 {
             let index = if (90..125).contains(&i) {
                 i - 90 + tile_data[1] // primary

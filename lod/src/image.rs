@@ -10,7 +10,7 @@ use super::{palette::Palettes, zlib};
 use crate::LodManager;
 
 #[derive(Debug)]
-pub struct Image {
+pub(super) struct Image {
     pub height: usize,
     pub width: usize,
     pub data: Vec<u8>,
@@ -143,16 +143,11 @@ impl Image {
             &self.data,
             &self.palette,
             |index, pixel: &[u8; 3]| {
-                Rgba([
-                    pixel[0],
-                    pixel[1],
-                    pixel[2],
-                    if self.transparency && index == self.data[0] {
-                        0
-                    } else {
-                        255
-                    },
-                ])
+                if self.transparency && index == self.data[0] {
+                    Rgba([0, 0, 0, 0])
+                } else {
+                    Rgba([pixel[0], pixel[1], pixel[2], 255])
+                }
             },
             self.width as u32,
             self.height as u32,

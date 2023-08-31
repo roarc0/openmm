@@ -1,4 +1,5 @@
 [package]
+authors = ["Alessandro Rosetti <alessandro.rosetti@gmail.com>"]
 name = "lod"
 version = "0.1.0"
 edition = "2021"
