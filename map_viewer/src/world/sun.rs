@@ -4,7 +4,7 @@ use bevy::{pbr::CascadeShadowConfigBuilder, prelude::*};
 
 use crate::{despawn_screen, GameState};
 
-use super::OnGameScreen;
+use super::InWorld;
 
 pub struct SunPlugin;
 
@@ -12,7 +12,7 @@ impl Plugin for SunPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, (update_sun).run_if(in_state(GameState::Game)))
             .add_systems(OnEnter(GameState::Game), sun_setup)
-            .add_systems(OnExit(GameState::Game), despawn_screen::<OnGameScreen>);
+            .add_systems(OnExit(GameState::Game), despawn_screen::<InWorld>);
     }
 }
 
@@ -40,7 +40,7 @@ fn sun_setup(mut commands: Commands) {
             ..default()
         },
         Movable::new(entity_spawn),
-        OnGameScreen,
+        InWorld,
     ));
 }
 

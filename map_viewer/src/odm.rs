@@ -10,28 +10,51 @@ use lod::{
     odm::{Odm, OdmData},
     LodManager,
 };
+use random_color::{Luminosity, RandomColor};
 
-pub(super) struct OdmAsset {
+pub(super) struct OdmBundle {
     pub map: Odm,
     pub mesh: Mesh,
-    pub image: Image,
+    pub texture: Image,
+    pub models: Vec<ModelBundle>,
+    //pub entities: Vec<EntityBundle>,
 }
 
-impl OdmAsset {
+pub(super) struct ModelBundle {
+    // pub model: Model,
+    pub mesh: Mesh,
+    pub bounding_box_mesh: Mesh,
+    pub material: StandardMaterial,
+}
+
+pub(super) struct EntityBundle {
+    // pub model: Entity,
+    pub mesh: Mesh,
+    pub texture: Image,
+}
+
+impl OdmBundle {
     pub(super) fn new(lod_manager: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>> {
         let map = LodData::try_from(lod_manager.try_get_bytes(format!("games/{}", &map_name))?)?;
         let map = Odm::try_from(map.data.as_slice())?;
 
         let tile_table = map.tile_table(&lod_manager)?;
-        let mesh = Self::generate_mesh(&map, &tile_table);
+        let mesh = Self::generate_terrain_mesh(&map, &tile_table);
 
         let image =
             bevy::render::texture::Image::from_dynamic(tile_table.atlas_image(&lod_manager)?, true);
 
-        Ok(OdmAsset { map, mesh, image })
+        let models = process_models(&map);
+
+        Ok(OdmBundle {
+            map,
+            mesh,
+            texture: image,
+            models,
+        })
     }
 
-    pub fn material(&self, image_handle: Handle<Image>) -> StandardMaterial {
+    pub fn terrain_material(&self, image_handle: Handle<Image>) -> StandardMaterial {
         StandardMaterial {
             base_color_texture: Some(image_handle),
             unlit: false,
@@ -46,7 +69,7 @@ impl OdmAsset {
         }
     }
 
-    fn generate_mesh(odm: &Odm, tile_table: &TileTable) -> Mesh {
+    fn generate_terrain_mesh(odm: &Odm, tile_table: &TileTable) -> Mesh {
         let odm_data = OdmData::new(odm, tile_table);
         let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
         mesh.set_indices(Some(bevy::render::mesh::Indices::U32(
@@ -71,7 +94,31 @@ impl OdmAsset {
     }
 }
 
-fn calculate_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
+fn process_models(map: &Odm) -> Vec<ModelBundle> {
+    let mut models = Vec::new();
+    for b in &map.bsp_models {
+        let bounding_box_mesh: Mesh = generate_bsp_model_bounding_box(&b).into();
+        let mesh = generate_bsp_model_mesh(b);
+        let material = StandardMaterial {
+            base_color: random_color().into(),
+            unlit: false,
+            alpha_mode: AlphaMode::Opaque,
+            fog_enabled: true,
+            perceptual_roughness: 0.5,
+            reflectance: 0.1,
+            cull_mode: None,
+            ..default()
+        };
+        models.push(ModelBundle {
+            bounding_box_mesh,
+            mesh,
+            material,
+        });
+    }
+    models
+}
+
+fn calculate_terrain_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
     let mut normals = vec![[0.0, 0.0, 0.0]; vertices.len()];
 
     for face_indices in indices.chunks(3) {
@@ -105,16 +152,18 @@ fn calculate_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
     normals
 }
 
-pub(super) fn bsp_model_generate_mesh(model: lod::bsp_model::BSPModel) -> Mesh {
+pub(super) fn generate_bsp_model_mesh(model: &lod::bsp_model::BSPModel) -> Mesh {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    mesh.set_indices(Some(bevy::render::mesh::Indices::U32(model.indices)));
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, model.vertices);
+    mesh.set_indices(Some(bevy::render::mesh::Indices::U32(
+        model.indices.clone(),
+    )));
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, model.vertices.clone());
     mesh.duplicate_vertices();
     mesh.compute_flat_normals();
     mesh
 }
 
-pub(super) fn bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) -> shape::Box {
+pub(super) fn generate_bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) -> shape::Box {
     shape::Box::from_corners(
         [
             model.header.bounding_box.min_x as f32,
@@ -128,5 +177,18 @@ pub(super) fn bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) -> shape:
             -model.header.bounding_box.max_y as f32,
         ]
         .into(),
+    )
+}
+
+fn random_color() -> Color {
+    let color = RandomColor::new()
+        .luminosity(Luminosity::Dark)
+        .to_rgb_array();
+
+    Color::rgba(
+        color[0] as f32 / 255.,
+        color[1] as f32 / 255.,
+        color[2] as f32 / 255.,
+        1.0,
     )
 }

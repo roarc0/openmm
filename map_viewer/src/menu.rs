@@ -147,23 +147,16 @@ fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         color: TEXT_COLOR,
         ..default()
     };
-    let column_center_style = Style {
-        flex_direction: FlexDirection::Column,
-        align_items: AlignItems::Center,
-        ..default()
-    };
 
     commands.spawn((Camera2dBundle::default(), OnMainMenuScreen));
-
-    let mm6title = asset_server.load("mm6title.png");
 
     commands
         .spawn((
             NodeBundle {
                 style: Style {
                     width: Val::Percent(100.0),
-                    align_items: AlignItems::Center,
-                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Stretch,
+                    justify_content: JustifyContent::End,
                     ..default()
                 },
                 ..default()
@@ -174,34 +167,24 @@ fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             parent.spawn(ImageBundle {
                 style: Style {
                     flex_grow: 1.,
-                    position_type: PositionType::Absolute,
+                    //position_type: PositionType::Absolute,
                     ..default()
                 },
-                image: UiImage::new(mm6title),
+                image: UiImage::new(asset_server.load("mm6title.png")),
                 ..default()
             });
 
             parent
                 .spawn(NodeBundle {
-                    style: column_center_style,
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::End,
+                        ..default()
+                    },
                     ..default()
                 })
                 .with_children(|parent| {
-                    parent.spawn(
-                        TextBundle::from_section(
-                            APP_NAME,
-                            TextStyle {
-                                font_size: 80.0,
-                                color: TEXT_COLOR,
-                                ..default()
-                            },
-                        )
-                        .with_style(Style {
-                            margin: UiRect::all(Val::Px(50.0)),
-                            ..default()
-                        }),
-                    );
-
                     parent
                         .spawn((
                             ButtonBundle {

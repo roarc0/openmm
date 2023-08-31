@@ -28,7 +28,7 @@ fn splash_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             NodeBundle {
                 style: Style {
                     width: Val::Percent(100.0),
-                    align_items: AlignItems::Center,
+                    align_items: AlignItems::Stretch,
                     justify_content: JustifyContent::Center,
                     ..default()
                 },
