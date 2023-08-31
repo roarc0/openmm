@@ -6,7 +6,10 @@ use bevy_mod_billboard::{
     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
     BillboardTextureBundle,
 };
-use lod::LodManager;
+use lod::{
+    ddeclist::{self, DDecList},
+    LodManager,
+};
 
 use crate::{
     despawn_screen,
@@ -101,7 +104,10 @@ fn world_setup(
     }
 
     for e in odm.map.entities {
-        let name = e.declist_name.clone(); // TODO translate declist
+        let ddeclist = DDecList::new(&settings.lod_manager).unwrap();
+        let entry = ddeclist.entries.get(e.data.declist_id as usize).unwrap();
+
+        let name = entry.name().unwrap_or("pending".into());
 
         let image = if let Ok(image) = settings.lod_manager.sprite(name.as_str()) {
             image

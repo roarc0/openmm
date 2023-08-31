@@ -10,6 +10,7 @@ use lod::Lod;
 use palette::Palettes;
 
 pub mod bsp_model;
+pub mod ddeclist;
 pub mod dtile;
 pub mod image;
 mod lod;
