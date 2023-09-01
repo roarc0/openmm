@@ -9,20 +9,22 @@ use lod::Lod;
 use palette::Palettes;
 
 pub mod bsp_model;
+pub mod dtile;
+pub mod odm;
+
 pub mod ddeclist;
 pub mod dsft;
-pub mod dtile;
 pub mod image;
+pub mod sprite;
+
 mod lod;
 pub mod lod_data;
-pub mod odm;
 pub mod palette;
 mod utils;
 mod zlib;
 
 pub const ENV_OPENMM_6_PATH: &str = "OPENMM_6_PATH";
 
-#[allow(dead_code)]
 pub struct LodManager {
     lods: HashMap<String, Lod>,
 }
@@ -34,7 +36,7 @@ impl LodManager {
     {
         let lod_files = Self::list_lod_files(path)?;
         let lod_map = Self::create_lod_file_map(lod_files)?;
-        Ok(LodManager { lods: lod_map })
+        Ok(Self { lods: lod_map })
     }
 
     fn list_lod_files<P>(path: P) -> Result<Vec<PathBuf>, std::io::Error>
@@ -109,11 +111,11 @@ impl LodManager {
         Ok(palettes)
     }
 
-    pub fn sprite(&self, name: &str) -> Result<DynamicImage, Box<dyn Error>> {
-        let sprite = self.try_get_bytes(format!("sprites/{}", name))?;
-        let palettes = self.palettes()?;
-        let sprite = crate::image::Image::try_from((sprite, &palettes))?;
-        sprite.to_image_buffer()
+    pub fn sprite(&self, name: &str) -> Option<DynamicImage> {
+        let sprite = self.try_get_bytes(format!("sprites/{}", name)).ok()?;
+        let palettes = self.palettes().ok()?;
+        let sprite = crate::image::Image::try_from((sprite, &palettes)).ok()?;
+        sprite.to_image_buffer().ok()
     }
 }
 
@@ -142,6 +144,6 @@ mod tests {
         let lod_path = get_lod_path();
         let lod_manager = LodManager::new(lod_path).unwrap();
         let rock = lod_manager.sprite("rok1");
-        assert!(rock.is_ok());
+        assert!(rock.is_some());
     }
 }

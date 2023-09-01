@@ -18,7 +18,7 @@ pub struct DSFT {
 
 #[allow(dead_code)]
 #[repr(C)]
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct DSFTFrame {
     group_name: [u8; 12],
     sprite_name: [u8; 12],
@@ -92,9 +92,7 @@ impl DSFTFrame {
     pub fn is_mirror8(&self) -> bool {
         (self.bits & 0x8000) != 0
     }
-}
 
-impl DSFTFrame {
     pub fn group_name(&self) -> Option<String> {
         try_read_name(&self.group_name)
     }

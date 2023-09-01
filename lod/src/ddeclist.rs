@@ -12,13 +12,14 @@ use crate::{
 };
 
 pub struct DDecList {
-    pub items: Vec<DDecItem>,
+    pub items: Vec<DDecListItem>,
     pub names: Vec<String>,
 }
 
 #[allow(dead_code)]
 #[repr(C)]
-pub struct DDecItem {
+#[derive(Clone)]
+pub struct DDecListItem {
     name: [u8; 32],
     game_name: [u8; 32],
     pub dec_type: u16,
@@ -31,9 +32,9 @@ pub struct DDecItem {
     skip: u16,
 }
 
-impl Default for DDecItem {
+impl Default for DDecListItem {
     fn default() -> Self {
-        DDecItem {
+        DDecListItem {
             name: [0; 32],
             game_name: [0; 32],
             dec_type: 0,
@@ -48,7 +49,7 @@ impl Default for DDecItem {
     }
 }
 
-impl DDecItem {
+impl DDecListItem {
     pub fn is_no_block_movement(&self) -> bool {
         (self.bits & 0x0001) != 0
     }
@@ -100,12 +101,25 @@ pub union SFTType {
     pub index: i16,
 }
 
-impl DDecItem {
+impl Clone for SFTType {
+    fn clone(&self) -> Self {
+        Self {
+            index: unsafe { self.index },
+        }
+    }
+}
+
+impl DDecListItem {
     pub fn name(&self) -> Option<String> {
         try_read_name(&self.game_name)
     }
+
     pub fn game_name(&self) -> Option<String> {
         try_read_name(&self.game_name)
+    }
+
+    pub fn sft_index(&self) -> i16 {
+        unsafe { self.sft.index }
     }
 }
 
@@ -115,13 +129,13 @@ impl DDecList {
         let data = data.data.as_slice();
 
         let mut cursor = Cursor::new(data);
-        let mut items: Vec<DDecItem> = Vec::new();
+        let mut items: Vec<DDecListItem> = Vec::new();
         let mut names: Vec<String> = Vec::new();
 
         let items_count = cursor.read_u32::<LittleEndian>()?;
-        let size = std::mem::size_of::<DDecItem>();
+        let size = std::mem::size_of::<DDecListItem>();
         for _i in 0..items_count {
-            let mut item = DDecItem::default();
+            let mut item = DDecListItem::default();
             cursor.read_exact(unsafe {
                 std::slice::from_raw_parts_mut(&mut item as *mut _ as *mut u8, size)
             })?;

@@ -42,12 +42,12 @@ pub struct KeyBindings {
 impl Default for KeyBindings {
     fn default() -> Self {
         Self {
-            move_forward: KeyCode::W,
-            move_backward: KeyCode::S,
-            move_left: KeyCode::A,
-            move_right: KeyCode::D,
-            move_ascend: KeyCode::Space,
-            move_descend: KeyCode::ShiftLeft,
+            move_forward: KeyCode::Up,
+            move_backward: KeyCode::Down,
+            move_left: KeyCode::Left,
+            move_right: KeyCode::Right,
+            move_ascend: KeyCode::PageUp,
+            move_descend: KeyCode::Insert,
             toggle_grab_cursor: KeyCode::Escape,
         }
     }
