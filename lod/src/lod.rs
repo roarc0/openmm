@@ -8,7 +8,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, palette, utils::read_string};
+use crate::{lod_data::LodData, palette, utils::try_read_string};
 
 #[allow(dead_code)]
 pub(super) struct Lod {
@@ -21,12 +21,12 @@ impl Lod {
         let file: File = File::open(path)?;
         let mut buf_reader = BufReader::new(file);
 
-        let magic = read_string(&mut buf_reader)?;
+        let magic = try_read_string(&mut buf_reader)?;
         if magic != "LOD" {
             return Err("Invalid file format".into());
         }
 
-        let version = Version::try_from(read_string(&mut buf_reader)?.as_str())?;
+        let version = Version::try_from(try_read_string(&mut buf_reader)?.as_str())?;
 
         let file_headers = read_file_headers(&mut buf_reader)?;
         let files = read_files(file_headers, buf_reader)?;

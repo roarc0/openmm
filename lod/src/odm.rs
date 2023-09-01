@@ -9,7 +9,7 @@ use crate::{
     bsp_model::{read_bsp_models, BSPModel},
     dtile::{Dtile, TileTable},
     lod_data::LodData,
-    utils::{hexdump_next_bytes, read_string_block},
+    utils::{hexdump_next_bytes, try_read_string_block},
     LodManager,
 };
 
@@ -53,9 +53,9 @@ impl TryFrom<&[u8]> for Odm {
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut cursor = Cursor::new(data);
         cursor.seek(std::io::SeekFrom::Start(2 * 32))?;
-        let odm_version = read_string_block(&mut cursor, 32)?;
-        let sky_texture = read_string_block(&mut cursor, 32)?;
-        let ground_texture = read_string_block(&mut cursor, 32)?;
+        let odm_version = try_read_string_block(&mut cursor, 32)?;
+        let sky_texture = try_read_string_block(&mut cursor, 32)?;
+        let ground_texture = try_read_string_block(&mut cursor, 32)?;
         let tile_data: [u16; 8] = [
             cursor.read_u16::<LittleEndian>()?,
             cursor.read_u16::<LittleEndian>()?,
@@ -136,7 +136,7 @@ pub(super) fn read_entities(
 
     let mut entities_names = Vec::new();
     for _i in 0..count {
-        let name = read_string_block(cursor, 32);
+        let name = try_read_string_block(cursor, 32);
         entities_names.push(name?.to_lowercase());
     }
 

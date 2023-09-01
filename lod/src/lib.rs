@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs::{self};
-use std::io::{BufRead, Read};
 use std::path::{Path, PathBuf};
 
 use ::image::DynamicImage;
@@ -11,6 +10,7 @@ use palette::Palettes;
 
 pub mod bsp_model;
 pub mod ddeclist;
+pub mod dsft;
 pub mod dtile;
 pub mod image;
 mod lod;

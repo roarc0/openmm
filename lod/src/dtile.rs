@@ -1,4 +1,4 @@
-use crate::{image::get_atlas, utils::read_string, LodManager};
+use crate::{image::get_atlas, utils::try_read_string, LodManager};
 use byteorder::{LittleEndian, ReadBytesExt};
 use image::DynamicImage;
 use std::{
@@ -37,7 +37,7 @@ impl Dtile {
 
         cursor.seek(std::io::SeekFrom::Start((4 + i * 26) as u64))?;
         let pos = cursor.position();
-        let name = read_string(&mut cursor)?;
+        let name = try_read_string(&mut cursor)?;
         let name = if name.is_empty() {
             "pending".into()
         } else {

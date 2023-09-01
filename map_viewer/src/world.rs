@@ -6,10 +6,7 @@ use bevy_mod_billboard::{
     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
     BillboardTextureBundle,
 };
-use lod::{
-    ddeclist::{self, DDecList},
-    LodManager,
-};
+use lod::{ddeclist::DDecList, LodManager};
 
 use crate::{
     despawn_screen,
@@ -34,12 +31,10 @@ pub(super) struct WorldSettings {
 
 impl Default for WorldSettings {
     fn default() -> Self {
-        let mut default = Self {
+        Self {
             lod_manager: LodManager::new(lod::get_lod_path()).unwrap(),
-            map_name: "outb2.odm".into(),
-        };
-
-        default
+            map_name: "oute3.odm".into(),
+        }
     }
 }
 
@@ -104,32 +99,50 @@ fn world_setup(
     }
 
     for e in odm.map.entities {
-        let ddeclist = DDecList::new(&settings.lod_manager).unwrap();
-        let entry = ddeclist.entries.get(e.data.declist_id as usize).unwrap();
+        let ddec_list = DDecList::new(&settings.lod_manager).unwrap();
+        let ddec_item = ddec_list.items.get(e.data.declist_id as usize).unwrap();
 
-        let name = entry.name().unwrap_or("pending".into());
+        let name = ddec_item.name().unwrap_or("pending".into());
 
         let image = if let Ok(image) = settings.lod_manager.sprite(name.as_str()) {
             image
         } else {
-            println!("failed to read {}", e.declist_name);
-            settings.lod_manager.sprite("pending").unwrap()
+            unsafe {
+                println!(
+                    "failed to read {} entity: {:?} ddec_item: {:?}|{:?}|{}",
+                    name,
+                    e,
+                    ddec_item.name(),
+                    ddec_item.game_name(),
+                    ddec_item.sft.index
+                );
+            }
+            if let Ok(image) = settings.lod_manager.sprite(&e.declist_name) {
+                image
+            } else {
+                settings.lod_manager.sprite("pending").unwrap()
+            }
         };
 
         let image = bevy::render::texture::Image::from_dynamic(image, true);
         let size = image.size();
         let image_handle = images.add(image);
 
+        let height = if ddec_item.height != 0 {
+            (ddec_item.height as f32 * size[0] / 30.0) as f32 // I don't know how to use the height field :3
+        } else {
+            size[1] as f32
+        };
+        let width = height * (size[0] / size[1]);
+
         commands.spawn(BillboardTextureBundle {
             texture: billboard_textures.add(BillboardTexture::Single(image_handle)),
             transform: Transform::from_xyz(
                 e.data.origin[0] as f32,
-                e.data.origin[2] as f32 + (size[1]),
+                e.data.origin[2] as f32 + height / 2.,
                 -e.data.origin[1] as f32,
             ),
-            mesh: BillboardMeshHandle(
-                meshes.add(Quad::new(Vec2::new(2. * size[0], 2. * size[1])).into()),
-            ),
+            mesh: BillboardMeshHandle(meshes.add(Quad::new(Vec2::new(width, height)).into())),
             ..default()
         });
     }

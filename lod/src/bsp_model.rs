@@ -6,7 +6,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::utils::read_string_block;
+use crate::utils::try_read_string_block;
 
 #[derive(Debug)]
 pub struct BSPModel {
@@ -160,7 +160,7 @@ fn read_bsp_model(
         model.unk.push(cursor.read_u8()?);
     }
     for _i in 0..model.header.faces_count {
-        let texture_name: String = read_string_block(cursor, TEXTURE_NAME_MAX_SIZE)?;
+        let texture_name: String = try_read_string_block(cursor, TEXTURE_NAME_MAX_SIZE)?;
         model.texture_names.push(texture_name);
     }
     model.indices = decode_indices(&model);
@@ -191,8 +191,8 @@ fn read_bsp_model_headers(
 
 fn read_bsp_model_header(cursor: &mut Cursor<&[u8]>) -> Result<BSPModelHeader, Box<dyn Error>> {
     let mut header = BSPModelHeader {
-        name1: read_string_block(cursor, MODEL_NAME_MAX_SIZE)?,
-        name2: read_string_block(cursor, MODEL_NAME_MAX_SIZE)?,
+        name1: try_read_string_block(cursor, MODEL_NAME_MAX_SIZE)?,
+        name2: try_read_string_block(cursor, MODEL_NAME_MAX_SIZE)?,
         attributes: cursor.read_i32::<LittleEndian>()?,
         vertex_count: cursor.read_i32::<LittleEndian>()?,
         ..Default::default()

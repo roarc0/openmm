@@ -7,41 +7,105 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{
     lod_data::LodData,
-    utils::{read_string, read_string_block},
+    utils::{try_read_name, try_read_string},
     LodManager,
 };
 
-#[derive(Debug)]
 pub struct DDecList {
-    pub entries: Vec<DDecListEntry>,
+    pub items: Vec<DDecItem>,
+    pub names: Vec<String>,
 }
 
 #[allow(dead_code)]
 #[repr(C)]
-#[derive(Debug, Clone, Default)]
-pub struct DDecListEntry {
+pub struct DDecItem {
     name: [u8; 32],
     game_name: [u8; 32],
-    dec_type: u16,
-    height: u16,
-    radius: u16,
-    light_radius: u16,
-    sft: u16,  // union [u8; 2] | i16
-    bits: u16, //  bool noBlockMovement,noDraw,flickerSlow,flickerMedium,flickerFast,marker,slowLoop,emitFire,soundOnDawn,soundOnDusk,emitSmoke
-    sound_id: u16,
+    pub dec_type: u16,
+    pub height: u16,
+    pub radius: u16,
+    pub light_radius: u16,
+    pub sft: SFTType,
+    pub bits: u16,
+    pub sound_id: u16,
     skip: u16,
 }
 
-// #[repr(C)]
-// union SFTData {
-//     sft_group: [u8; 2],
-//     sft_index: i16,
-// }
+impl Default for DDecItem {
+    fn default() -> Self {
+        DDecItem {
+            name: [0; 32],
+            game_name: [0; 32],
+            dec_type: 0,
+            height: 0,
+            radius: 0,
+            light_radius: 0,
+            sft: SFTType { index: 0 },
+            bits: 0,
+            sound_id: 0,
+            skip: 0,
+        }
+    }
+}
 
-impl DDecListEntry {
+impl DDecItem {
+    pub fn is_no_block_movement(&self) -> bool {
+        (self.bits & 0x0001) != 0
+    }
+
+    pub fn is_no_draw(&self) -> bool {
+        (self.bits & 0x0002) != 0
+    }
+
+    pub fn is_flicker_slow(&self) -> bool {
+        (self.bits & 0x0004) != 0
+    }
+
+    pub fn is_flicker_medium(&self) -> bool {
+        (self.bits & 0x0008) != 0
+    }
+
+    pub fn is_flicker_fast(&self) -> bool {
+        (self.bits & 0x0010) != 0
+    }
+
+    pub fn is_marker(&self) -> bool {
+        (self.bits & 0x0020) != 0
+    }
+
+    pub fn is_slow_loop(&self) -> bool {
+        (self.bits & 0x0040) != 0
+    }
+
+    pub fn is_emit_fire(&self) -> bool {
+        (self.bits & 0x0080) != 0
+    }
+
+    pub fn is_sound_on_dawn(&self) -> bool {
+        (self.bits & 0x0100) != 0
+    }
+
+    pub fn is_sound_on_dusk(&self) -> bool {
+        (self.bits & 0x0200) != 0
+    }
+
+    pub fn is_emit_smoke(&self) -> bool {
+        (self.bits & 0x0400) != 0
+    }
+}
+
+#[repr(C)]
+pub union SFTType {
+    pub group: [u8; 2],
+    pub index: i16,
+}
+
+impl DDecItem {
     pub fn name(&self) -> Option<String> {
-        let mut cursor = Cursor::new(self.name.as_slice());
-        read_string(&mut cursor).ok()
+        try_read_name(&self.game_name)
+    }
+    pub fn game_name(&self) -> Option<String> {
+        try_read_name(&self.game_name)
     }
 }
 
@@ -50,35 +114,37 @@ impl DDecList {
         let data = LodData::try_from(lod_manager.try_get_bytes("icons/ddeclist.bin")?)?;
         let data = data.data.as_slice();
 
-        let mut entries = Vec::new();
         let mut cursor = Cursor::new(data);
-        let count = cursor.read_u32::<LittleEndian>()?;
-        for _i in 0..count {
-            let mut entry = DDecListEntry::default();
+        let mut items: Vec<DDecItem> = Vec::new();
+        let mut names: Vec<String> = Vec::new();
+
+        let items_count = cursor.read_u32::<LittleEndian>()?;
+        let size = std::mem::size_of::<DDecItem>();
+        for _i in 0..items_count {
+            let mut item = DDecItem::default();
             cursor.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(
-                    &mut entry as *mut _ as *mut u8,
-                    std::mem::size_of::<DDecListEntry>(),
-                )
+                std::slice::from_raw_parts_mut(&mut item as *mut _ as *mut u8, size)
             })?;
-            entries.push(entry);
+            names.push(item.game_name().unwrap_or_default());
+            items.push(item);
         }
 
-        Ok(Self { entries })
+        Ok(Self { items, names })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_lod_path, lod_data::LodData, LodManager};
+    use crate::{get_lod_path, LodManager};
 
     use super::DDecList;
 
     #[test]
     fn read_declist_data_works() {
-        let lod_path = get_lod_path();
-        let lod_manager = LodManager::new(lod_path).unwrap();
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
         let ddeclist = DDecList::new(&lod_manager).unwrap();
-        assert_eq!(ddeclist.entries.len(), 230);
+        assert_eq!(ddeclist.items.len(), 230);
+        assert_eq!(ddeclist.items[6].name(), Some("fountain".to_string()));
+        assert_eq!(ddeclist.items[6].game_name(), Some("fountain".to_string()));
     }
 }
