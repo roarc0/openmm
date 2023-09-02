@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::ReadBytesExt;
 
-pub(super) fn read_string<R>(r: &mut R) -> Result<String, Box<dyn Error>>
+pub(super) fn try_read_string<R>(r: &mut R) -> Result<String, Box<dyn Error>>
 where
     R: Read + BufRead,
 {
@@ -17,12 +17,17 @@ where
     Ok(String::from_utf8(buffer)?)
 }
 
-pub(super) fn read_string_block(
+pub(super) fn try_read_name(name: &[u8]) -> Option<String> {
+    let mut cursor = Cursor::new(name);
+    try_read_string(&mut cursor).map(|s| s.to_lowercase()).ok()
+}
+
+pub(super) fn try_read_string_block(
     cursor: &mut Cursor<&[u8]>,
     size: usize,
 ) -> Result<String, Box<dyn Error>> {
     let pos = cursor.position();
-    let s = read_string(cursor)?;
+    let s = try_read_string(cursor)?;
     cursor.seek(std::io::SeekFrom::Start(pos + size as u64))?;
     Ok(s)
 }

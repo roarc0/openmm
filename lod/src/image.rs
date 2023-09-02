@@ -155,6 +155,7 @@ impl Image {
         Ok(DynamicImage::ImageRgba8(image))
     }
 
+    #[allow(dead_code)]
     pub fn save<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
     where
         Q: AsRef<Path>,
@@ -229,20 +230,32 @@ pub fn get_atlas(
     row_size: usize,
 ) -> Result<DynamicImage, Box<dyn Error>> {
     let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
+
+    // HACK instead of using shaders I'll compose water in texture gen. :(
+    let image_water = lod_manager.bitmap("wtrtyl").ok_or("image not found")?;
+
     for name in names {
-        let path = format!("bitmaps/{}", name);
-        let image_bytes = lod_manager.try_get_bytes(path)?;
-        let image = Image::try_from(image_bytes)?.to_image_buffer()?;
+        let mut image = lod_manager.bitmap(name).ok_or("image not found")?;
         if image.dimensions() != (128, 128) {
-            images.push(DynamicImage::ImageRgba8(imageops::resize(
+            image = DynamicImage::ImageRgba8(imageops::resize(
                 &image,
                 128,
                 128,
                 imageops::FilterType::Triangle,
-            )));
-        } else {
-            images.push(image);
+            ));
         }
+
+        let image_buffer = image.as_mut_rgba8().ok_or("wrong image format")?;
+        for y in 0..128 {
+            for x in 0..128 {
+                let rgb: [u8; 4] = image_buffer.get_pixel(x, y).0;
+                if rgb[0] == 0 && rgb[1] >= 252 && rgb[2] >= 252 {
+                    image_buffer.put_pixel(x, y, image_water.get_pixel(x, y));
+                }
+            }
+        }
+
+        images.push(image);
     }
     Ok(join_images_in_grid(&images, row_size, 128, 128))
 }

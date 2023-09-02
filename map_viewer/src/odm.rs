@@ -17,7 +17,7 @@ pub(super) struct OdmBundle {
     pub mesh: Mesh,
     pub texture: Image,
     pub models: Vec<ModelBundle>,
-    //pub entities: Vec<EntityBundle>,
+    //pub billboards: Vec<BillboardBundle>,
 }
 
 pub(super) struct ModelBundle {
@@ -27,22 +27,21 @@ pub(super) struct ModelBundle {
     pub material: StandardMaterial,
 }
 
-pub(super) struct EntityBundle {
-    // pub model: Entity,
+pub(super) struct BillboardBundle {
+    // pub model: Billboard,
     pub mesh: Mesh,
     pub texture: Image,
 }
 
 impl OdmBundle {
     pub(super) fn new(lod_manager: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>> {
-        let map = LodData::try_from(lod_manager.try_get_bytes(format!("games/{}", &map_name))?)?;
-        let map = Odm::try_from(map.data.as_slice())?;
+        let map = Odm::new(lod_manager, map_name)?;
 
-        let tile_table = map.tile_table(&lod_manager)?;
+        let tile_table = map.tile_table(lod_manager)?;
         let mesh = Self::generate_terrain_mesh(&map, &tile_table);
 
         let image =
-            bevy::render::texture::Image::from_dynamic(tile_table.atlas_image(&lod_manager)?, true);
+            bevy::render::texture::Image::from_dynamic(tile_table.atlas_image(lod_manager)?, true);
 
         let models = process_models(&map);
 
@@ -63,7 +62,6 @@ impl OdmBundle {
             perceptual_roughness: 1.0,
             reflectance: 0.2,
             flip_normal_map_y: true,
-
             cull_mode: Some(Face::Back),
             ..default()
         }
@@ -97,15 +95,16 @@ impl OdmBundle {
 fn process_models(map: &Odm) -> Vec<ModelBundle> {
     let mut models = Vec::new();
     for b in &map.bsp_models {
-        let bounding_box_mesh: Mesh = generate_bsp_model_bounding_box(&b).into();
+        let bounding_box_mesh: Mesh = generate_bsp_model_bounding_box(b).into();
         let mesh = generate_bsp_model_mesh(b);
         let material = StandardMaterial {
-            base_color: random_color().into(),
+            base_color: random_color(),
             unlit: false,
             alpha_mode: AlphaMode::Opaque,
             fog_enabled: true,
             perceptual_roughness: 0.5,
             reflectance: 0.1,
+            flip_normal_map_y: true,
             cull_mode: None,
             ..default()
         };

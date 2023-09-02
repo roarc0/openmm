@@ -1,6 +1,6 @@
-use std::borrow::BorrowMut;
+use std::f32::consts::PI;
 
-use bevy::{pbr::CascadeShadowConfigBuilder, prelude::*};
+use bevy::prelude::*;
 
 use crate::{despawn_screen, GameState};
 
@@ -18,16 +18,19 @@ impl Plugin for SunPlugin {
 
 fn sun_setup(mut commands: Commands) {
     commands.insert_resource(AmbientLight {
-        brightness: 0.4,
+        brightness: 0.6,
         ..default()
     });
 
-    let entity_spawn = Vec3::new(0.0, 0.0, 0.0);
+    let entity_spawn = Transform::from_xyz(0.0, 2.0, 0.0)
+        .with_rotation(Quat::from_rotation_x(-PI / 4.))
+        .translation;
+
     commands.spawn((
         DirectionalLightBundle {
             directional_light: DirectionalLight {
                 shadows_enabled: true,
-                illuminance: 10000.,
+                illuminance: 32000.,
                 ..default()
             },
             transform: Transform::from_translation(entity_spawn),
@@ -65,8 +68,8 @@ impl Movable {
     fn new(spawn: Vec3) -> Self {
         Movable {
             spawn,
-            max_distance: 50000.0,
-            speed: 200.0,
+            max_distance: 64000.0,
+            speed: 20.0,
         }
     }
 }

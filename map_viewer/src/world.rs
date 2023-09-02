@@ -4,12 +4,9 @@ use bevy::{
 };
 use bevy_mod_billboard::{
     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
-    BillboardTextureBundle,
+    BillboardLockAxis, BillboardLockAxisBundle, BillboardTextureBundle,
 };
-use lod::{
-    ddeclist::{self, DDecList},
-    LodManager,
-};
+use lod::LodManager;
 
 use crate::{
     despawn_screen,
@@ -18,9 +15,10 @@ use crate::{
     GameState,
 };
 
-use self::sun::SunPlugin;
+use self::{sky::SkyPlugin, sun::SunPlugin};
 
 pub(crate) mod dev;
+pub(crate) mod sky;
 pub(crate) mod sun;
 
 #[derive(Component)]
@@ -34,12 +32,10 @@ pub(super) struct WorldSettings {
 
 impl Default for WorldSettings {
     fn default() -> Self {
-        let mut default = Self {
+        Self {
             lod_manager: LodManager::new(lod::get_lod_path()).unwrap(),
-            map_name: "outb2.odm".into(),
-        };
-
-        default
+            map_name: "oute3.odm".into(),
+        }
     }
 }
 
@@ -58,6 +54,7 @@ impl Plugin for WorldPlugin {
                 dev::DevPlugin,
                 player::PlayerPlugin,
                 SunPlugin,
+                SkyPlugin,
                 BillboardPlugin,
             ))
             .add_systems(
@@ -81,7 +78,6 @@ fn world_setup(
     if odm.is_none() {
         return;
     }
-
     let odm = odm.unwrap();
 
     let image_handle = images.add(odm.texture.clone());
@@ -103,34 +99,32 @@ fn world_setup(
         ));
     }
 
-    for e in odm.map.entities {
-        let ddeclist = DDecList::new(&settings.lod_manager).unwrap();
-        let entry = ddeclist.entries.get(e.data.declist_id as usize).unwrap();
+    let sprite_manager = lod::billboard::BillboardManager::new(&settings.lod_manager).unwrap();
 
-        let name = entry.name().unwrap_or("pending".into());
+    for b in odm.map.billboards {
+        let billboard_sprite = sprite_manager
+            .get(&settings.lod_manager, &b.declist_name, b.data.declist_id)
+            .unwrap();
+        let (width, height) = billboard_sprite.dimensions();
 
-        let image = if let Ok(image) = settings.lod_manager.sprite(name.as_str()) {
-            image
-        } else {
-            println!("failed to read {}", e.declist_name);
-            settings.lod_manager.sprite("pending").unwrap()
-        };
-
-        let image = bevy::render::texture::Image::from_dynamic(image, true);
-        let size = image.size();
+        let image = bevy::render::texture::Image::from_dynamic(billboard_sprite.image, true);
         let image_handle = images.add(image);
 
-        commands.spawn(BillboardTextureBundle {
-            texture: billboard_textures.add(BillboardTexture::Single(image_handle)),
-            transform: Transform::from_xyz(
-                e.data.origin[0] as f32,
-                e.data.origin[2] as f32 + (size[1]),
-                -e.data.origin[1] as f32,
-            ),
-            mesh: BillboardMeshHandle(
-                meshes.add(Quad::new(Vec2::new(2. * size[0], 2. * size[1])).into()),
-            ),
-            ..default()
+        commands.spawn(BillboardLockAxisBundle {
+            billboard_bundle: BillboardTextureBundle {
+                transform: Transform::from_xyz(
+                    b.data.position[0] as f32,
+                    b.data.position[2] as f32 + height / 2.,
+                    -b.data.position[1] as f32,
+                ),
+                texture: billboard_textures.add(BillboardTexture::Single(image_handle.clone())),
+                mesh: BillboardMeshHandle(meshes.add(Quad::new(Vec2::new(width, height)).into())),
+                ..default()
+            },
+            lock_axis: BillboardLockAxis {
+                y_axis: true,
+                rotation: false,
+            },
         });
     }
 }

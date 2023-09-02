@@ -1,56 +1,107 @@
-use crate::{image::get_atlas, utils::read_string, LodManager};
+use crate::{image::get_atlas, lod_data::LodData, utils::try_read_name, LodManager};
 use byteorder::{LittleEndian, ReadBytesExt};
 use image::DynamicImage;
 use std::{
     error::Error,
-    io::{Cursor, Seek},
+    io::{Cursor, Read},
 };
 
 #[derive(Debug)]
 pub struct Dtile {
-    data: Vec<u8>,
+    tiles: Vec<Tile>,
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
-struct DtileData {
-    name: String,
-    a: u16,
-    b: u16,
-    c: u16,
+struct Tile {
+    name: [u8; 16],
+    id: i16,
+    bitmap: i16,
+    tile_set: i16,
+    section: i16,
+    attributes: u16,
+}
+
+#[allow(dead_code)]
+impl Tile {
+    pub fn is_burn(&self) -> bool {
+        (self.attributes & 0x0001) != 0
+    }
+
+    pub fn is_water(&self) -> bool {
+        (self.attributes & 0x0002) != 0
+    }
+
+    pub fn is_block(&self) -> bool {
+        (self.attributes & 0x0004) != 0
+    }
+
+    pub fn is_repulse(&self) -> bool {
+        (self.attributes & 0x0010) != 0
+    }
+
+    pub fn is_flat(&self) -> bool {
+        (self.attributes & 0x0020) != 0
+    }
+
+    pub fn is_wave(&self) -> bool {
+        (self.attributes & 0x0040) != 0
+    }
+
+    pub fn is_no_draw(&self) -> bool {
+        (self.attributes & 0x0080) != 0
+    }
+
+    pub fn is_water_transition(&self) -> bool {
+        (self.attributes & 0x0200) != 0
+    }
+
+    pub fn is_transition(&self) -> bool {
+        (self.attributes & 0x0400) != 0
+    }
+
+    pub fn is_scroll_down(&self) -> bool {
+        (self.attributes & 0x0800) != 0
+    }
+
+    pub fn is_scroll_up(&self) -> bool {
+        (self.attributes & 0x1000) != 0
+    }
+
+    pub fn is_scroll_left(&self) -> bool {
+        (self.attributes & 0x2000) != 0
+    }
+
+    pub fn is_scroll_right(&self) -> bool {
+        (self.attributes & 0x4000) != 0
+    }
+
+    pub fn name(&self) -> Option<String> {
+        try_read_name(&self.name).map(|v| if v.is_empty() { "pending".into() } else { v })
+    }
 }
 
 impl Dtile {
-    pub fn new(data: &[u8]) -> Self {
-        Self {
-            data: data.to_vec(),
+    pub fn new(lod_manager: &LodManager) -> Result<Self, Box<dyn Error>> {
+        let data = LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin")?)?;
+        let data = data.data.as_slice();
+
+        let mut cursor = Cursor::new(data);
+        let tile_count = cursor.read_u32::<LittleEndian>()?;
+        let tile_size = std::mem::size_of::<Tile>();
+        let mut tiles = Vec::new();
+        for _ in 0..tile_count {
+            let mut tile = Tile::default();
+            cursor.read_exact(unsafe {
+                std::slice::from_raw_parts_mut(&mut tile as *mut _ as *mut u8, tile_size)
+            })?;
+            tiles.push(tile);
         }
+
+        Ok(Self { tiles })
     }
 
-    pub fn count(&self) -> usize {
-        let mut cursor = Cursor::new(self.data.as_slice());
-        cursor.read_u32::<LittleEndian>().unwrap_or_default() as usize
-    }
-
-    fn read(&self, i: usize) -> Result<DtileData, Box<dyn Error>> {
-        let mut cursor = Cursor::new(self.data.as_slice());
-
-        cursor.seek(std::io::SeekFrom::Start((4 + i * 26) as u64))?;
-        let pos = cursor.position();
-        let name = read_string(&mut cursor)?;
-        let name = if name.is_empty() {
-            "pending".into()
-        } else {
-            name.to_lowercase()
-        };
-        cursor.seek(std::io::SeekFrom::Start(pos + 20))?;
-        let a = cursor.read_u16::<LittleEndian>()?;
-        let b = cursor.read_u16::<LittleEndian>()?;
-        let c = cursor.read_u16::<LittleEndian>()?;
-        Ok(DtileData { name, a, b, c })
-    }
-
-    pub fn table(&self, tile_data: [u16; 8]) -> Result<TileTable, Box<dyn Error>> {
+    pub fn table(&self, tile_data: [u16; 8]) -> Option<TileTable> {
         let mut names_table: Vec<String> = Vec::with_capacity(256);
         for i in 0_u16..=255_u16 {
             let index = if (90..125).contains(&i) {
@@ -66,11 +117,11 @@ impl Dtile {
                 i // dirt
             };
 
-            let dtile: DtileData = self.read(index as usize)?;
-            names_table.push(dtile.name);
+            let tile = self.tiles.get(index as usize)?;
+            names_table.push(tile.name().unwrap_or("pending".into()));
         }
 
-        Ok(TileTable::new(names_table.try_into().unwrap()))
+        Some(TileTable::new(names_table.try_into().unwrap()))
     }
 }
 
@@ -142,7 +193,7 @@ impl TileTable {
         let mut set: Vec<String> = name_table
             .iter()
             .cloned()
-            .filter(|d| !d.starts_with("drr"))
+            .filter(|d| !d.starts_with("drr")) // HACK
             .collect();
         set.sort_by(|a, b| {
             if a == "pending" {
@@ -168,29 +219,16 @@ mod tests {
 
     #[test]
     fn read_dtile_data_works() {
-        let lod_path = get_lod_path();
-        let lod_manager = LodManager::new(lod_path).unwrap();
-
-        let dtile =
-            LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin").unwrap()).unwrap();
-        let dtile = Dtile::new(dtile.data.as_slice());
-        assert_eq!(dtile.count(), 882);
-
-        for i in 0..882 {
-            let _ = dtile.read(i).unwrap();
-        }
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let dtile = Dtile::new(&lod_manager).unwrap();
+        assert_eq!(dtile.tiles.len(), 882);
     }
 
     #[test]
     fn atlas_generation_works() {
-        let lod_path = get_lod_path();
-        let lod_manager = LodManager::new(lod_path).unwrap();
-
-        let map = LodData::try_from(lod_manager.try_get_bytes("games/oute3.odm").unwrap()).unwrap();
-        let map = Odm::try_from(map.data.as_slice()).unwrap();
-        let dtile =
-            LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin").unwrap()).unwrap();
-        let dtile = Dtile::new(dtile.data.as_slice());
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
+        let dtile = Dtile::new(&lod_manager).unwrap();
 
         let tile_table = dtile.table(map.tile_data).unwrap();
         tile_table

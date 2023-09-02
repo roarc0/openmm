@@ -16,6 +16,7 @@ struct InputState {
 pub struct MovementSettings {
     pub sensitivity: f32,
     pub speed: f32,
+    pub rotation_speed: f32,
 }
 
 impl Default for MovementSettings {
@@ -23,6 +24,7 @@ impl Default for MovementSettings {
         Self {
             sensitivity: 0.00012,
             speed: 4096.,
+            rotation_speed: 3.5,
         }
     }
 }
@@ -32,8 +34,8 @@ impl Default for MovementSettings {
 pub struct KeyBindings {
     pub move_forward: KeyCode,
     pub move_backward: KeyCode,
-    pub move_left: KeyCode,
-    pub move_right: KeyCode,
+    pub rotate_left: KeyCode,
+    pub rotate_right: KeyCode,
     pub move_ascend: KeyCode,
     pub move_descend: KeyCode,
     pub toggle_grab_cursor: KeyCode,
@@ -42,12 +44,12 @@ pub struct KeyBindings {
 impl Default for KeyBindings {
     fn default() -> Self {
         Self {
-            move_forward: KeyCode::W,
-            move_backward: KeyCode::S,
-            move_left: KeyCode::A,
-            move_right: KeyCode::D,
-            move_ascend: KeyCode::Space,
-            move_descend: KeyCode::ShiftLeft,
+            move_forward: KeyCode::Up,
+            move_backward: KeyCode::Down,
+            rotate_left: KeyCode::Left,
+            rotate_right: KeyCode::Right,
+            move_ascend: KeyCode::PageUp,
+            move_descend: KeyCode::Insert,
             toggle_grab_cursor: KeyCode::Escape,
         }
     }
@@ -85,10 +87,18 @@ fn initial_grab_cursor(mut primary_window: Query<&mut Window, With<PrimaryWindow
 fn setup_player(mut commands: Commands) {
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(-9500.0, 500.0, 11000.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(-9700.0, 400.0, 11300.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..Default::default()
         },
         FlyCam,
+        FogSettings {
+            color: Color::rgba(0.02, 0.02, 0.02, 0.95),
+            falloff: FogFalloff::Linear {
+                start: 9000.0,
+                end: 25000.0,
+            },
+            ..default()
+        },
     ));
 }
 
@@ -103,35 +113,36 @@ fn player_move(
 ) {
     if let Ok(window) = primary_window.get_single() {
         for (_camera, mut transform) in query.iter_mut() {
-            let mut velocity = Vec3::ZERO;
-            let local_z = transform.local_z();
-            let forward = -Vec3::new(local_z.x, 0., local_z.z);
-            let right = Vec3::new(local_z.z, 0., -local_z.x);
-
             for key in keys.get_pressed() {
                 match window.cursor.grab_mode {
                     CursorGrabMode::None => (),
                     _ => {
                         let key = *key;
-                        if key == key_bindings.move_forward {
-                            velocity += forward;
+                        if key == key_bindings.rotate_left {
+                            let rotation =
+                                Quat::from_rotation_y(settings.rotation_speed.to_radians());
+                            transform.rotate(rotation);
+                        } else if key == key_bindings.rotate_right {
+                            let rotation =
+                                Quat::from_rotation_y(-settings.rotation_speed.to_radians());
+                            transform.rotate(rotation);
+                        } else if key == key_bindings.move_forward {
+                            let local_z = transform.local_z();
+                            transform.translation -=
+                                local_z * time.delta_seconds() * settings.speed;
                         } else if key == key_bindings.move_backward {
-                            velocity -= forward;
-                        } else if key == key_bindings.move_left {
-                            velocity -= right;
-                        } else if key == key_bindings.move_right {
-                            velocity += right;
+                            let local_z = transform.local_z();
+                            transform.translation +=
+                                local_z * time.delta_seconds() * settings.speed;
                         } else if key == key_bindings.move_ascend {
-                            velocity += Vec3::Y;
+                            transform.translation +=
+                                Vec3::Y * time.delta_seconds() * settings.speed;
                         } else if key == key_bindings.move_descend {
-                            velocity -= Vec3::Y;
+                            transform.translation -=
+                                Vec3::Y * time.delta_seconds() * settings.speed;
                         }
                     }
                 }
-
-                velocity = velocity.normalize_or_zero();
-
-                transform.translation += velocity * time.delta_seconds() * settings.speed
             }
         }
     } else {
@@ -162,7 +173,6 @@ fn player_look(
                 }
 
                 pitch = pitch.clamp(-1.54, 1.54);
-
                 // Order is important to prevent unintended roll
                 transform.rotation =
                     Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);
@@ -187,22 +197,6 @@ fn cursor_grab(
     }
 }
 
-// Grab cursor when an entity with FlyCam is added
-// fn initial_grab_on_flycam_spawn(
-//     mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
-//     query_added: Query<Entity, Added<FlyCam>>,
-// ) {
-//     if query_added.is_empty() {
-//         return;
-//     }
-
-//     if let Ok(window) = &mut primary_window.get_single_mut() {
-//         toggle_grab_cursor(window);
-//     } else {
-//         warn!("Primary window not found for `initial_grab_cursor`!");
-//     }
-// }
-
 /// Contains everything needed to add first-person fly camera behaviour to your game
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
@@ -220,18 +214,3 @@ impl Plugin for PlayerPlugin {
             );
     }
 }
-
-// Same as [`PlayerPlugin`] but does not spawn a camera
-// pub struct NoCameraPlayerPlugin;
-// impl Plugin for NoCameraPlayerPlugin {
-//     fn build(&self, app: &mut App) {
-//         app.init_resource::<InputState>()
-//             .init_resource::<MovementSettings>()
-//             .init_resource::<KeyBindings>()
-//             .add_systems(Startup, initial_grab_cursor)
-//             .add_systems(Startup, initial_grab_on_flycam_spawn)
-//             .add_systems(Update, player_move)
-//             .add_systems(Update, player_look)
-//             .add_systems(Update, cursor_grab);
-//     }
-// }
