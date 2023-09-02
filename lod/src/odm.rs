@@ -8,8 +8,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use crate::{
     bsp_model::{read_bsp_models, BSPModel},
     dtile::{Dtile, TileTable},
-    lod_data::LodData,
-    utils::{hexdump_next_bytes, try_read_string_block},
+    utils::try_read_string_block,
     LodManager,
 };
 
@@ -44,7 +43,7 @@ pub struct Odm {
     pub tile_map: [u8; TILEMAP_SIZE],
     pub attribute_map: [u8; ATTRIBUTE_MAP_SIZE],
     pub bsp_models: Vec<BSPModel>,
-    pub entities: Vec<Entity>,
+    pub billboards: Vec<Billboard>,
 }
 
 impl TryFrom<&[u8]> for Odm {
@@ -82,8 +81,8 @@ impl TryFrom<&[u8]> for Odm {
         let bsp_model_count = cursor.read_u32::<LittleEndian>()? as usize;
         let bsp_models: Vec<BSPModel> = read_bsp_models(&mut cursor, bsp_model_count)?;
 
-        let entities_count = cursor.read_u32::<LittleEndian>()? as usize;
-        let entities: Vec<Entity> = read_entities(&mut cursor, entities_count)?;
+        let billboard_count = cursor.read_u32::<LittleEndian>()? as usize;
+        let billboards: Vec<Billboard> = read_billboards(&mut cursor, billboard_count)?;
 
         Ok(Self {
             name: "test".into(),
@@ -95,14 +94,14 @@ impl TryFrom<&[u8]> for Odm {
             tile_map,
             attribute_map,
             bsp_models,
-            entities,
+            billboards,
         })
     }
 }
 
 #[repr(C)]
 #[derive(Default, Debug)]
-pub struct EntityData {
+pub struct BillboardData {
     pub declist_id: u16,
     pub ai_attr_markers: u16,
     pub origin: [i32; 3],
@@ -114,42 +113,42 @@ pub struct EntityData {
 }
 
 #[derive(Default, Debug)]
-pub struct Entity {
+pub struct Billboard {
     pub declist_name: String,
-    pub data: EntityData,
+    pub data: BillboardData,
 }
 
-pub(super) fn read_entities(
+pub(super) fn read_billboards(
     cursor: &mut Cursor<&[u8]>,
     count: usize,
-) -> Result<Vec<Entity>, Box<dyn Error>> {
-    let mut entities_data = Vec::new();
+) -> Result<Vec<Billboard>, Box<dyn Error>> {
+    let mut billboards_data = Vec::new();
 
     for _i in 0..count {
-        let size = std::mem::size_of::<EntityData>();
-        let mut entity_data = EntityData::default();
+        let size = std::mem::size_of::<BillboardData>();
+        let mut entity_data = BillboardData::default();
         cursor.read_exact(unsafe {
             std::slice::from_raw_parts_mut(&mut entity_data as *mut _ as *mut u8, size)
         })?;
-        entities_data.push(entity_data);
+        billboards_data.push(entity_data);
     }
 
-    let mut entities_names = Vec::new();
+    let mut billboard_names = Vec::new();
     for _i in 0..count {
         let name = try_read_string_block(cursor, 32);
-        entities_names.push(name?.to_lowercase());
+        billboard_names.push(name?.to_lowercase());
     }
 
-    let entities = entities_data
+    let billboards = billboards_data
         .into_iter()
-        .zip(entities_names)
-        .map(|(data, name)| Entity {
+        .zip(billboard_names)
+        .map(|(data, name)| Billboard {
             declist_name: name,
             data,
         })
         .collect();
 
-    Ok(entities)
+    Ok(billboards)
 }
 
 impl Odm {
@@ -158,8 +157,9 @@ impl Odm {
     }
 
     pub fn tile_table(&self, lod_manager: &LodManager) -> Result<TileTable, Box<dyn Error>> {
-        let dtile_data = LodData::try_from(lod_manager.try_get_bytes("icons/dtile.bin").unwrap())?;
-        Dtile::new(&dtile_data.data).table(self.tile_data)
+        Dtile::new(lod_manager)?
+            .table(self.tile_data)
+            .ok_or("could not get the tile table".into())
     }
 }
 

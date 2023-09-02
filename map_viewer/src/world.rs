@@ -6,7 +6,7 @@ use bevy_mod_billboard::{
     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
     BillboardTextureBundle,
 };
-use lod::{ddeclist::DDecList, dsft::DSFT, LodManager};
+use lod::LodManager;
 
 use crate::{
     despawn_screen,
@@ -98,31 +98,33 @@ fn world_setup(
         ));
     }
 
-    let sprite_manager = lod::sprite::SpriteManager::new(&settings.lod_manager).unwrap();
+    let sprite_manager = lod::billboard::BillboardManager::new(&settings.lod_manager).unwrap();
 
-    for e in odm.map.entities {
+    for b in odm.map.billboards {
         let sprite = sprite_manager
-            .sprite(&settings.lod_manager, &e.declist_name, e.data.declist_id)
+            .get(&settings.lod_manager, &b.declist_name, b.data.declist_id)
             .unwrap();
 
         let image = bevy::render::texture::Image::from_dynamic(sprite.image, true);
         let size = image.size();
         let image_handle = images.add(image);
 
-        let height = if sprite.d_declist_item.height != 0 {
-            //size[0]
-            sprite.d_declist_item.height as f32 * size[0] / 30.0 // I don't know how to use the height field :3
-        } else {
-            size[1]
-        };
+        let height = size[1];
+        // if sprite.d_declist_item.height != 0 {
+        //     64.0 + sprite.d_declist_item.height as f32
+        //     //size[0]
+        //     //sprite.d_declist_item.height as f32 * size[0] / 30.0 // I don't know how to use the height field :3
+        // } else {
+        //     size[0]
+        // };
         let width = height * (size[0] / size[1]);
 
         commands.spawn(BillboardTextureBundle {
             texture: billboard_textures.add(BillboardTexture::Single(image_handle)),
             transform: Transform::from_xyz(
-                e.data.origin[0] as f32,
-                e.data.origin[2] as f32 + height / 2.,
-                -e.data.origin[1] as f32,
+                b.data.origin[0] as f32,
+                b.data.origin[2] as f32 + height / 2.,
+                -b.data.origin[1] as f32,
             ),
             mesh: BillboardMeshHandle(meshes.add(Quad::new(Vec2::new(width, height)).into())),
             ..default()

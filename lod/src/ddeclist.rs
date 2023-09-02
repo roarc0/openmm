@@ -5,15 +5,10 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{
-    lod_data::LodData,
-    utils::{try_read_name, try_read_string},
-    LodManager,
-};
+use crate::{lod_data::LodData, utils::try_read_name, LodManager};
 
 pub struct DDecList {
     pub items: Vec<DDecListItem>,
-    pub names: Vec<String>,
 }
 
 #[allow(dead_code)]
@@ -130,20 +125,18 @@ impl DDecList {
 
         let mut cursor = Cursor::new(data);
         let mut items: Vec<DDecListItem> = Vec::new();
-        let mut names: Vec<String> = Vec::new();
+        let item_count = cursor.read_u32::<LittleEndian>()?;
+        let item_size = std::mem::size_of::<DDecListItem>();
 
-        let items_count = cursor.read_u32::<LittleEndian>()?;
-        let size = std::mem::size_of::<DDecListItem>();
-        for _i in 0..items_count {
+        for _i in 0..item_count {
             let mut item = DDecListItem::default();
             cursor.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(&mut item as *mut _ as *mut u8, size)
+                std::slice::from_raw_parts_mut(&mut item as *mut _ as *mut u8, item_size)
             })?;
-            names.push(item.game_name().unwrap_or_default());
             items.push(item);
         }
 
-        Ok(Self { items, names })
+        Ok(Self { items })
     }
 }
 
@@ -156,9 +149,9 @@ mod tests {
     #[test]
     fn read_declist_data_works() {
         let lod_manager = LodManager::new(get_lod_path()).unwrap();
-        let ddeclist = DDecList::new(&lod_manager).unwrap();
-        assert_eq!(ddeclist.items.len(), 230);
-        assert_eq!(ddeclist.items[6].name(), Some("fountain".to_string()));
-        assert_eq!(ddeclist.items[6].game_name(), Some("fountain".to_string()));
+        let d_declist = DDecList::new(&lod_manager).unwrap();
+        assert_eq!(d_declist.items.len(), 230);
+        assert_eq!(d_declist.items[6].name(), Some("fountain".to_string()));
+        assert_eq!(d_declist.items[6].game_name(), Some("fountain".to_string()));
     }
 }

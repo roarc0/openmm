@@ -5,11 +5,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{
-    lod_data::LodData,
-    utils::{try_read_name, try_read_string},
-    LodManager,
-};
+use crate::{lod_data::LodData, utils::try_read_name, LodManager};
 
 pub struct DSFT {
     pub frames: Vec<DSFTFrame>,
@@ -108,14 +104,16 @@ impl DSFT {
         let data = data.data.as_slice();
 
         let mut cursor = Cursor::new(data);
+
         let mut frames = Vec::new();
         let frame_count = cursor.read_u32::<LittleEndian>()?;
         let group_count = cursor.read_u32::<LittleEndian>()?;
-        let size = std::mem::size_of::<DSFTFrame>();
+        let frame_size = std::mem::size_of::<DSFTFrame>();
+
         for _ in 0..frame_count {
             let mut frame = DSFTFrame::default();
             cursor.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(&mut frame as *mut _ as *mut u8, size)
+                std::slice::from_raw_parts_mut(&mut frame as *mut _ as *mut u8, frame_size)
             })?;
             frames.push(frame);
         }

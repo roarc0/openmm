@@ -12,10 +12,10 @@ pub mod bsp_model;
 pub mod dtile;
 pub mod odm;
 
+pub mod billboard;
 pub mod ddeclist;
 pub mod dsft;
 pub mod image;
-pub mod sprite;
 
 mod lod;
 pub mod lod_data;

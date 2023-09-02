@@ -155,6 +155,7 @@ impl Image {
         Ok(DynamicImage::ImageRgba8(image))
     }
 
+    #[allow(dead_code)]
     pub fn save<Q>(&self, path: Q) -> Result<(), Box<dyn Error>>
     where
         Q: AsRef<Path>,

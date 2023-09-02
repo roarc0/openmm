@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    io::{Cursor, Read, Seek},
+    io::{Cursor, Read},
     ops::{Add, Div, Mul, Sub},
 };
 

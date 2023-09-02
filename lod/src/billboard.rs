@@ -8,25 +8,30 @@ use crate::{
     LodManager,
 };
 
-pub struct SpriteManager {
+pub struct BillboardManager {
     d_declist: DDecList,
     d_sft: DSFT,
 }
 
-pub struct Sprite {
+pub struct BillboardSprite {
     pub image: DynamicImage,
     pub d_declist_item: DDecListItem,
     pub d_sft_frame: DSFTFrame,
 }
 
-impl SpriteManager {
+impl BillboardManager {
     pub fn new(lod_manager: &LodManager) -> Result<Self, Box<dyn Error>> {
-        let d_declist = DDecList::new(&lod_manager)?;
-        let d_sft = DSFT::new(&lod_manager)?;
+        let d_declist = DDecList::new(lod_manager)?;
+        let d_sft = DSFT::new(lod_manager)?;
         Ok(Self { d_declist, d_sft })
     }
 
-    pub fn sprite(&self, lod_manager: &LodManager, name: &str, declist_id: u16) -> Option<Sprite> {
+    pub fn get(
+        &self,
+        lod_manager: &LodManager,
+        name: &str,
+        declist_id: u16,
+    ) -> Option<BillboardSprite> {
         let declist_item = self.d_declist.items.get(declist_id as usize)?;
         let sft_frame = self.d_sft.frames.get(declist_item.sft_index() as usize)?;
 
@@ -37,18 +42,18 @@ impl SpriteManager {
         } else if let Some(image) = lod_manager.sprite(name) {
             image
         } else {
-            println!(
+            dbg!(format!(
                 "failed to read entity: id:{}|name:{:?}|game_name:{:?}, sft group_name:{:?}|sprite_name:{:?}",
                 declist_item.sft_index(),
                 declist_item.name(),
                 declist_item.game_name(),
                 sft_frame.group_name(),
                 sft_frame.sprite_name()
-            );
+            ));
             lod_manager.sprite("pending").unwrap()
         };
 
-        Some(Sprite {
+        Some(BillboardSprite {
             image,
             d_declist_item: declist_item.clone(),
             d_sft_frame: sft_frame.clone(),

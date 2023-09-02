@@ -1,7 +1,5 @@
 use bevy::{app::AppExit, prelude::*};
 
-use crate::APP_NAME;
-
 use super::{despawn_screen, GameState};
 
 const TEXT_COLOR: Color = Color::rgb(0.3, 0.9, 0.3);
