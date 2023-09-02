@@ -117,6 +117,12 @@ impl LodManager {
         let sprite = crate::image::Image::try_from((sprite, &palettes)).ok()?;
         sprite.to_image_buffer().ok()
     }
+
+    pub fn bitmap(&self, name: &str) -> Option<DynamicImage> {
+        let bitmap = self.try_get_bytes(format!("bitmaps/{}", name)).ok()?;
+        let bitmap = crate::image::Image::try_from(bitmap).ok()?;
+        bitmap.to_image_buffer().ok()
+    }
 }
 
 pub fn get_data_path() -> String {

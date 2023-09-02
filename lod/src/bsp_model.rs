@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    io::{Cursor, Read},
+    io::{Cursor, Read, Seek},
     ops::{Add, Div, Mul, Sub},
 };
 
@@ -198,18 +198,11 @@ fn read_bsp_model_header(cursor: &mut Cursor<&[u8]>) -> Result<BSPModelHeader, B
         vertex_count: cursor.read_i32::<LittleEndian>()?,
         ..Default::default()
     };
-    let _p_vertex: i32 = cursor.read_i32::<LittleEndian>()?;
+    cursor.seek(std::io::SeekFrom::Current(4))?;
     header.faces_count = cursor.read_i32::<LittleEndian>()?;
-    let _unk02 = cursor.read_i32::<LittleEndian>()?;
-    let _p_faces = cursor.read_i32::<LittleEndian>()?;
-    let _p_unk_array = cursor.read_i32::<LittleEndian>()?;
+    cursor.seek(std::io::SeekFrom::Current(12))?;
     header.bsp_nodes_count = cursor.read_i32::<LittleEndian>()?;
-    let _unk03a = cursor.read_i32::<LittleEndian>()?;
-    let _unk03b = cursor.read_i32::<LittleEndian>()?;
-    let _unk03 = [
-        cursor.read_i32::<LittleEndian>()?,
-        cursor.read_i32::<LittleEndian>()?,
-    ];
+    cursor.seek(std::io::SeekFrom::Current(16))?;
     header.position = [
         cursor.read_i32::<LittleEndian>()?,
         cursor.read_i32::<LittleEndian>()?,

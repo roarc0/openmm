@@ -6,8 +6,10 @@ use std::{
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{
+    billboard::{read_billboards, Billboard},
     bsp_model::{read_bsp_models, BSPModel},
     dtile::{Dtile, TileTable},
+    lod_data::LodData,
     utils::try_read_string_block,
     LodManager,
 };
@@ -28,9 +30,6 @@ const TILEMAP_SIZE: usize = ODM_AREA;
 const ATTRIBUTE_MAP_OFFSET: u64 = TILE_MAP_OFFSET + ATTRIBUTE_MAP_SIZE as u64;
 const ATTRIBUTE_MAP_SIZE: usize = ODM_AREA;
 
-// const SPRITES_OFFSET: u64 = 0;
-// const SPRITES_HDR_SIZE: usize = 0x20;
-
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Odm {
@@ -46,10 +45,11 @@ pub struct Odm {
     pub billboards: Vec<Billboard>,
 }
 
-impl TryFrom<&[u8]> for Odm {
-    type Error = Box<dyn Error>;
+impl Odm {
+    pub fn new(lod_manager: &LodManager, name: &str) -> Result<Self, Box<dyn Error>> {
+        let data = LodData::try_from(lod_manager.try_get_bytes(&format!("games/{}", name))?)?;
+        let data = data.data.as_slice();
 
-    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
         let mut cursor = Cursor::new(data);
         cursor.seek(std::io::SeekFrom::Start(2 * 32))?;
         let odm_version = try_read_string_block(&mut cursor, 32)?;
@@ -97,88 +97,6 @@ impl TryFrom<&[u8]> for Odm {
             billboards,
         })
     }
-}
-
-#[repr(C)]
-#[derive(Default, Debug)]
-pub struct BillboardData {
-    pub declist_id: u16,
-    pub attributes: u16,
-    pub position: [i32; 3],
-    pub direction: i32,
-    pub event_variable: i16,
-    pub event: i16,
-    pub trigger_radius: i16,
-    pub direction_degrees: i16,
-}
-
-impl BillboardData {
-    pub fn is_triggered_by_touch(&self) -> bool {
-        (self.attributes & 0x0001) != 0
-    }
-
-    pub fn is_triggered_by_monster(&self) -> bool {
-        (self.attributes & 0x0002) != 0
-    }
-
-    pub fn is_triggered_by_object(&self) -> bool {
-        (self.attributes & 0x0004) != 0
-    }
-
-    pub fn is_shown_on_map(&self) -> bool {
-        (self.attributes & 0x0010) != 0
-    }
-
-    pub fn is_chest(&self) -> bool {
-        (self.attributes & 0x0020) != 0
-    }
-
-    pub fn is_invisible(&self) -> bool {
-        (self.attributes & 0x0040) != 0
-    }
-
-    pub fn is_ship(&self) -> bool {
-        (self.attributes & 0x0080) != 0
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct Billboard {
-    pub declist_name: String,
-    pub data: BillboardData,
-}
-
-pub(super) fn read_billboards(
-    cursor: &mut Cursor<&[u8]>,
-    count: usize,
-) -> Result<Vec<Billboard>, Box<dyn Error>> {
-    let mut billboards_data = Vec::new();
-
-    for _i in 0..count {
-        let size = std::mem::size_of::<BillboardData>();
-        let mut entity_data = BillboardData::default();
-        cursor.read_exact(unsafe {
-            std::slice::from_raw_parts_mut(&mut entity_data as *mut _ as *mut u8, size)
-        })?;
-        billboards_data.push(entity_data);
-    }
-
-    let mut billboard_names = Vec::new();
-    for _i in 0..count {
-        let name = try_read_string_block(cursor, 32);
-        billboard_names.push(name?.to_lowercase());
-    }
-
-    let billboards = billboards_data
-        .into_iter()
-        .zip(billboard_names)
-        .map(|(data, name)| Billboard {
-            declist_name: name,
-            data,
-        })
-        .collect();
-
-    Ok(billboards)
 }
 
 impl Odm {
@@ -269,19 +187,11 @@ impl OdmData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{get_lod_path, lod_data::LodData, LodManager};
+    use crate::{get_lod_path, LodManager};
 
     #[test]
     fn get_map_works() {
         let lod_manager = LodManager::new(get_lod_path()).unwrap();
-        let map_name = "oute3";
-        let map = LodData::try_from(
-            lod_manager
-                .try_get_bytes(&format!("games/{}.odm", map_name))
-                .unwrap(),
-        )
-        .unwrap();
-        //let _ = write(format!("{}.odm", map_name), &map.data);
-        let _map = Odm::try_from(map.data.as_slice()).unwrap();
+        let _map = Odm::new(&lod_manager, "oute3.odm").unwrap();
     }
 }

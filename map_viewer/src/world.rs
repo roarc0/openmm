@@ -4,7 +4,7 @@ use bevy::{
 };
 use bevy_mod_billboard::{
     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
-    BillboardTextureBundle,
+    BillboardLockAxis, BillboardLockAxisBundle, BillboardTextureBundle,
 };
 use lod::LodManager;
 
@@ -15,9 +15,10 @@ use crate::{
     GameState,
 };
 
-use self::sun::SunPlugin;
+use self::{sky::SkyPlugin, sun::SunPlugin};
 
 pub(crate) mod dev;
+pub(crate) mod sky;
 pub(crate) mod sun;
 
 #[derive(Component)]
@@ -53,6 +54,7 @@ impl Plugin for WorldPlugin {
                 dev::DevPlugin,
                 player::PlayerPlugin,
                 SunPlugin,
+                SkyPlugin,
                 BillboardPlugin,
             ))
             .add_systems(
@@ -76,7 +78,6 @@ fn world_setup(
     if odm.is_none() {
         return;
     }
-
     let odm = odm.unwrap();
 
     let image_handle = images.add(odm.texture.clone());
@@ -101,33 +102,29 @@ fn world_setup(
     let sprite_manager = lod::billboard::BillboardManager::new(&settings.lod_manager).unwrap();
 
     for b in odm.map.billboards {
-        let sprite = sprite_manager
+        let billboard_sprite = sprite_manager
             .get(&settings.lod_manager, &b.declist_name, b.data.declist_id)
             .unwrap();
+        let (width, height) = billboard_sprite.dimensions();
 
-        let image = bevy::render::texture::Image::from_dynamic(sprite.image, true);
-        let size = image.size();
+        let image = bevy::render::texture::Image::from_dynamic(billboard_sprite.image, true);
         let image_handle = images.add(image);
 
-        let height = size[1];
-        // if sprite.d_declist_item.height != 0 {
-        //     64.0 + sprite.d_declist_item.height as f32
-        //     //size[0]
-        //     //sprite.d_declist_item.height as f32 * size[0] / 30.0 // I don't know how to use the height field :3
-        // } else {
-        //     size[0]
-        // };
-        let width = height * (size[0] / size[1]);
-
-        commands.spawn(BillboardTextureBundle {
-            texture: billboard_textures.add(BillboardTexture::Single(image_handle)),
-            transform: Transform::from_xyz(
-                b.data.position[0] as f32,
-                b.data.position[2] as f32 + height / 2.,
-                -b.data.position[1] as f32,
-            ),
-            mesh: BillboardMeshHandle(meshes.add(Quad::new(Vec2::new(width, height)).into())),
-            ..default()
+        commands.spawn(BillboardLockAxisBundle {
+            billboard_bundle: BillboardTextureBundle {
+                transform: Transform::from_xyz(
+                    b.data.position[0] as f32,
+                    b.data.position[2] as f32 + height / 2.,
+                    -b.data.position[1] as f32,
+                ),
+                texture: billboard_textures.add(BillboardTexture::Single(image_handle.clone())),
+                mesh: BillboardMeshHandle(meshes.add(Quad::new(Vec2::new(width, height)).into())),
+                ..default()
+            },
+            lock_axis: BillboardLockAxis {
+                y_axis: true,
+                rotation: false,
+            },
         });
     }
 }

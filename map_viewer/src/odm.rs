@@ -35,8 +35,7 @@ pub(super) struct BillboardBundle {
 
 impl OdmBundle {
     pub(super) fn new(lod_manager: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>> {
-        let map = LodData::try_from(lod_manager.try_get_bytes(format!("games/{}", &map_name))?)?;
-        let map = Odm::try_from(map.data.as_slice())?;
+        let map = Odm::new(lod_manager, map_name)?;
 
         let tile_table = map.tile_table(lod_manager)?;
         let mesh = Self::generate_terrain_mesh(&map, &tile_table);
@@ -63,7 +62,6 @@ impl OdmBundle {
             perceptual_roughness: 1.0,
             reflectance: 0.2,
             flip_normal_map_y: true,
-
             cull_mode: Some(Face::Back),
             ..default()
         }
@@ -106,6 +104,7 @@ fn process_models(map: &Odm) -> Vec<ModelBundle> {
             fog_enabled: true,
             perceptual_roughness: 0.5,
             reflectance: 0.1,
+            flip_normal_map_y: true,
             cull_mode: None,
             ..default()
         };

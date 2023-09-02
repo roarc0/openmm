@@ -193,7 +193,7 @@ impl TileTable {
         let mut set: Vec<String> = name_table
             .iter()
             .cloned()
-            .filter(|d| !d.starts_with("drr"))
+            .filter(|d| !d.starts_with("drr")) // HACK
             .collect();
         set.sort_by(|a, b| {
             if a == "pending" {
@@ -227,9 +227,7 @@ mod tests {
     #[test]
     fn atlas_generation_works() {
         let lod_manager = LodManager::new(get_lod_path()).unwrap();
-        let map = LodData::try_from(lod_manager.try_get_bytes("games/oute3.odm").unwrap()).unwrap();
-        let map = Odm::try_from(map.data.as_slice()).unwrap();
-
+        let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
         let dtile = Dtile::new(&lod_manager).unwrap();
 
         let tile_table = dtile.table(map.tile_data).unwrap();
