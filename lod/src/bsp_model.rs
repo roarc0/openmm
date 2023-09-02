@@ -42,6 +42,12 @@ pub struct BSPModelHeader {
     pub bounding_radius: i32,
 }
 
+impl BSPModelHeader {
+    pub fn shown_on_map(&self) -> bool {
+        (self.attributes & 0x0001) != 0
+    }
+}
+
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct Plane {
@@ -91,6 +97,88 @@ pub struct BSPModelFace {
     shade_type: u8,
     visible: u8,
     padding: [u8; 2],
+}
+
+impl BSPModelFace {
+    pub fn is_portal(&self) -> bool {
+        (self.attributes & 0x00000001) != 0
+    }
+
+    pub fn is_water(&self) -> bool {
+        (self.attributes & 0x00000010) != 0
+    }
+
+    pub fn projecting_to_xy(&self) -> bool {
+        (self.attributes & 0x000000100) != 0
+    }
+
+    pub fn projecting_to_xz(&self) -> bool {
+        (self.attributes & 0x000000200) != 0
+    }
+
+    pub fn projecting_to_yz(&self) -> bool {
+        (self.attributes & 0x000000400) != 0
+    }
+
+    pub fn is_invisible(&self) -> bool {
+        (self.attributes & 0x000002000) != 0
+    }
+
+    pub fn is_animated_tft(&self) -> bool {
+        (self.attributes & 0x000004000) != 0
+    }
+
+    pub fn moves_by_door(&self) -> bool {
+        (self.attributes & 0x000010000) != 0
+    }
+
+    pub fn is_event_just_hint(&self) -> bool {
+        (self.attributes & 0x000040000) != 0
+    }
+
+    pub fn is_alternative_sound(&self) -> bool {
+        (self.attributes & 0x000080000) != 0
+    }
+
+    pub fn is_sky(&self) -> bool {
+        (self.attributes & 0x000100000) != 0
+    }
+
+    pub fn flip_u(&self) -> bool {
+        (self.attributes & 0x000200000) != 0
+    }
+
+    pub fn flip_v(&self) -> bool {
+        (self.attributes & 0x000400000) != 0
+    }
+
+    pub fn trigger_by_click(&self) -> bool {
+        (self.attributes & 0x000800000) != 0
+    }
+
+    pub fn trigger_by_step(&self) -> bool {
+        (self.attributes & 0x001000000) != 0
+    }
+
+    pub fn trigger_by_monster(&self) -> bool {
+        (self.attributes & 0x002000000) != 0
+    }
+
+    pub fn trigger_by_object(&self) -> bool {
+        (self.attributes & 0x004000000) != 0
+    }
+
+    pub fn is_untouchable(&self) -> bool {
+        (self.attributes & 0x008000000) != 0
+    }
+
+    pub fn is_lava(&self) -> bool {
+        (self.attributes & 0x010000000) != 0
+    }
+
+    pub fn has_data(&self) -> bool {
+        (self.attributes & 0x020000000) != 0
+    }
 }
 
 #[repr(C)]

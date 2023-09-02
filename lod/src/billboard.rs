@@ -38,7 +38,7 @@ impl BillboardData {
         (self.attributes & 0x0004) != 0
     }
 
-    pub fn is_shown_on_map(&self) -> bool {
+    pub fn shown_on_map(&self) -> bool {
         (self.attributes & 0x0010) != 0
     }
 
