@@ -103,13 +103,43 @@ impl TryFrom<&[u8]> for Odm {
 #[derive(Default, Debug)]
 pub struct BillboardData {
     pub declist_id: u16,
-    pub ai_attr_markers: u16,
-    pub origin: [i32; 3],
-    pub facing: i32,
-    pub evt1: u16,
-    pub evt2: u16,
-    pub var1: u16,
-    pub var2: u16,
+    pub bits: u16,
+    pub position: [i32; 3],
+    pub direction: i32,
+    pub event_variable: i16,
+    pub event: i16,
+    pub trigger_radius: i16,
+    pub direction_degrees: i16,
+}
+
+impl BillboardData {
+    pub fn is_triggered_by_touch(&self) -> bool {
+        (self.bits & 0x0001) != 0
+    }
+
+    pub fn is_triggered_by_monster(&self) -> bool {
+        (self.bits & 0x0002) != 0
+    }
+
+    pub fn is_triggered_by_object(&self) -> bool {
+        (self.bits & 0x0004) != 0
+    }
+
+    pub fn is_shown_on_map(&self) -> bool {
+        (self.bits & 0x0010) != 0
+    }
+
+    pub fn is_chest(&self) -> bool {
+        (self.bits & 0x0020) != 0
+    }
+
+    pub fn is_invisible(&self) -> bool {
+        (self.bits & 0x0040) != 0
+    }
+
+    pub fn is_ship(&self) -> bool {
+        (self.bits & 0x0080) != 0
+    }
 }
 
 #[derive(Default, Debug)]

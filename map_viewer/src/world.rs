@@ -122,9 +122,9 @@ fn world_setup(
         commands.spawn(BillboardTextureBundle {
             texture: billboard_textures.add(BillboardTexture::Single(image_handle)),
             transform: Transform::from_xyz(
-                b.data.origin[0] as f32,
-                b.data.origin[2] as f32 + height / 2.,
-                -b.data.origin[1] as f32,
+                b.data.position[0] as f32,
+                b.data.position[2] as f32 + height / 2.,
+                -b.data.position[1] as f32,
             ),
             mesh: BillboardMeshHandle(meshes.add(Quad::new(Vec2::new(width, height)).into())),
             ..default()
