@@ -20,7 +20,7 @@ pub struct DSFTFrame {
     sprite_name: [u8; 12],
     pub sprite_index: [i16; 8],
     pub scale: i32,
-    pub bits: u16,
+    pub attributes: u16,
     pub light_radius: i16,
     pub palette_id: i16,
     pub palette_index: i16,
@@ -30,63 +30,63 @@ pub struct DSFTFrame {
 
 impl DSFTFrame {
     pub fn is_not_group_end(&self) -> bool {
-        (self.bits & 0x0001) != 0
+        (self.attributes & 0x0001) != 0
     }
 
     pub fn is_luminous(&self) -> bool {
-        (self.bits & 0x0002) != 0
+        (self.attributes & 0x0002) != 0
     }
 
     pub fn is_group_start(&self) -> bool {
-        (self.bits & 0x0004) != 0
+        (self.attributes & 0x0004) != 0
     }
 
     pub fn is_image1(&self) -> bool {
-        (self.bits & 0x0010) != 0
+        (self.attributes & 0x0010) != 0
     }
 
     pub fn is_center(&self) -> bool {
-        (self.bits & 0x0020) != 0
+        (self.attributes & 0x0020) != 0
     }
 
     pub fn is_fidget(&self) -> bool {
-        (self.bits & 0x0040) != 0
+        (self.attributes & 0x0040) != 0
     }
 
     pub fn is_loaded(&self) -> bool {
-        (self.bits & 0x0080) != 0
+        (self.attributes & 0x0080) != 0
     }
 
     pub fn is_mirror0(&self) -> bool {
-        (self.bits & 0x0100) != 0
+        (self.attributes & 0x0100) != 0
     }
 
     pub fn is_mirror1(&self) -> bool {
-        (self.bits & 0x0200) != 0
+        (self.attributes & 0x0200) != 0
     }
 
     pub fn is_mirror2(&self) -> bool {
-        (self.bits & 0x0400) != 0
+        (self.attributes & 0x0400) != 0
     }
 
     pub fn is_mirror3(&self) -> bool {
-        (self.bits & 0x0800) != 0
+        (self.attributes & 0x0800) != 0
     }
 
     pub fn is_mirror4(&self) -> bool {
-        (self.bits & 0x1000) != 0
+        (self.attributes & 0x1000) != 0
     }
 
     pub fn is_mirror5(&self) -> bool {
-        (self.bits & 0x2000) != 0
+        (self.attributes & 0x2000) != 0
     }
 
     pub fn is_mirror7(&self) -> bool {
-        (self.bits & 0x4000) != 0
+        (self.attributes & 0x4000) != 0
     }
 
     pub fn is_mirror8(&self) -> bool {
-        (self.bits & 0x8000) != 0
+        (self.attributes & 0x8000) != 0
     }
 
     pub fn group_name(&self) -> Option<String> {

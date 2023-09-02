@@ -19,61 +19,61 @@ struct Tile {
     bitmap: i16,
     tile_set: i16,
     section: i16,
-    bits: u16,
+    attributes: u16,
 }
 
 #[allow(dead_code)]
 impl Tile {
     pub fn is_burn(&self) -> bool {
-        (self.bits & 0x0001) != 0
+        (self.attributes & 0x0001) != 0
     }
 
     pub fn is_water(&self) -> bool {
-        (self.bits & 0x0002) != 0
+        (self.attributes & 0x0002) != 0
     }
 
     pub fn is_block(&self) -> bool {
-        (self.bits & 0x0004) != 0
+        (self.attributes & 0x0004) != 0
     }
 
     pub fn is_repulse(&self) -> bool {
-        (self.bits & 0x0010) != 0
+        (self.attributes & 0x0010) != 0
     }
 
     pub fn is_flat(&self) -> bool {
-        (self.bits & 0x0020) != 0
+        (self.attributes & 0x0020) != 0
     }
 
     pub fn is_wave(&self) -> bool {
-        (self.bits & 0x0040) != 0
+        (self.attributes & 0x0040) != 0
     }
 
     pub fn is_no_draw(&self) -> bool {
-        (self.bits & 0x0080) != 0
+        (self.attributes & 0x0080) != 0
     }
 
     pub fn is_water_transition(&self) -> bool {
-        (self.bits & 0x0200) != 0
+        (self.attributes & 0x0200) != 0
     }
 
     pub fn is_transition(&self) -> bool {
-        (self.bits & 0x0400) != 0
+        (self.attributes & 0x0400) != 0
     }
 
     pub fn is_scroll_down(&self) -> bool {
-        (self.bits & 0x0800) != 0
+        (self.attributes & 0x0800) != 0
     }
 
     pub fn is_scroll_up(&self) -> bool {
-        (self.bits & 0x1000) != 0
+        (self.attributes & 0x1000) != 0
     }
 
     pub fn is_scroll_left(&self) -> bool {
-        (self.bits & 0x2000) != 0
+        (self.attributes & 0x2000) != 0
     }
 
     pub fn is_scroll_right(&self) -> bool {
-        (self.bits & 0x4000) != 0
+        (self.attributes & 0x4000) != 0
     }
 
     pub fn name(&self) -> Option<String> {

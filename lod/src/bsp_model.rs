@@ -19,33 +19,34 @@ pub struct BSPModel {
     pub indices: Vec<u32>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct BSPModelHeader {
-    pub name1: String,
+    pub name: String,
     pub name2: String,
     pub attributes: i32,
     pub vertex_count: i32,
     // p_vertexes: *mut i32,
-    pub faces_count: i32,
-    unk02: i32,
+    pub faces_count: i32, // faces_order_count ?
+    // convexFacetsCount: i32, ?? u16
     // p_faces: *mut i32,
     // p_unk_array: *mut i32,
-    num3: i32,
-    unk03a: i32,
-    unk03b: i32,
-    unk03: [i32; 2],
-    pub origin1: [i32; 3],
+    pub bsp_nodes_count: i32,
+    //unk03a: i32,
+    //unk03b: i32,
+    pub grid: [i32; 2],
+    pub position: [i32; 3],
     pub bounding_box: BoundingBox<i32>,
-    unk04: [i32; 6],
-    pub origin2: [i32; 3],
-    unk05: i32,
+    pub bounding_box_bf: BoundingBox<i32>,
+    pub position_box: [i32; 3],
+    pub bounding_radius: i32,
 }
 
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct Plane {
     normal: [i32; 3],
-    dist: i32,
+    distance: i32,
 }
 
 #[repr(C)]
@@ -76,9 +77,9 @@ pub struct BSPModelFace {
     normal_x: [i16; MAX_FACE_VERTICES_COUNT],
     normal_y: [i16; MAX_FACE_VERTICES_COUNT],
     normal_z: [i16; MAX_FACE_VERTICES_COUNT],
-    unk02: i16,
-    texture_delta_x: i16,
-    texture_delta_y: i16,
+    texture_id: i16,
+    texture_u: i16,
+    texture_v: i16,
     bounding_box: BoundingBox<i16>,
     cog_number: u16,
     cog_trigger_id: u16,
@@ -164,7 +165,7 @@ fn read_bsp_model(
         model.texture_names.push(texture_name);
     }
     model.indices = decode_indices(&model);
-    let bsp_nodes_count = model.header.num3;
+    let bsp_nodes_count = model.header.bsp_nodes_count;
     if bsp_nodes_count > 0 {
         for _i in 0..bsp_nodes_count * 2 {
             model.bsp_nodes.push(BSPNode {
@@ -191,7 +192,7 @@ fn read_bsp_model_headers(
 
 fn read_bsp_model_header(cursor: &mut Cursor<&[u8]>) -> Result<BSPModelHeader, Box<dyn Error>> {
     let mut header = BSPModelHeader {
-        name1: try_read_string_block(cursor, MODEL_NAME_MAX_SIZE)?,
+        name: try_read_string_block(cursor, MODEL_NAME_MAX_SIZE)?,
         name2: try_read_string_block(cursor, MODEL_NAME_MAX_SIZE)?,
         attributes: cursor.read_i32::<LittleEndian>()?,
         vertex_count: cursor.read_i32::<LittleEndian>()?,
@@ -199,17 +200,17 @@ fn read_bsp_model_header(cursor: &mut Cursor<&[u8]>) -> Result<BSPModelHeader, B
     };
     let _p_vertex: i32 = cursor.read_i32::<LittleEndian>()?;
     header.faces_count = cursor.read_i32::<LittleEndian>()?;
-    header.unk02 = cursor.read_i32::<LittleEndian>()?;
+    let _unk02 = cursor.read_i32::<LittleEndian>()?;
     let _p_faces = cursor.read_i32::<LittleEndian>()?;
     let _p_unk_array = cursor.read_i32::<LittleEndian>()?;
-    header.num3 = cursor.read_i32::<LittleEndian>()?;
-    header.unk03a = cursor.read_i32::<LittleEndian>()?;
-    header.unk03b = cursor.read_i32::<LittleEndian>()?;
-    header.unk03 = [
+    header.bsp_nodes_count = cursor.read_i32::<LittleEndian>()?;
+    let _unk03a = cursor.read_i32::<LittleEndian>()?;
+    let _unk03b = cursor.read_i32::<LittleEndian>()?;
+    let _unk03 = [
         cursor.read_i32::<LittleEndian>()?,
         cursor.read_i32::<LittleEndian>()?,
     ];
-    header.origin1 = [
+    header.position = [
         cursor.read_i32::<LittleEndian>()?,
         cursor.read_i32::<LittleEndian>()?,
         cursor.read_i32::<LittleEndian>()?,
@@ -222,20 +223,20 @@ fn read_bsp_model_header(cursor: &mut Cursor<&[u8]>) -> Result<BSPModelHeader, B
         max_y: cursor.read_i32::<LittleEndian>()?,
         max_z: cursor.read_i32::<LittleEndian>()?,
     };
-    header.unk04 = [
-        cursor.read_i32::<LittleEndian>()?,
-        cursor.read_i32::<LittleEndian>()?,
-        cursor.read_i32::<LittleEndian>()?,
+    header.bounding_box_bf = BoundingBox {
+        min_x: cursor.read_i32::<LittleEndian>()?,
+        min_y: cursor.read_i32::<LittleEndian>()?,
+        min_z: cursor.read_i32::<LittleEndian>()?,
+        max_x: cursor.read_i32::<LittleEndian>()?,
+        max_y: cursor.read_i32::<LittleEndian>()?,
+        max_z: cursor.read_i32::<LittleEndian>()?,
+    };
+    header.position_box = [
         cursor.read_i32::<LittleEndian>()?,
         cursor.read_i32::<LittleEndian>()?,
         cursor.read_i32::<LittleEndian>()?,
     ];
-    header.origin2 = [
-        cursor.read_i32::<LittleEndian>()?,
-        cursor.read_i32::<LittleEndian>()?,
-        cursor.read_i32::<LittleEndian>()?,
-    ];
-    header.unk05 = cursor.read_i32::<LittleEndian>()?;
+    header.bounding_radius = cursor.read_i32::<LittleEndian>()?;
     Ok(header)
 }
 

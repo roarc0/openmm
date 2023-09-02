@@ -22,7 +22,7 @@ pub struct DDecListItem {
     pub radius: u16,
     pub light_radius: u16,
     pub sft: SFTType,
-    pub bits: u16,
+    pub attributes: u16,
     pub sound_id: u16,
     skip: u16,
 }
@@ -37,7 +37,7 @@ impl Default for DDecListItem {
             radius: 0,
             light_radius: 0,
             sft: SFTType { index: 0 },
-            bits: 0,
+            attributes: 0,
             sound_id: 0,
             skip: 0,
         }
@@ -46,47 +46,47 @@ impl Default for DDecListItem {
 
 impl DDecListItem {
     pub fn is_no_block_movement(&self) -> bool {
-        (self.bits & 0x0001) != 0
+        (self.attributes & 0x0001) != 0
     }
 
     pub fn is_no_draw(&self) -> bool {
-        (self.bits & 0x0002) != 0
+        (self.attributes & 0x0002) != 0
     }
 
     pub fn is_flicker_slow(&self) -> bool {
-        (self.bits & 0x0004) != 0
+        (self.attributes & 0x0004) != 0
     }
 
     pub fn is_flicker_medium(&self) -> bool {
-        (self.bits & 0x0008) != 0
+        (self.attributes & 0x0008) != 0
     }
 
     pub fn is_flicker_fast(&self) -> bool {
-        (self.bits & 0x0010) != 0
+        (self.attributes & 0x0010) != 0
     }
 
     pub fn is_marker(&self) -> bool {
-        (self.bits & 0x0020) != 0
+        (self.attributes & 0x0020) != 0
     }
 
     pub fn is_slow_loop(&self) -> bool {
-        (self.bits & 0x0040) != 0
+        (self.attributes & 0x0040) != 0
     }
 
     pub fn is_emit_fire(&self) -> bool {
-        (self.bits & 0x0080) != 0
+        (self.attributes & 0x0080) != 0
     }
 
     pub fn is_sound_on_dawn(&self) -> bool {
-        (self.bits & 0x0100) != 0
+        (self.attributes & 0x0100) != 0
     }
 
     pub fn is_sound_on_dusk(&self) -> bool {
-        (self.bits & 0x0200) != 0
+        (self.attributes & 0x0200) != 0
     }
 
     pub fn is_emit_smoke(&self) -> bool {
-        (self.bits & 0x0400) != 0
+        (self.attributes & 0x0400) != 0
     }
 }
 
