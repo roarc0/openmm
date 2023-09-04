@@ -1,48 +1,38 @@
 use std::error::Error;
 
+use crate::utils::random_color;
 use bevy::{
     prelude::*,
     render::render_resource::{Face, PrimitiveTopology},
 };
 use lod::{
     dtile::TileTable,
-    lod_data::LodData,
     odm::{Odm, OdmData},
     LodManager,
 };
-use random_color::{Luminosity, RandomColor};
 
+// TODO make it a real bundle
 pub(super) struct OdmBundle {
     pub map: Odm,
     pub mesh: Mesh,
     pub texture: Image,
     pub models: Vec<ModelBundle>,
-    //pub billboards: Vec<BillboardBundle>,
 }
 
+// TODO make it a real bundle
 pub(super) struct ModelBundle {
-    // pub model: Model,
     pub mesh: Mesh,
     pub bounding_box_mesh: Mesh,
     pub material: StandardMaterial,
 }
 
-pub(super) struct BillboardBundle {
-    // pub model: Billboard,
-    pub mesh: Mesh,
-    pub texture: Image,
-}
-
 impl OdmBundle {
     pub(super) fn new(lod_manager: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>> {
         let map = Odm::new(lod_manager, map_name)?;
-
         let tile_table = map.tile_table(lod_manager)?;
         let mesh = Self::generate_terrain_mesh(&map, &tile_table);
-
         let image =
             bevy::render::texture::Image::from_dynamic(tile_table.atlas_image(lod_manager)?, true);
-
         let models = process_models(&map);
 
         Ok(OdmBundle {
@@ -77,7 +67,7 @@ impl OdmBundle {
         mesh.duplicate_vertices();
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, odm_data.uvs);
 
-        // let normals = calculate_normals(
+        // let normals = generate_terrain_normals(
         //     mesh.attribute(Mesh::ATTRIBUTE_POSITION)
         //         .unwrap()
         //         .as_float3()
@@ -117,7 +107,7 @@ fn process_models(map: &Odm) -> Vec<ModelBundle> {
     models
 }
 
-fn calculate_terrain_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
+fn generate_terrain_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
     let mut normals = vec![[0.0, 0.0, 0.0]; vertices.len()];
 
     for face_indices in indices.chunks(3) {
@@ -147,11 +137,10 @@ fn calculate_terrain_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32
         normal[1] /= length;
         normal[2] /= length;
     }
-
     normals
 }
 
-pub(super) fn generate_bsp_model_mesh(model: &lod::bsp_model::BSPModel) -> Mesh {
+fn generate_bsp_model_mesh(model: &lod::bsp_model::BSPModel) -> Mesh {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
     mesh.set_indices(Some(bevy::render::mesh::Indices::U32(
         model.indices.clone(),
@@ -162,7 +151,7 @@ pub(super) fn generate_bsp_model_mesh(model: &lod::bsp_model::BSPModel) -> Mesh 
     mesh
 }
 
-pub(super) fn generate_bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) -> shape::Box {
+fn generate_bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) -> shape::Box {
     shape::Box::from_corners(
         [
             model.header.bounding_box.min_x as f32,
@@ -179,15 +168,74 @@ pub(super) fn generate_bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) 
     )
 }
 
-fn random_color() -> Color {
-    let color = RandomColor::new()
-        .luminosity(Luminosity::Dark)
-        .to_rgb_array();
+pub(super) struct OdmName {
+    pub x: char,
+    pub y: char,
+}
 
-    Color::rgba(
-        color[0] as f32 / 255.,
-        color[1] as f32 / 255.,
-        color[2] as f32 / 255.,
-        1.0,
-    )
+impl Default for OdmName {
+    fn default() -> Self {
+        Self { x: 'e', y: '3' }
+    }
+}
+
+use std::fmt::Display;
+
+impl Display for OdmName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(Self::map_name(self.x, self.y).as_str())
+    }
+}
+
+impl TryFrom<&str> for OdmName {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let x = value.as_bytes().get(3).copied().ok_or("invalid map name")? as char;
+        let y = value.as_bytes().get(4).copied().ok_or("invalid map name")? as char;
+
+        let x = Self::validate_x(x).ok_or("invalid map x coordinate")?;
+        let y = Self::validate_y(y).ok_or("invalid map y coordinate")?;
+
+        Ok(Self { x, y })
+    }
+}
+
+impl OdmName {
+    pub fn go_north(&self) -> Option<OdmName> {
+        let y = Self::validate_y((self.y as u8 - 1) as char)?;
+        Some(Self { x: self.x, y })
+    }
+
+    pub fn go_west(&self) -> Option<OdmName> {
+        let x = Self::validate_x((self.x as u8 - 1) as char)?;
+        Some(Self { x, y: self.y })
+    }
+
+    pub fn go_south(&self) -> Option<OdmName> {
+        let y = Self::validate_y((self.y as u8 + 1) as char)?;
+        Some(Self { x: self.x, y })
+    }
+
+    pub fn go_east(&self) -> Option<OdmName> {
+        let x = Self::validate_x((self.x as u8 + 1) as char)?;
+        Some(Self { x, y: self.y })
+    }
+
+    fn map_name(x: char, y: char) -> String {
+        format!("out{}{}.odm", x, y)
+    }
+
+    fn validate_x(c: char) -> Option<char> {
+        match c {
+            'a'..='e' => Some(c),
+            _ => None,
+        }
+    }
+    fn validate_y(c: char) -> Option<char> {
+        match c {
+            '1'..='3' => Some(c),
+            _ => None,
+        }
+    }
 }

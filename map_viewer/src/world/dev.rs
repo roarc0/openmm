@@ -2,79 +2,85 @@ use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::{
-        default, in_state, info, App, Color, Commands, Component, Input, IntoSystemConfigs,
-        KeyCode, OnEnter, OnExit, Plugin, Query, Res, ResMut, Resource, TextBundle, Transform,
-        Update, Vec3, With,
+        default, in_state, App, Color, Commands, Component, Input, IntoSystemConfigs, KeyCode,
+        OnEnter, OnExit, Plugin, Query, Res, ResMut, Resource, TextBundle, Transform, Update, Vec3,
+        With,
     },
     text::{Text, TextSection, TextStyle},
 };
 use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
+use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
-use crate::{despawn_screen, player::FlyCam, GameState};
+use crate::{despawn_all, player::FlyCam, GameState};
 
 use super::InWorld;
 
 /// Keeps track of mouse motion events, pitch, and yaw
 #[derive(Resource)]
-struct DevState {
-    debug_area: bool,
+struct DevConfig {
+    show_play_area: bool,
 }
 
-impl Default for DevState {
+impl Default for DevConfig {
     fn default() -> Self {
-        Self { debug_area: true }
+        Self {
+            show_play_area: true,
+        }
     }
 }
 
 /// Key configuration
 #[derive(Resource)]
 pub struct KeyBindings {
-    pub toggle: KeyCode,
+    pub toggle_wireframe: KeyCode,
+    pub toggle_play_area: KeyCode,
 }
 
 impl Default for KeyBindings {
     fn default() -> Self {
         Self {
-            toggle: KeyCode::BracketRight,
+            toggle_wireframe: KeyCode::BracketRight,
+            toggle_play_area: KeyCode::BracketLeft,
         }
     }
 }
 
 fn dev_setup(
     mut commands: Commands,
-    state: Res<DevState>,
+    cfg: Res<DevConfig>,
     mut lines: ResMut<DebugLines>,
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
     wireframe_config.global = false;
 
-    if state.debug_area {
-        let val = 88.0 * 512.0 / 2.;
-        lines.line_colored(
-            Vec3::new(val, 0., val),
-            Vec3::new(val, 0., -val),
-            0.0,
+    //if cfg.show_play_area {
+    let val = ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.;
+    let points = [
+        (
             Color::RED,
-        );
-        lines.line_colored(
+            Vec3::new(val, 0., val),
+            Vec3::new(val, 0., -val),
+        ),
+        (
+            Color::LIME_GREEN,
             Vec3::new(val, 0., val),
             Vec3::new(-val, 0., val),
-            0.0,
-            Color::LIME_GREEN,
-        );
-        lines.line_colored(
+        ),
+        (
+            Color::BLUE,
             Vec3::new(-val, 0., val),
             Vec3::new(-val, 0., -val),
-            0.0,
-            Color::BLUE,
-        );
-        lines.line_colored(
+        ),
+        (
+            Color::ORANGE,
             Vec3::new(val, 0., -val),
             Vec3::new(-val, 0., -val),
-            0.0,
-            Color::ORANGE,
-        );
+        ),
+    ];
+    for (color, start, end) in &points {
+        lines.line_colored(*start, *end, 0.0, *color);
     }
+    //}
 
     commands.spawn((
         TextBundle::from_sections([
@@ -117,23 +123,16 @@ fn dev_setup(
     ));
 }
 
-/// Handles keyboard input for enabling/disabling debug area
+/// Handles keyboard input for enabling/disabling dev options
 fn dev_input(
-    mut state: ResMut<DevState>,
+    keys: Res<Input<KeyCode>>,
     key_bindings: Res<KeyBindings>,
-    keys: Res<Input<KeyCode>>,
-) {
-    if keys.just_pressed(key_bindings.toggle) {
-        state.debug_area = !state.debug_area;
-    }
-}
-
-fn update_wireframe_input(
-    keys: Res<Input<KeyCode>>,
+    mut state: ResMut<DevConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
-    if keys.just_pressed(KeyCode::BracketLeft) {
-        info!("Changed wireframe");
+    if keys.just_pressed(key_bindings.toggle_wireframe) {
+        state.show_play_area = !state.show_play_area;
+    } else if keys.just_pressed(key_bindings.toggle_play_area) {
         wireframe_config.global = !wireframe_config.global;
     }
 }
@@ -167,8 +166,8 @@ fn update_position_text(
 pub struct DevPlugin;
 impl Plugin for DevPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DevState>()
-            .init_resource::<KeyBindings>()
+        app.init_resource::<KeyBindings>()
+            .insert_resource(DevConfig::default())
             .add_plugins((
                 WireframePlugin,
                 LogDiagnosticsPlugin::default(),
@@ -176,15 +175,10 @@ impl Plugin for DevPlugin {
             ))
             .add_systems(
                 Update,
-                (
-                    update_wireframe_input,
-                    update_fps_text,
-                    update_position_text,
-                    dev_input,
-                )
+                (dev_input, update_fps_text, update_position_text)
                     .run_if(in_state(GameState::Game)),
             )
             .add_systems(OnEnter(GameState::Game), dev_setup)
-            .add_systems(OnExit(GameState::Game), despawn_screen::<InWorld>);
+            .add_systems(OnExit(GameState::Game), despawn_all::<InWorld>);
     }
 }

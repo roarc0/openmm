@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use bevy::prelude::*;
 
-use crate::{despawn_screen, GameState};
+use crate::{despawn_all, GameState};
 
 use super::InWorld;
 
@@ -12,7 +12,7 @@ impl Plugin for SunPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, (update_sun).run_if(in_state(GameState::Game)))
             .add_systems(OnEnter(GameState::Game), sun_setup)
-            .add_systems(OnExit(GameState::Game), despawn_screen::<InWorld>);
+            .add_systems(OnExit(GameState::Game), despawn_all::<InWorld>);
     }
 }
 

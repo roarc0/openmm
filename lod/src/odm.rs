@@ -175,7 +175,7 @@ impl OdmData {
     fn push_triangle_indices(indices: &mut Vec<u32>, i: u32, width_u32: u32) {
         // First triangle
         indices.push(i);
-        indices.push(i + width_u32);
+        indices.push(i + (width_u32));
         indices.push(i + 1);
         // Second triangle
         indices.push(i + 1);
@@ -192,6 +192,7 @@ mod tests {
     #[test]
     fn get_map_works() {
         let lod_manager = LodManager::new(get_lod_path()).unwrap();
-        let _map = Odm::new(&lod_manager, "oute3.odm").unwrap();
+        let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
+        assert_eq!(map.bsp_models.len(), 85)
     }
 }

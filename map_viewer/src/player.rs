@@ -17,6 +17,8 @@ pub struct MovementSettings {
     pub sensitivity: f32,
     pub speed: f32,
     pub rotation_speed: f32,
+    pub max_xz: f32,
+    pub max_y: f32,
 }
 
 impl Default for MovementSettings {
@@ -25,6 +27,8 @@ impl Default for MovementSettings {
             sensitivity: 0.00012,
             speed: 4096.,
             rotation_speed: 3.5,
+            max_xz: 512.0 * 64.0,
+            max_y: 512.0 * 64.0,
         }
     }
 }
@@ -84,18 +88,22 @@ fn initial_grab_cursor(mut primary_window: Query<&mut Window, With<PrimaryWindow
 }
 
 /// Spawns the `Camera3dBundle` to be controlled
-fn setup_player(mut commands: Commands) {
+fn setup_camera(mut commands: Commands) {
     commands.spawn((
         Camera3dBundle {
             transform: Transform::from_xyz(-9700.0, 400.0, 11300.0).looking_at(Vec3::ZERO, Vec3::Y),
+            projection: Projection::Perspective(PerspectiveProjection {
+                fov: 65.0_f32.to_radians(),
+                ..Default::default()
+            }),
             ..Default::default()
         },
         FlyCam,
         FogSettings {
-            color: Color::rgba(0.02, 0.02, 0.02, 0.95),
+            color: Color::rgba(0.02, 0.02, 0.02, 0.70),
             falloff: FogFalloff::Linear {
-                start: 9000.0,
-                end: 25000.0,
+                start: 20000.0,
+                end: 64000.0,
             },
             ..default()
         },
@@ -103,7 +111,7 @@ fn setup_player(mut commands: Commands) {
 }
 
 /// Handles keyboard input and movement
-fn player_move(
+fn player_controls(
     keys: Res<Input<KeyCode>>,
     time: Res<Time>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
@@ -118,28 +126,21 @@ fn player_move(
                     CursorGrabMode::None => (),
                     _ => {
                         let key = *key;
-                        if key == key_bindings.rotate_left {
-                            let rotation =
-                                Quat::from_rotation_y(settings.rotation_speed.to_radians());
-                            transform.rotate(rotation);
+
+                        let rotation = if key == key_bindings.rotate_left {
+                            1
                         } else if key == key_bindings.rotate_right {
-                            let rotation =
-                                Quat::from_rotation_y(-settings.rotation_speed.to_radians());
+                            -1
+                        } else {
+                            0
+                        };
+                        if rotation != 0 {
+                            let rotation = Quat::from_rotation_y(
+                                rotation as f32 * settings.rotation_speed.to_radians(),
+                            );
                             transform.rotate(rotation);
-                        } else if key == key_bindings.move_forward {
-                            let local_z = transform.local_z();
-                            transform.translation -=
-                                local_z * time.delta_seconds() * settings.speed;
-                        } else if key == key_bindings.move_backward {
-                            let local_z = transform.local_z();
-                            transform.translation +=
-                                local_z * time.delta_seconds() * settings.speed;
-                        } else if key == key_bindings.move_ascend {
-                            transform.translation +=
-                                Vec3::Y * time.delta_seconds() * settings.speed;
-                        } else if key == key_bindings.move_descend {
-                            transform.translation -=
-                                Vec3::Y * time.delta_seconds() * settings.speed;
+                        } else {
+                            handle_movement(&settings, &key_bindings, key, &mut transform, &time);
                         }
                     }
                 }
@@ -147,6 +148,43 @@ fn player_move(
         }
     } else {
         warn!("Primary window not found for `player_move`!");
+    }
+}
+
+fn handle_movement(
+    settings: &Res<MovementSettings>,
+    key_bindings: &KeyBindings,
+    key: KeyCode,
+    transform: &mut Transform,
+    time: &Time,
+) {
+    let local_z = transform.local_z();
+    let movement = match key {
+        k if k == key_bindings.move_forward => -local_z,
+        k if k == key_bindings.move_backward => local_z,
+        k if k == key_bindings.move_ascend => Vec3::Y,
+        k if k == key_bindings.move_descend => -Vec3::Y,
+        _ => return, // Ignore keys that are not for movement
+    };
+
+    transform.translation += movement * time.delta_seconds() * settings.speed;
+
+    //limit_movement_to_game_area(settings, transform);
+}
+
+// Check and limit the movement within the play area
+fn limit_movement_to_game_area(settings: &Res<'_, MovementSettings>, transform: &mut Transform) {
+    if transform.translation.x.abs() > settings.max_xz {
+        transform.translation.x = settings.max_xz * transform.translation.x.signum();
+    }
+    if transform.translation.z.abs() > settings.max_xz {
+        transform.translation.z = settings.max_xz * transform.translation.z.signum();
+    }
+    if transform.translation.y > settings.max_y {
+        transform.translation.y = settings.max_y * transform.translation.y.signum();
+    }
+    if transform.translation.y < 0. {
+        transform.translation.y = 0. * transform.translation.y.signum();
     }
 }
 
@@ -206,11 +244,11 @@ impl Plugin for PlayerPlugin {
             .init_resource::<KeyBindings>()
             .add_systems(
                 OnEnter(GameState::Game),
-                (setup_player, initial_grab_cursor),
+                (setup_camera, initial_grab_cursor),
             )
             .add_systems(
                 Update,
-                (player_move, player_look, cursor_grab).run_if(in_state(GameState::Game)),
+                (player_controls, player_look, cursor_grab).run_if(in_state(GameState::Game)),
             );
     }
 }
