@@ -6,6 +6,6 @@ edition = "2021"
 
 [dependencies]
 byteorder = "1.4.3"
-flate2 = "1.0.26"
+flate2 = "1.0.27"
 hexdump = "0.1.1"
-image = "0.24.6"
+image = "0.24.7"

@@ -1,6 +1,6 @@
 use bevy::{app::AppExit, prelude::*};
 
-use super::{despawn_screen, GameState};
+use super::{despawn_all, GameState};
 
 const TEXT_COLOR: Color = Color::rgb(0.3, 0.9, 0.3);
 
@@ -11,11 +11,11 @@ impl Plugin for MenuPlugin {
         app.add_state::<MenuState>()
             .add_systems(OnEnter(GameState::Menu), menu_setup)
             .add_systems(OnEnter(MenuState::Main), main_menu_setup)
-            .add_systems(OnExit(MenuState::Main), despawn_screen::<OnMainMenuScreen>)
+            .add_systems(OnExit(MenuState::Main), despawn_all::<OnMainMenuScreen>)
             .add_systems(OnEnter(MenuState::Settings), settings_menu_setup)
             .add_systems(
                 OnExit(MenuState::Settings),
-                despawn_screen::<OnSettingsMenuScreen>,
+                despawn_all::<OnSettingsMenuScreen>,
             )
             // .add_systems(
             //     OnEnter(MenuState::SettingsDisplay),
@@ -36,7 +36,7 @@ impl Plugin for MenuPlugin {
             // )
             .add_systems(
                 OnExit(MenuState::SettingsSound),
-                despawn_screen::<OnSoundSettingsMenuScreen>,
+                despawn_all::<OnSoundSettingsMenuScreen>,
             )
             .add_systems(
                 Update,

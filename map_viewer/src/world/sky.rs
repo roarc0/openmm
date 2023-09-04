@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{despawn_screen, GameState};
+use crate::{despawn_all, GameState};
 
 use super::{InWorld, WorldSettings};
 
@@ -11,7 +11,7 @@ impl Plugin for SkyPlugin {
         app
             //.add_systems(Update, (update_sky).run_if(in_state(GameState::Game)))
             .add_systems(OnEnter(GameState::Game), sky_setup)
-            .add_systems(OnExit(GameState::Game), despawn_screen::<InWorld>);
+            .add_systems(OnExit(GameState::Game), despawn_all::<InWorld>);
     }
 }
 
@@ -34,7 +34,7 @@ fn sky_setup(
             //base_color: Color::hex("4488dd").unwrap(),
             base_color_texture: Some(image_handle),
             unlit: true,
-            flip_normal_map_y:true,
+            flip_normal_map_y: true,
             alpha_mode: AlphaMode::Opaque,
             fog_enabled: false,
             cull_mode: None,

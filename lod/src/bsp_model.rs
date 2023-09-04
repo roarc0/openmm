@@ -346,3 +346,21 @@ fn decode_indices(model: &BSPModel) -> Vec<u32> {
         .collect();
     indices
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{get_lod_path, odm::Odm, LodManager};
+
+    #[test]
+    fn get_map_works() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
+
+        let model_crate = &map.bsp_models[17];
+        println!("{:?}", model_crate.texture_names);
+
+        let model_bridge = &map.bsp_models[19];
+        println!("{:?}", model_bridge.texture_names);
+    }
+}
