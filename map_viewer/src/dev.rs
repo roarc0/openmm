@@ -1,19 +1,18 @@
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    input::common_conditions::input_toggle_active,
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::{
         default, in_state, App, Color, Commands, Component, Input, IntoSystemConfigs, KeyCode,
-        OnEnter, OnExit, Plugin, Query, Res, ResMut, Resource, TextBundle, Transform, Update, Vec3,
-        With,
+        OnEnter, Plugin, Query, Res, ResMut, Resource, TextBundle, Transform, Update, Vec3, With,
     },
     text::{Text, TextSection, TextStyle},
 };
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
-use crate::{despawn_all, player::FlyCam, GameState};
-
-use super::InWorld;
+use crate::{player::FlyCam, GameState};
 
 /// Keeps track of mouse motion events, pitch, and yaw
 #[derive(Resource)]
@@ -47,7 +46,7 @@ impl Default for KeyBindings {
 
 fn dev_setup(
     mut commands: Commands,
-    cfg: Res<DevConfig>,
+    dev_config: Res<DevConfig>,
     mut lines: ResMut<DebugLines>,
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
@@ -99,7 +98,7 @@ fn dev_setup(
             }),
         ]),
         FpsText,
-        InWorld,
+        //InWorld,
     ));
 
     commands.spawn((
@@ -119,7 +118,7 @@ fn dev_setup(
             }),
         ]),
         PositionText,
-        InWorld,
+        //InWorld,
     ));
 }
 
@@ -127,11 +126,11 @@ fn dev_setup(
 fn dev_input(
     keys: Res<Input<KeyCode>>,
     key_bindings: Res<KeyBindings>,
-    mut state: ResMut<DevConfig>,
+    mut dev_config: ResMut<DevConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
     if keys.just_pressed(key_bindings.toggle_wireframe) {
-        state.show_play_area = !state.show_play_area;
+        dev_config.show_play_area = !dev_config.show_play_area;
     } else if keys.just_pressed(key_bindings.toggle_play_area) {
         wireframe_config.global = !wireframe_config.global;
     }
@@ -172,13 +171,14 @@ impl Plugin for DevPlugin {
                 WireframePlugin,
                 LogDiagnosticsPlugin::default(),
                 DebugLinesPlugin::default(),
+                WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
             ))
             .add_systems(
                 Update,
                 (dev_input, update_fps_text, update_position_text)
                     .run_if(in_state(GameState::Game)),
             )
-            .add_systems(OnEnter(GameState::Game), dev_setup)
-            .add_systems(OnExit(GameState::Game), despawn_all::<InWorld>);
+            .add_systems(OnEnter(GameState::Game), dev_setup);
+        //.add_systems(OnExit(GameState::Game), despawn_all::<DevStuff>);
     }
 }
