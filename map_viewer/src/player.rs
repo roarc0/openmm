@@ -242,10 +242,7 @@ impl Plugin for PlayerPlugin {
         app.init_resource::<InputState>()
             .init_resource::<MovementSettings>()
             .init_resource::<KeyBindings>()
-            .add_systems(
-                OnEnter(GameState::Game),
-                (setup_camera, initial_grab_cursor),
-            )
+            .add_systems(OnEnter(GameState::Game), (setup_camera))
             .add_systems(
                 Update,
                 (player_controls, player_look, cursor_grab).run_if(in_state(GameState::Game)),

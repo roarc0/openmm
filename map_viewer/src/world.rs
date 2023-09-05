@@ -14,13 +14,12 @@ use lod::{
 use crate::{
     despawn_all,
     odm::{OdmBundle, OdmName},
-    player::{self, MovementSettings},
+    player::{self, MovementSettings, PlayerPlugin},
     GameState,
 };
 
 use self::{sky::SkyPlugin, sun::SunPlugin};
 
-pub(crate) mod dev;
 pub(crate) mod sky;
 pub(crate) mod sun;
 
@@ -31,7 +30,7 @@ pub struct InWorld;
 pub(super) struct WorldSettings {
     pub lod_manager: LodManager,
     pub current_odm: OdmName,
-    pub is_loaded: bool,
+    pub swap_odm: bool,
 }
 
 impl Default for WorldSettings {
@@ -39,7 +38,7 @@ impl Default for WorldSettings {
         Self {
             lod_manager: LodManager::new(lod::get_lod_path()).expect("unable to load lod files"),
             current_odm: OdmName::default(),
-            is_loaded: false,
+            swap_odm: false,
         }
     }
 }
@@ -54,13 +53,7 @@ impl Plugin for WorldPlugin {
                 max_y: ODM_TILE_SCALE * ODM_HEIGHT_SCALE / 2.0,
                 ..Default::default()
             })
-            .add_plugins((
-                dev::DevPlugin,
-                player::PlayerPlugin,
-                SunPlugin,
-                SkyPlugin,
-                BillboardPlugin,
-            ))
+            .add_plugins((PlayerPlugin, SunPlugin, SkyPlugin, BillboardPlugin))
             .add_systems(
                 Update,
                 (change_map_input, change_map).run_if(in_state(GameState::Game)),
@@ -84,7 +77,7 @@ fn change_map(
     mut billboard_textures: ResMut<Assets<BillboardTexture>>,
     query: Query<Entity, With<CurrentMap>>,
 ) {
-    if settings.is_loaded {
+    if settings.swap_odm {
         return;
     }
 
@@ -107,20 +100,26 @@ fn change_map(
 
     commands
         .spawn((
+            Name::new("odm"),
             PbrBundle {
                 mesh: meshes.add(odm.mesh.clone()),
                 material: materials.add(material),
                 ..default()
             },
+            InWorld,
             CurrentMap,
         ))
         .with_children(|parent| {
             for m in odm.models {
-                parent.spawn(PbrBundle {
-                    mesh: meshes.add(m.mesh.clone()),
-                    material: materials.add(m.material.clone()),
-                    ..default()
-                });
+                parent.spawn((
+                    Name::new("model"),
+                    PbrBundle {
+                        mesh: meshes.add(m.mesh.clone()),
+                        material: materials.add(m.material.clone()),
+
+                        ..default()
+                    },
+                ));
             }
 
             let sprite_manager =
@@ -136,29 +135,32 @@ fn change_map(
                     bevy::render::texture::Image::from_dynamic(billboard_sprite.image, true);
                 let image_handle = images.add(image);
 
-                parent.spawn(BillboardLockAxisBundle {
-                    billboard_bundle: BillboardTextureBundle {
-                        transform: Transform::from_xyz(
-                            b.data.position[0] as f32,
-                            b.data.position[2] as f32 + height / 2.,
-                            -b.data.position[1] as f32,
-                        ),
-                        texture: billboard_textures
-                            .add(BillboardTexture::Single(image_handle.clone())),
-                        mesh: BillboardMeshHandle(
-                            meshes.add(Quad::new(Vec2::new(width, height)).into()),
-                        ),
-                        ..default()
+                parent.spawn((
+                    Name::new("billboard"),
+                    BillboardLockAxisBundle {
+                        billboard_bundle: BillboardTextureBundle {
+                            transform: Transform::from_xyz(
+                                b.data.position[0] as f32,
+                                b.data.position[2] as f32 + height / 2.,
+                                -b.data.position[1] as f32,
+                            ),
+                            texture: billboard_textures
+                                .add(BillboardTexture::Single(image_handle.clone())),
+                            mesh: BillboardMeshHandle(
+                                meshes.add(Quad::new(Vec2::new(width, height)).into()),
+                            ),
+                            ..default()
+                        },
+                        lock_axis: BillboardLockAxis {
+                            y_axis: true,
+                            rotation: false,
+                        },
                     },
-                    lock_axis: BillboardLockAxis {
-                        y_axis: true,
-                        rotation: false,
-                    },
-                });
+                ));
             }
         });
 
-    settings.is_loaded = true;
+    settings.swap_odm = true;
 }
 
 fn change_map_input(keys: Res<Input<KeyCode>>, mut settings: ResMut<WorldSettings>) {
@@ -176,7 +178,7 @@ fn change_map_input(keys: Res<Input<KeyCode>>, mut settings: ResMut<WorldSetting
 
     if let Some(new_map) = new_map {
         settings.current_odm = new_map;
-        settings.is_loaded = false;
+        settings.swap_odm = false;
         info!("Changing map: {}", &settings.current_odm);
     }
 }

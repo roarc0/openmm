@@ -2,11 +2,13 @@ use bevy::prelude::{
     App, Commands, Component, DespawnRecursiveExt, Entity, Plugin, Query, States, With,
 };
 use bevy_config::BevyConfigPlugin;
+use dev::DevPlugin;
 use menu::MenuPlugin;
 use splash::SplashPlugin;
 use world::WorldPlugin;
 
 pub(crate) mod bevy_config;
+pub(crate) mod dev;
 pub(crate) mod menu;
 pub(crate) mod odm;
 pub(crate) mod player;
@@ -33,6 +35,7 @@ impl Plugin for GamePlugin {
             MenuPlugin,
             SplashPlugin,
             WorldPlugin,
+            DevPlugin,
         ));
     }
 }
