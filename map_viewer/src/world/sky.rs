@@ -8,9 +8,7 @@ pub struct SkyPlugin;
 
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
-        app
-            //.add_systems(Update, (update_sky).run_if(in_state(GameState::Game)))
-            .add_systems(OnEnter(GameState::Game), sky_setup)
+        app.add_systems(OnEnter(GameState::Game), sky_setup)
             .add_systems(OnExit(GameState::Game), despawn_all::<InWorld>);
     }
 }

@@ -16,20 +16,39 @@ impl Plugin for SunPlugin {
     }
 }
 
-fn sun_setup(mut commands: Commands) {
+fn sun_setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     commands.insert_resource(AmbientLight {
         brightness: 0.6,
         ..default()
     });
 
-    let entity_spawn = Transform::from_xyz(0.0, 2.0, 0.0)
+    let entity_spawn = Transform::from_xyz(0.0, 20000.0, 0.0)
         .with_rotation(Quat::from_rotation_x(-PI / 4.))
         .translation;
 
     commands.spawn((
+        Name::new("fake_sun"),
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::UVSphere {
+                radius: 500.0,
+                ..default()
+            })),
+            material: materials.add(Color::rgb(0.9, 0.9, 0.2).into()),
+            transform: Transform::from_translation(entity_spawn),
+            ..default()
+        },
+        Movable::new(entity_spawn),
+    ));
+
+    commands.spawn((
+        Name::new("sun"),
         DirectionalLightBundle {
             directional_light: DirectionalLight {
-                shadows_enabled: true,
+                shadows_enabled: false,
                 illuminance: 32000.,
                 ..default()
             },
@@ -52,7 +71,7 @@ fn update_sun(time: Res<Time>, mut sun: Query<(&mut Transform, &mut Movable)>) {
         if (movable.spawn - transform.translation).length() > movable.max_distance {
             movable.speed *= -1.0;
         }
-        let direction = transform.local_x();
+        let direction = transform.local_z();
         transform.translation += direction * movable.speed * time.delta_seconds();
     }
 }
@@ -68,8 +87,8 @@ impl Movable {
     fn new(spawn: Vec3) -> Self {
         Movable {
             spawn,
-            max_distance: 64000.0,
-            speed: 20.0,
+            max_distance: 32000.0,
+            speed: 200.0,
         }
     }
 }

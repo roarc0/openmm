@@ -1,10 +1,15 @@
-use std::error::Error;
-
-use crate::utils::random_color;
 use bevy::{
-    prelude::*,
+    prelude::{shape::Quad, *},
     render::render_resource::{Face, PrimitiveTopology},
 };
+use bevy_mod_billboard::{
+    prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
+    BillboardLockAxis, BillboardLockAxisBundle, BillboardTextureBundle,
+};
+
+use std::error::Error;
+
+use crate::{despawn_all, utils::random_color, world::WorldSettings, GameState};
 use lod::{
     dtile::TileTable,
     odm::{Odm, OdmData},
@@ -237,5 +242,138 @@ impl OdmName {
             '1'..='3' => Some(c),
             _ => None,
         }
+    }
+}
+
+#[derive(Component)]
+struct CurrentMap;
+
+fn odm_setup(mut commands: Commands) {}
+
+fn change_odm(
+    mut commands: Commands,
+    mut settings: ResMut<WorldSettings>,
+    mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut billboard_textures: ResMut<Assets<BillboardTexture>>,
+    query: Query<Entity, With<CurrentMap>>,
+) {
+    if !settings.odm_changed {
+        return;
+    }
+
+    for e in &query {
+        commands.entity(e).despawn_recursive();
+    }
+
+    let odm = OdmBundle::new(
+        &settings.lod_manager,
+        settings.current_odm.to_string().as_str(),
+    );
+
+    if odm.is_err() {
+        return;
+    }
+    let odm = odm.unwrap();
+
+    let image_handle = images.add(odm.texture.clone());
+    let material = odm.terrain_material(image_handle);
+
+    commands
+        .spawn((
+            Name::new("odm"),
+            PbrBundle {
+                mesh: meshes.add(odm.mesh.clone()),
+                material: materials.add(material),
+                ..default()
+            },
+            CurrentMap,
+        ))
+        .with_children(|parent| {
+            for m in odm.models {
+                parent.spawn((
+                    Name::new("model"),
+                    PbrBundle {
+                        mesh: meshes.add(m.mesh.clone()),
+                        material: materials.add(m.material.clone()),
+
+                        ..default()
+                    },
+                ));
+            }
+
+            let sprite_manager =
+                lod::billboard::BillboardManager::new(&settings.lod_manager).unwrap();
+
+            for b in odm.map.billboards {
+                let billboard_sprite = sprite_manager
+                    .get(&settings.lod_manager, &b.declist_name, b.data.declist_id)
+                    .unwrap();
+                let (width, height) = billboard_sprite.dimensions();
+
+                let image =
+                    bevy::render::texture::Image::from_dynamic(billboard_sprite.image, true);
+                let image_handle = images.add(image);
+
+                parent.spawn((
+                    Name::new("billboard"),
+                    BillboardLockAxisBundle {
+                        billboard_bundle: BillboardTextureBundle {
+                            transform: Transform::from_xyz(
+                                b.data.position[0] as f32,
+                                b.data.position[2] as f32 + height / 2.,
+                                -b.data.position[1] as f32,
+                            ),
+                            texture: billboard_textures
+                                .add(BillboardTexture::Single(image_handle.clone())),
+                            mesh: BillboardMeshHandle(
+                                meshes.add(Quad::new(Vec2::new(width, height)).into()),
+                            ),
+                            ..default()
+                        },
+                        lock_axis: BillboardLockAxis {
+                            y_axis: true,
+                            rotation: false,
+                        },
+                    },
+                ));
+            }
+        });
+
+    settings.odm_changed = false;
+}
+
+fn change_map_input(keys: Res<Input<KeyCode>>, mut settings: ResMut<WorldSettings>) {
+    let new_map = if keys.just_pressed(KeyCode::J) {
+        settings.current_odm.go_north()
+    } else if keys.just_pressed(KeyCode::H) {
+        settings.current_odm.go_west()
+    } else if keys.just_pressed(KeyCode::K) {
+        settings.current_odm.go_south()
+    } else if keys.just_pressed(KeyCode::L) {
+        settings.current_odm.go_east()
+    } else {
+        None
+    };
+
+    if let Some(new_map) = new_map {
+        settings.current_odm = new_map;
+        settings.odm_changed = true;
+        info!("Changing map: {}", &settings.current_odm);
+    }
+}
+
+pub struct OdmPlugin;
+
+impl Plugin for OdmPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(BillboardPlugin)
+            .add_systems(
+                Update,
+                (change_map_input, change_odm).run_if(in_state(GameState::Game)),
+            )
+            .add_systems(OnEnter(GameState::Game), odm_setup)
+            .add_systems(OnExit(GameState::Game), despawn_all::<CurrentMap>);
     }
 }

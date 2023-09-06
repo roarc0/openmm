@@ -48,9 +48,9 @@ fn dev_setup(
     mut commands: Commands,
     dev_config: Res<DevConfig>,
     mut lines: ResMut<DebugLines>,
-    mut wireframe_config: ResMut<WireframeConfig>,
+    //mut wireframe_config: ResMut<WireframeConfig>,
 ) {
-    wireframe_config.global = false;
+    //wireframe_config.global = false;
 
     //if cfg.show_play_area {
     let val = ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.;
