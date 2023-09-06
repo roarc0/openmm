@@ -78,15 +78,6 @@ fn toggle_grab_cursor(window: &mut Window) {
     }
 }
 
-/// Grabs the cursor when game first starts
-fn initial_grab_cursor(mut primary_window: Query<&mut Window, With<PrimaryWindow>>) {
-    if let Ok(mut window) = primary_window.get_single_mut() {
-        toggle_grab_cursor(&mut window);
-    } else {
-        warn!("Primary window not found for `initial_grab_cursor`!");
-    }
-}
-
 /// Spawns the `Camera3dBundle` to be controlled
 fn setup_camera(mut commands: Commands) {
     commands.spawn((
@@ -169,7 +160,7 @@ fn handle_movement(
 
     transform.translation += movement * time.delta_seconds() * settings.speed;
 
-    //limit_movement_to_game_area(settings, transform);
+    limit_movement_to_game_area(settings, transform);
 }
 
 // Check and limit the movement within the play area
@@ -242,7 +233,7 @@ impl Plugin for PlayerPlugin {
         app.init_resource::<InputState>()
             .init_resource::<MovementSettings>()
             .init_resource::<KeyBindings>()
-            .add_systems(OnEnter(GameState::Game), (setup_camera))
+            .add_systems(OnEnter(GameState::Game), setup_camera)
             .add_systems(
                 Update,
                 (player_controls, player_look, cursor_grab).run_if(in_state(GameState::Game)),
