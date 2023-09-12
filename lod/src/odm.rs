@@ -181,6 +181,16 @@ impl OdmData {
         indices.push(i + 1);
         indices.push(i + width_u32);
         indices.push(i + width_u32 + 1);
+
+        // // First triangle (in CW order)
+        // indices.push(i);
+        // indices.push(i + 1);
+        // indices.push(i + (width_u32));
+
+        // // Second triangle (in CW order)
+        // indices.push(i + 1);
+        // indices.push(i + width_u32 + 1);
+        // indices.push(i + width_u32);
     }
 }
 

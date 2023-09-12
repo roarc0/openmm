@@ -42,11 +42,6 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WorldSettings>()
-            .insert_resource(MovementSettings {
-                max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
-                max_y: ODM_TILE_SCALE * ODM_HEIGHT_SCALE / 2.0,
-                ..Default::default()
-            })
             .add_plugins((PlayerPlugin, SunPlugin, SkyPlugin, OdmPlugin))
             .add_systems(OnExit(GameState::Game), despawn_all::<InWorld>);
     }

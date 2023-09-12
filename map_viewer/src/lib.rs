@@ -11,6 +11,7 @@ pub(crate) mod bevy_config;
 pub(crate) mod dev;
 pub(crate) mod menu;
 pub(crate) mod odm;
+//pub(crate) mod physics;
 pub(crate) mod player;
 pub(crate) mod splash;
 pub(crate) mod utils;
