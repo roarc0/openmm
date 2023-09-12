@@ -2,6 +2,7 @@ use bevy::ecs::event::{Events, ManualEventReader};
 use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
+use bevy_rapier3d::prelude::{Collider, RigidBody};
 
 use crate::GameState;
 
@@ -17,8 +18,6 @@ pub struct MovementSettings {
     pub sensitivity: f32,
     pub speed: f32,
     pub rotation_speed: f32,
-    pub max_xz: f32,
-    pub max_y: f32,
 }
 
 impl Default for MovementSettings {
@@ -27,8 +26,6 @@ impl Default for MovementSettings {
             sensitivity: 0.00012,
             speed: 4096.,
             rotation_speed: 3.5,
-            max_xz: 512.0 * 64.0,
-            max_y: 512.0 * 64.0,
         }
     }
 }
@@ -38,6 +35,8 @@ impl Default for MovementSettings {
 pub struct KeyBindings {
     pub move_forward: KeyCode,
     pub move_backward: KeyCode,
+    pub move_left: KeyCode,
+    pub move_right: KeyCode,
     pub rotate_left: KeyCode,
     pub rotate_right: KeyCode,
     pub move_ascend: KeyCode,
@@ -48,12 +47,14 @@ pub struct KeyBindings {
 impl Default for KeyBindings {
     fn default() -> Self {
         Self {
-            move_forward: KeyCode::Up,
-            move_backward: KeyCode::Down,
-            rotate_left: KeyCode::Left,
-            rotate_right: KeyCode::Right,
-            move_ascend: KeyCode::PageUp,
-            move_descend: KeyCode::Insert,
+            move_forward: KeyCode::W,
+            move_backward: KeyCode::S,
+            move_left: KeyCode::A,
+            move_right: KeyCode::D,
+            move_ascend: KeyCode::Space,
+            move_descend: KeyCode::C,
+            rotate_left: KeyCode::Q,
+            rotate_right: KeyCode::E,
             toggle_grab_cursor: KeyCode::Escape,
         }
     }
@@ -81,6 +82,9 @@ fn toggle_grab_cursor(window: &mut Window) {
 /// Spawns the `Camera3dBundle` to be controlled
 fn setup_camera(mut commands: Commands) {
     commands.spawn((
+        Name::new("camera3d"),
+        RigidBody::Dynamic,
+        Collider::ball(3.0),
         Camera3dBundle {
             transform: Transform::from_xyz(-9700.0, 400.0, 11300.0).looking_at(Vec3::ZERO, Vec3::Y),
             projection: Projection::Perspective(PerspectiveProjection {
@@ -150,33 +154,18 @@ fn handle_movement(
     time: &Time,
 ) {
     let local_z = transform.local_z();
+    let local_x = transform.local_x();
     let movement = match key {
         k if k == key_bindings.move_forward => -local_z,
         k if k == key_bindings.move_backward => local_z,
+        k if k == key_bindings.move_left => -local_x,
+        k if k == key_bindings.move_right => local_x,
         k if k == key_bindings.move_ascend => Vec3::Y,
         k if k == key_bindings.move_descend => -Vec3::Y,
         _ => return, // Ignore keys that are not for movement
     };
 
     transform.translation += movement * time.delta_seconds() * settings.speed;
-
-    limit_movement_to_game_area(settings, transform);
-}
-
-// Check and limit the movement within the play area
-fn limit_movement_to_game_area(settings: &Res<'_, MovementSettings>, transform: &mut Transform) {
-    if transform.translation.x.abs() > settings.max_xz {
-        transform.translation.x = settings.max_xz * transform.translation.x.signum();
-    }
-    if transform.translation.z.abs() > settings.max_xz {
-        transform.translation.z = settings.max_xz * transform.translation.z.signum();
-    }
-    if transform.translation.y > settings.max_y {
-        transform.translation.y = settings.max_y * transform.translation.y.signum();
-    }
-    if transform.translation.y < 0. {
-        transform.translation.y = 0. * transform.translation.y.signum();
-    }
 }
 
 /// Handles looking around if cursor is locked
@@ -226,7 +215,6 @@ fn cursor_grab(
     }
 }
 
-/// Contains everything needed to add first-person fly camera behaviour to your game
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {

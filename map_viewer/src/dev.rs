@@ -10,6 +10,10 @@ use bevy::{
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
+use bevy_rapier3d::{
+    prelude::{NoUserData, RapierPhysicsPlugin},
+    render::RapierDebugRenderPlugin,
+};
 use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::{player::FlyCam, GameState};
@@ -171,6 +175,8 @@ impl Plugin for DevPlugin {
                 WireframePlugin,
                 LogDiagnosticsPlugin::default(),
                 DebugLinesPlugin::default(),
+                RapierPhysicsPlugin::<NoUserData>::default(),
+                RapierDebugRenderPlugin::default(),
                 WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
             ))
             .add_systems(

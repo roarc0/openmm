@@ -6,13 +6,14 @@ use bevy_mod_billboard::{
     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
     BillboardLockAxis, BillboardLockAxisBundle, BillboardTextureBundle,
 };
+use bevy_rapier3d::prelude::*;
 
 use std::error::Error;
 
 use crate::{despawn_all, utils::random_color, world::WorldSettings, GameState};
 use lod::{
     dtile::TileTable,
-    odm::{Odm, OdmData},
+    odm::{Odm, OdmData, ODM_HEIGHT_SCALE, ODM_PLAY_SIZE, ODM_SIZE, ODM_TILE_SCALE},
     LodManager,
 };
 
@@ -248,7 +249,33 @@ impl OdmName {
 #[derive(Component)]
 struct CurrentMap;
 
-fn odm_setup(mut commands: Commands) {}
+fn odm_setup(mut commands: Commands) {
+    let width = ODM_TILE_SCALE * ODM_PLAY_SIZE as f32;
+    let width_half = width * 0.5;
+    let height = ODM_TILE_SCALE * ODM_HEIGHT_SCALE;
+
+    let play_area_shape = shape::Box {
+        min_x: -width_half,
+        max_x: width_half,
+        min_y: 0.0,
+        max_y: height,
+        min_z: -width_half,
+        max_z: width_half,
+    };
+    let collider = Collider::from_bevy_mesh(
+        &Mesh::from(play_area_shape),
+        &ComputedColliderShape::TriMesh,
+    )
+    .unwrap();
+    commands.spawn((
+        SpatialBundle {
+            // transform: Transform::from_xyz(width / 2.0, 0.0, width / 2.0),
+            ..Default::default()
+        },
+        RigidBody::Fixed,
+        collider,
+    ));
+}
 
 fn change_odm(
     mut commands: Commands,
@@ -280,9 +307,12 @@ fn change_odm(
     let image_handle = images.add(odm.texture.clone());
     let material = odm.terrain_material(image_handle);
 
+    // let collider = Collider::from_bevy_mesh(&odm.mesh, &ComputedColliderShape::TriMesh).unwrap();
+
     commands
         .spawn((
             Name::new("odm"),
+            // collider,
             PbrBundle {
                 mesh: meshes.add(odm.mesh.clone()),
                 material: materials.add(material),
