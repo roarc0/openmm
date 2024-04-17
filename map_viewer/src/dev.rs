@@ -1,15 +1,15 @@
 use bevy::{
-    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
-    input::common_conditions::input_toggle_active,
+    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+    input::ButtonInput,
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::{
-        default, in_state, App, Color, Commands, Component, Input, IntoSystemConfigs, KeyCode,
-        OnEnter, Plugin, Query, Res, ResMut, Resource, TextBundle, Transform, Update, Vec3, With,
+        default, in_state, App, Color, Commands, Component, IntoSystemConfigs, KeyCode, OnEnter,
+        Plugin, Query, Res, ResMut, Resource, TextBundle, Transform, Update, Vec3, With,
     },
     text::{Text, TextSection, TextStyle},
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
+//use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::{player::FlyCam, GameState};
@@ -47,7 +47,7 @@ impl Default for KeyBindings {
 fn dev_setup(
     mut commands: Commands,
     dev_config: Res<DevConfig>,
-    mut lines: ResMut<DebugLines>,
+    //mut lines: ResMut<DebugLines>,
     //mut wireframe_config: ResMut<WireframeConfig>,
 ) {
     //wireframe_config.global = false;
@@ -76,9 +76,9 @@ fn dev_setup(
             Vec3::new(-val, 0., -val),
         ),
     ];
-    for (color, start, end) in &points {
-        lines.line_colored(*start, *end, 0.0, *color);
-    }
+    // for (color, start, end) in &points {
+    //     lines.line_colored(*start, *end, 0.0, *color);
+    // }
     //}
 
     commands.spawn((
@@ -124,7 +124,7 @@ fn dev_setup(
 
 /// Handles keyboard input for enabling/disabling dev options
 fn dev_input(
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<KeyBindings>,
     mut dev_config: ResMut<DevConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
@@ -141,7 +141,7 @@ pub struct FpsText;
 
 fn update_fps_text(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsText>>) {
     for mut text in &mut query {
-        if let Some(fps) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(value) = fps.smoothed() {
                 text.sections[1].value = format!("{value:.2}");
             }
@@ -169,9 +169,9 @@ impl Plugin for DevPlugin {
             .insert_resource(DevConfig::default())
             .add_plugins((
                 WireframePlugin,
-                LogDiagnosticsPlugin::default(),
-                DebugLinesPlugin::default(),
-                WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
+                //LogDiagnosticsPlugin::default(),
+                //DebugLinesPlugin::default(),
+                //WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
             ))
             .add_systems(
                 Update,

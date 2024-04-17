@@ -48,10 +48,10 @@ pub struct KeyBindings {
 impl Default for KeyBindings {
     fn default() -> Self {
         Self {
-            move_forward: KeyCode::Up,
-            move_backward: KeyCode::Down,
-            rotate_left: KeyCode::Left,
-            rotate_right: KeyCode::Right,
+            move_forward: KeyCode::ArrowUp,
+            move_backward: KeyCode::ArrowDown,
+            rotate_left: KeyCode::ArrowLeft,
+            rotate_right: KeyCode::ArrowRight,
             move_ascend: KeyCode::PageUp,
             move_descend: KeyCode::Insert,
             toggle_grab_cursor: KeyCode::Escape,
@@ -82,7 +82,8 @@ fn toggle_grab_cursor(window: &mut Window) {
 fn setup_camera(mut commands: Commands) {
     commands.spawn((
         Camera3dBundle {
-            transform: Transform::from_xyz(-9700.0, 400.0, 11300.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(-11700.0, 1400.0, 11300.0)
+                .looking_at(Vec3::ZERO, Vec3::Y),
             projection: Projection::Perspective(PerspectiveProjection {
                 fov: 65.0_f32.to_radians(),
                 ..Default::default()
@@ -103,7 +104,7 @@ fn setup_camera(mut commands: Commands) {
 
 /// Handles keyboard input and movement
 fn player_controls(
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
     settings: Res<MovementSettings>,
@@ -153,8 +154,8 @@ fn handle_movement(
     let movement = match key {
         k if k == key_bindings.move_forward => -local_z,
         k if k == key_bindings.move_backward => local_z,
-        k if k == key_bindings.move_ascend => Vec3::Y,
-        k if k == key_bindings.move_descend => -Vec3::Y,
+        k if k == key_bindings.move_ascend => Direction3d::from_xyz(0.0, 1.0, 0.0).unwrap(),
+        k if k == key_bindings.move_descend => Direction3d::from_xyz(0.0, -1.0, 0.0).unwrap(),
         _ => return, // Ignore keys that are not for movement
     };
 
@@ -189,7 +190,7 @@ fn player_look(
 ) {
     if let Ok(window) = primary_window.get_single() {
         for mut transform in query.iter_mut() {
-            for ev in state.reader_motion.iter(&motion) {
+            for ev in state.reader_motion.read(&motion) {
                 let (mut yaw, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
                 match window.cursor.grab_mode {
                     CursorGrabMode::None => (),
@@ -213,7 +214,7 @@ fn player_look(
 }
 
 fn cursor_grab(
-    keys: Res<Input<KeyCode>>,
+    keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<KeyBindings>,
     mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
 ) {

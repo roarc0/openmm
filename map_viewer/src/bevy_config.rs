@@ -12,7 +12,6 @@ impl Plugin for BevyConfigPlugin {
             primary_window: Some(Window {
                 title: APP_NAME.into(),
                 present_mode: PresentMode::AutoVsync,
-                fit_canvas_to_parent: true,
                 prevent_default_event_handling: false,
                 ..default()
             }),

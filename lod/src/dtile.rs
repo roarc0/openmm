@@ -192,8 +192,8 @@ impl TileTable {
     fn names_set(name_table: &[String; 256]) -> Vec<String> {
         let mut set: Vec<String> = name_table
             .iter()
+            .filter(|&d| !d.starts_with("drr"))
             .cloned()
-            .filter(|d| !d.starts_with("drr")) // HACK
             .collect();
         set.sort_by(|a, b| {
             if a == "pending" {
@@ -215,7 +215,7 @@ impl TileTable {
 }
 
 mod tests {
-    use crate::{dtile::Dtile, get_lod_path, lod_data::LodData, odm::Odm, LodManager};
+    use crate::{dtile::Dtile, get_lod_path, odm::Odm, LodManager};
 
     #[test]
     fn read_dtile_data_works() {

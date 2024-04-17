@@ -30,7 +30,7 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_state::<GameState>().add_plugins((
+        app.insert_state(GameState::Splash).add_plugins((
             BevyConfigPlugin,
             MenuPlugin,
             SplashPlugin,

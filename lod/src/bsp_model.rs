@@ -349,7 +349,6 @@ fn decode_indices(model: &BSPModel) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::{get_lod_path, odm::Odm, LodManager};
 
     #[test]

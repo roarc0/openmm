@@ -1,11 +1,14 @@
 use bevy::{
     prelude::{shape::Quad, *},
-    render::render_resource::{Face, PrimitiveTopology},
+    render::{
+        render_asset::RenderAssetUsages,
+        render_resource::{Face, PrimitiveTopology},
+    },
 };
-use bevy_mod_billboard::{
-    prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTexture},
-    BillboardLockAxis, BillboardLockAxisBundle, BillboardTextureBundle,
-};
+// use bevy_mod_billboard::{
+//     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTextureBundle},
+//     BillboardLockAxis, BillboardLockAxisBundle,
+// };
 
 use std::error::Error;
 
@@ -36,8 +39,11 @@ impl OdmBundle {
         let map = Odm::new(lod_manager, map_name)?;
         let tile_table = map.tile_table(lod_manager)?;
         let mesh = Self::generate_terrain_mesh(&map, &tile_table);
-        let image =
-            bevy::render::texture::Image::from_dynamic(tile_table.atlas_image(lod_manager)?, true);
+        let image = bevy::render::texture::Image::from_dynamic(
+            tile_table.atlas_image(lod_manager)?,
+            true,
+            RenderAssetUsages::RENDER_WORLD,
+        );
         let models = process_models(&map);
 
         Ok(OdmBundle {
@@ -64,10 +70,11 @@ impl OdmBundle {
 
     fn generate_terrain_mesh(odm: &Odm, tile_table: &TileTable) -> Mesh {
         let odm_data = OdmData::new(odm, tile_table);
-        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-        mesh.set_indices(Some(bevy::render::mesh::Indices::U32(
-            odm_data.indices.clone(),
-        )));
+        let mut mesh = Mesh::new(
+            PrimitiveTopology::TriangleList,
+            RenderAssetUsages::RENDER_WORLD,
+        );
+        mesh.insert_indices(bevy::render::mesh::Indices::U32(odm_data.indices.clone()));
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, odm_data.positions);
         mesh.duplicate_vertices();
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, odm_data.uvs);
@@ -146,10 +153,11 @@ fn generate_terrain_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32;
 }
 
 fn generate_bsp_model_mesh(model: &lod::bsp_model::BSPModel) -> Mesh {
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    mesh.set_indices(Some(bevy::render::mesh::Indices::U32(
-        model.indices.clone(),
-    )));
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    mesh.insert_indices(bevy::render::mesh::Indices::U32(model.indices.clone()));
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, model.vertices.clone());
     mesh.duplicate_vertices();
     mesh.compute_flat_normals();
@@ -256,7 +264,7 @@ fn change_odm(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut billboard_textures: ResMut<Assets<BillboardTexture>>,
+    //mut billboard_textures: ResMut<Assets<BillboardTextureBundle>>,
     query: Query<Entity, With<CurrentMap>>,
 ) {
     if !settings.odm_changed {
@@ -303,55 +311,55 @@ fn change_odm(
                 ));
             }
 
-            let sprite_manager =
-                lod::billboard::BillboardManager::new(&settings.lod_manager).unwrap();
+            // let sprite_manager =
+            //     lod::billboard::BillboardManager::new(&settings.lod_manager).unwrap();
 
-            for b in odm.map.billboards {
-                let billboard_sprite = sprite_manager
-                    .get(&settings.lod_manager, &b.declist_name, b.data.declist_id)
-                    .unwrap();
-                let (width, height) = billboard_sprite.dimensions();
+            // for b in odm.map.billboards {
+            //     let billboard_sprite = sprite_manager
+            //         .get(&settings.lod_manager, &b.declist_name, b.data.declist_id)
+            //         .unwrap();
+            //     let (width, height) = billboard_sprite.dimensions();
 
-                let image =
-                    bevy::render::texture::Image::from_dynamic(billboard_sprite.image, true);
-                let image_handle = images.add(image);
+            //     let image =
+            //         bevy::render::texture::Image::from_dynamic(billboard_sprite.image, true);
+            //     let image_handle = images.add(image);
 
-                parent.spawn((
-                    Name::new("billboard"),
-                    BillboardLockAxisBundle {
-                        billboard_bundle: BillboardTextureBundle {
-                            transform: Transform::from_xyz(
-                                b.data.position[0] as f32,
-                                b.data.position[2] as f32 + height / 2.,
-                                -b.data.position[1] as f32,
-                            ),
-                            texture: billboard_textures
-                                .add(BillboardTexture::Single(image_handle.clone())),
-                            mesh: BillboardMeshHandle(
-                                meshes.add(Quad::new(Vec2::new(width, height)).into()),
-                            ),
-                            ..default()
-                        },
-                        lock_axis: BillboardLockAxis {
-                            y_axis: true,
-                            rotation: false,
-                        },
-                    },
-                ));
-            }
+            // parent.spawn((
+            //     Name::new("billboard"),
+            //     BillboardLockAxisBundle {
+            //         billboard_bundle: BillboardTextureBundle {
+            //             transform: Transform::from_xyz(
+            //                 b.data.position[0] as f32,
+            //                 b.data.position[2] as f32 + height / 2.,
+            //                 -b.data.position[1] as f32,
+            //             ),
+            //             texture: billboard_textures
+            //                 .add(BillboardTexture::Single(image_handle.clone())),
+            //             mesh: BillboardMeshHandle(
+            //                 meshes.add(Quad::new(Vec2::new(width, height)).into()),
+            //             ),
+            //             ..default()
+            //         },
+            //         lock_axis: BillboardLockAxis {
+            //             y_axis: true,
+            //             rotation: false,
+            //         },
+            //     },
+            // ));
+            //     }
         });
 
     settings.odm_changed = false;
 }
 
-fn change_map_input(keys: Res<Input<KeyCode>>, mut settings: ResMut<WorldSettings>) {
-    let new_map = if keys.just_pressed(KeyCode::J) {
+fn change_map_input(keys: Res<ButtonInput<KeyCode>>, mut settings: ResMut<WorldSettings>) {
+    let new_map = if keys.just_pressed(KeyCode::KeyJ) {
         settings.current_odm.go_north()
-    } else if keys.just_pressed(KeyCode::H) {
+    } else if keys.just_pressed(KeyCode::KeyH) {
         settings.current_odm.go_west()
-    } else if keys.just_pressed(KeyCode::K) {
+    } else if keys.just_pressed(KeyCode::KeyK) {
         settings.current_odm.go_south()
-    } else if keys.just_pressed(KeyCode::L) {
+    } else if keys.just_pressed(KeyCode::KeyL) {
         settings.current_odm.go_east()
     } else {
         None
@@ -368,7 +376,8 @@ pub struct OdmPlugin;
 
 impl Plugin for OdmPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(BillboardPlugin)
+        app
+            //.add_plugins(BillboardPlugin)
             .add_systems(
                 Update,
                 (change_map_input, change_odm).run_if(in_state(GameState::Game)),

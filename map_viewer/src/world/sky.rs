@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::render_asset::RenderAssetUsages};
 
 use crate::{despawn_all, GameState};
 
@@ -23,18 +23,18 @@ fn sky_setup(
     let image = bevy::render::texture::Image::from_dynamic(
         settings.lod_manager.bitmap("sky01").unwrap(),
         true,
+        RenderAssetUsages::RENDER_WORLD,
     );
     let image_handle = images.add(image);
 
     commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Box::default())),
+        mesh: meshes.add(Mesh::from(Cuboid::default())),
         material: materials.add(StandardMaterial {
-            //base_color: Color::hex("4488dd").unwrap(),
             base_color_texture: Some(image_handle),
             unlit: true,
             flip_normal_map_y: true,
             alpha_mode: AlphaMode::Opaque,
-            fog_enabled: false,
+            fog_enabled: true,
             cull_mode: None,
             ..default()
         }),
