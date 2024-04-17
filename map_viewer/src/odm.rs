@@ -5,6 +5,7 @@ use bevy::{
         render_resource::{Face, PrimitiveTopology, Texture},
     },
 };
+
 // use bevy_mod_billboard::{
 //     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTextureBundle},
 //     BillboardLockAxis, BillboardLockAxisBundle, BillboardTextureHandle,
@@ -86,10 +87,12 @@ impl OdmBundle {
         //         .unwrap(),
         //     &odm_data.indices,
         // );
-        //mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+        // mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
 
         mesh.compute_flat_normals();
         mesh.compute_aabb();
+        _ = mesh.generate_tangents();
+
         mesh
     }
 }
@@ -101,12 +104,7 @@ fn process_models(map: &Odm) -> Vec<ModelBundle> {
         let mesh = generate_bsp_model_mesh(b);
         let material = StandardMaterial {
             base_color: random_color(),
-            unlit: false,
             alpha_mode: AlphaMode::Opaque,
-            fog_enabled: true,
-            perceptual_roughness: 0.5,
-            reflectance: 0.1,
-            flip_normal_map_y: true,
             cull_mode: None,
             ..default()
         };
@@ -119,7 +117,7 @@ fn process_models(map: &Odm) -> Vec<ModelBundle> {
     models
 }
 
-fn generate_terrain_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
+fn generate_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
     let mut normals = vec![[0.0, 0.0, 0.0]; vertices.len()];
 
     for face_indices in indices.chunks(3) {
@@ -160,24 +158,26 @@ fn generate_bsp_model_mesh(model: &lod::bsp_model::BSPModel) -> Mesh {
     mesh.insert_indices(bevy::render::mesh::Indices::U32(model.indices.clone()));
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, model.vertices.clone());
     mesh.duplicate_vertices();
+
     mesh.compute_flat_normals();
+    mesh.compute_aabb();
+    _ = mesh.generate_tangents();
+
     mesh
 }
 
-fn generate_bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) -> shape::Box {
-    shape::Box::from_corners(
-        [
+fn generate_bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) -> Cuboid {
+    Cuboid::from_corners(
+        Vec3::new(
             model.header.bounding_box.min_x as f32,
             model.header.bounding_box.min_z as f32,
             -model.header.bounding_box.min_y as f32,
-        ]
-        .into(),
-        [
+        ),
+        Vec3::new(
             model.header.bounding_box.max_x as f32,
             model.header.bounding_box.max_z as f32,
             -model.header.bounding_box.max_y as f32,
-        ]
-        .into(),
+        ),
     )
 }
 

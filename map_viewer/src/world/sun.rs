@@ -23,18 +23,21 @@ fn sun_setup(
 ) {
     commands.insert_resource(AmbientLight {
         color: Color::WHITE,
-        brightness: 150.0,
+        brightness: 250.0,
         ..default()
     });
 
-    let entity_spawn = Transform::from_xyz(0.0, 10000.0, 0.0)
-        .with_rotation(Quat::from_rotation_x(-PI / 4.))
+    let entity_spawn = Transform::from_xyz(0.0, 2000.0, 0.0)
+        //.with_rotation(Quat::from_rotation_x(-PI / 4.))
+        .translation;
+    let entity_spawn2 = Transform::from_xyz(0.0, 5000.0, 0.0)
+        //.with_rotation(Quat::from_rotation_x(-PI / 4.))
         .translation;
 
     commands.spawn((
         Name::new("fake_sun"),
         PbrBundle {
-            mesh: meshes.add(Mesh::from(Sphere { radius: 500.0 })),
+            mesh: meshes.add(Mesh::from(Sphere { radius: 200.0 })),
             material: materials.add(Color::rgb(0.9, 0.9, 0.2)),
             transform: Transform::from_translation(entity_spawn),
             ..default()
@@ -46,14 +49,14 @@ fn sun_setup(
         Name::new("sun"),
         DirectionalLightBundle {
             directional_light: DirectionalLight {
-                shadows_enabled: false,
+                shadows_enabled: true,
                 illuminance: 2000.,
                 ..default()
             },
-            transform: Transform::from_translation(entity_spawn),
+            transform: Transform::from_translation(entity_spawn2),
             ..default()
         },
-        Movable::new(entity_spawn),
+        Movable::new(entity_spawn2),
         InWorld,
     ));
 }
@@ -63,7 +66,7 @@ fn update_sun(time: Res<Time>, mut sun: Query<(&mut Transform, &mut Movable)>) {
         if (movable.spawn - transform.translation).length() > movable.max_distance {
             movable.speed *= -1.0;
         }
-        let direction = transform.local_z();
+        let direction = transform.local_x();
         transform.translation += direction * movable.speed * time.delta_seconds();
     }
 }
@@ -80,7 +83,7 @@ impl Movable {
         Movable {
             spawn,
             max_distance: 32000.0,
-            speed: 2000.0,
+            speed: 4000.0,
         }
     }
 }

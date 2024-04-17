@@ -1,6 +1,6 @@
 use bevy::{
-    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
-    input::ButtonInput,
+    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    input::{common_conditions::input_toggle_active, ButtonInput},
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::{
         default, in_state, App, Color, Commands, Component, IntoSystemConfigs, KeyCode, OnEnter,
@@ -9,7 +9,6 @@ use bevy::{
     text::{Text, TextSection, TextStyle},
 };
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-//use bevy_prototype_debug_lines::{DebugLines, DebugLinesPlugin};
 use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::{player::FlyCam, GameState};
@@ -46,11 +45,11 @@ impl Default for KeyBindings {
 
 fn dev_setup(
     mut commands: Commands,
-    dev_config: Res<DevConfig>,
+    mut wireframe_config: ResMut<WireframeConfig>,
+    //dev_config: Res<DevConfig>,
     //mut lines: ResMut<DebugLines>,
-    //mut wireframe_config: ResMut<WireframeConfig>,
 ) {
-    //wireframe_config.global = false;
+    wireframe_config.global = false;
 
     //if cfg.show_play_area {
     let val = ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.;
@@ -76,6 +75,7 @@ fn dev_setup(
             Vec3::new(-val, 0., -val),
         ),
     ];
+
     // for (color, start, end) in &points {
     //     lines.line_colored(*start, *end, 0.0, *color);
     // }
@@ -169,9 +169,8 @@ impl Plugin for DevPlugin {
             .insert_resource(DevConfig::default())
             .add_plugins((
                 WireframePlugin,
-                //LogDiagnosticsPlugin::default(),
-                //DebugLinesPlugin::default(),
-                //WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
+                LogDiagnosticsPlugin::default(),
+                WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
             ))
             .add_systems(
                 Update,

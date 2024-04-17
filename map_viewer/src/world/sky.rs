@@ -28,17 +28,17 @@ fn sky_setup(
     let image_handle = images.add(image);
 
     commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(Cuboid::default())),
+        mesh: meshes.add(Mesh::from(Cylinder::default())),
         material: materials.add(StandardMaterial {
             base_color_texture: Some(image_handle),
+            alpha_mode: AlphaMode::Opaque,
             unlit: true,
             flip_normal_map_y: true,
-            alpha_mode: AlphaMode::Opaque,
             fog_enabled: true,
             cull_mode: None,
             ..default()
         }),
-        transform: Transform::from_scale(Vec3::splat(10_000_000.0)),
+        transform: Transform::from_scale(Vec3::splat(100_000_000.0)),
         ..default()
     });
 }
