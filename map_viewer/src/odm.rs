@@ -2,12 +2,12 @@ use bevy::{
     prelude::{shape::Quad, *},
     render::{
         render_asset::RenderAssetUsages,
-        render_resource::{Face, PrimitiveTopology},
+        render_resource::{Face, PrimitiveTopology, Texture},
     },
 };
 // use bevy_mod_billboard::{
 //     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTextureBundle},
-//     BillboardLockAxis, BillboardLockAxisBundle,
+//     BillboardLockAxis, BillboardLockAxisBundle, BillboardTextureHandle,
 // };
 
 use std::error::Error;
@@ -320,33 +320,35 @@ fn change_odm(
             //         .unwrap();
             //     let (width, height) = billboard_sprite.dimensions();
 
-            //     let image =
-            //         bevy::render::texture::Image::from_dynamic(billboard_sprite.image, true);
+            //     let image = bevy::render::texture::Image::from_dynamic(
+            //         billboard_sprite.image,
+            //         true,
+            //         RenderAssetUsages::RENDER_WORLD,
+            //     );
             //     let image_handle = images.add(image);
 
-            // parent.spawn((
-            //     Name::new("billboard"),
-            //     BillboardLockAxisBundle {
-            //         billboard_bundle: BillboardTextureBundle {
-            //             transform: Transform::from_xyz(
-            //                 b.data.position[0] as f32,
-            //                 b.data.position[2] as f32 + height / 2.,
-            //                 -b.data.position[1] as f32,
-            //             ),
-            //             texture: billboard_textures
-            //                 .add(BillboardTexture::Single(image_handle.clone())),
-            //             mesh: BillboardMeshHandle(
-            //                 meshes.add(Quad::new(Vec2::new(width, height)).into()),
-            //             ),
-            //             ..default()
+            //     parent.spawn((
+            //         Name::new("billboard"),
+            //         BillboardLockAxisBundle {
+            //             billboard_bundle: BillboardTextureBundle {
+            //                 transform: Transform::from_xyz(
+            //                     b.data.position[0] as f32,
+            //                     b.data.position[2] as f32 + height / 2.,
+            //                     -b.data.position[1] as f32,
+            //                 ),
+            //                 texture: bevy_mod_billboard::BillboardTextureHandle(
+            //                     image_handle.clone(),
+            //                 ),
+            //                 mesh: BillboardMeshHandle(meshes.add(Rectangle::new(width, height))),
+            //                 ..default()
+            //             },
+            //             lock_axis: BillboardLockAxis {
+            //                 y_axis: true,
+            //                 rotation: false,
+            //             },
             //         },
-            //         lock_axis: BillboardLockAxis {
-            //             y_axis: true,
-            //             rotation: false,
-            //         },
-            //     },
-            // ));
-            //     }
+            //     ));
+            // }
         });
 
     settings.odm_changed = false;
