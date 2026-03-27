@@ -7,7 +7,7 @@ use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 use crate::GameState;
 use crate::game::InGame;
 use crate::game::collision::{
-    BuildingColliders, CollisionTriangle, TerrainHeightMap,
+    BuildingColliders, CollisionTriangle, TerrainHeightMap, WaterMap, WaterWalking,
     ground_height_at, sample_terrain_height,
 };
 use crate::save::GameSave;
@@ -60,8 +60,8 @@ impl Default for PlayerSettings {
             rotation_speed: 1.8,
             eye_height: 180.0,
             gravity: 9800.0,
-            max_slope_height: 160.0,
-            collision_radius: 64.0,
+            max_slope_height: 512.0,
+            collision_radius: 24.0,
             max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
         }
     }
@@ -189,6 +189,12 @@ fn setup_player(
             }
         }
         commands.insert_resource(BuildingColliders { walls, floors });
+
+        // Build water map
+        commands.insert_resource(WaterMap {
+            cells: prepared.water_cells.clone(),
+        });
+        commands.init_resource::<WaterWalking>();
     }
 
     let start_x = save_data.player.position[0];
@@ -217,7 +223,7 @@ fn setup_player(
                 Camera3d::default(),
                 Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
                 Projection::Perspective(PerspectiveProjection {
-                    fov: 65.0_f32.to_radians(),
+                    fov: 50.0_f32.to_radians(),
                     near: 10.0,
                     ..Default::default()
                 }),
@@ -254,6 +260,8 @@ fn player_movement(
     fly_mode: Res<FlyMode>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
+    water_map: Option<Res<WaterMap>>,
+    water_walking: Option<Res<WaterWalking>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     mut query: Query<&mut Transform, With<Player>>,
 ) {
@@ -331,6 +339,16 @@ fn player_movement(
                             slid.z = dest.z;
                         }
                         dest = slid;
+                    }
+                }
+
+                // Water check — block movement into water unless water-walking
+                let can_water_walk = water_walking.as_ref().map_or(false, |w| w.0) || fly_mode.0;
+                if !can_water_walk {
+                    if let Some(ref wm) = water_map {
+                        if wm.is_water_at(dest.x, dest.z) && !wm.is_water_at(from.x, from.z) {
+                            dest = from; // Block: can't enter water
+                        }
                     }
                 }
 

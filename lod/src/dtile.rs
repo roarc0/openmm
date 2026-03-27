@@ -101,6 +101,19 @@ impl Dtile {
         Ok(Self { tiles })
     }
 
+    /// Check if a tile index from the tile_map refers to a water tile.
+    pub fn is_water_tile(&self, tile_index: u8) -> bool {
+        let i = tile_index as u16;
+        if (126..161).contains(&i) {
+            return true;
+        }
+        if let Some(tile) = self.tiles.get(i as usize) {
+            tile.is_water()
+        } else {
+            false
+        }
+    }
+
     pub fn table(&self, tile_data: [u16; 8]) -> Option<TileTable> {
         let mut names_table: Vec<String> = Vec::with_capacity(256);
         for i in 0_u16..=255_u16 {

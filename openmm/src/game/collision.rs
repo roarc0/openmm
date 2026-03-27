@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 
 /// Maximum height the player can step up onto a BSP floor.
-const MAX_STEP_UP: f32 = 200.0;
+const MAX_STEP_UP: f32 = 50.0;
 
 /// A collision triangle in Bevy coordinates, with precomputed AABB.
 #[derive(Clone)]
@@ -77,8 +77,13 @@ impl BuildingColliders {
                 continue;
             }
 
-            // Height check
+            // Height check: skip walls entirely above head or below feet
             if feet_y > wall.max_y || from.y < wall.min_y {
+                continue;
+            }
+            // Skip short walls the player can step over
+            let wall_height = wall.max_y - wall.min_y;
+            if wall.max_y < feet_y + MAX_STEP_UP && wall_height < MAX_STEP_UP {
                 continue;
             }
 
@@ -143,6 +148,34 @@ impl BuildingColliders {
 #[derive(Resource)]
 pub struct TerrainHeightMap {
     pub heights: Vec<u8>,
+}
+
+/// Per-grid-cell water flag.
+#[derive(Resource)]
+pub struct WaterMap {
+    pub cells: Vec<bool>,
+}
+
+impl WaterMap {
+    /// Check if the grid cell at a world position is water.
+    pub fn is_water_at(&self, world_x: f32, world_z: f32) -> bool {
+        let col = ((world_x / ODM_TILE_SCALE) + 64.0) as usize;
+        let row = ((world_z / ODM_TILE_SCALE) + 64.0) as usize;
+        if col >= ODM_SIZE || row >= ODM_SIZE {
+            return false;
+        }
+        self.cells[row * ODM_SIZE + col]
+    }
+}
+
+/// Whether the player can walk on water (e.g. from a spell).
+#[derive(Resource)]
+pub struct WaterWalking(pub bool);
+
+impl Default for WaterWalking {
+    fn default() -> Self {
+        Self(false)
+    }
 }
 
 /// Sample terrain height at a world position using bilinear interpolation.

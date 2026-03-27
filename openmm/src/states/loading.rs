@@ -14,7 +14,7 @@ use crate::{
     GameState,
 };
 use lod::{
-    dtile::TileTable,
+    dtile::{Dtile, TileTable},
     odm::{Odm, OdmData},
 };
 
@@ -47,6 +47,7 @@ struct LoadingProgress {
     terrain_mesh: Option<Mesh>,
     terrain_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
+    water_cells: Option<Vec<bool>>,
 }
 
 pub struct PreparedModel {
@@ -99,6 +100,7 @@ pub struct PreparedWorld {
     pub terrain_mesh: Mesh,
     pub terrain_texture: Image,
     pub models: Vec<PreparedModel>,
+    pub water_cells: Vec<bool>,
 }
 
 #[derive(Component)]
@@ -124,6 +126,7 @@ fn loading_setup(
         terrain_mesh: None,
         terrain_texture: None,
         models: None,
+        water_cells: None,
     });
 
     // Keep the load request around as context
@@ -176,6 +179,13 @@ fn loading_step(
                 Ok(odm) => {
                     match odm.tile_table(game_assets.lod_manager()) {
                         Ok(tile_table) => {
+                            // Build water map from tile data
+                            if let Ok(dtile) = Dtile::new(game_assets.lod_manager()) {
+                                let water_cells: Vec<bool> = odm.tile_map.iter()
+                                    .map(|&idx| dtile.is_water_tile(idx))
+                                    .collect();
+                                progress.water_cells = Some(water_cells);
+                            }
                             progress.tile_table = Some(tile_table);
                             progress.odm = Some(odm);
                             progress.step = progress.step.next();
@@ -318,10 +328,12 @@ fn loading_step(
             if let (Some(map), Some(mesh), Some(texture), Some(models)) =
                 (odm, terrain_mesh, terrain_texture, models)
             {
+                let water_cells = progress.water_cells.take().unwrap_or_default();
                 commands.insert_resource(PreparedWorld {
                     map,
                     terrain_mesh: mesh,
                     terrain_texture: texture,
+                    water_cells,
                     models,
                 });
                 commands.remove_resource::<LoadingProgress>();
