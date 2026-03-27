@@ -3,12 +3,8 @@ use bevy::render::render_resource::Face;
 
 use crate::GameState;
 use crate::game::InGame;
-use crate::game::player::PlayerCamera;
+use crate::game::entities::decoration;
 use crate::states::loading::PreparedWorld;
-
-/// Marker for billboard entities that should face the camera.
-#[derive(Component)]
-struct BillboardMarker;
 
 /// Grid coordinate for outdoor maps. Columns a-e, rows 1-3.
 #[derive(Clone)]
@@ -88,32 +84,7 @@ pub struct OdmPlugin;
 
 impl Plugin for OdmPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), spawn_world)
-            .add_systems(
-                Update,
-                billboard_face_camera.run_if(in_state(GameState::Game)),
-            );
-    }
-}
-
-/// Rotate all billboards to face the camera (Y-axis only).
-fn billboard_face_camera(
-    camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
-    mut billboard_query: Query<(&mut Transform, &GlobalTransform), With<BillboardMarker>>,
-) {
-    let Ok(camera_gt) = camera_query.single() else {
-        return;
-    };
-    let cam_pos = camera_gt.translation();
-
-    for (mut transform, global_transform) in billboard_query.iter_mut() {
-        let bb_pos = global_transform.translation();
-        let dir = cam_pos - bb_pos;
-        // Only rotate around Y axis (billboard stays upright)
-        if dir.x.abs() > 0.01 || dir.z.abs() > 0.01 {
-            let angle = dir.x.atan2(dir.z);
-            transform.rotation = Quat::from_rotation_y(angle);
-        }
+        app.add_systems(OnEnter(GameState::Game), spawn_world);
     }
 }
 
@@ -154,6 +125,7 @@ fn spawn_world(
             InGame,
         ))
         .with_children(|parent| {
+            // BSP models (buildings, structures)
             for model in &prepared.models {
                 for sub in &model.sub_meshes {
                     let mut mat = sub.material.clone();
@@ -169,27 +141,13 @@ fn spawn_world(
                 }
             }
 
-            // Spawn billboards as camera-facing quads
-            for bb in &prepared.billboards {
-                let tex_handle = images.add(bb.image.clone());
-                let bb_mat = materials.add(StandardMaterial {
-                    base_color_texture: Some(tex_handle),
-                    alpha_mode: AlphaMode::Mask(0.5),
-                    cull_mode: None,
-                    double_sided: true,
-                    unlit: true,
-                    ..default()
-                });
-                let quad = meshes.add(Rectangle::new(bb.width, bb.height));
-                // Position billboard with bottom at the given position
-                let pos = bb.position + Vec3::new(0.0, bb.height / 2.0, 0.0);
-                parent.spawn((
-                    Name::new("billboard"),
-                    Mesh3d(quad),
-                    MeshMaterial3d(bb_mat),
-                    Transform::from_translation(pos),
-                    BillboardMarker,
-                ));
-            }
+            // World entities (decorations, future: NPCs, monsters)
+            decoration::spawn_decorations(
+                parent,
+                &prepared,
+                &mut images,
+                &mut meshes,
+                &mut materials,
+            );
         });
 }

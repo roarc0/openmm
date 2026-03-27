@@ -4,6 +4,7 @@ use crate::{despawn_all, GameState};
 
 pub(crate) mod collision;
 pub(crate) mod dev;
+pub(crate) mod entities;
 pub(crate) mod odm;
 pub(crate) mod physics;
 pub(crate) mod player;
@@ -25,6 +26,7 @@ impl Plugin for InGamePlugin {
             player::PlayerPlugin,
             physics::PhysicsPlugin,
             odm::OdmPlugin,
+            entities::EntitiesPlugin,
             dev::DevPlugin,
         ))
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
