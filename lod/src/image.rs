@@ -191,8 +191,12 @@ where
     P: image::Pixel<Subpixel = u8> + 'static,
 {
     let mut image_buffer = ImageBuffer::<P, Vec<P::Subpixel>>::new(width, height);
+    let pixel_count = (width * height) as usize;
+    if data.len() < pixel_count {
+        return Err(format!("data too short: {} < {}", data.len(), pixel_count).into());
+    }
 
-    for (i, pi) in data[..(width * height) as usize].iter().enumerate() {
+    for (i, pi) in data[..pixel_count].iter().enumerate() {
         let x = (i as u32).rem_euclid(width);
         let y = (i as u32).div_euclid(width);
         let index = 3 * (*pi as usize);

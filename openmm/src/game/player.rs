@@ -51,6 +51,7 @@ pub struct PlayerSettings {
     pub rotation_speed: f32,
     pub eye_height: f32,
     pub gravity: f32,
+    pub max_slope_height: f32,
     pub max_xz: f32,
 }
 
@@ -63,6 +64,8 @@ impl Default for PlayerSettings {
             rotation_speed: 1.8,
             eye_height: 300.0,
             gravity: 9800.0,
+            // Max terrain height difference the player can step up per move
+            max_slope_height: 160.0,
             max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
         }
     }
@@ -113,7 +116,7 @@ impl Plugin for PlayerPlugin {
         app.init_resource::<PlayerSettings>()
             .init_resource::<PlayerKeyBindings>()
             .init_resource::<FlyMode>()
-            .add_systems(OnEnter(GameState::Game), setup_player)
+            .add_systems(OnEnter(GameState::Game), (setup_player, grab_cursor_on_enter))
             .add_systems(
                 Update,
                 (
@@ -126,6 +129,13 @@ impl Plugin for PlayerPlugin {
                     .chain()
                     .run_if(in_state(GameState::Game)),
             );
+    }
+}
+
+fn grab_cursor_on_enter(mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>) {
+    if let Ok(mut cursor_options) = cursor_query.single_mut() {
+        cursor_options.grab_mode = CursorGrabMode::Confined;
+        cursor_options.visible = false;
     }
 }
 
@@ -220,6 +230,7 @@ fn player_movement(
     settings: Res<PlayerSettings>,
     key_bindings: Res<PlayerKeyBindings>,
     fly_mode: Res<FlyMode>,
+    height_map: Option<Res<TerrainHeightMap>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     mut query: Query<&mut Transform, With<Player>>,
 ) {
@@ -241,10 +252,14 @@ fn player_movement(
         for key in keys.get_pressed() {
             let key = *key;
             if key == key_bindings.rotate_left {
-                let rotation = Quat::from_rotation_y(settings.rotation_speed.to_radians());
+                let rotation = Quat::from_rotation_y(
+                    settings.rotation_speed * time.delta_secs(),
+                );
                 transform.rotate(rotation);
             } else if key == key_bindings.rotate_right {
-                let rotation = Quat::from_rotation_y(-settings.rotation_speed.to_radians());
+                let rotation = Quat::from_rotation_y(
+                    -settings.rotation_speed * time.delta_secs(),
+                );
                 transform.rotate(rotation);
             }
         }
@@ -271,7 +286,59 @@ fn player_movement(
 
         if movement != Vec3::ZERO {
             movement = movement.normalize() * speed * time.delta_secs();
-            transform.translation += movement;
+
+            if !fly_mode.0 {
+                if let Some(ref hm) = height_map {
+                    // Terrain-aware movement: check if destination is walkable
+                    let dest = transform.translation + movement;
+                    let current_ground = sample_terrain_height(
+                        &hm.heights,
+                        transform.translation.x,
+                        transform.translation.z,
+                    );
+                    let dest_ground = sample_terrain_height(
+                        &hm.heights,
+                        dest.x,
+                        dest.z,
+                    );
+                    let height_diff = dest_ground - current_ground;
+
+                    if height_diff > settings.max_slope_height {
+                        // Too steep uphill — slide along the slope
+                        // Try each axis independently
+                        let dest_x = Vec3::new(
+                            transform.translation.x + movement.x,
+                            transform.translation.y,
+                            transform.translation.z,
+                        );
+                        let ground_x = sample_terrain_height(
+                            &hm.heights, dest_x.x, dest_x.z,
+                        );
+                        if ground_x - current_ground <= settings.max_slope_height {
+                            transform.translation.x = dest_x.x;
+                        }
+
+                        let dest_z = Vec3::new(
+                            transform.translation.x,
+                            transform.translation.y,
+                            transform.translation.z + movement.z,
+                        );
+                        let ground_z = sample_terrain_height(
+                            &hm.heights, dest_z.x, dest_z.z,
+                        );
+                        if ground_z - current_ground <= settings.max_slope_height {
+                            transform.translation.z = dest_z.z;
+                        }
+                    } else {
+                        // Walkable slope — move normally
+                        transform.translation += movement;
+                    }
+                } else {
+                    transform.translation += movement;
+                }
+            } else {
+                transform.translation += movement;
+            }
         }
 
         // Vertical movement in fly mode
@@ -351,7 +418,6 @@ fn gravity_system(
         ) + settings.eye_height;
 
         if fly_mode.0 {
-            // In fly mode: no gravity, but don't go below terrain
             physics.vertical_velocity = 0.0;
             physics.on_ground = false;
             if transform.translation.y < ground_y {
@@ -362,13 +428,13 @@ fn gravity_system(
             physics.vertical_velocity -= settings.gravity * dt;
             transform.translation.y += physics.vertical_velocity * dt;
 
-            // Land on terrain — always enforce floor
+            // Always enforce terrain floor
             if transform.translation.y < ground_y {
                 transform.translation.y = ground_y;
                 physics.vertical_velocity = 0.0;
                 physics.on_ground = true;
-            } else if (transform.translation.y - ground_y).abs() < 1.0 {
-                // Very close to ground, snap
+            } else if transform.translation.y - ground_y < 2.0 {
+                // Snap when very close
                 transform.translation.y = ground_y;
                 physics.vertical_velocity = 0.0;
                 physics.on_ground = true;

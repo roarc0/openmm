@@ -101,8 +101,7 @@ impl LodManager {
         Ok(lod_data)
     }
 
-    fn palettes(&self) -> Result<Palettes, Box<dyn Error>> {
-        // TODO cache palettes
+    pub fn palettes(&self) -> Result<Palettes, Box<dyn Error>> {
         let bitmaps_lod = self
             .lods
             .get("bitmaps")
@@ -119,6 +118,17 @@ impl LodManager {
     /// Returns a list of file names within a specific archive.
     pub fn files_in(&self, archive: &str) -> Option<Vec<&str>> {
         self.lods.get(archive).map(|lod| lod.files())
+    }
+
+    /// Dumps all files from all archives to the given directory.
+    /// Images/sprites are saved as PNG, other data as raw files.
+    pub fn dump_all(&self, output_dir: &Path) -> Result<(), Box<dyn Error>> {
+        let palettes = self.palettes()?;
+        for (name, lod) in &self.lods {
+            let archive_dir = output_dir.join(name);
+            lod.save_all(&archive_dir, &palettes)?;
+        }
+        Ok(())
     }
 
     pub fn sprite(&self, name: &str) -> Option<DynamicImage> {

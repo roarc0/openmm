@@ -42,7 +42,7 @@ impl Lod {
         self.files.get(name).map(|v| v.as_slice())
     }
 
-    fn save_all(&self, path: &Path, palettes: &palette::Palettes) -> Result<(), Box<dyn Error>> {
+    pub(super) fn save_all(&self, path: &Path, palettes: &palette::Palettes) -> Result<(), Box<dyn Error>> {
         fs::create_dir_all(path)?;
         for file in &self.files {
             let file_name = file.0;

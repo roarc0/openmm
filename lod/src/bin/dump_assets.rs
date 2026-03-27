@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
+use std::path::Path;
 
 use lod::LodManager;
 
@@ -7,8 +8,11 @@ fn main() {
     let lod_path = lod::get_lod_path();
     let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
 
-    let mut assets: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let out_dir = Path::new("assets");
+    fs::create_dir_all(out_dir).expect("failed to create assets directory");
 
+    // Build asset index
+    let mut assets: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut archives = lod_manager.archives();
     archives.sort();
 
@@ -24,16 +28,21 @@ fn main() {
         }
     }
 
-    // Write JSON
+    // Write assets.json
     let json = serde_json_minimal(&assets);
-    let out_path = "assets.json";
-    fs::write(out_path, &json).expect("failed to write assets.json");
+    let json_path = out_dir.join("assets.json");
+    fs::write(&json_path, &json).expect("failed to write assets.json");
+    println!("Wrote {} ({} archives, {} files total)", json_path.display(), archives.len(), total);
 
-    println!("Wrote {} ({} archives, {} files total)", out_path, archives.len(), total);
-
-    // Print summary
     for (archive, files) in &assets {
         println!("  {}: {} files", archive, files.len());
+    }
+
+    // Dump all files (images as PNG, data as raw)
+    println!("\nDumping files to {}/ ...", out_dir.display());
+    match lod_manager.dump_all(out_dir) {
+        Ok(()) => println!("Done."),
+        Err(e) => eprintln!("Error during dump: {}", e),
     }
 }
 

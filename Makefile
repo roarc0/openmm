@@ -7,7 +7,7 @@ run:
 	cargo run -p openmm
 
 dump_assets:
-	cargo run -p lod --bin dump_assets
+	cargo run --release -p lod --bin dump_assets
 
 clean:
 	cargo clean
