@@ -1,5 +1,6 @@
 use bevy::{
     asset::RenderAssetUsages,
+    image::{ImageAddressMode, ImageSamplerDescriptor},
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
 };
@@ -261,11 +262,19 @@ fn loading_step(
                                     .lod_manager()
                                     .bitmap(&tm.texture_name)
                                     .map(|img| {
-                                        Image::from_dynamic(
+                                        let mut image = Image::from_dynamic(
                                             img,
                                             true,
                                             RenderAssetUsages::RENDER_WORLD,
-                                        )
+                                        );
+                                        image.sampler = bevy::image::ImageSampler::Descriptor(
+                                            ImageSamplerDescriptor {
+                                                address_mode_u: ImageAddressMode::Repeat,
+                                                address_mode_v: ImageAddressMode::Repeat,
+                                                ..default()
+                                            },
+                                        );
+                                        image
                                     });
 
                                 let material = StandardMaterial {
