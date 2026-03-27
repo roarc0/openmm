@@ -307,34 +307,11 @@ fn player_movement(
             if fly_mode.0 {
                 transform.translation += movement;
             } else {
-                // Ground movement with terrain slope + BSP wall collision
                 let from = transform.translation;
-                let dest = from + movement;
+                let mut dest = from + movement;
 
-                // Check BSP wall collision
-                let wall_blocked = colliders
-                    .as_ref()
-                    .map_or(false, |c| c.blocked_by_wall(from, dest, settings.collision_radius));
-
-                if wall_blocked {
-                    // Try sliding along each axis independently
-                    let dest_x = Vec3::new(from.x + movement.x, from.y, from.z);
-                    let x_blocked = colliders
-                        .as_ref()
-                        .map_or(false, |c| c.blocked_by_wall(from, dest_x, settings.collision_radius));
-                    if !x_blocked {
-                        transform.translation.x = dest_x.x;
-                    }
-
-                    let dest_z = Vec3::new(transform.translation.x, from.y, from.z + movement.z);
-                    let z_blocked = colliders
-                        .as_ref()
-                        .map_or(false, |c| c.blocked_by_wall(from, dest_z, settings.collision_radius));
-                    if !z_blocked {
-                        transform.translation.z = dest_z.z;
-                    }
-                } else if let Some(ref hm) = height_map {
-                    // Terrain slope check
+                // Terrain slope check
+                if let Some(ref hm) = height_map {
                     let current_ground = sample_terrain_height(
                         &hm.heights, from.x, from.z,
                     );
@@ -343,23 +320,29 @@ fn player_movement(
                     );
 
                     if dest_ground - current_ground > settings.max_slope_height {
-                        // Slide per-axis on steep terrain
+                        // Too steep — try sliding per-axis
+                        let mut slid = from;
                         let gx = sample_terrain_height(&hm.heights, dest.x, from.z);
                         if gx - current_ground <= settings.max_slope_height {
-                            transform.translation.x = dest.x;
+                            slid.x = dest.x;
                         }
-                        let gz = sample_terrain_height(
-                            &hm.heights, transform.translation.x, dest.z,
-                        );
+                        let gz = sample_terrain_height(&hm.heights, slid.x, dest.z);
                         if gz - current_ground <= settings.max_slope_height {
-                            transform.translation.z = dest.z;
+                            slid.z = dest.z;
                         }
-                    } else {
-                        transform.translation += movement;
+                        dest = slid;
                     }
-                } else {
-                    transform.translation += movement;
                 }
+
+                // BSP wall collision — push out if inside
+                if let Some(ref c) = colliders {
+                    if let Some(pushed) = c.check_wall_collision(from, dest, settings.collision_radius) {
+                        dest = pushed;
+                    }
+                }
+
+                transform.translation.x = dest.x;
+                transform.translation.z = dest.z;
             }
         }
 
@@ -429,11 +412,13 @@ fn gravity_system(
     let dt = time.delta_secs();
 
     for (mut transform, mut physics) in query.iter_mut() {
+        let feet_y = transform.translation.y - settings.eye_height;
         let ground_y = ground_height_at(
             &height_map.heights,
             colliders.as_deref(),
             transform.translation.x,
             transform.translation.z,
+            feet_y,
         ) + settings.eye_height;
 
         if fly_mode.0 {
