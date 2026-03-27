@@ -172,7 +172,8 @@ fn setup_player(
                 Name::new("player_camera"),
                 PlayerCamera,
                 Camera3d::default(),
-                Transform::default(),
+                // Pitch the camera slightly down so the horizon sits at ~25% from top
+                Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
                 Projection::Perspective(PerspectiveProjection {
                     fov: 65.0_f32.to_radians(),
                     near: 10.0,
