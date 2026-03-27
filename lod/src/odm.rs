@@ -113,6 +113,7 @@ impl Odm {
 
 pub struct OdmData {
     pub positions: Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
     pub indices: Vec<u32>,
     pub uvs: Vec<[f32; 2]>,
 }
@@ -123,11 +124,9 @@ impl OdmData {
         let width_u32 = width as u32;
         let (width_half, depth_half) = (width as f32 / 2., depth as f32 / 2.);
 
+        // Build vertex positions on the heightmap grid
         let vertices_count: usize = width * depth;
         let mut positions: Vec<[f32; 3]> = Vec::with_capacity(vertices_count);
-        let indices_count: usize = (width - 1) * (depth - 1) * 6;
-        let mut indices: Vec<u32> = Vec::with_capacity(indices_count);
-        let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(indices_count); // vertices will be duplicated so we have as much as the indices
 
         for d in 0..depth {
             for w in 0..width {
@@ -137,50 +136,116 @@ impl OdmData {
                     odm.height_map[i] as f32 * ODM_HEIGHT_SCALE,
                     (d as f32 - depth_half) * ODM_TILE_SCALE,
                 ]);
-                if w < (depth - 1) && d < (depth - 1) {
-                    Self::push_uvs(&mut uvs, tile_table, odm.tile_map[i]);
-                    Self::push_triangle_indices(&mut indices, i as u32, width_u32);
+            }
+        }
+
+        // Compute smooth normals from the heightmap using central differences
+        let normals = Self::compute_smooth_normals(&odm.height_map[..], width, depth);
+
+        // Build indices with adaptive triangulation and matching UVs
+        let quad_count = (width - 1) * (depth - 1);
+        let mut indices: Vec<u32> = Vec::with_capacity(quad_count * 6);
+        let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(quad_count * 6);
+
+        for d in 0..(depth - 1) {
+            for w in 0..(width - 1) {
+                let i = (d * width + w) as u32;
+                let tl = i;                    // top-left
+                let tr = i + 1;                // top-right
+                let bl = i + width_u32;        // bottom-left
+                let br = i + width_u32 + 1;    // bottom-right
+
+                // Adaptive diagonal: choose the split that minimizes height difference
+                let h_tl = positions[tl as usize][1];
+                let h_tr = positions[tr as usize][1];
+                let h_bl = positions[bl as usize][1];
+                let h_br = positions[br as usize][1];
+
+                let diag1 = (h_tl - h_br).abs(); // TL-BR diagonal
+                let diag2 = (h_tr - h_bl).abs(); // TR-BL diagonal
+
+                let tile_index = d * width + w;
+                let (uv_tl, uv_tr, uv_bl, uv_br) =
+                    Self::tile_uvs(tile_table, odm.tile_map[tile_index]);
+
+                if diag1 <= diag2 {
+                    // Split along TL-BR: triangles (TL,BL,BR) and (TL,BR,TR)
+                    indices.extend_from_slice(&[tl, bl, br, tl, br, tr]);
+                    uvs.extend_from_slice(&[uv_tl, uv_bl, uv_br, uv_tl, uv_br, uv_tr]);
+                } else {
+                    // Split along TR-BL: triangles (TL,BL,TR) and (TR,BL,BR)
+                    indices.extend_from_slice(&[tl, bl, tr, tr, bl, br]);
+                    uvs.extend_from_slice(&[uv_tl, uv_bl, uv_tr, uv_tr, uv_bl, uv_br]);
                 }
             }
         }
 
         Self {
             positions,
+            normals,
             indices,
             uvs,
         }
     }
 
-    fn push_uvs(uvs: &mut Vec<[f32; 2]>, tile_table: &TileTable, tile_index: u8) {
-        let (tile_x, tile_y) = tile_table.coordinate(tile_index);
-        let (tile_x, tile_y) = (tile_x as f32, tile_y as f32);
-        let (tile_table_size_x, tile_table_size_y) = tile_table.size();
-        let (tile_table_size_x, tile_table_size_y) =
-            (tile_table_size_x as f32, tile_table_size_y as f32);
+    /// Compute smooth per-vertex normals using central differences on the heightmap.
+    fn compute_smooth_normals(
+        height_map: &[u8],
+        width: usize,
+        depth: usize,
+    ) -> Vec<[f32; 3]> {
+        let mut normals = Vec::with_capacity(width * depth);
+        for d in 0..depth {
+            for w in 0..width {
+                // Sample neighboring heights with clamped bounds
+                let left = if w > 0 { w - 1 } else { 0 };
+                let right = if w < width - 1 { w + 1 } else { width - 1 };
+                let up = if d > 0 { d - 1 } else { 0 };
+                let down = if d < depth - 1 { d + 1 } else { depth - 1 };
 
-        let uv_scale: f32 = 1.0;
-        let w_start = (tile_x / tile_table_size_x) / uv_scale;
-        let w_end = ((tile_x + 1.0) / tile_table_size_x) / uv_scale;
-        let h_start = (tile_y / tile_table_size_y) / uv_scale;
-        let h_end = ((tile_y + 1.0) / tile_table_size_y) / uv_scale;
+                let h_left = height_map[d * width + left] as f32 * ODM_HEIGHT_SCALE;
+                let h_right = height_map[d * width + right] as f32 * ODM_HEIGHT_SCALE;
+                let h_up = height_map[up * width + w] as f32 * ODM_HEIGHT_SCALE;
+                let h_down = height_map[down * width + w] as f32 * ODM_HEIGHT_SCALE;
 
-        uvs.push([w_start, h_start]);
-        uvs.push([w_start, h_end]);
-        uvs.push([w_end, h_start]);
-        uvs.push([w_end, h_start]);
-        uvs.push([w_start, h_end]);
-        uvs.push([w_end, h_end]);
+                // Central difference gives the slope in each direction
+                let dx = h_right - h_left;
+                let dz = h_down - h_up;
+                // The horizontal distance between samples
+                let scale = ODM_TILE_SCALE * (right - left) as f32;
+                let scale_z = ODM_TILE_SCALE * (down - up) as f32;
+
+                // Normal = cross product of tangent vectors
+                // tangent_x = (scale, dx, 0), tangent_z = (0, dz, scale_z)
+                // cross = (dx * scale_z, scale * scale_z, -dz * scale)
+                // but we want the simplified version:
+                // normal = (-dx/scale, 1, -dz/scale_z) then normalize
+                let nx = -dx / scale;
+                let ny = 1.0;
+                let nz = -dz / scale_z;
+                let len = (nx * nx + ny * ny + nz * nz).sqrt();
+                normals.push([nx / len, ny / len, nz / len]);
+            }
+        }
+        normals
     }
 
-    fn push_triangle_indices(indices: &mut Vec<u32>, i: u32, width_u32: u32) {
-        // First triangle
-        indices.push(i);
-        indices.push(i + (width_u32));
-        indices.push(i + 1);
-        // Second triangle
-        indices.push(i + 1);
-        indices.push(i + width_u32);
-        indices.push(i + width_u32 + 1);
+    fn tile_uvs(
+        tile_table: &TileTable,
+        tile_index: u8,
+    ) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2]) {
+        let (tile_x, tile_y) = tile_table.coordinate(tile_index);
+        let (tile_x, tile_y) = (tile_x as f32, tile_y as f32);
+        let (size_x, size_y) = tile_table.size();
+        let (size_x, size_y) = (size_x as f32, size_y as f32);
+
+        let u0 = tile_x / size_x;
+        let u1 = (tile_x + 1.0) / size_x;
+        let v0 = tile_y / size_y;
+        let v1 = (tile_y + 1.0) / size_y;
+
+        // TL, TR, BL, BR
+        ([u0, v0], [u1, v0], [u0, v1], [u1, v1])
     }
 }
 

@@ -186,9 +186,9 @@ fn loading_step(
                 );
                 mesh.insert_indices(Indices::U32(odm_data.indices.clone()));
                 mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, odm_data.positions.clone());
+                mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, odm_data.normals.clone());
                 mesh.duplicate_vertices();
                 mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, odm_data.uvs.clone());
-                mesh.compute_flat_normals();
                 _ = mesh.generate_tangents();
 
                 progress.terrain_mesh = Some(mesh);
