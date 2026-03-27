@@ -62,7 +62,7 @@ impl Default for PlayerSettings {
             speed: 2048.,
             fly_speed: 4096.,
             rotation_speed: 1.8,
-            eye_height: 150.0,
+            eye_height: 180.0,
             gravity: 9800.0,
             // Max terrain height difference the player can step up per move
             max_slope_height: 160.0,
@@ -116,7 +116,10 @@ impl Plugin for PlayerPlugin {
         app.init_resource::<PlayerSettings>()
             .init_resource::<PlayerKeyBindings>()
             .init_resource::<FlyMode>()
-            .add_systems(OnEnter(GameState::Game), (setup_player, grab_cursor_on_enter))
+            .add_systems(
+                OnEnter(GameState::Game),
+                (setup_player, grab_cursor_on_enter),
+            )
             .add_systems(
                 Update,
                 (
@@ -254,14 +257,10 @@ fn player_movement(
         for key in keys.get_pressed() {
             let key = *key;
             if key == key_bindings.rotate_left {
-                let rotation = Quat::from_rotation_y(
-                    settings.rotation_speed * time.delta_secs(),
-                );
+                let rotation = Quat::from_rotation_y(settings.rotation_speed * time.delta_secs());
                 transform.rotate(rotation);
             } else if key == key_bindings.rotate_right {
-                let rotation = Quat::from_rotation_y(
-                    -settings.rotation_speed * time.delta_secs(),
-                );
+                let rotation = Quat::from_rotation_y(-settings.rotation_speed * time.delta_secs());
                 transform.rotate(rotation);
             }
         }
@@ -298,11 +297,7 @@ fn player_movement(
                         transform.translation.x,
                         transform.translation.z,
                     );
-                    let dest_ground = sample_terrain_height(
-                        &hm.heights,
-                        dest.x,
-                        dest.z,
-                    );
+                    let dest_ground = sample_terrain_height(&hm.heights, dest.x, dest.z);
                     let height_diff = dest_ground - current_ground;
 
                     if height_diff > settings.max_slope_height {
@@ -313,9 +308,7 @@ fn player_movement(
                             transform.translation.y,
                             transform.translation.z,
                         );
-                        let ground_x = sample_terrain_height(
-                            &hm.heights, dest_x.x, dest_x.z,
-                        );
+                        let ground_x = sample_terrain_height(&hm.heights, dest_x.x, dest_x.z);
                         if ground_x - current_ground <= settings.max_slope_height {
                             transform.translation.x = dest_x.x;
                         }
@@ -325,9 +318,7 @@ fn player_movement(
                             transform.translation.y,
                             transform.translation.z + movement.z,
                         );
-                        let ground_z = sample_terrain_height(
-                            &hm.heights, dest_z.x, dest_z.z,
-                        );
+                        let ground_z = sample_terrain_height(&hm.heights, dest_z.x, dest_z.z);
                         if ground_z - current_ground <= settings.max_slope_height {
                             transform.translation.z = dest_z.z;
                         }
