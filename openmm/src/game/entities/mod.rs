@@ -75,7 +75,13 @@ impl Plugin for EntitiesPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (billboard_face_camera, wander_system).run_if(in_state(GameState::Game)),
+            (
+                wander_system,
+                npc::update_actor_sprites,
+                billboard_face_camera,
+            )
+                .chain()
+                .run_if(in_state(GameState::Game)),
         );
     }
 }
@@ -84,29 +90,25 @@ impl Plugin for EntitiesPlugin {
 /// and slowly walk toward it, then pick a new target.
 fn wander_system(
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut npc::Actor), With<WorldEntity>>,
+    mut query: Query<(&mut Transform, &mut npc::Actor, &mut AnimationState), With<WorldEntity>>,
 ) {
     let dt = time.delta_secs();
 
-    for (mut transform, mut actor) in query.iter_mut() {
+    for (mut transform, mut actor, mut anim_state) in query.iter_mut() {
         if actor.tether_distance < 1.0 && actor.move_speed < 1.0 {
-            continue; // Stationary NPC
+            continue;
         }
 
         actor.wander_timer -= dt;
         if actor.wander_timer <= 0.0 {
-            // Pick a new random wander target near guarding position
-            let angle = (time.elapsed_secs() * 137.5 + actor.initial_position.x) % std::f32::consts::TAU;
+            let angle = (time.elapsed_secs() * 137.5 + actor.initial_position.x)
+                % std::f32::consts::TAU;
             let dist = actor.tether_distance.max(200.0) * 0.5;
-            actor.wander_target = actor.guarding_position + Vec3::new(
-                angle.cos() * dist,
-                0.0,
-                angle.sin() * dist,
-            );
-            actor.wander_timer = 3.0 + (angle * 2.0).sin().abs() * 4.0; // 3-7 seconds
+            actor.wander_target = actor.guarding_position
+                + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
+            actor.wander_timer = 3.0 + (angle * 2.0).sin().abs() * 4.0;
         }
 
-        // Move toward target
         let dir = actor.wander_target - transform.translation;
         let flat_dir = Vec3::new(dir.x, 0.0, dir.z);
         if flat_dir.length() > 10.0 {
@@ -114,6 +116,14 @@ fn wander_system(
             let move_vec = flat_dir.normalize() * speed;
             transform.translation.x += move_vec.x;
             transform.translation.z += move_vec.z;
+
+            // Face movement direction
+            let face_angle = move_vec.x.atan2(move_vec.z);
+            transform.rotation = Quat::from_rotation_y(face_angle);
+
+            *anim_state = AnimationState::Walking;
+        } else {
+            *anim_state = AnimationState::Idle;
         }
     }
 }

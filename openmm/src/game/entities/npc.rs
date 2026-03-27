@@ -2,7 +2,8 @@ use bevy::{asset::RenderAssetUsages, prelude::*};
 
 use lod::LodManager;
 
-use crate::game::entities::{AnimationState, Billboard, EntityKind, WorldEntity};
+use crate::game::entities::{AnimationState, EntityKind, WorldEntity};
+use crate::game::player::PlayerCamera;
 use crate::states::loading::PreparedWorld;
 
 /// NPC/actor-specific component with runtime data.
@@ -18,25 +19,101 @@ pub struct Actor {
     pub wander_target: Vec3,
 }
 
-/// Sprite prefixes for peasant variants. Will be replaced by proper monster table lookup.
-const PEASANT_SPRITES: &[&str] = &["pfem", "pman", "pmn2"];
-
-/// Load the standing front sprite for an NPC.
-fn load_npc_sprite(
-    lod_manager: &LodManager,
-    actor_index: usize,
-) -> Option<(Image, f32, f32)> {
-    let prefix = PEASANT_SPRITES[actor_index % PEASANT_SPRITES.len()];
-    let sprite_name = format!("{}sta0", prefix);
-
-    let img = lod_manager.sprite(&sprite_name)?;
-    let w = img.width() as f32;
-    let h = img.height() as f32;
-    let bevy_img = Image::from_dynamic(img, true, RenderAssetUsages::RENDER_WORLD);
-    Some((bevy_img, w, h))
+/// Holds all preloaded sprite frames for an actor, indexed by [state][frame][direction].
+/// States: 0=stand, 1=walk. Frames: up to 6 (a-f). Directions: 0-4 (mirrored for 5-7).
+#[derive(Component)]
+pub struct ActorSprites {
+    /// [state_index][frame_index] = array of 5 material handles (directions 0-4)
+    /// state 0 = standing, state 1 = walking
+    pub states: Vec<Vec<[Handle<StandardMaterial>; 5]>>,
+    pub frame_count: [usize; 2], // number of frames per state
+    pub current_frame: usize,
+    pub frame_timer: f32,
+    pub frame_duration: f32,
+    /// Which direction index is currently shown (for mesh flipping)
+    pub current_direction: usize,
+    pub is_mirrored: bool,
 }
 
-/// Spawn actors (NPCs/monsters) from the DDM data with sprite textures.
+/// Sprite prefixes for peasant variants.
+const PEASANT_SPRITES: &[&str] = &["pfem", "pman", "pmn2"];
+
+/// Animation states we load sprites for
+const ANIM_STATES: &[&str] = &["st", "wa"];
+
+/// Load all sprite frames for an NPC actor.
+fn load_actor_sprites(
+    lod_manager: &LodManager,
+    actor_index: usize,
+    images: &mut Assets<Image>,
+    materials: &mut Assets<StandardMaterial>,
+) -> Option<(ActorSprites, f32, f32)> {
+    let prefix = PEASANT_SPRITES[actor_index % PEASANT_SPRITES.len()];
+
+    let mut states: Vec<Vec<[Handle<StandardMaterial>; 5]>> = Vec::new();
+    let mut frame_counts = [0usize; 2];
+    let mut sprite_w = 0.0_f32;
+    let mut sprite_h = 0.0_f32;
+
+    for (si, state) in ANIM_STATES.iter().enumerate() {
+        let mut frames = Vec::new();
+        for frame_char in b'a'..=b'f' {
+            let frame_letter = frame_char as char;
+            // Try loading direction 0 to check if this frame exists
+            let test_name = format!("{}{}{}{}", prefix, state, frame_letter, 0);
+            if lod_manager.sprite(&test_name).is_none() {
+                break;
+            }
+
+            let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
+            for dir in 0..5u8 {
+                let name = format!("{}{}{}{}", prefix, state, frame_letter, dir);
+                if let Some(img) = lod_manager.sprite(&name) {
+                    if sprite_w == 0.0 {
+                        sprite_w = img.width() as f32;
+                        sprite_h = img.height() as f32;
+                    }
+                    let bevy_img = Image::from_dynamic(img, true, RenderAssetUsages::RENDER_WORLD);
+                    let tex = images.add(bevy_img);
+                    dir_materials[dir as usize] = materials.add(StandardMaterial {
+                        base_color_texture: Some(tex),
+                        alpha_mode: AlphaMode::Mask(0.5),
+                        unlit: true,
+                        double_sided: true,
+                        cull_mode: None,
+                        ..default()
+                    });
+                } else {
+                    // Reuse direction 0 as fallback
+                    dir_materials[dir as usize] = dir_materials[0].clone();
+                }
+            }
+            frames.push(dir_materials);
+        }
+        frame_counts[si] = frames.len();
+        states.push(frames);
+    }
+
+    if states.is_empty() || states[0].is_empty() {
+        return None;
+    }
+
+    Some((
+        ActorSprites {
+            states,
+            frame_count: frame_counts,
+            current_frame: 0,
+            frame_timer: 0.0,
+            frame_duration: 0.15, // ~6.7 FPS animation
+            current_direction: 0,
+            is_mirrored: false,
+        },
+        sprite_w,
+        sprite_h,
+    ))
+}
+
+/// Spawn actors from DDM data with full sprite sets.
 pub fn spawn_actors(
     parent: &mut ChildSpawnerCommands,
     prepared: &PreparedWorld,
@@ -50,21 +127,14 @@ pub fn spawn_actors(
             continue;
         }
 
-        let (sprite_img, sprite_w, sprite_h) = match load_npc_sprite(lod_manager, i) {
-            Some(s) => s,
-            None => continue,
-        };
+        let (sprites, sprite_w, sprite_h) =
+            match load_actor_sprites(lod_manager, i, images, materials) {
+                Some(s) => s,
+                None => continue,
+            };
 
-        let tex_handle = images.add(sprite_img);
-        let mat = materials.add(StandardMaterial {
-            base_color_texture: Some(tex_handle),
-            alpha_mode: AlphaMode::Mask(0.5),
-            unlit: true,
-            double_sided: true,
-            cull_mode: None,
-            ..default()
-        });
-
+        // Start with standing frame 0 direction 0
+        let initial_mat = sprites.states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sprite_w, sprite_h));
 
         // MM6 coords (x, y, z) → Bevy (x, z, -y)
@@ -87,12 +157,12 @@ pub fn spawn_actors(
         parent.spawn((
             Name::new(format!("actor:{}", actor.name)),
             Mesh3d(quad),
-            MeshMaterial3d(mat),
+            MeshMaterial3d(initial_mat),
             Transform::from_translation(pos),
             WorldEntity,
             EntityKind::Npc,
-            Billboard,
             AnimationState::Idle,
+            sprites,
             Actor {
                 name: actor.name.clone(),
                 hp: actor.hp,
@@ -104,5 +174,96 @@ pub fn spawn_actors(
                 wander_target: pos,
             },
         ));
+    }
+}
+
+/// Update actor sprites based on camera angle and animation state.
+/// Picks the correct direction and advances animation frames.
+pub fn update_actor_sprites(
+    time: Res<Time>,
+    camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
+    mut query: Query<(
+        &mut ActorSprites,
+        &mut MeshMaterial3d<StandardMaterial>,
+        &mut Transform,
+        &GlobalTransform,
+        &AnimationState,
+    )>,
+) {
+    let Ok(camera_gt) = camera_query.single() else {
+        return;
+    };
+    let cam_pos = camera_gt.translation();
+    let dt = time.delta_secs();
+
+    for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state) in
+        query.iter_mut()
+    {
+        let actor_pos = global_transform.translation();
+
+        // Determine which animation state to use
+        let state_idx = match anim_state {
+            AnimationState::Walking => 1,
+            _ => 0,
+        };
+        let state_idx = state_idx.min(sprites.states.len() - 1);
+        let frame_count = sprites.frame_count[state_idx];
+        if frame_count == 0 {
+            continue;
+        }
+
+        // Advance animation frame
+        sprites.frame_timer += dt;
+        if sprites.frame_timer >= sprites.frame_duration {
+            sprites.frame_timer -= sprites.frame_duration;
+            sprites.current_frame = (sprites.current_frame + 1) % frame_count;
+        }
+
+        // Calculate direction based on camera angle relative to actor facing
+        let dir_to_camera = cam_pos - actor_pos;
+        let camera_angle = dir_to_camera.x.atan2(dir_to_camera.z);
+
+        // Actor's facing direction from transform
+        let (actor_yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+
+        // Relative angle: how the camera sees the actor
+        let relative = (camera_angle - actor_yaw).rem_euclid(std::f32::consts::TAU);
+
+        // Map to 8 octants, then to our 5 directions (0-4) with mirroring
+        let octant = ((relative + std::f32::consts::FRAC_PI_8)
+            / std::f32::consts::FRAC_PI_4) as usize
+            % 8;
+
+        // Octant to direction mapping:
+        // 0=front, 1=front-right, 2=right, 3=back-right, 4=back
+        // 5=back-left(mirror 3), 6=left(mirror 2), 7=front-left(mirror 1)
+        let (direction, mirrored) = match octant {
+            0 => (0, false),
+            1 => (1, false),
+            2 => (2, false),
+            3 => (3, false),
+            4 => (4, false),
+            5 => (3, true),
+            6 => (2, true),
+            7 => (1, true),
+            _ => (0, false),
+        };
+
+        // Update material if direction or frame changed
+        let new_mat = sprites.states[state_idx][sprites.current_frame][direction].clone();
+        *mat_handle = MeshMaterial3d(new_mat);
+
+        // Face camera but apply mirror via scale
+        if dir_to_camera.x.abs() > 0.01 || dir_to_camera.z.abs() > 0.01 {
+            let face_angle = dir_to_camera.x.atan2(dir_to_camera.z);
+            transform.rotation = Quat::from_rotation_y(face_angle);
+        }
+
+        // Mirror by flipping X scale
+        let x_scale = if mirrored { -1.0 } else { 1.0 };
+        transform.scale.x = x_scale;
+
+        sprites.current_direction = direction;
+        sprites.is_mirrored = mirrored;
     }
 }
