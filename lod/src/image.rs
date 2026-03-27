@@ -244,8 +244,8 @@ pub fn get_atlas(
 ) -> Result<DynamicImage, Box<dyn Error>> {
     let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
 
-    // HACK instead of using shaders I'll compose water in texture gen. :(
-    let image_water = lod_manager.bitmap("wtrtyl").ok_or("image not found")?;
+    // Replace cyan marker pixels with water texture
+    let image_water = lod_manager.bitmap("wtrtyl").ok_or("water tile not found")?;
 
     for name in names {
         let mut image = lod_manager.bitmap(name).ok_or("image not found")?;

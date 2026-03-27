@@ -46,6 +46,7 @@ struct LoadingProgress {
     odm_data: Option<OdmData>,
     terrain_mesh: Option<Mesh>,
     terrain_texture: Option<Image>,
+    water_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
     water_cells: Option<Vec<bool>>,
 }
@@ -99,6 +100,7 @@ pub struct PreparedWorld {
     pub map: Odm,
     pub terrain_mesh: Mesh,
     pub terrain_texture: Image,
+    pub water_texture: Option<Image>,
     pub models: Vec<PreparedModel>,
     pub water_cells: Vec<bool>,
 }
@@ -125,6 +127,7 @@ fn loading_setup(
         odm_data: None,
         terrain_mesh: None,
         terrain_texture: None,
+        water_texture: None,
         models: None,
         water_cells: None,
     });
@@ -231,6 +234,27 @@ fn loading_step(
                             RenderAssetUsages::RENDER_WORLD,
                         );
                         progress.terrain_texture = Some(image);
+
+                        // Load water texture
+                        progress.water_texture = game_assets
+                            .lod_manager()
+                            .bitmap("wtrtyl")
+                            .map(|img| {
+                                let mut water_img = Image::from_dynamic(
+                                    img,
+                                    true,
+                                    RenderAssetUsages::RENDER_WORLD,
+                                );
+                                water_img.sampler = bevy::image::ImageSampler::Descriptor(
+                                    bevy::image::ImageSamplerDescriptor {
+                                        address_mode_u: bevy::image::ImageAddressMode::Repeat,
+                                        address_mode_v: bevy::image::ImageAddressMode::Repeat,
+                                        ..default()
+                                    },
+                                );
+                                water_img
+                            });
+
                         progress.step = progress.step.next();
                     }
                     Err(e) => {
@@ -329,10 +353,12 @@ fn loading_step(
                 (odm, terrain_mesh, terrain_texture, models)
             {
                 let water_cells = progress.water_cells.take().unwrap_or_default();
+                let water_texture = progress.water_texture.take();
                 commands.insert_resource(PreparedWorld {
                     map,
                     terrain_mesh: mesh,
                     terrain_texture: texture,
+                    water_texture,
                     water_cells,
                     models,
                 });

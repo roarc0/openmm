@@ -6,6 +6,7 @@ pub(crate) mod collision;
 pub(crate) mod dev;
 pub(crate) mod odm;
 pub(crate) mod player;
+pub(crate) mod terrain_material;
 pub(crate) mod utils;
 pub(crate) mod world;
 

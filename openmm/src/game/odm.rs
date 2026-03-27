@@ -87,7 +87,6 @@ impl Plugin for OdmPlugin {
     }
 }
 
-/// Spawns the terrain and BSP models from the PreparedWorld resource built during Loading.
 fn spawn_world(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
