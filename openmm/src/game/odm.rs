@@ -116,9 +116,10 @@ fn spawn_world(
         unlit: false,
         alpha_mode: AlphaMode::Opaque,
         perceptual_roughness: 1.0,
-        reflectance: 0.2,
-        flip_normal_map_y: true,
+        reflectance: 0.0,
+        metallic: 0.0,
         cull_mode: Some(Face::Back),
+        double_sided: false,
         ..default()
     };
 

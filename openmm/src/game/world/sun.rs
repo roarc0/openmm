@@ -7,8 +7,7 @@ pub struct SunPlugin;
 
 impl Plugin for SunPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, update_sun.run_if(in_state(GameState::Game)))
-            .add_systems(OnEnter(GameState::Game), sun_setup);
+        app.add_systems(OnEnter(GameState::Game), sun_setup);
     }
 }
 
@@ -17,60 +16,34 @@ fn sun_setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.spawn((AmbientLight {
-        color: Color::WHITE,
-        brightness: 250.0,
-        ..default()
-    }, InGame));
+    // Strong ambient to match MM6's flat-lit look — avoids harsh dark triangles
+    commands.spawn((
+        AmbientLight {
+            color: Color::WHITE,
+            brightness: 800.0,
+            ..default()
+        },
+        InGame,
+    ));
 
-    let entity_spawn = Transform::from_xyz(0.0, 2000.0, 0.0).translation;
-    let entity_spawn2 = Transform::from_xyz(0.0, 5000.0, 0.0).translation;
-
+    // Visual sun sphere
     commands.spawn((
         Name::new("fake_sun"),
         Mesh3d(meshes.add(Mesh::from(Sphere { radius: 200.0 }))),
         MeshMaterial3d(materials.add(Color::srgb(0.9, 0.9, 0.2))),
-        Transform::from_translation(entity_spawn),
-        Movable::new(entity_spawn),
+        Transform::from_xyz(10000.0, 30000.0, 10000.0),
         InGame,
     ));
 
+    // Directional light from a high angle
     commands.spawn((
         Name::new("sun"),
         DirectionalLight {
             shadows_enabled: true,
-            illuminance: 2000.,
+            illuminance: 5000.,
             ..default()
         },
-        Transform::from_translation(entity_spawn2),
-        Movable::new(entity_spawn2),
+        Transform::from_xyz(10000.0, 30000.0, 10000.0).looking_at(Vec3::ZERO, Vec3::Y),
         InGame,
     ));
-}
-
-fn update_sun(time: Res<Time>, mut sun: Query<(&mut Transform, &mut Movable)>) {
-    for (mut transform, mut movable) in &mut sun {
-        if (movable.spawn - transform.translation).length() > movable.max_distance {
-            movable.speed *= -1.0;
-        }
-        let direction = transform.local_x();
-        transform.translation += direction * movable.speed * time.delta_secs();
-    }
-}
-
-#[derive(Component)]
-struct Movable {
-    spawn: Vec3,
-    max_distance: f32,
-    speed: f32,
-}
-
-impl Movable {
-    fn new(spawn: Vec3) -> Self {
-        Movable {
-            spawn,
-            max_distance: 32000.0,
-            speed: 4000.0,
-        }
-    }
 }
