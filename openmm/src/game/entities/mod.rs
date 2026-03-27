@@ -4,10 +4,10 @@ use crate::GameState;
 use crate::game::player::PlayerCamera;
 
 pub mod decoration;
+pub mod npc;
 
 // Future modules:
 // pub mod monster;
-// pub mod npc;
 // pub mod loot;
 
 // --- Shared components for all world entities ---
@@ -75,8 +75,46 @@ impl Plugin for EntitiesPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            billboard_face_camera.run_if(in_state(GameState::Game)),
+            (billboard_face_camera, wander_system).run_if(in_state(GameState::Game)),
         );
+    }
+}
+
+/// Simple wander AI: actors pick a random point within tether distance
+/// and slowly walk toward it, then pick a new target.
+fn wander_system(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &mut npc::Actor), With<WorldEntity>>,
+) {
+    let dt = time.delta_secs();
+
+    for (mut transform, mut actor) in query.iter_mut() {
+        if actor.tether_distance < 1.0 && actor.move_speed < 1.0 {
+            continue; // Stationary NPC
+        }
+
+        actor.wander_timer -= dt;
+        if actor.wander_timer <= 0.0 {
+            // Pick a new random wander target near guarding position
+            let angle = (time.elapsed_secs() * 137.5 + actor.initial_position.x) % std::f32::consts::TAU;
+            let dist = actor.tether_distance.max(200.0) * 0.5;
+            actor.wander_target = actor.guarding_position + Vec3::new(
+                angle.cos() * dist,
+                0.0,
+                angle.sin() * dist,
+            );
+            actor.wander_timer = 3.0 + (angle * 2.0).sin().abs() * 4.0; // 3-7 seconds
+        }
+
+        // Move toward target
+        let dir = actor.wander_target - transform.translation;
+        let flat_dir = Vec3::new(dir.x, 0.0, dir.z);
+        if flat_dir.length() > 10.0 {
+            let speed = actor.move_speed.min(80.0) * dt;
+            let move_vec = flat_dir.normalize() * speed;
+            transform.translation.x += move_vec.x;
+            transform.translation.z += move_vec.z;
+        }
     }
 }
 

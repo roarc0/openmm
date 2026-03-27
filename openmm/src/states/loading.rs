@@ -15,6 +15,7 @@ use crate::{
 };
 use lod::{
     billboard::BillboardManager,
+    ddm::{Ddm, DdmActor},
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData},
 };
@@ -50,6 +51,7 @@ struct LoadingProgress {
     water_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
     billboards: Option<Vec<PreparedBillboard>>,
+    actors: Option<Vec<DdmActor>>,
     water_cells: Option<Vec<bool>>,
 }
 
@@ -118,6 +120,7 @@ pub struct PreparedWorld {
     pub water_texture: Option<Image>,
     pub models: Vec<PreparedModel>,
     pub billboards: Vec<PreparedBillboard>,
+    pub actors: Vec<DdmActor>,
     pub water_cells: Vec<bool>,
 }
 
@@ -146,6 +149,7 @@ fn loading_setup(
         water_texture: None,
         models: None,
         billboards: None,
+        actors: None,
         water_cells: None,
     });
 
@@ -206,6 +210,12 @@ fn loading_step(
                                     .collect();
                                 progress.water_cells = Some(water_cells);
                             }
+                            // Load actors from DDM
+                            let actors = Ddm::new(game_assets.lod_manager(), &map_name)
+                                .map(|ddm| ddm.actors)
+                                .unwrap_or_default();
+                            progress.actors = Some(actors);
+
                             progress.tile_table = Some(tile_table);
                             progress.odm = Some(odm);
                             progress.step = progress.step.next();
@@ -410,6 +420,7 @@ fn loading_step(
                 let water_cells = progress.water_cells.take().unwrap_or_default();
                 let water_texture = progress.water_texture.take();
                 let billboards = progress.billboards.take().unwrap_or_default();
+                let actors = progress.actors.take().unwrap_or_default();
                 commands.insert_resource(PreparedWorld {
                     map,
                     terrain_mesh: mesh,
@@ -418,6 +429,7 @@ fn loading_step(
                     water_cells,
                     models,
                     billboards,
+                    actors,
                 });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);
