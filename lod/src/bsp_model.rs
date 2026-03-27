@@ -121,7 +121,7 @@ impl BSPModel {
         let mut meshes_by_texture: std::collections::HashMap<String, BSPTexturedMesh> =
             std::collections::HashMap::new();
 
-        for face in &self.faces {
+        for (face_idx, face) in self.faces.iter().enumerate() {
             if face.vertices_count < 3 {
                 continue;
             }
@@ -129,9 +129,9 @@ impl BSPModel {
                 continue;
             }
 
-            let tex_idx = face.texture_id as usize;
-            let tex_name = if tex_idx < self.texture_names.len() {
-                &self.texture_names[tex_idx]
+            // texture_names is 1:1 with faces — texture_names[i] is the texture for faces[i]
+            let tex_name = if face_idx < self.texture_names.len() {
+                &self.texture_names[face_idx]
             } else {
                 continue;
             };
