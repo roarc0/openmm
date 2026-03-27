@@ -5,6 +5,7 @@ use crate::{despawn_all, GameState};
 pub(crate) mod collision;
 pub(crate) mod dev;
 pub(crate) mod odm;
+pub(crate) mod physics;
 pub(crate) mod player;
 pub(crate) mod terrain_material;
 pub(crate) mod utils;
@@ -22,6 +23,7 @@ impl Plugin for InGamePlugin {
         app.add_plugins((
             world::WorldPlugin,
             player::PlayerPlugin,
+            physics::PhysicsPlugin,
             odm::OdmPlugin,
             dev::DevPlugin,
         ))
