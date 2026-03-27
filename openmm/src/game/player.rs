@@ -62,7 +62,7 @@ impl Default for PlayerSettings {
             speed: 2048.,
             fly_speed: 4096.,
             rotation_speed: 1.8,
-            eye_height: 300.0,
+            eye_height: 150.0,
             gravity: 9800.0,
             // Max terrain height difference the player can step up per move
             max_slope_height: 160.0,
