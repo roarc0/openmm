@@ -43,6 +43,21 @@ pub struct Odm {
     pub attribute_map: [u8; ATTRIBUTE_MAP_SIZE],
     pub bsp_models: Vec<BSPModel>,
     pub billboards: Vec<Billboard>,
+    pub spawn_points: Vec<SpawnPoint>,
+}
+
+/// A spawn point for monsters/NPCs/items in the map.
+#[derive(Debug)]
+pub struct SpawnPoint {
+    /// Position in MM6 coordinates (x, y, z).
+    pub position: [i32; 3],
+    /// Wander radius around spawn position.
+    pub radius: u16,
+    /// 1 = monster, 2 = item/treasure.
+    pub spawn_type: u16,
+    /// Monster index or treasure level.
+    pub monster_index: u16,
+    pub attributes: u16,
 }
 
 impl Odm {
@@ -84,6 +99,10 @@ impl Odm {
         let billboard_count = cursor.read_u32::<LittleEndian>()? as usize;
         let billboards: Vec<Billboard> = read_billboards(&mut cursor, billboard_count)?;
 
+        // Spawn points / actors are in the DDM delta file, not the ODM.
+        // For now, spawn_points is empty — will be loaded from DDM later.
+        let spawn_points = Vec::new();
+
         Ok(Self {
             name: "test".into(),
             odm_version,
@@ -95,6 +114,7 @@ impl Odm {
             attribute_map,
             bsp_models,
             billboards,
+            spawn_points,
         })
     }
 }
