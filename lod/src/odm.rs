@@ -189,6 +189,14 @@ impl OdmData {
     }
 
     /// Compute smooth per-vertex normals using central differences on the heightmap.
+    ///
+    /// Terrain vertex positions are: (x, y, z) = ((w-64)*512, height*32, (d-64)*512)
+    /// where Y is up (Bevy convention).
+    ///
+    /// Tangent along w (x-axis): T_w = (tile_scale, dh_dw, 0)
+    /// Tangent along d (z-axis): T_d = (0, dh_dd, tile_scale)
+    /// Normal = T_d × T_w = (-dh_dw * tile_scale, tile_scale², -dh_dd * tile_scale)
+    /// Simplified: (-dh_dw, tile_scale, -dh_dd) then normalize
     fn compute_smooth_normals(
         height_map: &[u8],
         width: usize,
@@ -197,7 +205,6 @@ impl OdmData {
         let mut normals = Vec::with_capacity(width * depth);
         for d in 0..depth {
             for w in 0..width {
-                // Sample neighboring heights with clamped bounds
                 let left = if w > 0 { w - 1 } else { 0 };
                 let right = if w < width - 1 { w + 1 } else { width - 1 };
                 let up = if d > 0 { d - 1 } else { 0 };
@@ -208,21 +215,14 @@ impl OdmData {
                 let h_up = height_map[up * width + w] as f32 * ODM_HEIGHT_SCALE;
                 let h_down = height_map[down * width + w] as f32 * ODM_HEIGHT_SCALE;
 
-                // Central difference gives the slope in each direction
-                let dx = h_right - h_left;
-                let dz = h_down - h_up;
-                // The horizontal distance between samples
-                let scale = ODM_TILE_SCALE * (right - left) as f32;
-                let scale_z = ODM_TILE_SCALE * (down - up) as f32;
+                // Height gradients (central differences)
+                let dh_dw = (h_right - h_left) / ((right - left) as f32);
+                let dh_dd = (h_down - h_up) / ((down - up) as f32);
 
-                // Normal = cross product of tangent vectors
-                // tangent_x = (scale, dx, 0), tangent_z = (0, dz, scale_z)
-                // cross = (dx * scale_z, scale * scale_z, -dz * scale)
-                // but we want the simplified version:
-                // normal = (-dx/scale, 1, -dz/scale_z) then normalize
-                let nx = -dx / scale;
-                let ny = 1.0;
-                let nz = -dz / scale_z;
+                // Normal from cross product T_d × T_w (Y-up convention)
+                let nx = -dh_dw;
+                let ny = ODM_TILE_SCALE;
+                let nz = -dh_dd;
                 let len = (nx * nx + ny * ny + nz * nz).sqrt();
                 normals.push([nx / len, ny / len, nz / len]);
             }
