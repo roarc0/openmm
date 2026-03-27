@@ -9,6 +9,7 @@ use lod::Lod;
 use palette::Palettes;
 
 pub mod bsp_model;
+pub mod ddm;
 pub mod dtile;
 pub mod odm;
 
