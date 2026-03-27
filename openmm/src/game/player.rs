@@ -334,11 +334,9 @@ fn player_movement(
                     }
                 }
 
-                // BSP wall collision — push out if inside
+                // BSP wall collision — slide along walls
                 if let Some(ref c) = colliders {
-                    if let Some(pushed) = c.check_wall_collision(from, dest, settings.collision_radius) {
-                        dest = pushed;
-                    }
+                    dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
                 }
 
                 transform.translation.x = dest.x;

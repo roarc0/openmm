@@ -5,7 +5,7 @@ use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 /// Maximum height the player can step up onto a BSP floor.
 const MAX_STEP_UP: f32 = 200.0;
 
-/// A collision triangle in Bevy coordinates, with a precomputed AABB for fast rejection.
+/// A collision triangle in Bevy coordinates, with precomputed AABB.
 #[derive(Clone)]
 pub struct CollisionTriangle {
     pub v0: Vec3,
@@ -39,6 +39,15 @@ impl CollisionTriangle {
             && z + radius > self.min_z - radius
             && z - radius < self.max_z + radius
     }
+
+    /// The wall's edges in XZ as line segments.
+    fn edges_xz(&self) -> [(Vec2, Vec2); 3] {
+        [
+            (Vec2::new(self.v0.x, self.v0.z), Vec2::new(self.v1.x, self.v1.z)),
+            (Vec2::new(self.v1.x, self.v1.z), Vec2::new(self.v2.x, self.v2.z)),
+            (Vec2::new(self.v2.x, self.v2.z), Vec2::new(self.v0.x, self.v0.z)),
+        ]
+    }
 }
 
 /// Collection of BSP model collision geometry.
@@ -49,42 +58,61 @@ pub struct BuildingColliders {
 }
 
 impl BuildingColliders {
-    /// Check if moving from `from` to `to` would cross any wall.
-    /// If blocked, returns the push-out position. Otherwise returns None.
-    pub fn check_wall_collision(&self, from: Vec3, to: Vec3, radius: f32) -> Option<Vec3> {
-        let check_min_x = from.x.min(to.x) - radius;
-        let check_max_x = from.x.max(to.x) + radius;
-        let check_min_z = from.z.min(to.z) - radius;
-        let check_max_z = from.z.max(to.z) + radius;
-
-        let mut pushed = to;
-        let mut was_pushed = false;
+    /// Resolve movement: slide along walls the player would collide with.
+    /// Returns the corrected destination position.
+    pub fn resolve_movement(&self, from: Vec3, to: Vec3, radius: f32, eye_height: f32) -> Vec3 {
+        let mut result = to;
+        let feet_y = from.y - eye_height;
 
         for wall in &self.walls {
-            // AABB rejection
-            if wall.max_x < check_min_x || wall.min_x > check_max_x
-                || wall.max_z < check_min_z || wall.min_z > check_max_z
+            // AABB pre-check
+            let r = radius * 2.0;
+            let min_x = from.x.min(result.x) - r;
+            let max_x = from.x.max(result.x) + r;
+            let min_z = from.z.min(result.z) - r;
+            let max_z = from.z.max(result.z) + r;
+            if wall.max_x < min_x || wall.min_x > max_x
+                || wall.max_z < min_z || wall.min_z > max_z
             {
                 continue;
             }
-            // Height check: wall must overlap player height range
-            let feet_y = from.y - 280.0; // approximate feet position below eye
+
+            // Height check
             if feet_y > wall.max_y || from.y < wall.min_y {
                 continue;
             }
 
-            if let Some(push) = wall_push_out(&pushed, wall, radius) {
-                pushed = push;
-                was_pushed = true;
+            // Check distance from result point to each edge of the wall triangle
+            let result_2d = Vec2::new(result.x, result.z);
+            for (e0, e1) in wall.edges_xz() {
+                let edge_dir = e1 - e0;
+                let edge_len_sq = edge_dir.length_squared();
+                if edge_len_sq < 0.01 {
+                    continue;
+                }
+
+                // Project result point onto edge line
+                let t = ((result_2d - e0).dot(edge_dir) / edge_len_sq).clamp(0.0, 1.0);
+                let closest = e0 + edge_dir * t;
+                let diff = result_2d - closest;
+                let dist_sq = diff.length_squared();
+
+                if dist_sq < radius * radius && dist_sq > 0.01 {
+                    let dist = dist_sq.sqrt();
+                    let push_dir = diff / dist;
+                    // Push the result point away from the edge
+                    let push = push_dir * (radius - dist);
+                    result.x += push.x;
+                    result.z += push.y;
+                }
             }
         }
 
-        if was_pushed { Some(pushed) } else { None }
+        result
     }
 
     /// Sample the best BSP floor height at XZ, only considering floors
-    /// the player could actually step onto (not roofs above them).
-    /// `feet_y` is the player's foot height (eye_y - eye_height).
+    /// the player could actually step onto.
     pub fn floor_height_at(&self, x: f32, z: f32, feet_y: f32) -> Option<f32> {
         let mut best: Option<f32> = None;
         let point = Vec2::new(x, z);
@@ -93,7 +121,6 @@ impl BuildingColliders {
             if !floor.near_xz(x, z, 0.0) {
                 continue;
             }
-            // Skip floors that are way above the player (roofs)
             if floor.min_y > feet_y + MAX_STEP_UP {
                 continue;
             }
@@ -103,7 +130,6 @@ impl BuildingColliders {
             if point_in_triangle_2d(point, a, b, c) {
                 let (u, v, w) = barycentric_2d(point, a, b, c);
                 let h = u * floor.v0.y + v * floor.v1.y + w * floor.v2.y;
-                // Only consider floors at or below feet + step up height
                 if h <= feet_y + MAX_STEP_UP {
                     best = Some(best.map_or(h, |prev: f32| prev.max(h)));
                 }
@@ -143,7 +169,6 @@ pub fn sample_terrain_height(height_map: &[u8], world_x: f32, world_z: f32) -> f
 }
 
 /// Get the effective ground height considering both terrain and BSP floors.
-/// `feet_y` is the player's approximate foot position.
 pub fn ground_height_at(
     height_map: &[u8],
     colliders: Option<&BuildingColliders>,
@@ -160,46 +185,6 @@ pub fn ground_height_at(
     terrain_h
 }
 
-// --- Wall collision with push-out ---
-
-/// If the point is within `radius` of the wall plane and inside the triangle,
-/// push it out along the wall normal. Returns the pushed position or None.
-fn wall_push_out(pos: &Vec3, wall: &CollisionTriangle, radius: f32) -> Option<Vec3> {
-    let wall_normal_2d = Vec2::new(wall.normal.x, wall.normal.z);
-    let len = wall_normal_2d.length();
-    if len < 0.3 {
-        return None; // Floor/ceiling normal, not a wall
-    }
-    let wall_normal_2d = wall_normal_2d / len;
-
-    let wall_point = Vec2::new(wall.v0.x, wall.v0.z);
-    let pos_2d = Vec2::new(pos.x, pos.z);
-
-    // Signed distance from wall plane in XZ
-    let dist = (pos_2d - wall_point).dot(wall_normal_2d);
-
-    // Only push out if we're within radius (either side)
-    if dist.abs() > radius {
-        return None;
-    }
-
-    // Check if the point is within the triangle's XZ extent
-    let a = Vec2::new(wall.v0.x, wall.v0.z);
-    let b = Vec2::new(wall.v1.x, wall.v1.z);
-    let c = Vec2::new(wall.v2.x, wall.v2.z);
-    if !point_in_triangle_2d_expanded(pos_2d, a, b, c, radius) {
-        return None;
-    }
-
-    // Push out: move the point so it's exactly `radius` away from the wall
-    // Push toward the closest side (front or back)
-    let push_dir = if dist >= 0.0 { 1.0 } else { -1.0 };
-    let push_amount = radius - dist * push_dir;
-    let new_pos_2d = pos_2d + wall_normal_2d * push_dir * push_amount;
-
-    Some(Vec3::new(new_pos_2d.x, pos.y, new_pos_2d.y))
-}
-
 // --- Geometry helpers ---
 
 fn point_in_triangle_2d(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
@@ -209,14 +194,6 @@ fn point_in_triangle_2d(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
     let has_neg = d1 < 0.0 || d2 < 0.0 || d3 < 0.0;
     let has_pos = d1 > 0.0 || d2 > 0.0 || d3 > 0.0;
     !(has_neg && has_pos)
-}
-
-fn point_in_triangle_2d_expanded(p: Vec2, a: Vec2, b: Vec2, c: Vec2, expand: f32) -> bool {
-    let center = (a + b + c) / 3.0;
-    let ea = a + (a - center).normalize_or_zero() * expand;
-    let eb = b + (b - center).normalize_or_zero() * expand;
-    let ec = c + (c - center).normalize_or_zero() * expand;
-    point_in_triangle_2d(p, ea, eb, ec)
 }
 
 fn sign_2d(p1: Vec2, p2: Vec2, p3: Vec2) -> f32 {
