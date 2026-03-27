@@ -1,6 +1,6 @@
-use bevy::prelude::*;
+use bevy::{asset::RenderAssetUsages, prelude::*};
 
-use lod::ddm::DdmActor;
+use lod::LodManager;
 
 use crate::game::entities::{AnimationState, Billboard, EntityKind, WorldEntity};
 use crate::states::loading::PreparedWorld;
@@ -18,34 +18,59 @@ pub struct Actor {
     pub wander_target: Vec3,
 }
 
-/// Spawn actors (NPCs/monsters) from the DDM data as placeholder billboards.
+/// Sprite prefixes for peasant variants. Will be replaced by proper monster table lookup.
+const PEASANT_SPRITES: &[&str] = &["pfem", "pman", "pmn2"];
+
+/// Load the standing front sprite for an NPC.
+fn load_npc_sprite(
+    lod_manager: &LodManager,
+    actor_index: usize,
+) -> Option<(Image, f32, f32)> {
+    let prefix = PEASANT_SPRITES[actor_index % PEASANT_SPRITES.len()];
+    let sprite_name = format!("{}sta0", prefix);
+
+    let img = lod_manager.sprite(&sprite_name)?;
+    let w = img.width() as f32;
+    let h = img.height() as f32;
+    let bevy_img = Image::from_dynamic(img, true, RenderAssetUsages::RENDER_WORLD);
+    Some((bevy_img, w, h))
+}
+
+/// Spawn actors (NPCs/monsters) from the DDM data with sprite textures.
 pub fn spawn_actors(
     parent: &mut ChildSpawnerCommands,
     prepared: &PreparedWorld,
+    lod_manager: &LodManager,
+    images: &mut ResMut<Assets<Image>>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    let npc_color = Color::srgb(0.3, 0.7, 0.3);
-    let npc_mat = materials.add(StandardMaterial {
-        base_color: npc_color,
-        alpha_mode: AlphaMode::Opaque,
-        unlit: true,
-        double_sided: true,
-        cull_mode: None,
-        ..default()
-    });
-
-    let quad = meshes.add(Rectangle::new(60.0, 140.0));
-
-    for actor in &prepared.actors {
+    for (i, actor) in prepared.actors.iter().enumerate() {
         if actor.hp <= 0 {
-            continue; // Skip dead actors
+            continue;
         }
+
+        let (sprite_img, sprite_w, sprite_h) = match load_npc_sprite(lod_manager, i) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        let tex_handle = images.add(sprite_img);
+        let mat = materials.add(StandardMaterial {
+            base_color_texture: Some(tex_handle),
+            alpha_mode: AlphaMode::Mask(0.5),
+            unlit: true,
+            double_sided: true,
+            cull_mode: None,
+            ..default()
+        });
+
+        let quad = meshes.add(Rectangle::new(sprite_w, sprite_h));
 
         // MM6 coords (x, y, z) → Bevy (x, z, -y)
         let pos = Vec3::new(
             actor.position[0] as f32,
-            actor.position[2] as f32 + 70.0, // offset up by half height
+            actor.position[2] as f32 + sprite_h / 2.0,
             -actor.position[1] as f32,
         );
         let initial = Vec3::new(
@@ -61,8 +86,8 @@ pub fn spawn_actors(
 
         parent.spawn((
             Name::new(format!("actor:{}", actor.name)),
-            Mesh3d(quad.clone()),
-            MeshMaterial3d(npc_mat.clone()),
+            Mesh3d(quad),
+            MeshMaterial3d(mat),
             Transform::from_translation(pos),
             WorldEntity,
             EntityKind::Npc,

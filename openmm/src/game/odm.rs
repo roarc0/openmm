@@ -3,6 +3,7 @@ use bevy::render::render_resource::Face;
 
 use crate::GameState;
 use crate::game::InGame;
+use crate::assets::GameAssets;
 use crate::game::entities::{decoration, npc};
 use crate::states::loading::PreparedWorld;
 
@@ -94,6 +95,7 @@ fn spawn_world(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     prepared: Option<Res<PreparedWorld>>,
+    game_assets: Res<GameAssets>,
 ) {
     let Some(prepared) = prepared else {
         error!("No PreparedWorld available when entering Game state");
@@ -152,6 +154,8 @@ fn spawn_world(
             npc::spawn_actors(
                 parent,
                 &prepared,
+                game_assets.lod_manager(),
+                &mut images,
                 &mut meshes,
                 &mut materials,
             );
