@@ -1,15 +1,13 @@
 use bevy::{asset::RenderAssetUsages, prelude::*};
 
-use crate::{despawn_all, GameState};
-
-use super::{InWorld, WorldSettings};
+use crate::{assets::GameAssets, GameState};
+use crate::game::InGame;
 
 pub struct SkyPlugin;
 
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), sky_setup)
-            .add_systems(OnExit(GameState::Game), despawn_all::<InWorld>);
+        app.add_systems(OnEnter(GameState::Game), sky_setup);
     }
 }
 
@@ -18,10 +16,10 @@ fn sky_setup(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    settings: Res<WorldSettings>,
+    game_assets: Res<GameAssets>,
 ) {
     let image = Image::from_dynamic(
-        settings.lod_manager.bitmap("sky01").unwrap(),
+        game_assets.lod_manager().bitmap("sky01").unwrap(),
         true,
         RenderAssetUsages::RENDER_WORLD,
     );
@@ -38,6 +36,6 @@ fn sky_setup(
             ..default()
         })),
         Transform::from_scale(Vec3::splat(100_000_000.0)),
-        InWorld,
+        InGame,
     ));
 }

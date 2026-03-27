@@ -1,5 +1,4 @@
 use bevy::{
-    color::palettes::css,
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     input::{common_conditions::input_toggle_active, ButtonInput},
     pbr::wireframe::{WireframeConfig, WireframePlugin},
@@ -7,11 +6,13 @@ use bevy::{
 };
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
-use crate::{player::FlyCam, GameState};
+use crate::GameState;
+use crate::game::InGame;
+use crate::game::odm::OdmName;
+use crate::game::player::Player;
+use crate::states::loading::LoadRequest;
 
-/// Keeps track of mouse motion events, pitch, and yaw
 #[derive(Resource)]
 struct DevConfig {
     show_play_area: bool,
@@ -25,14 +26,13 @@ impl Default for DevConfig {
     }
 }
 
-/// Key configuration
 #[derive(Resource)]
-pub struct KeyBindings {
+pub struct DevKeyBindings {
     pub toggle_wireframe: KeyCode,
     pub toggle_play_area: KeyCode,
 }
 
-impl Default for KeyBindings {
+impl Default for DevKeyBindings {
     fn default() -> Self {
         Self {
             toggle_wireframe: KeyCode::BracketRight,
@@ -41,35 +41,18 @@ impl Default for KeyBindings {
     }
 }
 
-fn dev_setup(
-    mut commands: Commands,
-    mut wireframe_config: ResMut<WireframeConfig>,
-) {
-    wireframe_config.global = false;
+/// Tracks the current map for dev map switching.
+#[derive(Resource)]
+pub struct CurrentMapName(pub OdmName);
 
-    let val = ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.;
-    let _points = [
-        (
-            Color::from(css::RED),
-            Vec3::new(val, 0., val),
-            Vec3::new(val, 0., -val),
-        ),
-        (
-            Color::from(css::LIMEGREEN),
-            Vec3::new(val, 0., val),
-            Vec3::new(-val, 0., val),
-        ),
-        (
-            Color::from(css::BLUE),
-            Vec3::new(-val, 0., val),
-            Vec3::new(-val, 0., -val),
-        ),
-        (
-            Color::from(css::ORANGE),
-            Vec3::new(val, 0., -val),
-            Vec3::new(-val, 0., -val),
-        ),
-    ];
+impl Default for CurrentMapName {
+    fn default() -> Self {
+        Self(OdmName::default())
+    }
+}
+
+fn dev_setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfig>) {
+    wireframe_config.global = false;
 
     commands.spawn((
         Text::new("FPS: "),
@@ -79,6 +62,7 @@ fn dev_setup(
         },
         TextColor(Color::WHITE),
         FpsText,
+        InGame,
     ));
 
     commands.spawn((
@@ -89,13 +73,13 @@ fn dev_setup(
         },
         TextColor(Color::WHITE),
         PositionText,
+        InGame,
     ));
 }
 
-/// Handles keyboard input for enabling/disabling dev options
 fn dev_input(
     keys: Res<ButtonInput<KeyCode>>,
-    key_bindings: Res<KeyBindings>,
+    key_bindings: Res<DevKeyBindings>,
     mut dev_config: ResMut<DevConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
@@ -103,6 +87,35 @@ fn dev_input(
         wireframe_config.global = !wireframe_config.global;
     } else if keys.just_pressed(key_bindings.toggle_play_area) {
         dev_config.show_play_area = !dev_config.show_play_area;
+    }
+}
+
+/// Dev-only map switching with H/J/K/L keys.
+fn dev_change_map(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut current_map: ResMut<CurrentMapName>,
+    mut commands: Commands,
+    mut game_state: ResMut<NextState<GameState>>,
+) {
+    let new_map = if keys.just_pressed(KeyCode::KeyJ) {
+        current_map.0.go_north()
+    } else if keys.just_pressed(KeyCode::KeyH) {
+        current_map.0.go_west()
+    } else if keys.just_pressed(KeyCode::KeyK) {
+        current_map.0.go_south()
+    } else if keys.just_pressed(KeyCode::KeyL) {
+        current_map.0.go_east()
+    } else {
+        None
+    };
+
+    if let Some(new_map) = new_map {
+        info!("Dev: changing map to {}", &new_map);
+        commands.insert_resource(LoadRequest {
+            map_name: new_map.clone(),
+        });
+        current_map.0 = new_map;
+        game_state.set(GameState::Loading);
     }
 }
 
@@ -127,9 +140,9 @@ pub struct PositionText;
 
 fn update_position_text(
     mut query: Query<&mut Text, With<PositionText>>,
-    query2: Query<&Transform, With<FlyCam>>,
+    player_query: Query<&Transform, With<Player>>,
 ) {
-    if let Ok(transform) = query2.single() {
+    if let Ok(transform) = player_query.single() {
         for mut text in &mut query {
             **text = format!(" POS: {:?}", transform.translation);
         }
@@ -139,8 +152,9 @@ fn update_position_text(
 pub struct DevPlugin;
 impl Plugin for DevPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<KeyBindings>()
-            .insert_resource(DevConfig::default())
+        app.init_resource::<DevKeyBindings>()
+            .init_resource::<DevConfig>()
+            .init_resource::<CurrentMapName>()
             .add_plugins((
                 WireframePlugin::default(),
                 LogDiagnosticsPlugin::default(),
@@ -149,7 +163,7 @@ impl Plugin for DevPlugin {
             ))
             .add_systems(
                 Update,
-                (dev_input, update_fps_text, update_position_text)
+                (dev_input, update_fps_text, update_position_text, dev_change_map)
                     .run_if(in_state(GameState::Game)),
             )
             .add_systems(OnEnter(GameState::Game), dev_setup);

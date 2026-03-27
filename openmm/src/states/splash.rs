@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use super::{despawn_all, GameState};
+use crate::{despawn_all, GameState};
 
 // This plugin will display a splash screen for 1 second before switching to the menu
 pub struct SplashPlugin;

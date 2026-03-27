@@ -1,16 +1,14 @@
 use bevy::prelude::*;
 
-use crate::{despawn_all, GameState};
-
-use super::InWorld;
+use crate::GameState;
+use crate::game::InGame;
 
 pub struct SunPlugin;
 
 impl Plugin for SunPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (update_sun).run_if(in_state(GameState::Game)))
-            .add_systems(OnEnter(GameState::Game), sun_setup)
-            .add_systems(OnExit(GameState::Game), despawn_all::<InWorld>);
+        app.add_systems(Update, update_sun.run_if(in_state(GameState::Game)))
+            .add_systems(OnEnter(GameState::Game), sun_setup);
     }
 }
 
@@ -19,11 +17,11 @@ fn sun_setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.spawn(AmbientLight {
+    commands.spawn((AmbientLight {
         color: Color::WHITE,
         brightness: 250.0,
         ..default()
-    });
+    }, InGame));
 
     let entity_spawn = Transform::from_xyz(0.0, 2000.0, 0.0).translation;
     let entity_spawn2 = Transform::from_xyz(0.0, 5000.0, 0.0).translation;
@@ -34,7 +32,7 @@ fn sun_setup(
         MeshMaterial3d(materials.add(Color::srgb(0.9, 0.9, 0.2))),
         Transform::from_translation(entity_spawn),
         Movable::new(entity_spawn),
-        InWorld,
+        InGame,
     ));
 
     commands.spawn((
@@ -46,7 +44,7 @@ fn sun_setup(
         },
         Transform::from_translation(entity_spawn2),
         Movable::new(entity_spawn2),
-        InWorld,
+        InGame,
     ));
 }
 

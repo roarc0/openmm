@@ -111,6 +111,16 @@ impl LodManager {
         Ok(palettes)
     }
 
+    /// Returns a list of archive names (e.g. "bitmaps", "sprites", "icons").
+    pub fn archives(&self) -> Vec<&str> {
+        self.lods.keys().map(|s| s.as_str()).collect()
+    }
+
+    /// Returns a list of file names within a specific archive.
+    pub fn files_in(&self, archive: &str) -> Option<Vec<&str>> {
+        self.lods.get(archive).map(|lod| lod.files())
+    }
+
     pub fn sprite(&self, name: &str) -> Option<DynamicImage> {
         let sprite = self.try_get_bytes(format!("sprites/{}", name)).ok()?;
         let palettes = self.palettes().ok()?;

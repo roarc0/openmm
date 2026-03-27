@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use map_viewer::GamePlugin;
+use openmm::GamePlugin;
 
 fn main() {
     App::new().add_plugins(GamePlugin).run();

@@ -1,6 +1,6 @@
 use bevy::{app::AppExit, color::palettes::css, ecs::message::MessageWriter, prelude::*};
 
-use super::{despawn_all, GameState};
+use crate::{despawn_all, GameState};
 
 const TEXT_COLOR: Color = Color::srgb(0.3, 0.9, 0.3);
 
@@ -267,7 +267,7 @@ fn menu_action(
                     app_exit_events.write(AppExit::Success);
                 }
                 MenuButtonAction::Play => {
-                    game_state.set(GameState::Game);
+                    game_state.set(GameState::Loading);
                     menu_state.set(MenuState::Disabled);
                 }
                 MenuButtonAction::Settings => menu_state.set(MenuState::Settings),
