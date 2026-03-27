@@ -43,6 +43,9 @@ fn decompress_with_48_bytes_header(data: &[u8]) -> Result<LodData, Box<dyn Error
 }
 
 fn decompress_with_8_bytes_header(data: &[u8]) -> Result<LodData, Box<dyn Error>> {
+    if data.len() < 8 {
+        return Err("data too short for 8-byte header".into());
+    }
     let compressed_size = u32::from_le_bytes(data[0..=3].try_into()?) as usize;
     let decompressed_size = u32::from_le_bytes(data[4..=7].try_into()?) as usize;
     Ok(LodData {

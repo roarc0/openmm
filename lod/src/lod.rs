@@ -126,7 +126,8 @@ impl TryFrom<&[u8; FILE_HEADER_SIZE]> for FileHeader {
 
         let mut cursor = Cursor::new(&data[16..]);
         let offset = cursor.read_i32::<LittleEndian>()?;
-        let size = cursor.read_i32::<LittleEndian>()?;
+        let size_raw = cursor.read_i32::<LittleEndian>()?;
+        let size = if size_raw < 0 { 0i32 } else { size_raw };
         let _ = cursor.read_i32::<LittleEndian>()?;
         let count = cursor.read_i32::<LittleEndian>()?;
         Ok(FileHeader {

@@ -34,6 +34,7 @@ fn sun_setup(
         MeshMaterial3d(materials.add(Color::srgb(0.9, 0.9, 0.2))),
         Transform::from_translation(entity_spawn),
         Movable::new(entity_spawn),
+        InWorld,
     ));
 
     commands.spawn((

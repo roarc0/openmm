@@ -100,9 +100,9 @@ fn dev_input(
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
     if keys.just_pressed(key_bindings.toggle_wireframe) {
-        dev_config.show_play_area = !dev_config.show_play_area;
-    } else if keys.just_pressed(key_bindings.toggle_play_area) {
         wireframe_config.global = !wireframe_config.global;
+    } else if keys.just_pressed(key_bindings.toggle_play_area) {
+        dev_config.show_play_area = !dev_config.show_play_area;
     }
 }
 

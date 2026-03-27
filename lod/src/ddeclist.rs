@@ -106,7 +106,7 @@ impl Clone for SFTType {
 
 impl DDecListItem {
     pub fn name(&self) -> Option<String> {
-        try_read_name(&self.game_name)
+        try_read_name(&self.name[..])
     }
 
     pub fn game_name(&self) -> Option<String> {

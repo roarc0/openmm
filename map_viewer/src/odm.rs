@@ -121,12 +121,12 @@ fn generate_bsp_model_bounding_box(model: &lod::bsp_model::BSPModel) -> Cuboid {
         Vec3::new(
             model.header.bounding_box.min_x as f32,
             model.header.bounding_box.min_z as f32,
-            -model.header.bounding_box.min_y as f32,
+            -model.header.bounding_box.max_y as f32,
         ),
         Vec3::new(
             model.header.bounding_box.max_x as f32,
             model.header.bounding_box.max_z as f32,
-            -model.header.bounding_box.max_y as f32,
+            -model.header.bounding_box.min_y as f32,
         ),
     )
 }
@@ -232,22 +232,32 @@ fn change_odm(
     }
     let odm = odm.unwrap();
 
-    let image_handle = images.add(odm.texture.clone());
-    let material = odm.terrain_material(image_handle);
+    let image_handle = images.add(odm.texture);
+    let material = StandardMaterial {
+        base_color_texture: Some(image_handle),
+        unlit: false,
+        alpha_mode: AlphaMode::Opaque,
+        perceptual_roughness: 1.0,
+        reflectance: 0.2,
+        flip_normal_map_y: true,
+        cull_mode: Some(Face::Back),
+        ..default()
+    };
+    let models = odm.models;
 
     commands
         .spawn((
             Name::new("odm"),
-            Mesh3d(meshes.add(odm.mesh.clone())),
+            Mesh3d(meshes.add(odm.mesh)),
             MeshMaterial3d(materials.add(material)),
             CurrentMap,
         ))
         .with_children(|parent| {
-            for m in odm.models {
+            for m in models {
                 parent.spawn((
                     Name::new("model"),
-                    Mesh3d(meshes.add(m.mesh.clone())),
-                    MeshMaterial3d(materials.add(m.material.clone())),
+                    Mesh3d(meshes.add(m.mesh)),
+                    MeshMaterial3d(materials.add(m.material)),
                 ));
             }
         });
@@ -281,7 +291,7 @@ impl Plugin for OdmPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (change_map_input, change_odm).run_if(in_state(GameState::Game)),
+            (change_map_input, change_odm).chain().run_if(in_state(GameState::Game)),
         )
         .add_systems(OnExit(GameState::Game), despawn_all::<CurrentMap>);
     }

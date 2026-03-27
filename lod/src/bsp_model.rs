@@ -333,7 +333,7 @@ fn decode_indices(model: &BSPModel) -> Vec<u32> {
         .faces
         .iter()
         .flat_map(|f| {
-            (0..f.vertices_count - 2)
+            (0..f.vertices_count.saturating_sub(2))
                 .flat_map(|i| {
                     vec![
                         f.vertices_ids[0] as u32,

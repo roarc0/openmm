@@ -28,7 +28,7 @@ Requires MM6 game data files. Set `OPENMM_6_PATH` env var to the game data direc
 Cargo workspace with two crates:
 
 - **`lod`** — Library for reading MM6 data formats: LOD archives, ODM (outdoor maps), BSP models, tile tables, palettes, sprites/billboards, images
-- **`map_viewer`** — Bevy 0.13.2 application that renders the world
+- **`map_viewer`** — Bevy 0.18 application that renders the world
 
 ### map_viewer structure
 
@@ -56,6 +56,7 @@ Cargo workspace with two crates:
 ## Conventions
 
 - Rust 2021 edition
-- Bevy ECS patterns: plugins, systems, components, resources
+- Bevy 0.18 ECS patterns: plugins, systems, components, resources
 - MM6 coordinate system: X right, Y forward, Z up → Bevy: X right, Z = -Y, Y = Z
 - Terrain is a 128x128 heightmap grid with 512-unit tile scale
+- Keep this CLAUDE.md up to date when dependency versions, architecture, or conventions change

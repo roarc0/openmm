@@ -125,14 +125,23 @@ fn process_sprite_data(
         let offset = cursor.read_u32::<LittleEndian>()? as usize;
 
         if start < 0 || end < 0 {
-            current += width - 1;
+            current += width;
             continue;
         }
 
-        current += start as usize;
-        let chunk_size = (end - start + 1) as usize;
+        if end < start {
+            current += width;
+            continue;
+        }
+        let start = start as usize;
+        let chunk_size = (end - start as i16 + 1) as usize;
+        if current + start + chunk_size > img.len() || offset + chunk_size > data.len() {
+            current += width;
+            continue;
+        }
+        current += start;
         img[current..current + chunk_size].copy_from_slice(&data[offset..offset + chunk_size]);
-        current += width - start as usize;
+        current += width - start;
     }
     Ok(img)
 }
