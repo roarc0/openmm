@@ -2,13 +2,45 @@ use bevy::prelude::*;
 
 use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 
-/// A collision triangle in Bevy coordinates.
+/// A collision triangle in Bevy coordinates, with a precomputed AABB for fast rejection.
 #[derive(Clone)]
 pub struct CollisionTriangle {
     pub v0: Vec3,
     pub v1: Vec3,
     pub v2: Vec3,
     pub normal: Vec3,
+    // XZ bounding box for fast spatial rejection
+    pub min_x: f32,
+    pub max_x: f32,
+    pub min_z: f32,
+    pub max_z: f32,
+    pub min_y: f32,
+    pub max_y: f32,
+}
+
+impl CollisionTriangle {
+    pub fn new(v0: Vec3, v1: Vec3, v2: Vec3, normal: Vec3) -> Self {
+        Self {
+            min_x: v0.x.min(v1.x).min(v2.x),
+            max_x: v0.x.max(v1.x).max(v2.x),
+            min_z: v0.z.min(v1.z).min(v2.z),
+            max_z: v0.z.max(v1.z).max(v2.z),
+            min_y: v0.y.min(v1.y).min(v2.y),
+            max_y: v0.y.max(v1.y).max(v2.y),
+            v0,
+            v1,
+            v2,
+            normal,
+        }
+    }
+
+    /// Fast check: is a point (with radius) anywhere near this triangle's XZ bounds?
+    fn near_xz(&self, x: f32, z: f32, radius: f32) -> bool {
+        x + radius > self.min_x - radius
+            && x - radius < self.max_x + radius
+            && z + radius > self.min_z - radius
+            && z - radius < self.max_z + radius
+    }
 }
 
 /// Collection of BSP model collision geometry.
@@ -21,7 +53,24 @@ pub struct BuildingColliders {
 impl BuildingColliders {
     /// Check if moving from `from` to `to` would cross any wall.
     pub fn blocked_by_wall(&self, from: Vec3, to: Vec3, radius: f32) -> bool {
+        let check_x = from.x.min(to.x);
+        let check_z = from.z.min(to.z);
+        let check_max_x = from.x.max(to.x);
+        let check_max_z = from.z.max(to.z);
+
         for wall in &self.walls {
+            // Quick AABB rejection
+            if wall.max_x + radius < check_x - radius
+                || wall.min_x - radius > check_max_x + radius
+                || wall.max_z + radius < check_z - radius
+                || wall.min_z - radius > check_max_z + radius
+            {
+                continue;
+            }
+            // Height check: skip walls entirely above or below player
+            if from.y < wall.min_y || from.y - 300.0 > wall.max_y {
+                continue;
+            }
             if segment_hits_wall(from, to, wall, radius) {
                 return true;
             }
@@ -34,6 +83,9 @@ impl BuildingColliders {
         let mut best: Option<f32> = None;
         let point = Vec2::new(x, z);
         for floor in &self.floors {
+            if !floor.near_xz(x, z, 0.0) {
+                continue;
+            }
             let a = Vec2::new(floor.v0.x, floor.v0.z);
             let b = Vec2::new(floor.v1.x, floor.v1.z);
             let c = Vec2::new(floor.v2.x, floor.v2.z);
@@ -92,43 +144,49 @@ pub fn ground_height_at(
     terrain_h
 }
 
-// --- Geometry helpers ---
+// --- Wall collision ---
 
 fn segment_hits_wall(from: Vec3, to: Vec3, wall: &CollisionTriangle, radius: f32) -> bool {
-    // Skip walls entirely above or below the player
-    let player_y = from.y;
-    let wall_min_y = wall.v0.y.min(wall.v1.y).min(wall.v2.y);
-    let wall_max_y = wall.v0.y.max(wall.v1.y).max(wall.v2.y);
-    if player_y < wall_min_y || player_y - 300.0 > wall_max_y {
-        return false;
-    }
-
-    // XZ plane normal of the wall
+    // Project wall normal to XZ plane
     let wall_normal_2d = Vec2::new(wall.normal.x, wall.normal.z);
-    if wall_normal_2d.length_squared() < 0.001 {
-        return false;
+    let len = wall_normal_2d.length();
+    if len < 0.3 {
+        return false; // Nearly horizontal normal = floor/ceiling, not a wall
     }
-    let wall_normal_2d = wall_normal_2d.normalize();
+    let wall_normal_2d = wall_normal_2d / len;
 
     let wall_point = Vec2::new(wall.v0.x, wall.v0.z);
     let to_2d = Vec2::new(to.x, to.z);
     let from_2d = Vec2::new(from.x, from.z);
 
+    // Signed distance from wall plane
     let dist_to = (to_2d - wall_point).dot(wall_normal_2d);
     let dist_from = (from_2d - wall_point).dot(wall_normal_2d);
 
-    // Only block if crossing from front to within radius
-    if dist_to > radius || dist_from < 0.0 {
+    // Block if crossing from front (positive) side to within radius
+    // Don't block if already behind the wall or destination is far away
+    if dist_to > radius {
         return false;
     }
+    if dist_from < -radius {
+        return false; // Already well behind the wall
+    }
 
-    // Find the crossing point on the XZ plane
-    let t = if (dist_from - dist_to).abs() > 0.001 {
-        (dist_from - radius) / (dist_from - dist_to)
+    // Find where the movement crosses the wall+radius plane
+    let denom = dist_from - dist_to;
+    if denom.abs() < 0.001 {
+        // Moving parallel to wall — only block if very close
+        if dist_from.abs() > radius {
+            return false;
+        }
+    }
+
+    // Check if the crossing point is actually within the triangle
+    let t = if denom.abs() > 0.001 {
+        ((dist_from - radius) / denom).clamp(0.0, 1.0)
     } else {
         0.5
     };
-    let t = t.clamp(0.0, 1.0);
     let hit = from_2d + (to_2d - from_2d) * t;
 
     let a = Vec2::new(wall.v0.x, wall.v0.z);
@@ -136,6 +194,8 @@ fn segment_hits_wall(from: Vec3, to: Vec3, wall: &CollisionTriangle, radius: f32
     let c = Vec2::new(wall.v2.x, wall.v2.z);
     point_in_triangle_2d_expanded(hit, a, b, c, radius)
 }
+
+// --- Geometry helpers ---
 
 fn point_in_triangle_2d(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
     let d1 = sign_2d(p, a, b);
@@ -148,10 +208,10 @@ fn point_in_triangle_2d(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
 
 fn point_in_triangle_2d_expanded(p: Vec2, a: Vec2, b: Vec2, c: Vec2, expand: f32) -> bool {
     let center = (a + b + c) / 3.0;
-    let a2 = a + (a - center).normalize_or_zero() * expand;
-    let b2 = b + (b - center).normalize_or_zero() * expand;
-    let c2 = c + (c - center).normalize_or_zero() * expand;
-    point_in_triangle_2d(p, a2, b2, c2)
+    let ea = a + (a - center).normalize_or_zero() * expand;
+    let eb = b + (b - center).normalize_or_zero() * expand;
+    let ec = c + (c - center).normalize_or_zero() * expand;
+    point_in_triangle_2d(p, ea, eb, ec)
 }
 
 fn sign_2d(p1: Vec2, p2: Vec2, p3: Vec2) -> f32 {

@@ -171,12 +171,12 @@ fn setup_player(
                     {
                         continue;
                     }
-                    let tri = CollisionTriangle {
-                        v0: Vec3::from(model.vertices[i0]),
-                        v1: Vec3::from(model.vertices[i1]),
-                        v2: Vec3::from(model.vertices[i2]),
+                    let tri = CollisionTriangle::new(
+                        Vec3::from(model.vertices[i0]),
+                        Vec3::from(model.vertices[i1]),
+                        Vec3::from(model.vertices[i2]),
                         normal,
-                    };
+                    );
                     if is_wall {
                         walls.push(tri.clone());
                     }
