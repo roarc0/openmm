@@ -2,37 +2,32 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use lod::odm::{ODM_HEIGHT_SCALE, ODM_PLAY_SIZE, ODM_SIZE, ODM_TILE_SCALE};
+use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
 use crate::game::InGame;
+use crate::game::collision::{
+    BuildingColliders, CollisionTriangle, TerrainHeightMap,
+    ground_height_at, sample_terrain_height,
+};
 use crate::states::loading::PreparedWorld;
 
-/// Marker for the player entity.
+// --- Components ---
+
 #[derive(Component)]
 pub struct Player;
 
-/// Marker for the player's camera (child of Player).
 #[derive(Component)]
 pub struct PlayerCamera;
 
-/// Tracks vertical velocity and whether the player is on the ground.
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct PlayerPhysics {
     pub vertical_velocity: f32,
     pub on_ground: bool,
 }
 
-impl Default for PlayerPhysics {
-    fn default() -> Self {
-        Self {
-            vertical_velocity: 0.0,
-            on_ground: true,
-        }
-    }
-}
+// --- Resources ---
 
-/// Whether the player is currently flying.
 #[derive(Resource)]
 pub struct FlyMode(pub bool);
 
@@ -42,7 +37,6 @@ impl Default for FlyMode {
     }
 }
 
-/// Player movement and look settings.
 #[derive(Resource)]
 pub struct PlayerSettings {
     pub sensitivity: f32,
@@ -52,6 +46,7 @@ pub struct PlayerSettings {
     pub eye_height: f32,
     pub gravity: f32,
     pub max_slope_height: f32,
+    pub collision_radius: f32,
     pub max_xz: f32,
 }
 
@@ -64,14 +59,13 @@ impl Default for PlayerSettings {
             rotation_speed: 1.8,
             eye_height: 180.0,
             gravity: 9800.0,
-            // Max terrain height difference the player can step up per move
             max_slope_height: 160.0,
+            collision_radius: 64.0,
             max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
         }
     }
 }
 
-/// Key bindings for player controls.
 #[derive(Resource)]
 pub struct PlayerKeyBindings {
     pub move_forward: KeyCode,
@@ -103,11 +97,7 @@ impl Default for PlayerKeyBindings {
     }
 }
 
-/// Cached terrain height data for sampling.
-#[derive(Resource)]
-pub struct TerrainHeightMap {
-    pub heights: Vec<u8>,
-}
+// --- Plugin ---
 
 pub struct PlayerPlugin;
 
@@ -135,6 +125,8 @@ impl Plugin for PlayerPlugin {
     }
 }
 
+// --- Setup ---
+
 fn grab_cursor_on_enter(mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>) {
     if let Ok(mut cursor_options) = cursor_query.single_mut() {
         cursor_options.grab_mode = CursorGrabMode::Confined;
@@ -151,6 +143,50 @@ fn setup_player(
         commands.insert_resource(TerrainHeightMap {
             heights: prepared.map.height_map.to_vec(),
         });
+
+        // Build collision triangles from BSP model faces
+        let mut walls = Vec::new();
+        let mut floors = Vec::new();
+        for model in &prepared.map.bsp_models {
+            for face in &model.faces {
+                if face.vertices_count < 3 || face.is_invisible() {
+                    continue;
+                }
+                // Face normal: MM6 (x,y,z) → Bevy (x,z,-y)
+                let nx = face.plane.normal[0] as f32 / 65536.0;
+                let ny = face.plane.normal[2] as f32 / 65536.0;
+                let nz = -face.plane.normal[1] as f32 / 65536.0;
+                let normal = Vec3::new(nx, ny, nz);
+
+                let is_floor = ny > 0.5;
+                let is_wall = ny.abs() < 0.7;
+
+                for i in 0..(face.vertices_count as usize).saturating_sub(2) {
+                    let i0 = face.vertices_ids[0] as usize;
+                    let i1 = face.vertices_ids[i + 1] as usize;
+                    let i2 = face.vertices_ids[i + 2] as usize;
+                    if i0 >= model.vertices.len()
+                        || i1 >= model.vertices.len()
+                        || i2 >= model.vertices.len()
+                    {
+                        continue;
+                    }
+                    let tri = CollisionTriangle {
+                        v0: Vec3::from(model.vertices[i0]),
+                        v1: Vec3::from(model.vertices[i1]),
+                        v2: Vec3::from(model.vertices[i2]),
+                        normal,
+                    };
+                    if is_wall {
+                        walls.push(tri.clone());
+                    }
+                    if is_floor {
+                        floors.push(tri);
+                    }
+                }
+            }
+        }
+        commands.insert_resource(BuildingColliders { walls, floors });
     }
 
     let start_x = 0.0_f32;
@@ -175,7 +211,6 @@ fn setup_player(
                 Name::new("player_camera"),
                 PlayerCamera,
                 Camera3d::default(),
-                // Pitch the camera slightly down so the horizon sits at ~25% from top
                 Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
                 Projection::Perspective(PerspectiveProjection {
                     fov: 65.0_f32.to_radians(),
@@ -194,29 +229,7 @@ fn setup_player(
         });
 }
 
-/// Sample terrain height at a world position using bilinear interpolation.
-/// Terrain mesh: x = (w - 64) * 512, z = (d - 64) * 512, y = height_map[d * 128 + w] * 32
-pub fn sample_terrain_height(height_map: &[u8], world_x: f32, world_z: f32) -> f32 {
-    let col_f = (world_x / ODM_TILE_SCALE) + 64.0;
-    let row_f = (world_z / ODM_TILE_SCALE) + 64.0;
-
-    let col0 = (col_f.floor() as usize).clamp(0, ODM_SIZE - 2);
-    let row0 = (row_f.floor() as usize).clamp(0, ODM_SIZE - 2);
-    let col1 = col0 + 1;
-    let row1 = row0 + 1;
-
-    let frac_col = (col_f - col0 as f32).clamp(0.0, 1.0);
-    let frac_row = (row_f - row0 as f32).clamp(0.0, 1.0);
-
-    let h00 = height_map[row0 * ODM_SIZE + col0] as f32 * ODM_HEIGHT_SCALE;
-    let h10 = height_map[row0 * ODM_SIZE + col1] as f32 * ODM_HEIGHT_SCALE;
-    let h01 = height_map[row1 * ODM_SIZE + col0] as f32 * ODM_HEIGHT_SCALE;
-    let h11 = height_map[row1 * ODM_SIZE + col1] as f32 * ODM_HEIGHT_SCALE;
-
-    let h_top = h00 + (h10 - h00) * frac_col;
-    let h_bot = h01 + (h11 - h01) * frac_col;
-    h_top + (h_bot - h_top) * frac_row
-}
+// --- Systems ---
 
 fn toggle_fly_mode(
     keys: Res<ButtonInput<KeyCode>>,
@@ -236,6 +249,7 @@ fn player_movement(
     key_bindings: Res<PlayerKeyBindings>,
     fly_mode: Res<FlyMode>,
     height_map: Option<Res<TerrainHeightMap>>,
+    colliders: Option<Res<BuildingColliders>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     mut query: Query<&mut Transform, With<Player>>,
 ) {
@@ -253,19 +267,17 @@ fn player_movement(
     };
 
     for mut transform in query.iter_mut() {
-        // Rotation via arrow keys
+        // Rotation
         for key in keys.get_pressed() {
             let key = *key;
             if key == key_bindings.rotate_left {
-                let rotation = Quat::from_rotation_y(settings.rotation_speed * time.delta_secs());
-                transform.rotate(rotation);
+                transform.rotate_y(settings.rotation_speed * time.delta_secs());
             } else if key == key_bindings.rotate_right {
-                let rotation = Quat::from_rotation_y(-settings.rotation_speed * time.delta_secs());
-                transform.rotate(rotation);
+                transform.rotate_y(-settings.rotation_speed * time.delta_secs());
             }
         }
 
-        // Horizontal movement — flatten to XZ plane
+        // Compute desired movement
         let forward = transform.forward().as_vec3();
         let right = transform.right().as_vec3();
         let forward_flat = Vec3::new(forward.x, 0.0, forward.z).normalize_or_zero();
@@ -288,53 +300,66 @@ fn player_movement(
         if movement != Vec3::ZERO {
             movement = movement.normalize() * speed * time.delta_secs();
 
-            if !fly_mode.0 {
-                if let Some(ref hm) = height_map {
-                    // Terrain-aware movement: check if destination is walkable
-                    let dest = transform.translation + movement;
+            if fly_mode.0 {
+                transform.translation += movement;
+            } else {
+                // Ground movement with terrain slope + BSP wall collision
+                let from = transform.translation;
+                let dest = from + movement;
+
+                // Check BSP wall collision
+                let wall_blocked = colliders
+                    .as_ref()
+                    .map_or(false, |c| c.blocked_by_wall(from, dest, settings.collision_radius));
+
+                if wall_blocked {
+                    // Try sliding along each axis independently
+                    let dest_x = Vec3::new(from.x + movement.x, from.y, from.z);
+                    let x_blocked = colliders
+                        .as_ref()
+                        .map_or(false, |c| c.blocked_by_wall(from, dest_x, settings.collision_radius));
+                    if !x_blocked {
+                        transform.translation.x = dest_x.x;
+                    }
+
+                    let dest_z = Vec3::new(transform.translation.x, from.y, from.z + movement.z);
+                    let z_blocked = colliders
+                        .as_ref()
+                        .map_or(false, |c| c.blocked_by_wall(from, dest_z, settings.collision_radius));
+                    if !z_blocked {
+                        transform.translation.z = dest_z.z;
+                    }
+                } else if let Some(ref hm) = height_map {
+                    // Terrain slope check
                     let current_ground = sample_terrain_height(
-                        &hm.heights,
-                        transform.translation.x,
-                        transform.translation.z,
+                        &hm.heights, from.x, from.z,
                     );
-                    let dest_ground = sample_terrain_height(&hm.heights, dest.x, dest.z);
-                    let height_diff = dest_ground - current_ground;
+                    let dest_ground = sample_terrain_height(
+                        &hm.heights, dest.x, dest.z,
+                    );
 
-                    if height_diff > settings.max_slope_height {
-                        // Too steep uphill — slide along the slope
-                        // Try each axis independently
-                        let dest_x = Vec3::new(
-                            transform.translation.x + movement.x,
-                            transform.translation.y,
-                            transform.translation.z,
-                        );
-                        let ground_x = sample_terrain_height(&hm.heights, dest_x.x, dest_x.z);
-                        if ground_x - current_ground <= settings.max_slope_height {
-                            transform.translation.x = dest_x.x;
+                    if dest_ground - current_ground > settings.max_slope_height {
+                        // Slide per-axis on steep terrain
+                        let gx = sample_terrain_height(&hm.heights, dest.x, from.z);
+                        if gx - current_ground <= settings.max_slope_height {
+                            transform.translation.x = dest.x;
                         }
-
-                        let dest_z = Vec3::new(
-                            transform.translation.x,
-                            transform.translation.y,
-                            transform.translation.z + movement.z,
+                        let gz = sample_terrain_height(
+                            &hm.heights, transform.translation.x, dest.z,
                         );
-                        let ground_z = sample_terrain_height(&hm.heights, dest_z.x, dest_z.z);
-                        if ground_z - current_ground <= settings.max_slope_height {
-                            transform.translation.z = dest_z.z;
+                        if gz - current_ground <= settings.max_slope_height {
+                            transform.translation.z = dest.z;
                         }
                     } else {
-                        // Walkable slope — move normally
                         transform.translation += movement;
                     }
                 } else {
                     transform.translation += movement;
                 }
-            } else {
-                transform.translation += movement;
             }
         }
 
-        // Vertical movement in fly mode
+        // Fly mode vertical
         if fly_mode.0 {
             if keys.pressed(key_bindings.fly_up) {
                 transform.translation.y += speed * time.delta_secs();
@@ -346,12 +371,10 @@ fn player_movement(
 
         // Clamp to play area
         transform.translation.x = transform
-            .translation
-            .x
+            .translation.x
             .clamp(-settings.max_xz, settings.max_xz);
         transform.translation.z = transform
-            .translation
-            .z
+            .translation.z
             .clamp(-settings.max_xz, settings.max_xz);
     }
 }
@@ -374,13 +397,11 @@ fn player_look(
     let window_scale = window.height().min(window.width());
     let delta = accumulated.delta;
 
-    // Yaw rotates the player entity
     for mut transform in player_query.iter_mut() {
         let yaw = -(settings.sensitivity * delta.x * window_scale).to_radians();
         transform.rotate_y(yaw);
     }
 
-    // Pitch rotates the camera child
     for mut transform in camera_query.iter_mut() {
         let (_, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
         pitch -= (settings.sensitivity * delta.y * window_scale).to_radians();
@@ -389,10 +410,10 @@ fn player_look(
     }
 }
 
-/// Applies gravity when walking, or terrain clamping when flying below ground.
 fn gravity_system(
     time: Res<Time>,
     height_map: Option<Res<TerrainHeightMap>>,
+    colliders: Option<Res<BuildingColliders>>,
     settings: Res<PlayerSettings>,
     fly_mode: Res<FlyMode>,
     mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
@@ -404,8 +425,9 @@ fn gravity_system(
     let dt = time.delta_secs();
 
     for (mut transform, mut physics) in query.iter_mut() {
-        let ground_y = sample_terrain_height(
+        let ground_y = ground_height_at(
             &height_map.heights,
+            colliders.as_deref(),
             transform.translation.x,
             transform.translation.z,
         ) + settings.eye_height;
@@ -417,17 +439,14 @@ fn gravity_system(
                 transform.translation.y = ground_y;
             }
         } else {
-            // Apply gravity
             physics.vertical_velocity -= settings.gravity * dt;
             transform.translation.y += physics.vertical_velocity * dt;
 
-            // Always enforce terrain floor
             if transform.translation.y < ground_y {
                 transform.translation.y = ground_y;
                 physics.vertical_velocity = 0.0;
                 physics.on_ground = true;
             } else if transform.translation.y - ground_y < 2.0 {
-                // Snap when very close
                 transform.translation.y = ground_y;
                 physics.vertical_velocity = 0.0;
                 physics.on_ground = true;

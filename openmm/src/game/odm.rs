@@ -105,6 +105,7 @@ fn spawn_world(
 
     let image_handle = images.add(terrain_texture);
     let material = StandardMaterial {
+        base_color: Color::srgb(0.85, 0.85, 0.85),
         base_color_texture: Some(image_handle),
         unlit: false,
         alpha_mode: AlphaMode::Opaque,

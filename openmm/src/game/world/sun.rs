@@ -24,8 +24,8 @@ struct Sun {
 fn sun_setup(mut commands: Commands) {
     commands.spawn((
         AmbientLight {
-            color: Color::srgb(0.7, 0.7, 0.8),
-            brightness: 150.0,
+            color: Color::srgb(0.75, 0.75, 0.82),
+            brightness: 350.0,
             ..default()
         },
         InGame,
@@ -40,7 +40,7 @@ fn sun_setup(mut commands: Commands) {
         Name::new("sun"),
         DirectionalLight {
             shadows_enabled: true,
-            illuminance: 1500.,
+            illuminance: 800.,
             color: Color::srgb(1.0, 0.95, 0.85),
             ..default()
         },
@@ -92,6 +92,6 @@ fn animate_sun(
 
         // Dim light near horizon, bright at noon
         let elevation = sun.angle.sin().max(0.0);
-        light.illuminance = 500.0 + 1500.0 * elevation;
+        light.illuminance = 400.0 + 800.0 * elevation;
     }
 }

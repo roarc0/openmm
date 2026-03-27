@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{despawn_all, GameState};
 
+pub(crate) mod collision;
 pub(crate) mod dev;
 pub(crate) mod odm;
 pub(crate) mod player;
