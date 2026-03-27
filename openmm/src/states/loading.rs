@@ -4,14 +4,15 @@ use bevy::{
     prelude::*,
 };
 
+use std::collections::HashMap;
+
 use crate::{
     assets::GameAssets,
     despawn_all,
-    game::{odm::OdmName, utils::random_color},
+    game::odm::OdmName,
     GameState,
 };
 use lod::{
-    bsp_model::BSPModel,
     dtile::TileTable,
     odm::{Odm, OdmData},
 };
@@ -48,8 +49,14 @@ struct LoadingProgress {
 }
 
 pub struct PreparedModel {
+    /// Sub-meshes, one per unique texture in the BSP model.
+    pub sub_meshes: Vec<PreparedSubMesh>,
+}
+
+pub struct PreparedSubMesh {
     pub mesh: Mesh,
     pub material: StandardMaterial,
+    pub texture: Option<Image>,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -217,22 +224,68 @@ fn loading_step(
         }
         LoadingStep::BuildModels => {
             if let Some(odm) = &progress.odm {
+                // Collect texture sizes for UV normalization
+                let mut texture_sizes: HashMap<String, (u32, u32)> = HashMap::new();
+                for b in &odm.bsp_models {
+                    for name in &b.texture_names {
+                        if !texture_sizes.contains_key(name) {
+                            if let Some(img) = game_assets.lod_manager().bitmap(name) {
+                                texture_sizes
+                                    .insert(name.clone(), (img.width(), img.height()));
+                            }
+                        }
+                    }
+                }
+
                 let models = odm
                     .bsp_models
                     .iter()
                     .map(|b| {
-                        let mesh = generate_bsp_model_mesh(b);
-                        let material = StandardMaterial {
-                            base_color: random_color(),
-                            alpha_mode: AlphaMode::Opaque,
-                            cull_mode: None,
-                            double_sided: true,
-                            perceptual_roughness: 1.0,
-                            reflectance: 0.0,
-                            metallic: 0.0,
-                            ..default()
-                        };
-                        PreparedModel { mesh, material }
+                        let textured = b.textured_meshes(&texture_sizes);
+                        let sub_meshes = textured
+                            .into_iter()
+                            .map(|tm| {
+                                let mut mesh = Mesh::new(
+                                    PrimitiveTopology::TriangleList,
+                                    RenderAssetUsages::RENDER_WORLD,
+                                );
+                                mesh.insert_attribute(
+                                    Mesh::ATTRIBUTE_POSITION,
+                                    tm.positions,
+                                );
+                                mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, tm.normals);
+                                mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, tm.uvs);
+                                _ = mesh.generate_tangents();
+
+                                let texture = game_assets
+                                    .lod_manager()
+                                    .bitmap(&tm.texture_name)
+                                    .map(|img| {
+                                        Image::from_dynamic(
+                                            img,
+                                            true,
+                                            RenderAssetUsages::RENDER_WORLD,
+                                        )
+                                    });
+
+                                let material = StandardMaterial {
+                                    alpha_mode: AlphaMode::Opaque,
+                                    cull_mode: None,
+                                    double_sided: true,
+                                    perceptual_roughness: 1.0,
+                                    reflectance: 0.0,
+                                    metallic: 0.0,
+                                    ..default()
+                                };
+
+                                PreparedSubMesh {
+                                    mesh,
+                                    material,
+                                    texture,
+                                }
+                            })
+                            .collect();
+                        PreparedModel { sub_meshes }
                     })
                     .collect();
                 progress.models = Some(models);
@@ -262,15 +315,3 @@ fn loading_step(
     }
 }
 
-fn generate_bsp_model_mesh(model: &BSPModel) -> Mesh {
-    let mut mesh = Mesh::new(
-        PrimitiveTopology::TriangleList,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-    mesh.insert_indices(Indices::U32(model.indices.clone()));
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, model.vertices.clone());
-    mesh.duplicate_vertices();
-    mesh.compute_flat_normals();
-    _ = mesh.generate_tangents();
-    mesh
-}

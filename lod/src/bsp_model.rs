@@ -51,8 +51,8 @@ impl BSPModelHeader {
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct Plane {
-    normal: [i32; 3],
-    distance: i32,
+    pub normal: [i32; 3],
+    pub distance: i32,
 }
 
 #[repr(C)]
@@ -74,29 +74,112 @@ const MAX_FACE_VERTICES_COUNT: usize = 20;
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct BSPModelFace {
-    plane: Plane,
-    z_calc: [i16; 6],
-    attributes: u32,
-    vertices_ids: [u16; MAX_FACE_VERTICES_COUNT],
-    texture_u_ids: [i16; MAX_FACE_VERTICES_COUNT],
-    texture_v_ids: [i16; MAX_FACE_VERTICES_COUNT],
-    normal_x: [i16; MAX_FACE_VERTICES_COUNT],
-    normal_y: [i16; MAX_FACE_VERTICES_COUNT],
-    normal_z: [i16; MAX_FACE_VERTICES_COUNT],
-    texture_id: i16,
-    texture_u: i16,
-    texture_v: i16,
-    bounding_box: BoundingBox<i16>,
-    cog_number: u16,
-    cog_trigger_id: u16,
-    cog_trigger_type: u16,
-    reserved: u16,
-    gradient_vertices: [u8; 4],
-    vertices_count: u8,
-    polygon_type: u8,
-    shade_type: u8,
-    visible: u8,
-    padding: [u8; 2],
+    pub plane: Plane,
+    pub z_calc: [i16; 6],
+    pub attributes: u32,
+    pub vertices_ids: [u16; MAX_FACE_VERTICES_COUNT],
+    pub texture_u_ids: [i16; MAX_FACE_VERTICES_COUNT],
+    pub texture_v_ids: [i16; MAX_FACE_VERTICES_COUNT],
+    pub normal_x: [i16; MAX_FACE_VERTICES_COUNT],
+    pub normal_y: [i16; MAX_FACE_VERTICES_COUNT],
+    pub normal_z: [i16; MAX_FACE_VERTICES_COUNT],
+    pub texture_id: i16,
+    pub texture_u: i16,
+    pub texture_v: i16,
+    pub bounding_box: BoundingBox<i16>,
+    pub cog_number: u16,
+    pub cog_trigger_id: u16,
+    pub cog_trigger_type: u16,
+    pub reserved: u16,
+    pub gradient_vertices: [u8; 4],
+    pub vertices_count: u8,
+    pub polygon_type: u8,
+    pub shade_type: u8,
+    pub visible: u8,
+    pub padding: [u8; 2],
+}
+
+/// A per-texture mesh extracted from a BSP model, ready for rendering.
+pub struct BSPTexturedMesh {
+    /// Texture name from the LOD archive (bitmap name).
+    pub texture_name: String,
+    /// Triangle vertex positions (3 per triangle), already in Bevy coordinates.
+    pub positions: Vec<[f32; 3]>,
+    /// Normalized UV coordinates (0-1 range), need texture dimensions for computation.
+    pub uvs: Vec<[f32; 2]>,
+    /// Per-vertex normals.
+    pub normals: Vec<[f32; 3]>,
+}
+
+impl BSPModel {
+    /// Extract per-texture meshes with proper UVs.
+    /// `texture_sizes` maps texture name → (width, height) in pixels.
+    pub fn textured_meshes(
+        &self,
+        texture_sizes: &std::collections::HashMap<String, (u32, u32)>,
+    ) -> Vec<BSPTexturedMesh> {
+        let mut meshes_by_texture: std::collections::HashMap<String, BSPTexturedMesh> =
+            std::collections::HashMap::new();
+
+        for face in &self.faces {
+            if face.vertices_count < 3 {
+                continue;
+            }
+            if face.is_invisible() {
+                continue;
+            }
+
+            let tex_idx = face.texture_id as usize;
+            let tex_name = if tex_idx < self.texture_names.len() {
+                &self.texture_names[tex_idx]
+            } else {
+                continue;
+            };
+
+            let (tex_w, tex_h) = texture_sizes
+                .get(tex_name)
+                .copied()
+                .unwrap_or((128, 128));
+
+            let tex_w_f = tex_w as f32;
+            let tex_h_f = tex_h as f32;
+
+            // Face normal from the plane (MM6: x,y,z → Bevy: x,z,-y)
+            let nx = face.plane.normal[0] as f32 / 65536.0;
+            let ny = face.plane.normal[2] as f32 / 65536.0;
+            let nz = -face.plane.normal[1] as f32 / 65536.0;
+            let normal = [nx, ny, nz];
+
+            let mesh = meshes_by_texture
+                .entry(tex_name.clone())
+                .or_insert_with(|| BSPTexturedMesh {
+                    texture_name: tex_name.clone(),
+                    positions: Vec::new(),
+                    uvs: Vec::new(),
+                    normals: Vec::new(),
+                });
+
+            // Fan triangulation: (v0, v1, v2), (v0, v2, v3), ...
+            for i in 0..(face.vertices_count as usize - 2) {
+                let tri_verts = [0, i + 1, i + 2];
+                for &vi in &tri_verts {
+                    let vert_idx = face.vertices_ids[vi] as usize;
+                    if vert_idx < self.vertices.len() {
+                        mesh.positions.push(self.vertices[vert_idx]);
+                    } else {
+                        mesh.positions.push([0.0, 0.0, 0.0]);
+                    }
+
+                    let u = (face.texture_u_ids[vi] as f32 + face.texture_u as f32) / tex_w_f;
+                    let v = (face.texture_v_ids[vi] as f32 + face.texture_v as f32) / tex_h_f;
+                    mesh.uvs.push([u, v]);
+                    mesh.normals.push(normal);
+                }
+            }
+        }
+
+        meshes_by_texture.into_values().collect()
+    }
 }
 
 impl BSPModelFace {

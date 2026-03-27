@@ -100,15 +100,8 @@ fn spawn_world(
         return;
     };
 
-    // We need to take ownership, so remove the resource after reading
-    // For now, clone the handles we need
     let terrain_texture = prepared.terrain_texture.clone();
     let terrain_mesh = prepared.terrain_mesh.clone();
-    let model_data: Vec<_> = prepared
-        .models
-        .iter()
-        .map(|m| (m.mesh.clone(), m.material.clone()))
-        .collect();
 
     let image_handle = images.add(terrain_texture);
     let material = StandardMaterial {
@@ -131,12 +124,19 @@ fn spawn_world(
             InGame,
         ))
         .with_children(|parent| {
-            for (mesh, mat) in model_data {
-                parent.spawn((
-                    Name::new("model"),
-                    Mesh3d(meshes.add(mesh)),
-                    MeshMaterial3d(materials.add(mat)),
-                ));
+            for model in &prepared.models {
+                for sub in &model.sub_meshes {
+                    let mut mat = sub.material.clone();
+                    if let Some(ref tex) = sub.texture {
+                        let tex_handle = images.add(tex.clone());
+                        mat.base_color_texture = Some(tex_handle);
+                    }
+                    parent.spawn((
+                        Name::new("model"),
+                        Mesh3d(meshes.add(sub.mesh.clone())),
+                        MeshMaterial3d(materials.add(mat)),
+                    ));
+                }
             }
         });
 }
