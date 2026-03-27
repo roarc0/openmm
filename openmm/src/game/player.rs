@@ -47,6 +47,7 @@ pub struct PlayerSettings {
     pub eye_height: f32,
     pub gravity: f32,
     pub max_slope_height: f32,
+    pub jump_velocity: f32,
     pub collision_radius: f32,
     pub max_xz: f32,
 }
@@ -61,6 +62,7 @@ impl Default for PlayerSettings {
             eye_height: 180.0,
             gravity: 9800.0,
             max_slope_height: 512.0,
+            jump_velocity: 3500.0,
             collision_radius: 24.0,
             max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
         }
@@ -75,6 +77,7 @@ pub struct PlayerKeyBindings {
     pub strafe_right: KeyCode,
     pub rotate_left: KeyCode,
     pub rotate_right: KeyCode,
+    pub jump: KeyCode,
     pub fly_up: KeyCode,
     pub fly_down: KeyCode,
     pub toggle_fly: KeyCode,
@@ -90,6 +93,7 @@ impl Default for PlayerKeyBindings {
             strafe_right: KeyCode::KeyD,
             rotate_left: KeyCode::ArrowLeft,
             rotate_right: KeyCode::ArrowRight,
+            jump: KeyCode::Space,
             fly_up: KeyCode::PageUp,
             fly_down: KeyCode::PageDown,
             toggle_fly: KeyCode::F2,
@@ -263,7 +267,7 @@ fn player_movement(
     water_map: Option<Res<WaterMap>>,
     water_walking: Option<Res<WaterWalking>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
-    mut query: Query<&mut Transform, With<Player>>,
+    mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
 ) {
     let Ok(cursor_options) = cursor_query.single() else {
         return;
@@ -278,7 +282,7 @@ fn player_movement(
         settings.speed
     };
 
-    for mut transform in query.iter_mut() {
+    for (mut transform, mut physics) in query.iter_mut() {
         // Rotation
         for key in keys.get_pressed() {
             let key = *key;
@@ -342,8 +346,10 @@ fn player_movement(
                     }
                 }
 
-                // Water check — block movement into deep water unless water-walking or on a bridge
-                let can_water_walk = water_walking.as_ref().map_or(false, |w| w.0) || fly_mode.0;
+                // Water check — block movement into deep water unless water-walking, on a bridge, or jumping
+                let can_water_walk = water_walking.as_ref().map_or(false, |w| w.0)
+                    || fly_mode.0
+                    || !physics.on_ground;
                 if !can_water_walk {
                     if let Some(ref wm) = water_map {
                         let dest_is_water = wm.is_water_at(dest.x, dest.z);
@@ -370,6 +376,12 @@ fn player_movement(
                 transform.translation.x = dest.x;
                 transform.translation.z = dest.z;
             }
+        }
+
+        // Jump (only when on ground and not flying)
+        if !fly_mode.0 && physics.on_ground && keys.just_pressed(key_bindings.jump) {
+            physics.vertical_velocity = settings.jump_velocity;
+            physics.on_ground = false;
         }
 
         // Fly mode vertical
