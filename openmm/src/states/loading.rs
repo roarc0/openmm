@@ -107,7 +107,7 @@ struct LoadingText;
 fn loading_setup(
     mut commands: Commands,
     load_request: Option<Res<LoadRequest>>,
-    save_data: Res<crate::save::SaveData>,
+    save_data: Res<crate::save::GameSave>,
 ) {
     let map_name = load_request
         .map(|r| r.map_name.clone())

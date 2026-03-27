@@ -5,38 +5,36 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 const SAVE_DIR: &str = "target/saves";
-const QUICKSAVE_FILE: &str = "quicksave.json";
 
 /// Persistent game state that can be saved and loaded.
 #[derive(Serialize, Deserialize, Clone, Debug, Resource)]
-pub struct SaveData {
+pub struct GameSave {
     pub version: u32,
-    pub map: MapSave,
-    pub player: PlayerSave,
+    pub map: MapState,
+    pub player: PlayerState,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct MapSave {
-    /// Map grid coordinate, e.g. "e3"
+pub struct MapState {
     pub map_x: char,
     pub map_y: char,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct PlayerSave {
+pub struct PlayerState {
     pub position: [f32; 3],
     pub yaw: f32,
 }
 
-impl Default for SaveData {
+impl Default for GameSave {
     fn default() -> Self {
         Self {
             version: 1,
-            map: MapSave {
+            map: MapState {
                 map_x: 'e',
                 map_y: '3',
             },
-            player: PlayerSave {
+            player: PlayerState {
                 position: [-10178.0, 340.0, 11206.0],
                 yaw: -38.7_f32.to_radians(),
             },
@@ -44,33 +42,37 @@ impl Default for SaveData {
     }
 }
 
-impl SaveData {
+impl GameSave {
     fn save_dir() -> PathBuf {
         PathBuf::from(SAVE_DIR)
     }
 
-    fn quicksave_path() -> PathBuf {
-        Self::save_dir().join(QUICKSAVE_FILE)
+    fn slot_path(slot: &str) -> PathBuf {
+        Self::save_dir().join(format!("{}.json", slot))
     }
 
-    /// Save to the quicksave file.
-    pub fn quicksave(&self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Save to a named slot.
+    pub fn save(&self, slot: &str) -> Result<(), Box<dyn std::error::Error>> {
         let dir = Self::save_dir();
         fs::create_dir_all(&dir)?;
         let json = serde_json::to_string_pretty(self)?;
-        fs::write(Self::quicksave_path(), json)?;
+        fs::write(Self::slot_path(slot), json)?;
         Ok(())
     }
 
-    /// Load from the quicksave file, or return None if it doesn't exist.
-    pub fn quickload() -> Option<Self> {
-        let path = Self::quicksave_path();
-        let data = fs::read_to_string(path).ok()?;
+    /// Load from a named slot, or return None if it doesn't exist.
+    pub fn load(slot: &str) -> Option<Self> {
+        let data = fs::read_to_string(Self::slot_path(slot)).ok()?;
         serde_json::from_str(&data).ok()
     }
 
-    /// Load quicksave or fall back to defaults.
+    /// Load the autosave slot, or fall back to defaults.
     pub fn load_or_default() -> Self {
-        Self::quickload().unwrap_or_default()
+        Self::load("autosave").unwrap_or_default()
+    }
+
+    /// Save to the autosave slot.
+    pub fn autosave(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.save("autosave")
     }
 }

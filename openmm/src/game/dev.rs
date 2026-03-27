@@ -11,7 +11,7 @@ use crate::GameState;
 use crate::game::InGame;
 use crate::game::odm::OdmName;
 use crate::game::player::Player;
-use crate::save::{SaveData, PlayerSave, MapSave};
+use crate::save::{GameSave, PlayerState, MapState};
 use crate::states::loading::LoadRequest;
 
 #[derive(Resource)]
@@ -183,12 +183,12 @@ fn quicksave(
     keys: Res<ButtonInput<KeyCode>>,
     player_query: Query<&Transform, With<Player>>,
     current_map: Res<CurrentMapName>,
-    mut save_data: ResMut<SaveData>,
+    mut save_data: ResMut<GameSave>,
 ) {
     if keys.just_pressed(KeyCode::F3) {
         if let Ok(transform) = player_query.single() {
             let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-            save_data.player = PlayerSave {
+            save_data.player = PlayerState {
                 position: [
                     transform.translation.x,
                     transform.translation.y,
@@ -196,12 +196,12 @@ fn quicksave(
                 ],
                 yaw,
             };
-            save_data.map = MapSave {
+            save_data.map = MapState {
                 map_x: current_map.0.x,
                 map_y: current_map.0.y,
             };
-            match save_data.quicksave() {
-                Ok(()) => info!("Quicksaved to target/saves/quicksave.json"),
+            match save_data.autosave() {
+                Ok(()) => info!("Saved to target/saves/autosave.json"),
                 Err(e) => error!("Failed to quicksave: {}", e),
             }
         }

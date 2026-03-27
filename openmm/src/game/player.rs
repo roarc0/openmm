@@ -10,7 +10,7 @@ use crate::game::collision::{
     BuildingColliders, CollisionTriangle, TerrainHeightMap,
     ground_height_at, sample_terrain_height,
 };
-use crate::save::SaveData;
+use crate::save::GameSave;
 use crate::states::loading::PreparedWorld;
 
 // --- Components ---
@@ -139,7 +139,7 @@ fn setup_player(
     mut commands: Commands,
     prepared: Option<Res<PreparedWorld>>,
     settings: Res<PlayerSettings>,
-    save_data: Res<SaveData>,
+    save_data: Res<GameSave>,
 ) {
     if let Some(prepared) = &prepared {
         commands.insert_resource(TerrainHeightMap {
