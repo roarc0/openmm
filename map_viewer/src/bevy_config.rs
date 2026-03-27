@@ -18,7 +18,6 @@ impl Plugin for BevyConfigPlugin {
             ..default()
         });
 
-        app.insert_resource(Msaa::Sample4)
-            .add_plugins((default_plugins, FrameTimeDiagnosticsPlugin));
+        app.add_plugins((default_plugins, FrameTimeDiagnosticsPlugin::default()));
     }
 }

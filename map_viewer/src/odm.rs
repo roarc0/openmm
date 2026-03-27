@@ -1,15 +1,9 @@
 use bevy::{
-    prelude::{shape::Quad, *},
-    render::{
-        render_asset::RenderAssetUsages,
-        render_resource::{Face, PrimitiveTopology, Texture},
-    },
+    asset::RenderAssetUsages,
+    mesh::{Indices, PrimitiveTopology},
+    prelude::*,
+    render::render_resource::Face,
 };
-
-// use bevy_mod_billboard::{
-//     prelude::{BillboardMeshHandle, BillboardPlugin, BillboardTextureBundle},
-//     BillboardLockAxis, BillboardLockAxisBundle, BillboardTextureHandle,
-// };
 
 use std::error::Error;
 
@@ -40,7 +34,7 @@ impl OdmBundle {
         let map = Odm::new(lod_manager, map_name)?;
         let tile_table = map.tile_table(lod_manager)?;
         let mesh = Self::generate_terrain_mesh(&map, &tile_table);
-        let image = bevy::render::texture::Image::from_dynamic(
+        let image = Image::from_dynamic(
             tile_table.atlas_image(lod_manager)?,
             true,
             RenderAssetUsages::RENDER_WORLD,
@@ -60,7 +54,6 @@ impl OdmBundle {
             base_color_texture: Some(image_handle),
             unlit: false,
             alpha_mode: AlphaMode::Opaque,
-            fog_enabled: true,
             perceptual_roughness: 1.0,
             reflectance: 0.2,
             flip_normal_map_y: true,
@@ -75,22 +68,13 @@ impl OdmBundle {
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::RENDER_WORLD,
         );
-        mesh.insert_indices(bevy::render::mesh::Indices::U32(odm_data.indices.clone()));
+        mesh.insert_indices(Indices::U32(odm_data.indices.clone()));
         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, odm_data.positions);
         mesh.duplicate_vertices();
         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, odm_data.uvs);
 
-        // let normals = generate_terrain_normals(
-        //     mesh.attribute(Mesh::ATTRIBUTE_POSITION)
-        //         .unwrap()
-        //         .as_float3()
-        //         .unwrap(),
-        //     &odm_data.indices,
-        // );
-        // mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-
         mesh.compute_flat_normals();
-        mesh.compute_aabb();
+
         _ = mesh.generate_tangents();
 
         mesh
@@ -117,50 +101,16 @@ fn process_models(map: &Odm) -> Vec<ModelBundle> {
     models
 }
 
-fn generate_normals(vertices: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
-    let mut normals = vec![[0.0, 0.0, 0.0]; vertices.len()];
-
-    for face_indices in indices.chunks(3) {
-        let v0 = vertices[face_indices[0] as usize];
-        let v1 = vertices[face_indices[1] as usize];
-        let v2 = vertices[face_indices[2] as usize];
-
-        let edge1 = [v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]];
-        let edge2 = [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]];
-
-        let cross_product = [
-            edge1[1] * edge2[2] - edge1[2] * edge2[1],
-            edge1[2] * edge2[0] - edge1[0] * edge2[2],
-            edge1[0] * edge2[1] - edge1[1] * edge2[0],
-        ];
-
-        for index in face_indices {
-            normals[*index as usize][0] += cross_product[0];
-            normals[*index as usize][1] += cross_product[1];
-            normals[*index as usize][2] += cross_product[2];
-        }
-    }
-
-    for normal in normals.iter_mut() {
-        let length = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();
-        normal[0] /= length;
-        normal[1] /= length;
-        normal[2] /= length;
-    }
-    normals
-}
-
 fn generate_bsp_model_mesh(model: &lod::bsp_model::BSPModel) -> Mesh {
     let mut mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
         RenderAssetUsages::RENDER_WORLD,
     );
-    mesh.insert_indices(bevy::render::mesh::Indices::U32(model.indices.clone()));
+    mesh.insert_indices(Indices::U32(model.indices.clone()));
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, model.vertices.clone());
     mesh.duplicate_vertices();
 
     mesh.compute_flat_normals();
-    mesh.compute_aabb();
     _ = mesh.generate_tangents();
 
     mesh
@@ -256,15 +206,12 @@ impl OdmName {
 #[derive(Component)]
 struct CurrentMap;
 
-fn odm_setup(mut commands: Commands) {}
-
 fn change_odm(
     mut commands: Commands,
     mut settings: ResMut<WorldSettings>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    //mut billboard_textures: ResMut<Assets<BillboardTextureBundle>>,
     query: Query<Entity, With<CurrentMap>>,
 ) {
     if !settings.odm_changed {
@@ -272,7 +219,7 @@ fn change_odm(
     }
 
     for e in &query {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
 
     let odm = OdmBundle::new(
@@ -291,64 +238,18 @@ fn change_odm(
     commands
         .spawn((
             Name::new("odm"),
-            PbrBundle {
-                mesh: meshes.add(odm.mesh.clone()),
-                material: materials.add(material),
-                ..default()
-            },
+            Mesh3d(meshes.add(odm.mesh.clone())),
+            MeshMaterial3d(materials.add(material)),
             CurrentMap,
         ))
         .with_children(|parent| {
             for m in odm.models {
                 parent.spawn((
                     Name::new("model"),
-                    PbrBundle {
-                        mesh: meshes.add(m.mesh.clone()),
-                        material: materials.add(m.material.clone()),
-
-                        ..default()
-                    },
+                    Mesh3d(meshes.add(m.mesh.clone())),
+                    MeshMaterial3d(materials.add(m.material.clone())),
                 ));
             }
-
-            // let sprite_manager =
-            //     lod::billboard::BillboardManager::new(&settings.lod_manager).unwrap();
-
-            // for b in odm.map.billboards {
-            //     let billboard_sprite = sprite_manager
-            //         .get(&settings.lod_manager, &b.declist_name, b.data.declist_id)
-            //         .unwrap();
-            //     let (width, height) = billboard_sprite.dimensions();
-
-            //     let image = bevy::render::texture::Image::from_dynamic(
-            //         billboard_sprite.image,
-            //         true,
-            //         RenderAssetUsages::RENDER_WORLD,
-            //     );
-            //     let image_handle = images.add(image);
-
-            //     parent.spawn((
-            //         Name::new("billboard"),
-            //         BillboardLockAxisBundle {
-            //             billboard_bundle: BillboardTextureBundle {
-            //                 transform: Transform::from_xyz(
-            //                     b.data.position[0] as f32,
-            //                     b.data.position[2] as f32 + height / 2.,
-            //                     -b.data.position[1] as f32,
-            //                 ),
-            //                 texture: bevy_mod_billboard::BillboardTextureHandle(
-            //                     image_handle.clone(),
-            //                 ),
-            //                 mesh: BillboardMeshHandle(meshes.add(Rectangle::new(width, height))),
-            //                 ..default()
-            //             },
-            //             lock_axis: BillboardLockAxis {
-            //                 y_axis: true,
-            //                 rotation: false,
-            //             },
-            //         },
-            //     ));
-            // }
         });
 
     settings.odm_changed = false;
@@ -378,13 +279,10 @@ pub struct OdmPlugin;
 
 impl Plugin for OdmPlugin {
     fn build(&self, app: &mut App) {
-        app
-            //.add_plugins(BillboardPlugin)
-            .add_systems(
-                Update,
-                (change_map_input, change_odm).run_if(in_state(GameState::Game)),
-            )
-            .add_systems(OnEnter(GameState::Game), odm_setup)
-            .add_systems(OnExit(GameState::Game), despawn_all::<CurrentMap>);
+        app.add_systems(
+            Update,
+            (change_map_input, change_odm).run_if(in_state(GameState::Game)),
+        )
+        .add_systems(OnExit(GameState::Game), despawn_all::<CurrentMap>);
     }
 }

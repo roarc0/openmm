@@ -1,15 +1,8 @@
-use bevy::ecs::event::{Events, ManualEventReader};
-use bevy::input::mouse::MouseMotion;
+use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, PrimaryWindow};
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
-
-/// Keeps track of mouse motion events, pitch, and yaw
-#[derive(Resource, Default)]
-struct InputState {
-    reader_motion: ManualEventReader<MouseMotion>,
-}
 
 /// Mouse sensitivity and movement speed
 #[derive(Resource)]
@@ -59,40 +52,36 @@ impl Default for KeyBindings {
     }
 }
 
-/// Used in queries when you want flycams and not other cameras
 /// A marker component used in queries when you want flycams and not other cameras
 #[derive(Component)]
 pub struct FlyCam;
 
 /// Grabs/ungrabs mouse cursor
-fn toggle_grab_cursor(window: &mut Window) {
-    match window.cursor.grab_mode {
+fn toggle_grab_cursor(cursor_options: &mut CursorOptions) {
+    match cursor_options.grab_mode {
         CursorGrabMode::None => {
-            window.cursor.grab_mode = CursorGrabMode::Confined;
-            window.cursor.visible = false;
+            cursor_options.grab_mode = CursorGrabMode::Confined;
+            cursor_options.visible = false;
         }
         _ => {
-            window.cursor.grab_mode = CursorGrabMode::None;
-            window.cursor.visible = true;
+            cursor_options.grab_mode = CursorGrabMode::None;
+            cursor_options.visible = true;
         }
     }
 }
 
-/// Spawns the `Camera3dBundle` to be controlled
+/// Spawns the `Camera3d` to be controlled
 fn setup_camera(mut commands: Commands) {
     commands.spawn((
-        Camera3dBundle {
-            transform: Transform::from_xyz(-11700.0, 1400.0, 11300.0)
-                .looking_at(Vec3::ZERO, Vec3::Y),
-            projection: Projection::Perspective(PerspectiveProjection {
-                fov: 65.0_f32.to_radians(),
-                ..Default::default()
-            }),
+        Camera3d::default(),
+        Transform::from_xyz(-11700.0, 1400.0, 11300.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Projection::Perspective(PerspectiveProjection {
+            fov: 65.0_f32.to_radians(),
             ..Default::default()
-        },
+        }),
         FlyCam,
-        FogSettings {
-            color: Color::rgba(0.02, 0.02, 0.02, 0.70),
+        DistanceFog {
+            color: Color::srgba(0.02, 0.02, 0.02, 0.70),
             falloff: FogFalloff::Linear {
                 start: 20000.0,
                 end: 64000.0,
@@ -106,15 +95,15 @@ fn setup_camera(mut commands: Commands) {
 fn player_controls(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    primary_window: Query<&Window, With<PrimaryWindow>>,
+    cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     settings: Res<MovementSettings>,
     key_bindings: Res<KeyBindings>,
     mut query: Query<(&FlyCam, &mut Transform)>,
 ) {
-    if let Ok(window) = primary_window.get_single() {
+    if let Ok(cursor_options) = cursor_query.single() {
         for (_camera, mut transform) in query.iter_mut() {
             for key in keys.get_pressed() {
-                match window.cursor.grab_mode {
+                match cursor_options.grab_mode {
                     CursorGrabMode::None => (),
                     _ => {
                         let key = *key;
@@ -154,17 +143,16 @@ fn handle_movement(
     let movement = match key {
         k if k == key_bindings.move_forward => -local_z,
         k if k == key_bindings.move_backward => local_z,
-        k if k == key_bindings.move_ascend => Direction3d::from_xyz(0.0, 1.0, 0.0).unwrap(),
-        k if k == key_bindings.move_descend => Direction3d::from_xyz(0.0, -1.0, 0.0).unwrap(),
-        _ => return, // Ignore keys that are not for movement
+        k if k == key_bindings.move_ascend => Dir3::from_xyz(0.0, 1.0, 0.0).unwrap(),
+        k if k == key_bindings.move_descend => Dir3::from_xyz(0.0, -1.0, 0.0).unwrap(),
+        _ => return,
     };
 
-    transform.translation += movement * time.delta_seconds() * settings.speed;
+    transform.translation += movement * time.delta_secs() * settings.speed;
 
     limit_movement_to_game_area(settings, transform);
 }
 
-// Check and limit the movement within the play area
 fn limit_movement_to_game_area(settings: &Res<'_, MovementSettings>, transform: &mut Transform) {
     if transform.translation.x.abs() > settings.max_xz {
         transform.translation.x = settings.max_xz * transform.translation.x.signum();
@@ -183,30 +171,27 @@ fn limit_movement_to_game_area(settings: &Res<'_, MovementSettings>, transform: 
 /// Handles looking around if cursor is locked
 fn player_look(
     settings: Res<MovementSettings>,
-    primary_window: Query<&Window, With<PrimaryWindow>>,
-    mut state: ResMut<InputState>,
-    motion: Res<Events<MouseMotion>>,
+    cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
+    accumulated: Res<AccumulatedMouseMotion>,
     mut query: Query<&mut Transform, With<FlyCam>>,
+    primary_window: Query<&Window, With<PrimaryWindow>>,
 ) {
-    if let Ok(window) = primary_window.get_single() {
+    if let (Ok(cursor_options), Ok(window)) = (cursor_query.single(), primary_window.single()) {
         for mut transform in query.iter_mut() {
-            for ev in state.reader_motion.read(&motion) {
-                let (mut yaw, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
-                match window.cursor.grab_mode {
-                    CursorGrabMode::None => (),
-                    _ => {
-                        // Using smallest of height or width ensures equal vertical and horizontal sensitivity
-                        let window_scale = window.height().min(window.width());
-                        pitch -= (settings.sensitivity * ev.delta.y * window_scale).to_radians();
-                        yaw -= (settings.sensitivity * ev.delta.x * window_scale).to_radians();
-                    }
+            let (mut yaw, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
+            match cursor_options.grab_mode {
+                CursorGrabMode::None => (),
+                _ => {
+                    let window_scale = window.height().min(window.width());
+                    let delta = accumulated.delta;
+                    pitch -= (settings.sensitivity * delta.y * window_scale).to_radians();
+                    yaw -= (settings.sensitivity * delta.x * window_scale).to_radians();
                 }
-
-                pitch = pitch.clamp(-1.54, 1.54);
-                // Order is important to prevent unintended roll
-                transform.rotation =
-                    Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);
             }
+
+            pitch = pitch.clamp(-1.54, 1.54);
+            transform.rotation =
+                Quat::from_axis_angle(Vec3::Y, yaw) * Quat::from_axis_angle(Vec3::X, pitch);
         }
     } else {
         warn!("Primary window not found for `player_look`!");
@@ -216,11 +201,11 @@ fn player_look(
 fn cursor_grab(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<KeyBindings>,
-    mut primary_window: Query<&mut Window, With<PrimaryWindow>>,
+    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if let Ok(mut window) = primary_window.get_single_mut() {
+    if let Ok(mut cursor_options) = cursor_query.single_mut() {
         if keys.just_pressed(key_bindings.toggle_grab_cursor) {
-            toggle_grab_cursor(&mut window);
+            toggle_grab_cursor(&mut cursor_options);
         }
     } else {
         warn!("Primary window not found for `cursor_grab`!");
@@ -231,8 +216,7 @@ fn cursor_grab(
 pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<InputState>()
-            .init_resource::<MovementSettings>()
+        app.init_resource::<MovementSettings>()
             .init_resource::<KeyBindings>()
             .add_systems(OnEnter(GameState::Game), setup_camera)
             .add_systems(

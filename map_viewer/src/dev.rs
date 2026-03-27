@@ -1,13 +1,11 @@
 use bevy::{
+    color::palettes::css,
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     input::{common_conditions::input_toggle_active, ButtonInput},
     pbr::wireframe::{WireframeConfig, WireframePlugin},
-    prelude::{
-        default, in_state, App, Color, Commands, Component, IntoSystemConfigs, KeyCode, OnEnter,
-        Plugin, Query, Res, ResMut, Resource, TextBundle, Transform, Update, Vec3, With,
-    },
-    text::{Text, TextSection, TextStyle},
+    prelude::*,
 };
+use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
@@ -46,79 +44,51 @@ impl Default for KeyBindings {
 fn dev_setup(
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
-    //dev_config: Res<DevConfig>,
-    //mut lines: ResMut<DebugLines>,
 ) {
     wireframe_config.global = false;
 
-    //if cfg.show_play_area {
     let val = ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.;
-    let points = [
+    let _points = [
         (
-            Color::RED,
+            Color::from(css::RED),
             Vec3::new(val, 0., val),
             Vec3::new(val, 0., -val),
         ),
         (
-            Color::LIME_GREEN,
+            Color::from(css::LIMEGREEN),
             Vec3::new(val, 0., val),
             Vec3::new(-val, 0., val),
         ),
         (
-            Color::BLUE,
+            Color::from(css::BLUE),
             Vec3::new(-val, 0., val),
             Vec3::new(-val, 0., -val),
         ),
         (
-            Color::ORANGE,
+            Color::from(css::ORANGE),
             Vec3::new(val, 0., -val),
             Vec3::new(-val, 0., -val),
         ),
     ];
 
-    // for (color, start, end) in &points {
-    //     lines.line_colored(*start, *end, 0.0, *color);
-    // }
-    //}
-
     commands.spawn((
-        TextBundle::from_sections([
-            TextSection::new(
-                "FPS: ",
-                TextStyle {
-                    font_size: 15.0,
-                    color: Color::WHITE,
-                    ..default()
-                },
-            ),
-            TextSection::from_style(TextStyle {
-                font_size: 15.0,
-                color: Color::GOLD,
-                ..default()
-            }),
-        ]),
+        Text::new("FPS: "),
+        TextFont {
+            font_size: 15.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
         FpsText,
-        //InWorld,
     ));
 
     commands.spawn((
-        TextBundle::from_sections([
-            TextSection::new(
-                " POS: ",
-                TextStyle {
-                    font_size: 15.0,
-                    color: Color::WHITE,
-                    ..default()
-                },
-            ),
-            TextSection::from_style(TextStyle {
-                font_size: 15.0,
-                color: Color::GOLD,
-                ..default()
-            }),
-        ]),
+        Text::new(" POS: "),
+        TextFont {
+            font_size: 15.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
         PositionText,
-        //InWorld,
     ));
 }
 
@@ -139,11 +109,14 @@ fn dev_input(
 #[derive(Component)]
 pub struct FpsText;
 
-fn update_fps_text(diagnostics: Res<DiagnosticsStore>, mut query: Query<&mut Text, With<FpsText>>) {
+fn update_fps_text(
+    diagnostics: Res<DiagnosticsStore>,
+    mut query: Query<&mut Text, With<FpsText>>,
+) {
     for mut text in &mut query {
         if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
             if let Some(value) = fps.smoothed() {
-                text.sections[1].value = format!("{value:.2}");
+                **text = format!("FPS: {value:.2}");
             }
         }
     }
@@ -156,9 +129,10 @@ fn update_position_text(
     mut query: Query<&mut Text, With<PositionText>>,
     query2: Query<&Transform, With<FlyCam>>,
 ) {
-    let transform = query2.get_single().unwrap();
-    for mut text in &mut query {
-        text.sections[1].value = format!("{:?}", transform.translation);
+    if let Ok(transform) = query2.single() {
+        for mut text in &mut query {
+            **text = format!(" POS: {:?}", transform.translation);
+        }
     }
 }
 
@@ -168,8 +142,9 @@ impl Plugin for DevPlugin {
         app.init_resource::<KeyBindings>()
             .insert_resource(DevConfig::default())
             .add_plugins((
-                WireframePlugin,
+                WireframePlugin::default(),
                 LogDiagnosticsPlugin::default(),
+                EguiPlugin::default(),
                 WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
             ))
             .add_systems(
@@ -178,6 +153,5 @@ impl Plugin for DevPlugin {
                     .run_if(in_state(GameState::Game)),
             )
             .add_systems(OnEnter(GameState::Game), dev_setup);
-        //.add_systems(OnExit(GameState::Game), despawn_all::<DevStuff>);
     }
 }

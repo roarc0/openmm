@@ -21,30 +21,26 @@ struct SplashTimer(Timer);
 fn splash_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let splash = asset_server.load("splash.png");
 
-    commands.spawn((Camera2dBundle::default(), OnSplashScreen));
+    commands.spawn((Camera2d, OnSplashScreen));
 
     commands
         .spawn((
-            NodeBundle {
-                style: Style {
-                    width: Val::Percent(100.0),
-                    align_items: AlignItems::Stretch,
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
+            Node {
+                width: Val::Percent(100.0),
+                align_items: AlignItems::Stretch,
+                justify_content: JustifyContent::Center,
                 ..default()
             },
             OnSplashScreen,
         ))
         .with_children(|parent| {
-            parent.spawn(ImageBundle {
-                style: Style {
+            parent.spawn((
+                Node {
                     flex_grow: 1.,
                     ..default()
                 },
-                image: UiImage::new(splash),
-                ..default()
-            });
+                ImageNode::new(splash),
+            ));
         });
 
     commands.insert_resource(SplashTimer(Timer::from_seconds(1.0, TimerMode::Once)));
@@ -55,7 +51,7 @@ fn countdown(
     time: Res<Time>,
     mut timer: ResMut<SplashTimer>,
 ) {
-    if timer.tick(time.delta()).finished() {
+    if timer.tick(time.delta()).just_finished() {
         game_state.set(GameState::Menu);
     }
 }

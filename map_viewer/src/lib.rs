@@ -1,5 +1,5 @@
 use bevy::prelude::{
-    App, Commands, Component, DespawnRecursiveExt, Entity, Plugin, Query, States, With,
+    App, AppExtStates, Commands, Component, Entity, Plugin, Query, States, With,
 };
 use bevy_config::BevyConfigPlugin;
 use dev::DevPlugin;
@@ -30,18 +30,19 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_state(GameState::Splash).add_plugins((
+        app.add_plugins((
             BevyConfigPlugin,
             MenuPlugin,
             SplashPlugin,
             WorldPlugin,
             DevPlugin,
-        ));
+        ))
+        .insert_state(GameState::Splash);
     }
 }
 
 pub fn despawn_all<T: Component>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
     for entity in &to_despawn {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
 }

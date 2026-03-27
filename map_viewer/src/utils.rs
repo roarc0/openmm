@@ -6,7 +6,7 @@ pub(super) fn random_color() -> Color {
         .luminosity(Luminosity::Dark)
         .to_rgb_array();
 
-    Color::rgba(
+    Color::srgba(
         color[0] as f32 / 255.,
         color[1] as f32 / 255.,
         color[2] as f32 / 255.,

@@ -2,10 +2,10 @@
 authors = ["Alessandro Rosetti <alessandro.rosetti@gmail.com>"]
 name = "lod"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-byteorder = "1.5.0"
-flate2 = "1.0.28"
-hexdump = "0.1.1"
-image = "0.24.7"
+byteorder = "1.5"
+flate2 = "1.0"
+hexdump = "0.1"
+image = "0.25"

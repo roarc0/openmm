@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use bevy::prelude::*;
 
 use crate::{despawn_all, GameState};
@@ -21,41 +19,31 @@ fn sun_setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    commands.insert_resource(AmbientLight {
+    commands.spawn(AmbientLight {
         color: Color::WHITE,
         brightness: 250.0,
         ..default()
     });
 
-    let entity_spawn = Transform::from_xyz(0.0, 2000.0, 0.0)
-        //.with_rotation(Quat::from_rotation_x(-PI / 4.))
-        .translation;
-    let entity_spawn2 = Transform::from_xyz(0.0, 5000.0, 0.0)
-        //.with_rotation(Quat::from_rotation_x(-PI / 4.))
-        .translation;
+    let entity_spawn = Transform::from_xyz(0.0, 2000.0, 0.0).translation;
+    let entity_spawn2 = Transform::from_xyz(0.0, 5000.0, 0.0).translation;
 
     commands.spawn((
         Name::new("fake_sun"),
-        PbrBundle {
-            mesh: meshes.add(Mesh::from(Sphere { radius: 200.0 })),
-            material: materials.add(Color::rgb(0.9, 0.9, 0.2)),
-            transform: Transform::from_translation(entity_spawn),
-            ..default()
-        },
+        Mesh3d(meshes.add(Mesh::from(Sphere { radius: 200.0 }))),
+        MeshMaterial3d(materials.add(Color::srgb(0.9, 0.9, 0.2))),
+        Transform::from_translation(entity_spawn),
         Movable::new(entity_spawn),
     ));
 
     commands.spawn((
         Name::new("sun"),
-        DirectionalLightBundle {
-            directional_light: DirectionalLight {
-                shadows_enabled: true,
-                illuminance: 2000.,
-                ..default()
-            },
-            transform: Transform::from_translation(entity_spawn2),
+        DirectionalLight {
+            shadows_enabled: true,
+            illuminance: 2000.,
             ..default()
         },
+        Transform::from_translation(entity_spawn2),
         Movable::new(entity_spawn2),
         InWorld,
     ));
@@ -67,7 +55,7 @@ fn update_sun(time: Res<Time>, mut sun: Query<(&mut Transform, &mut Movable)>) {
             movable.speed *= -1.0;
         }
         let direction = transform.local_x();
-        transform.translation += direction * movable.speed * time.delta_seconds();
+        transform.translation += direction * movable.speed * time.delta_secs();
     }
 }
 
