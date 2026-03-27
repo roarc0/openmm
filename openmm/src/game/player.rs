@@ -342,12 +342,22 @@ fn player_movement(
                     }
                 }
 
-                // Water check — block movement into water unless water-walking
+                // Water check — block movement into deep water unless water-walking or on a bridge
                 let can_water_walk = water_walking.as_ref().map_or(false, |w| w.0) || fly_mode.0;
                 if !can_water_walk {
                     if let Some(ref wm) = water_map {
-                        if wm.is_water_at(dest.x, dest.z) && !wm.is_water_at(from.x, from.z) {
-                            dest = from; // Block: can't enter water
+                        let dest_is_water = wm.is_water_at(dest.x, dest.z);
+                        let from_is_water = wm.is_water_at(from.x, from.z);
+                        if dest_is_water && !from_is_water {
+                            // Check if there's a BSP floor (bridge) at the destination
+                            let feet_y = from.y - settings.eye_height;
+                            let on_bridge = colliders
+                                .as_ref()
+                                .and_then(|c| c.floor_height_at(dest.x, dest.z, feet_y))
+                                .is_some();
+                            if !on_bridge {
+                                dest = from;
+                            }
                         }
                     }
                 }

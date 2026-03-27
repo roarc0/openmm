@@ -101,13 +101,19 @@ impl Dtile {
         Ok(Self { tiles })
     }
 
-    /// Check if a tile index from the tile_map refers to a water tile.
-    pub fn is_water_tile(&self, tile_index: u8) -> bool {
-        let i = tile_index as u16;
-        if (126..161).contains(&i) {
-            return true;
+    /// Check if a tile index is pure water (blocks movement).
+    /// Returns false for water transition tiles (shore) which are passable.
+    pub fn is_deep_water_tile(&self, tile_index: u8) -> bool {
+        if let Some(tile) = self.tiles.get(tile_index as usize) {
+            tile.is_water() && !tile.is_water_transition()
+        } else {
+            false
         }
-        if let Some(tile) = self.tiles.get(i as usize) {
+    }
+
+    /// Check if a tile index has any water (deep or transition).
+    pub fn is_any_water_tile(&self, tile_index: u8) -> bool {
+        if let Some(tile) = self.tiles.get(tile_index as usize) {
             tile.is_water()
         } else {
             false

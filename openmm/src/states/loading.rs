@@ -185,7 +185,7 @@ fn loading_step(
                             // Build water map from tile data
                             if let Ok(dtile) = Dtile::new(game_assets.lod_manager()) {
                                 let water_cells: Vec<bool> = odm.tile_map.iter()
-                                    .map(|&idx| dtile.is_water_tile(idx))
+                                    .map(|&idx| dtile.is_deep_water_tile(idx))
                                     .collect();
                                 progress.water_cells = Some(water_cells);
                             }
