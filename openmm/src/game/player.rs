@@ -191,9 +191,10 @@ fn setup_player(
 }
 
 /// Sample terrain height at a world position using bilinear interpolation.
+/// Terrain mesh: x = (w - 64) * 512, z = (d - 64) * 512, y = height_map[d * 128 + w] * 32
 pub fn sample_terrain_height(height_map: &[u8], world_x: f32, world_z: f32) -> f32 {
     let col_f = (world_x / ODM_TILE_SCALE) + 64.0;
-    let row_f = (-world_z / ODM_TILE_SCALE) + 64.0;
+    let row_f = (world_z / ODM_TILE_SCALE) + 64.0;
 
     let col0 = (col_f.floor() as usize).clamp(0, ODM_SIZE - 2);
     let row0 = (row_f.floor() as usize).clamp(0, ODM_SIZE - 2);
