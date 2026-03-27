@@ -14,6 +14,7 @@ use crate::{
     GameState,
 };
 use lod::{
+    billboard::BillboardManager,
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData},
 };
@@ -48,6 +49,7 @@ struct LoadingProgress {
     terrain_texture: Option<Image>,
     water_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
+    billboards: Option<Vec<PreparedBillboard>>,
     water_cells: Option<Vec<bool>>,
 }
 
@@ -62,6 +64,16 @@ pub struct PreparedSubMesh {
     pub texture: Option<Image>,
 }
 
+pub struct PreparedBillboard {
+    /// Position in Bevy coordinates.
+    pub position: Vec3,
+    /// Size in game units (width, height).
+    pub width: f32,
+    pub height: f32,
+    /// Sprite image.
+    pub image: Image,
+}
+
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 enum LoadingStep {
     #[default]
@@ -69,6 +81,7 @@ enum LoadingStep {
     BuildTerrain,
     BuildAtlas,
     BuildModels,
+    BuildBillboards,
     Done,
 }
 
@@ -79,6 +92,7 @@ impl LoadingStep {
             Self::BuildTerrain => "Building terrain...",
             Self::BuildAtlas => "Building textures...",
             Self::BuildModels => "Building models...",
+            Self::BuildBillboards => "Loading decorations...",
             Self::Done => "Done!",
         }
     }
@@ -87,8 +101,9 @@ impl LoadingStep {
         match self {
             Self::ParseMap => Self::BuildTerrain,
             Self::BuildTerrain => Self::BuildAtlas,
-            Self::BuildModels => Self::Done,
             Self::BuildAtlas => Self::BuildModels,
+            Self::BuildModels => Self::BuildBillboards,
+            Self::BuildBillboards => Self::Done,
             Self::Done => Self::Done,
         }
     }
@@ -102,6 +117,7 @@ pub struct PreparedWorld {
     pub terrain_texture: Image,
     pub water_texture: Option<Image>,
     pub models: Vec<PreparedModel>,
+    pub billboards: Vec<PreparedBillboard>,
     pub water_cells: Vec<bool>,
 }
 
@@ -129,6 +145,7 @@ fn loading_setup(
         terrain_texture: None,
         water_texture: None,
         models: None,
+        billboards: None,
         water_cells: None,
     });
 
@@ -342,6 +359,44 @@ fn loading_step(
                 progress.step = progress.step.next();
             }
         }
+        LoadingStep::BuildBillboards => {
+            if let Some(odm) = &progress.odm {
+                let mut prepared_billboards = Vec::new();
+                if let Ok(bb_mgr) = BillboardManager::new(game_assets.lod_manager()) {
+                    for bb in &odm.billboards {
+                        if bb.data.is_invisible() {
+                            continue;
+                        }
+                        if let Some(sprite) = bb_mgr.get(
+                            game_assets.lod_manager(),
+                            &bb.declist_name,
+                            bb.data.declist_id,
+                        ) {
+                            let (w, h) = sprite.dimensions();
+                            // MM6 coords (x, y, z) → Bevy (x, z, -y)
+                            let pos = Vec3::new(
+                                bb.data.position[0] as f32,
+                                bb.data.position[2] as f32,
+                                -bb.data.position[1] as f32,
+                            );
+                            let image = Image::from_dynamic(
+                                sprite.image,
+                                true,
+                                RenderAssetUsages::RENDER_WORLD,
+                            );
+                            prepared_billboards.push(PreparedBillboard {
+                                position: pos,
+                                width: w,
+                                height: h,
+                                image,
+                            });
+                        }
+                    }
+                }
+                progress.billboards = Some(prepared_billboards);
+                progress.step = progress.step.next();
+            }
+        }
         LoadingStep::Done => {
             // Move all prepared data into PreparedWorld resource
             let odm = progress.odm.take();
@@ -354,6 +409,7 @@ fn loading_step(
             {
                 let water_cells = progress.water_cells.take().unwrap_or_default();
                 let water_texture = progress.water_texture.take();
+                let billboards = progress.billboards.take().unwrap_or_default();
                 commands.insert_resource(PreparedWorld {
                     map,
                     terrain_mesh: mesh,
@@ -361,6 +417,7 @@ fn loading_step(
                     water_texture,
                     water_cells,
                     models,
+                    billboards,
                 });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);
