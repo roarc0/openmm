@@ -18,6 +18,13 @@ impl Plugin for BevyConfigPlugin {
             ..default()
         });
 
-        app.add_plugins((default_plugins, FrameTimeDiagnosticsPlugin::default()));
+        app.add_plugins((default_plugins, FrameTimeDiagnosticsPlugin::default()))
+            .add_systems(Startup, maximize_window);
+    }
+}
+
+fn maximize_window(mut windows: Query<&mut Window>) {
+    for mut window in &mut windows {
+        window.set_maximized(true);
     }
 }

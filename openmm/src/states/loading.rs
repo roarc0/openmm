@@ -104,10 +104,17 @@ pub struct PreparedWorld {
 #[derive(Component)]
 struct LoadingText;
 
-fn loading_setup(mut commands: Commands, load_request: Option<Res<LoadRequest>>) {
+fn loading_setup(
+    mut commands: Commands,
+    load_request: Option<Res<LoadRequest>>,
+    save_data: Res<crate::save::SaveData>,
+) {
     let map_name = load_request
         .map(|r| r.map_name.clone())
-        .unwrap_or_default();
+        .unwrap_or_else(|| OdmName {
+            x: save_data.map.map_x,
+            y: save_data.map.map_y,
+        });
 
     commands.insert_resource(LoadingProgress {
         step: LoadingStep::ParseMap,

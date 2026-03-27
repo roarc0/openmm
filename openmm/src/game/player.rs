@@ -10,6 +10,7 @@ use crate::game::collision::{
     BuildingColliders, CollisionTriangle, TerrainHeightMap,
     ground_height_at, sample_terrain_height,
 };
+use crate::save::SaveData;
 use crate::states::loading::PreparedWorld;
 
 // --- Components ---
@@ -138,6 +139,7 @@ fn setup_player(
     mut commands: Commands,
     prepared: Option<Res<PreparedWorld>>,
     settings: Res<PlayerSettings>,
+    save_data: Res<SaveData>,
 ) {
     if let Some(prepared) = &prepared {
         commands.insert_resource(TerrainHeightMap {
@@ -189,12 +191,13 @@ fn setup_player(
         commands.insert_resource(BuildingColliders { walls, floors });
     }
 
-    let start_x = 0.0_f32;
-    let start_z = 0.0_f32;
+    let start_x = save_data.player.position[0];
+    let start_z = save_data.player.position[2];
+    let start_yaw = save_data.player.yaw;
     let start_y = if let Some(prepared) = &prepared {
         sample_terrain_height(&prepared.map.height_map, start_x, start_z) + settings.eye_height
     } else {
-        1400.0
+        save_data.player.position[1]
     };
 
     commands
@@ -202,7 +205,8 @@ fn setup_player(
             Name::new("player"),
             Player,
             PlayerPhysics::default(),
-            Transform::from_xyz(start_x, start_y, start_z),
+            Transform::from_xyz(start_x, start_y, start_z)
+                .with_rotation(Quat::from_rotation_y(start_yaw)),
             Visibility::default(),
             InGame,
         ))

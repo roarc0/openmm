@@ -11,6 +11,7 @@ use crate::GameState;
 use crate::game::InGame;
 use crate::game::odm::OdmName;
 use crate::game::player::Player;
+use crate::save::{SaveData, PlayerSave, MapSave};
 use crate::states::loading::LoadRequest;
 
 #[derive(Resource)]
@@ -143,8 +144,66 @@ fn update_position_text(
     player_query: Query<&Transform, With<Player>>,
 ) {
     if let Ok(transform) = player_query.single() {
+        let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
         for mut text in &mut query {
-            **text = format!(" POS: {:?}", transform.translation);
+            **text = format!(
+                " POS: ({:.0}, {:.0}, {:.0}) YAW: {:.0}°",
+                transform.translation.x,
+                transform.translation.y,
+                transform.translation.z,
+                yaw.to_degrees(),
+            );
+        }
+    }
+}
+
+fn debug_log(
+    time: Res<Time>,
+    mut timer: Local<Option<Timer>>,
+    player_query: Query<&Transform, With<Player>>,
+) {
+    let timer = timer.get_or_insert_with(|| Timer::from_seconds(3.0, TimerMode::Repeating));
+    timer.tick(time.delta());
+    if timer.just_finished() {
+        if let Ok(transform) = player_query.single() {
+            let (yaw, pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
+            info!(
+                "pos=({:.0}, {:.0}, {:.0}) yaw={:.1}° pitch={:.1}°",
+                transform.translation.x,
+                transform.translation.y,
+                transform.translation.z,
+                yaw.to_degrees(),
+                pitch.to_degrees(),
+            );
+        }
+    }
+}
+
+fn quicksave(
+    keys: Res<ButtonInput<KeyCode>>,
+    player_query: Query<&Transform, With<Player>>,
+    current_map: Res<CurrentMapName>,
+    mut save_data: ResMut<SaveData>,
+) {
+    if keys.just_pressed(KeyCode::F3) {
+        if let Ok(transform) = player_query.single() {
+            let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+            save_data.player = PlayerSave {
+                position: [
+                    transform.translation.x,
+                    transform.translation.y,
+                    transform.translation.z,
+                ],
+                yaw,
+            };
+            save_data.map = MapSave {
+                map_x: current_map.0.x,
+                map_y: current_map.0.y,
+            };
+            match save_data.quicksave() {
+                Ok(()) => info!("Quicksaved to target/saves/quicksave.json"),
+                Err(e) => error!("Failed to quicksave: {}", e),
+            }
         }
     }
 }
@@ -163,7 +222,7 @@ impl Plugin for DevPlugin {
             ))
             .add_systems(
                 Update,
-                (dev_input, update_fps_text, update_position_text, dev_change_map)
+                (dev_input, update_fps_text, update_position_text, dev_change_map, debug_log, quicksave)
                     .run_if(in_state(GameState::Game)),
             )
             .add_systems(OnEnter(GameState::Game), dev_setup);

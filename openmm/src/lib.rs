@@ -5,11 +5,13 @@ use bevy_config::BevyConfigPlugin;
 
 use assets::GameAssets;
 use game::InGamePlugin;
+use save::SaveData;
 use states::{loading::LoadingPlugin, menu::MenuPlugin, splash::SplashPlugin};
 
 pub(crate) mod assets;
 pub(crate) mod bevy_config;
 pub(crate) mod game;
+pub(crate) mod save;
 pub(crate) mod states;
 
 const APP_NAME: &str = "openmm";
@@ -30,7 +32,10 @@ impl Plugin for GamePlugin {
         let game_assets = GameAssets::new(lod::get_lod_path().into())
             .expect("unable to load game data files");
 
+        let save_data = SaveData::load_or_default();
+
         app.insert_resource(game_assets)
+            .insert_resource(save_data)
             .add_plugins((
                 BevyConfigPlugin,
                 SplashPlugin,

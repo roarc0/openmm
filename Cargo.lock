@@ -4473,6 +4473,8 @@ dependencies = [
  "bevy-inspector-egui",
  "lod",
  "random_color",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
