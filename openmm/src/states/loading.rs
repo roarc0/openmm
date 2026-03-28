@@ -104,7 +104,8 @@ enum LoadingStep {
     BuildAtlas,
     BuildModels,
     BuildBillboards,
-    PreloadSprites,
+    PreloadActorSprites,
+    PreloadBillboardSprites,
     Done,
 }
 
@@ -116,7 +117,8 @@ impl LoadingStep {
             Self::BuildAtlas => "Building textures...",
             Self::BuildModels => "Building models...",
             Self::BuildBillboards => "Loading decorations...",
-            Self::PreloadSprites => "Loading sprites...",
+            Self::PreloadActorSprites => "Loading actor sprites...",
+            Self::PreloadBillboardSprites => "Loading billboard sprites...",
             Self::Done => "Done!",
         }
     }
@@ -127,8 +129,9 @@ impl LoadingStep {
             Self::BuildTerrain => Self::BuildAtlas,
             Self::BuildAtlas => Self::BuildModels,
             Self::BuildModels => Self::BuildBillboards,
-            Self::BuildBillboards => Self::PreloadSprites,
-            Self::PreloadSprites => Self::Done,
+            Self::BuildBillboards => Self::PreloadActorSprites,
+            Self::PreloadActorSprites => Self::PreloadBillboardSprites,
+            Self::PreloadBillboardSprites => Self::Done,
             Self::Done => Self::Done,
         }
     }
@@ -482,37 +485,15 @@ fn loading_step(
                 progress.step = progress.step.next();
             }
         }
-        LoadingStep::PreloadSprites => {
-            // Preload all unique sprite roots into a cache so spawn_world is fast.
-            use crate::game::entities::sprites::{SpriteCache, load_sprite_frames_cached};
-            let mut cache = SpriteCache::default();
-
-            // Collect unique sprite roots from monsters
-            let mut roots = std::collections::HashSet::new();
-            if let Some(monsters) = &progress.monsters {
-                for m in monsters {
-                    roots.insert(m.standing_sprite.clone());
-                    roots.insert(m.walking_sprite.clone());
-                }
-            }
-            // NPC sprites
-            for (st, wa) in &[("pfemst", "pfemwa"), ("pmanst", "pmanwk"), ("pmn2st", "pmn2wa")] {
-                roots.insert(st.to_string());
-                roots.insert(wa.to_string());
-            }
-
-            info!("Preloading {} unique sprite roots", roots.len());
-            for root in &roots {
-                let _ = load_sprite_frames_cached(
-                    root,
-                    game_assets.lod_manager(),
-                    &mut images,
-                    &mut materials,
-                    &mut Some(&mut cache),
-                );
-            }
-
-            // Pre-create billboard materials for unique sprite names
+        LoadingStep::PreloadActorSprites => {
+            // Skip heavy preloading — sprites will be loaded on-demand
+            // during lazy_spawn, 1 per frame via the sprite cache.
+            progress.sprite_cache = Some(crate::game::entities::sprites::SpriteCache::default());
+            progress.step = progress.step.next();
+        }
+        LoadingStep::PreloadBillboardSprites => {
+            // Billboard materials created on-demand during lazy_spawn.
+            // Just pre-create unique ones from the prepared images (fast — they're already decoded).
             let mut bb_cache = std::collections::HashMap::new();
             if let Some(billboards) = &progress.billboards {
                 for bb in billboards {
@@ -529,10 +510,7 @@ fn loading_step(
                     }
                 }
             }
-            info!("Preloaded {} unique billboard materials", bb_cache.len());
             progress.billboard_cache = Some(bb_cache);
-
-            progress.sprite_cache = Some(cache);
             progress.step = progress.step.next();
         }
         LoadingStep::Done => {

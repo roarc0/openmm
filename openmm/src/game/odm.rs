@@ -95,7 +95,7 @@ impl OdmName {
     }
 }
 
-const SPAWN_BATCH_SIZE: usize = 20;
+const SPAWN_BATCH_SIZE: usize = 5;
 
 pub struct OdmPlugin;
 
