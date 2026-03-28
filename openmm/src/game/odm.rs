@@ -109,8 +109,65 @@ pub struct OdmPlugin;
 impl Plugin for OdmPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::Game), spawn_world)
-            .add_systems(Update, lazy_spawn.run_if(in_state(GameState::Game)));
+            .add_systems(
+                Update,
+                (lazy_spawn, check_map_boundary)
+                    .run_if(in_state(GameState::Game)),
+            );
     }
+}
+
+/// Half-size of the playable area in world units.
+const PLAY_BOUNDARY: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32 / 2.0;
+/// Full playable area width (used to translate player position to new map).
+const PLAY_WIDTH: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32;
+
+/// Detect when the player crosses the play area boundary and load the adjacent map.
+fn check_map_boundary(
+    mut commands: Commands,
+    mut current_map: ResMut<crate::game::debug::CurrentMapName>,
+    mut save_data: ResMut<crate::save::GameSave>,
+    mut game_state: ResMut<NextState<GameState>>,
+    player_query: Query<&Transform, With<crate::game::player::Player>>,
+) {
+    let Ok(transform) = player_query.single() else { return };
+    let pos = transform.translation;
+    let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+
+    // Check which boundary was crossed (Bevy: +X=east, -X=west, -Z=north, +Z=south)
+    let (new_map, new_x, new_z) = if pos.x > PLAY_BOUNDARY {
+        // East edge → load eastern map, player appears at western edge
+        (current_map.0.go_east(), pos.x - PLAY_WIDTH, pos.z)
+    } else if pos.x < -PLAY_BOUNDARY {
+        // West edge → load western map, player appears at eastern edge
+        (current_map.0.go_west(), pos.x + PLAY_WIDTH, pos.z)
+    } else if pos.z < -PLAY_BOUNDARY {
+        // North edge (Bevy -Z = MM6 +Y = north)
+        (current_map.0.go_north(), pos.x, pos.z + PLAY_WIDTH)
+    } else if pos.z > PLAY_BOUNDARY {
+        // South edge (Bevy +Z = MM6 -Y = south)
+        (current_map.0.go_south(), pos.x, pos.z - PLAY_WIDTH)
+    } else {
+        return; // Still inside playable area
+    };
+
+    let Some(new_map) = new_map else {
+        return; // No adjacent map (edge of the world grid)
+    };
+
+    info!("Map transition: {} → {}", current_map.0, new_map);
+
+    // Save player position translated to the new map's coordinate space
+    save_data.player.position = [new_x, pos.y, new_z];
+    save_data.player.yaw = yaw;
+    save_data.map.map_x = new_map.x;
+    save_data.map.map_y = new_map.y;
+
+    commands.insert_resource(crate::states::loading::LoadRequest {
+        map_name: new_map.clone(),
+    });
+    current_map.0 = new_map;
+    game_state.set(GameState::Loading);
 }
 
 fn spawn_world(

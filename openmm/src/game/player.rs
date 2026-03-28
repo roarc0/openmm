@@ -338,15 +338,9 @@ fn player_movement(
             }
         }
 
-        // Clamp to play area
-        transform.translation.x = transform
-            .translation
-            .x
-            .clamp(-settings.max_xz, settings.max_xz);
-        transform.translation.z = transform
-            .translation
-            .z
-            .clamp(-settings.max_xz, settings.max_xz);
+        // No position clamp — the map transition system in odm.rs
+        // detects when the player crosses the play area boundary and
+        // loads the adjacent map automatically.
     }
 }
 
