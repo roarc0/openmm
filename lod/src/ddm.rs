@@ -67,6 +67,13 @@ impl Ddm {
         Self::parse(&data.data)
     }
 
+    /// Parse actors from raw (decompressed) delta file data.
+    /// Usable by both DDM (outdoor) and DLV (indoor) parsers since they share the same MapMonster struct.
+    pub fn parse_from_data(data: &[u8]) -> Result<Vec<DdmActor>, Box<dyn Error>> {
+        let ddm = Self::parse(data)?;
+        Ok(ddm.actors)
+    }
+
     fn parse(data: &[u8]) -> Result<Self, Box<dyn Error>> {
         // Scan for actor count: a u32 followed by ASCII name bytes
         let actor_start = Self::find_actors(data)?;
