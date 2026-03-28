@@ -55,35 +55,22 @@ impl Default for CurrentMapName {
 fn dev_setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfig>) {
     wireframe_config.global = false;
 
-    // Single debug overlay in top-left corner
-    commands
-        .spawn((
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(8.0),
-                top: Val::Px(8.0),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(2.0),
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-            InGame,
-            DebugHud,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new("FPS: --"),
-                TextFont { font_size: 14.0, ..default() },
-                TextColor(Color::srgb(0.3, 1.0, 0.3)),
-                FpsText,
-            ));
-            parent.spawn((
-                Text::new("POS: --"),
-                TextFont { font_size: 14.0, ..default() },
-                TextColor(Color::srgb(0.8, 0.8, 0.3)),
-                PositionText,
-            ));
-        });
+    // Debug HUD — single text entity with both FPS and position
+    commands.spawn((
+        Text::new("FPS: --\nPOS: --"),
+        TextFont { font_size: 14.0, ..default() },
+        TextColor(Color::srgb(0.3, 1.0, 0.3)),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(8.0),
+            top: Val::Px(8.0),
+            ..default()
+        },
+        FpsText,
+        PositionText,
+        InGame,
+        DebugHud,
+    ));
 }
 
 /// Marker for the debug HUD container.
@@ -144,39 +131,36 @@ fn dev_change_map(
 #[derive(Component)]
 pub struct FpsText;
 
-fn update_fps_text(
+fn update_hud_text(
     diagnostics: Res<DiagnosticsStore>,
+    player_query: Query<&Transform, With<Player>>,
     mut query: Query<&mut Text, With<FpsText>>,
 ) {
+    let fps_str = diagnostics
+        .get(&FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(|fps| fps.smoothed())
+        .map(|v| format!("FPS: {v:.0}"))
+        .unwrap_or_else(|| "FPS: --".into());
+
+    let pos_str = if let Ok(transform) = player_query.single() {
+        let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+        format!(
+            "X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}°",
+            transform.translation.x, transform.translation.y,
+            transform.translation.z, yaw.to_degrees(),
+        )
+    } else {
+        "POS: --".into()
+    };
+
     for mut text in &mut query {
-        if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
-            if let Some(value) = fps.smoothed() {
-                **text = format!("FPS: {value:.0}");
-            }
-        }
+        **text = format!("{}\n{}", fps_str, pos_str);
     }
 }
 
+// Keep PositionText as alias for backward compat
 #[derive(Component)]
 pub struct PositionText;
-
-fn update_position_text(
-    mut query: Query<&mut Text, With<PositionText>>,
-    player_query: Query<&Transform, With<Player>>,
-) {
-    if let Ok(transform) = player_query.single() {
-        let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-        for mut text in &mut query {
-            **text = format!(
-                "X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}°",
-                transform.translation.x,
-                transform.translation.y,
-                transform.translation.z,
-                yaw.to_degrees(),
-            );
-        }
-    }
-}
 
 fn debug_log(
     time: Res<Time>,
@@ -243,7 +227,7 @@ impl Plugin for DevPlugin {
             ))
             .add_systems(
                 Update,
-                (dev_input, update_fps_text, update_position_text, dev_change_map, debug_log, quicksave)
+                (dev_input, update_hud_text, dev_change_map, debug_log, quicksave)
                     .run_if(in_state(GameState::Game)),
             )
             .add_systems(OnEnter(GameState::Game), dev_setup);
