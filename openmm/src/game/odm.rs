@@ -198,27 +198,13 @@ fn spawn_world(
         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    // Pre-create billboard materials for unique sprite names
-    let mut bb_cache = std::collections::HashMap::new();
-    for bb in &prepared.billboards {
-        if !bb_cache.contains_key(&bb.sprite_name) {
-            let tex = images.add(bb.image.clone());
-            let mat = materials.add(StandardMaterial {
-                base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
-                cull_mode: None, double_sided: true, unlit: true, ..default()
-            });
-            let quad = meshes.add(Rectangle::new(bb.width, bb.height));
-            bb_cache.insert(bb.sprite_name.clone(), (mat, quad));
-        }
-    }
-
     commands.insert_resource(PendingSpawns {
         billboard_order: bb_order,
         actor_order,
         monster_order,
         idx: 0,
         sprite_cache: prepared.sprite_cache.clone(),
-        billboard_cache: bb_cache,
+        billboard_cache: prepared.billboard_cache.clone(),
         terrain_entity,
     });
 }

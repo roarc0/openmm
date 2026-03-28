@@ -54,9 +54,6 @@ impl Default for CurrentMapName {
 
 fn dev_setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfig>) {
     wireframe_config.global = false;
-    // UI camera for HUD rendering
-    commands.spawn((Camera2d, InGame));
-
     // Debug HUD
     commands.spawn((
         Text::new("FPS: --\nPOS: --"),

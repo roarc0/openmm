@@ -56,6 +56,7 @@ struct LoadingProgress {
     actors: Option<Vec<DdmActor>>,
     monsters: Option<Vec<PreparedMonster>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
+    billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>)>>,
     water_cells: Option<Vec<bool>>,
 }
 
@@ -145,6 +146,7 @@ pub struct PreparedWorld {
     pub actors: Vec<DdmActor>,
     pub monsters: Vec<PreparedMonster>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
+    pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>)>,
     pub water_cells: Vec<bool>,
 }
 
@@ -176,6 +178,7 @@ fn loading_setup(
         actors: None,
         monsters: None,
         sprite_cache: None,
+        billboard_cache: None,
         water_cells: None,
     });
 
@@ -217,6 +220,7 @@ fn loading_step(
     mut commands: Commands,
     mut text_query: Query<&mut Text, With<LoadingText>>,
     mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Update loading text
@@ -508,6 +512,26 @@ fn loading_step(
                 );
             }
 
+            // Pre-create billboard materials for unique sprite names
+            let mut bb_cache = std::collections::HashMap::new();
+            if let Some(billboards) = &progress.billboards {
+                for bb in billboards {
+                    if !bb_cache.contains_key(&bb.sprite_name) {
+                        let tex = images.add(bb.image.clone());
+                        let mat = materials.add(StandardMaterial {
+                            base_color_texture: Some(tex),
+                            alpha_mode: AlphaMode::Mask(0.5),
+                            cull_mode: None, double_sided: true, unlit: true,
+                            ..default()
+                        });
+                        let quad = meshes.add(Rectangle::new(bb.width, bb.height));
+                        bb_cache.insert(bb.sprite_name.clone(), (mat, quad));
+                    }
+                }
+            }
+            info!("Preloaded {} unique billboard materials", bb_cache.len());
+            progress.billboard_cache = Some(bb_cache);
+
             progress.sprite_cache = Some(cache);
             progress.step = progress.step.next();
         }
@@ -536,6 +560,7 @@ fn loading_step(
                     actors,
                     monsters: progress.monsters.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
+                    billboard_cache: progress.billboard_cache.take().unwrap_or_default(),
                 });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);
