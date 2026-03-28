@@ -6,7 +6,7 @@ use bevy::prelude::*;
 use lod::{dsft::DSFT, LodManager};
 
 use crate::game::entities::{AnimationState, EntityKind, WorldEntity, sprites};
-use crate::states::loading::PreparedWorld;
+use crate::states::loading::{PreparedMonster, PreparedWorld};
 
 /// Unified NPC/monster actor component.
 #[derive(Component)]
@@ -98,6 +98,72 @@ pub fn spawn_actors(
                 wander_target: pos,
                 facing_yaw: 0.0,
                 hostile: false,
+            },
+        ));
+    }
+}
+
+/// Spawn monsters from ODM spawn points with sprites from dmonlist.
+pub fn spawn_monsters(
+    parent: &mut ChildSpawnerCommands,
+    prepared: &PreparedWorld,
+    lod_manager: &LodManager,
+    images: &mut ResMut<Assets<Image>>,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+) {
+    for monster in &prepared.monsters {
+        let (standing_frames, sprite_w, sprite_h) =
+            sprites::load_sprite_frames(&monster.standing_sprite, lod_manager, images, materials);
+
+        if standing_frames.is_empty() || sprite_w == 0.0 {
+            continue;
+        }
+
+        let (walking_frames, _, _) =
+            sprites::load_sprite_frames(&monster.walking_sprite, lod_manager, images, materials);
+
+        let mut states = vec![standing_frames];
+        if !walking_frames.is_empty() {
+            states.push(walking_frames);
+        }
+
+        let initial_mat = states[0][0][0].clone();
+        let quad = meshes.add(Rectangle::new(sprite_w, sprite_h));
+
+        // MM6 coords (x, y, z) → Bevy (x, z, -y)
+        let pos = Vec3::new(
+            monster.position[0] as f32,
+            monster.position[2] as f32 + sprite_h / 2.0,
+            -monster.position[1] as f32,
+        );
+
+        parent.spawn((
+            Name::new("monster"),
+            Mesh3d(quad),
+            MeshMaterial3d(initial_mat),
+            Transform::from_translation(pos),
+            WorldEntity,
+            EntityKind::Monster,
+            AnimationState::Idle,
+            sprites::SpriteSheet {
+                states,
+                current_frame: 0,
+                frame_timer: 0.0,
+                frame_duration: 0.15,
+            },
+            Actor {
+                name: "Monster".into(),
+                hp: 10,
+                max_hp: 10,
+                move_speed: monster.move_speed as f32,
+                initial_position: pos,
+                guarding_position: pos,
+                tether_distance: monster.radius as f32,
+                wander_timer: 0.0,
+                wander_target: pos,
+                facing_yaw: 0.0,
+                hostile: monster.hostile,
             },
         ));
     }

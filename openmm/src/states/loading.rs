@@ -17,7 +17,9 @@ use lod::{
     billboard::BillboardManager,
     ddm::{Ddm, DdmActor},
     dtile::{Dtile, TileTable},
-    odm::{Odm, OdmData},
+    mapstats::MapStats,
+    monlist::MonsterList,
+    odm::{Odm, OdmData, SpawnPoint},
 };
 
 pub struct LoadingPlugin;
@@ -52,6 +54,7 @@ struct LoadingProgress {
     models: Option<Vec<PreparedModel>>,
     billboards: Option<Vec<PreparedBillboard>>,
     actors: Option<Vec<DdmActor>>,
+    monsters: Option<Vec<PreparedMonster>>,
     water_cells: Option<Vec<bool>>,
 }
 
@@ -64,6 +67,19 @@ pub struct PreparedSubMesh {
     pub mesh: Mesh,
     pub material: StandardMaterial,
     pub texture: Option<Image>,
+}
+
+/// A monster to spawn from a spawn point, with resolved sprite names.
+pub struct PreparedMonster {
+    /// Position in MM6 coordinates.
+    pub position: [i32; 3],
+    pub radius: u16,
+    /// Sprite name roots: [standing, walking]
+    pub standing_sprite: String,
+    pub walking_sprite: String,
+    pub height: u16,
+    pub move_speed: u16,
+    pub hostile: bool,
 }
 
 pub struct PreparedBillboard {
@@ -121,6 +137,7 @@ pub struct PreparedWorld {
     pub models: Vec<PreparedModel>,
     pub billboards: Vec<PreparedBillboard>,
     pub actors: Vec<DdmActor>,
+    pub monsters: Vec<PreparedMonster>,
     pub water_cells: Vec<bool>,
 }
 
@@ -150,6 +167,7 @@ fn loading_setup(
         models: None,
         billboards: None,
         actors: None,
+        monsters: None,
         water_cells: None,
     });
 
@@ -215,6 +233,32 @@ fn loading_step(
                                 .map(|ddm| ddm.actors)
                                 .unwrap_or_default();
                             progress.actors = Some(actors);
+
+                            // Resolve spawn points to monsters via mapstats + dmonlist
+                            let mut monsters = Vec::new();
+                            if let (Ok(mapstats), Ok(monlist)) = (
+                                MapStats::new(game_assets.lod_manager()),
+                                MonsterList::new(game_assets.lod_manager()),
+                            ) {
+                                if let Some(map_config) = mapstats.get(&map_name) {
+                                    for sp in &odm.spawn_points {
+                                        if let Some((mon_name, dif)) = map_config.monster_for_index(sp.monster_index) {
+                                            if let Some(desc) = monlist.find_by_name(mon_name, dif) {
+                                                monsters.push(PreparedMonster {
+                                                    position: sp.position,
+                                                    radius: sp.radius,
+                                                    standing_sprite: desc.sprite_names[0].clone(),
+                                                    walking_sprite: desc.sprite_names[1].clone(),
+                                                    height: desc.height,
+                                                    move_speed: desc.move_speed,
+                                                    hostile: true,
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            progress.monsters = Some(monsters);
 
                             progress.tile_table = Some(tile_table);
                             progress.odm = Some(odm);
@@ -430,6 +474,7 @@ fn loading_step(
                     models,
                     billboards,
                     actors,
+                    monsters: progress.monsters.take().unwrap_or_default(),
                 });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);

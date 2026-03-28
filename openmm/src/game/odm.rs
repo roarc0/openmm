@@ -159,5 +159,13 @@ fn spawn_world(
                 &mut meshes,
                 &mut materials,
             );
+            actor::spawn_monsters(
+                parent,
+                &prepared,
+                game_assets.lod_manager(),
+                &mut images,
+                &mut meshes,
+                &mut materials,
+            );
         });
 }

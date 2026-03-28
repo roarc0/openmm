@@ -11,6 +11,7 @@ use palette::Palettes;
 pub mod bsp_model;
 pub mod ddm;
 pub mod dtile;
+pub mod mapstats;
 pub mod monlist;
 pub mod odm;
 

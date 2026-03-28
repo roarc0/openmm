@@ -88,4 +88,16 @@ impl MonsterList {
     pub fn get(&self, id: usize) -> Option<&MonsterDesc> {
         self.monsters.get(id)
     }
+
+    /// Find a monster by internal name prefix + difficulty (1=A, 2=B, 3=C).
+    /// e.g. find_by_name("Goblin", 1) → GoblinA
+    pub fn find_by_name(&self, name: &str, difficulty: u8) -> Option<&MonsterDesc> {
+        let suffix = match difficulty {
+            1 => "A",
+            2 => "B",
+            3 | _ => "C",
+        };
+        let target = format!("{}{}", name, suffix);
+        self.monsters.iter().find(|m| m.internal_name.eq_ignore_ascii_case(&target))
+    }
 }
