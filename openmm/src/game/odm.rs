@@ -360,12 +360,17 @@ fn resolve_dsft_sprite(dsft: &lod::dsft::DSFT, group_name: &str, lod: &lod::LodM
             if gname.eq_ignore_ascii_case(group_name) {
                 // The DSFT sprite_name is the actual LOD file name
                 if let Some(sprite_name) = frame.sprite_name() {
-                    // Verify it exists in the LOD
-                    let test = format!("sprites/{}", sprite_name.to_lowercase());
+                    // The DSFT sprite name is like "pfemsta" — the root without
+                    // a direction digit. LOD files are "pfemsta0", "pfemsta1", etc.
+                    let root = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
+                    let test = format!("sprites/{}0", root.to_lowercase());
                     if lod.try_get_bytes(&test).is_ok() {
-                        // Return the sprite root (without direction digit)
-                        let root = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
                         return Some(root.to_lowercase());
+                    }
+                    // Also try with the full name + "0"
+                    let test2 = format!("sprites/{}0", sprite_name.to_lowercase());
+                    if lod.try_get_bytes(&test2).is_ok() {
+                        return Some(sprite_name.to_lowercase());
                     }
                 }
                 break;

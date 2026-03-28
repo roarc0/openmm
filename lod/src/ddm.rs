@@ -126,16 +126,16 @@ impl Ddm {
         let hp = c.read_i16::<LittleEndian>().ok()?;
         let _pad2 = c.read_i16::<LittleEndian>().ok()?;
 
-        // Read monster_id from MonsterInfo area
-        // Empirically found at offset 0x34 as a u8 in MM6 actor struct
+        // MonsterInfo area contains the monsterInfo.id field.
+        // In MM6's 548-byte actor struct, the layout differs from MM7's 836-byte struct.
+        // Offset 0x34 within the actor was empirically verified to contain a value
+        // matching monlist peasant indices (120-140 range).
         let monster_id = data[0x34];
 
-        // Skip to position fields
+        // Skip to position fields (MM6 offsets, verified to produce correct coordinates)
         c.seek(std::io::SeekFrom::Start(0x74)).ok()?;
-
-        // Offset 0x74: field_84(2) + monsterId(2)
         let _field84 = c.read_i16::<LittleEndian>().ok()?;
-        let _monster_id = c.read_i16::<LittleEndian>().ok()?;
+        let _monster_id2 = c.read_i16::<LittleEndian>().ok()?;
 
         // Offset 0x78: radius(2) + height(2) + moveSpeed(2)
         let radius = c.read_u16::<LittleEndian>().ok()?;
