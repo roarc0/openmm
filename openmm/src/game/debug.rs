@@ -354,7 +354,7 @@ fn update_hud_text(
     let pos_str = if let Ok(transform) = player_query.single() {
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
         format!(
-            "\nX:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}°",
+            "\nX:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg",
             transform.translation.x, transform.translation.y,
             transform.translation.z, yaw.to_degrees(),
         )
@@ -407,7 +407,7 @@ fn debug_log(
         if let Ok(transform) = player_query.single() {
             let (yaw, pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
             info!(
-                "pos=({:.0}, {:.0}, {:.0}) yaw={:.1}° pitch={:.1}°",
+                "pos=({:.0}, {:.0}, {:.0}) yaw={:.1}deg pitch={:.1}deg",
                 transform.translation.x,
                 transform.translation.y,
                 transform.translation.z,

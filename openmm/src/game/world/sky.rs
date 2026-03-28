@@ -44,9 +44,9 @@ pub struct SkyPlugin;
 
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
-        // ClearColor shows below the sky dome and is also used as the fog target.
-        // Should approximate the sky texture's average horizon color.
-        app.insert_resource(ClearColor(Color::srgb(0.35, 0.42, 0.70)))
+        // ClearColor = fog target. Blend of sky horizon (0.37, 0.42, 0.55)
+        // and terrain (0.28, 0.37, 0.20), slightly desaturated.
+        app.insert_resource(ClearColor(Color::srgb(0.38, 0.43, 0.52)))
             .add_plugins(MaterialPlugin::<SkyMaterial>::default())
             .add_systems(OnEnter(GameState::Game), spawn_sky)
             .add_systems(
@@ -187,15 +187,16 @@ fn update_sky_color(
         (1.0 - (d1.min(d2) * 8.0).min(1.0)).max(0.0)
     };
 
-    // Match the plansky texture's dominant horizon blue.
-    let r: f32 = 0.08 + 0.27 * day_amount + 0.45 * dawn_dusk;
-    let g: f32 = 0.08 + 0.34 * day_amount + 0.20 * dawn_dusk;
-    let b: f32 = 0.18 + 0.52 * day_amount - 0.10 * dawn_dusk;
+    // Fog/sky blend color matching plansky2 horizon + terrain tones.
+    // Day: hazy blue-green (0.38, 0.43, 0.52). Night: dark. Dawn/dusk: warm.
+    let r: f32 = 0.10 + 0.28 * day_amount + 0.40 * dawn_dusk;
+    let g: f32 = 0.10 + 0.33 * day_amount + 0.18 * dawn_dusk;
+    let b: f32 = 0.14 + 0.38 * day_amount - 0.08 * dawn_dusk;
 
     clear_color.0 = Color::srgb(
-        r.clamp(0.05, 0.85),
-        g.clamp(0.05, 0.75),
-        b.clamp(0.10, 0.80),
+        r.clamp(0.06, 0.80),
+        g.clamp(0.06, 0.70),
+        b.clamp(0.08, 0.65),
     );
 }
 

@@ -194,62 +194,90 @@ pub struct OdmData {
     pub uvs: Vec<[f32; 2]>,
 }
 
+/// Extra tiles beyond each edge. Must exceed the camera far clip (100k units)
+/// so the terrain edge is never visible even when flying.
+/// 200 tiles × 512 scale = 102,400 units > 100k far clip.
+const TERRAIN_BORDER: i32 = 200;
+
 impl OdmData {
     pub fn new(odm: &Odm, tile_table: &TileTable) -> Self {
-        let (width, depth) = odm.size();
-        let width_u32 = width as u32;
-        let (width_half, depth_half) = (width as f32 / 2., depth as f32 / 2.);
+        let (orig_w, orig_d) = odm.size();
+        // Extended grid: original + border on each side
+        let ext_w = orig_w as i32 + TERRAIN_BORDER * 2;
+        let ext_d = orig_d as i32 + TERRAIN_BORDER * 2;
+        let ext_w_u = ext_w as usize;
+        let ext_d_u = ext_d as usize;
 
-        // Build vertex positions on the heightmap grid
-        let vertices_count: usize = width * depth;
+        // Center of the extended grid in world space (same as original center)
+        let orig_half_w = orig_w as f32 / 2.0;
+        let orig_half_d = orig_d as f32 / 2.0;
+
+        // Build vertex positions: sample heightmap with clamping at edges
+        let vertices_count = ext_w_u * ext_d_u;
         let mut positions: Vec<[f32; 3]> = Vec::with_capacity(vertices_count);
 
-        for d in 0..depth {
-            for w in 0..width {
-                let i = d * width + w;
+        for d in 0..ext_d {
+            for w in 0..ext_w {
+                // Map extended coords back to original heightmap coords (clamped)
+                let orig_w_i = (w - TERRAIN_BORDER).clamp(0, orig_w as i32 - 1) as usize;
+                let orig_d_i = (d - TERRAIN_BORDER).clamp(0, orig_d as i32 - 1) as usize;
+                let height = odm.height_map[orig_d_i * orig_w + orig_w_i] as f32 * ODM_HEIGHT_SCALE;
+
+                // World position: offset by border so original terrain stays centered
+                let world_w = (w - TERRAIN_BORDER) as f32 - orig_half_w;
+                let world_d = (d - TERRAIN_BORDER) as f32 - orig_half_d;
                 positions.push([
-                    (w as f32 - width_half) * ODM_TILE_SCALE,
-                    odm.height_map[i] as f32 * ODM_HEIGHT_SCALE,
-                    (d as f32 - depth_half) * ODM_TILE_SCALE,
+                    world_w * ODM_TILE_SCALE,
+                    height,
+                    world_d * ODM_TILE_SCALE,
                 ]);
             }
         }
 
-        // Compute smooth normals from the heightmap using central differences
-        let normals = Self::compute_smooth_normals(&odm.height_map[..], width, depth);
+        // Compute normals on the extended grid
+        let ext_heights: Vec<u8> = (0..ext_d_u * ext_w_u)
+            .map(|i| {
+                let d = (i / ext_w_u) as i32 - TERRAIN_BORDER;
+                let w = (i % ext_w_u) as i32 - TERRAIN_BORDER;
+                let cd = d.clamp(0, orig_d as i32 - 1) as usize;
+                let cw = w.clamp(0, orig_w as i32 - 1) as usize;
+                odm.height_map[cd * orig_w + cw]
+            })
+            .collect();
+        let normals = Self::compute_smooth_normals(&ext_heights, ext_w_u, ext_d_u);
 
-        // Build indices with adaptive triangulation and matching UVs
-        let quad_count = (width - 1) * (depth - 1);
+        // Build indices and UVs
+        let quad_count = (ext_w_u - 1) * (ext_d_u - 1);
         let mut indices: Vec<u32> = Vec::with_capacity(quad_count * 6);
         let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(quad_count * 6);
+        let ext_w_u32 = ext_w_u as u32;
 
-        for d in 0..(depth - 1) {
-            for w in 0..(width - 1) {
-                let i = (d * width + w) as u32;
-                let tl = i;                    // top-left
-                let tr = i + 1;                // top-right
-                let bl = i + width_u32;        // bottom-left
-                let br = i + width_u32 + 1;    // bottom-right
+        for d in 0..(ext_d_u - 1) {
+            for w in 0..(ext_w_u - 1) {
+                let i = (d * ext_w_u + w) as u32;
+                let tl = i;
+                let tr = i + 1;
+                let bl = i + ext_w_u32;
+                let br = i + ext_w_u32 + 1;
 
-                // Adaptive diagonal: choose the split that minimizes height difference
                 let h_tl = positions[tl as usize][1];
                 let h_tr = positions[tr as usize][1];
                 let h_bl = positions[bl as usize][1];
                 let h_br = positions[br as usize][1];
+                let diag1 = (h_tl - h_br).abs();
+                let diag2 = (h_tr - h_bl).abs();
 
-                let diag1 = (h_tl - h_br).abs(); // TL-BR diagonal
-                let diag2 = (h_tr - h_bl).abs(); // TR-BL diagonal
-
-                let tile_index = d * width + w;
+                // Map back to original tile coords (clamped) for UV lookup
+                let orig_tw = (w as i32 - TERRAIN_BORDER).clamp(0, orig_w as i32 - 2) as usize;
+                let orig_td = (d as i32 - TERRAIN_BORDER).clamp(0, orig_d as i32 - 2) as usize;
+                let tile_index = orig_td * orig_w + orig_tw;
                 let (uv_tl, uv_tr, uv_bl, uv_br) =
                     Self::tile_uvs(tile_table, odm.tile_map[tile_index]);
 
                 if diag1 <= diag2 {
-                    // Split along TL-BR: triangles (TL,BL,BR) and (TL,BR,TR)
                     indices.extend_from_slice(&[tl, bl, br, tl, br, tr]);
                     uvs.extend_from_slice(&[uv_tl, uv_bl, uv_br, uv_tl, uv_br, uv_tr]);
                 } else {
-                    // Split along TR-BL: triangles (TL,BL,TR) and (TR,BL,BR)
                     indices.extend_from_slice(&[tl, bl, tr, tr, bl, br]);
                     uvs.extend_from_slice(&[uv_tl, uv_bl, uv_tr, uv_tr, uv_bl, uv_br]);
                 }
