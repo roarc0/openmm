@@ -230,9 +230,11 @@ fn decode_sprite_frames(
         let mut dir_imgs: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
         for dir in 0..5u8 {
             let name = format!("{}{}{}", root, frame_letter, dir);
-            // For variant B/C, use palette swap: base_palette + (variant-1)
+            // For variant B/C, use the DSFT palette_id directly.
+            // The variant encodes a palette offset from the base palette stored
+            // in the sprite file header. But DSFT palette IDs don't always match
+            // file header palette IDs, so we pass the exact palette.
             let img = if variant > 1 {
-                // Read base sprite's palette_id and offset by variant
                 let pal_offset = (variant - 1) as u16;
                 load_sprite_with_palette_offset(lod_manager, &name, &test_nodir, pal_offset)
             } else {
