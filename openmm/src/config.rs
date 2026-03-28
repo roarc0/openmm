@@ -113,7 +113,7 @@ impl Default for GameConfig {
     fn default() -> Self {
         Self {
             map: None,
-            skip_intro: true,
+            skip_intro: false,
             debug: true,
             wireframe: false,
             show_play_area: true,

@@ -19,32 +19,22 @@ struct OnSplashScreen;
 #[derive(Resource, Deref, DerefMut)]
 struct SplashTimer(Timer);
 
-fn splash_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let splash = asset_server.load("splash.png");
-
+fn splash_setup(mut commands: Commands) {
     commands.spawn((Camera2d, OnSplashScreen));
 
-    commands
-        .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                align_items: AlignItems::Stretch,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            OnSplashScreen,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Node {
-                    flex_grow: 1.,
-                    ..default()
-                },
-                ImageNode::new(splash),
-            ));
-        });
+    // Black screen — placeholder for future intro video
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        BackgroundColor(Color::BLACK),
+        OnSplashScreen,
+    ));
 
-    commands.insert_resource(SplashTimer(Timer::from_seconds(1.0, TimerMode::Once)));
+    // Skip quickly
+    commands.insert_resource(SplashTimer(Timer::from_seconds(0.1, TimerMode::Once)));
 }
 
 fn countdown(
