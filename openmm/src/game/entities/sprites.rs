@@ -14,29 +14,41 @@ use lod::LodManager;
 use crate::game::entities::AnimationState;
 use crate::game::player::PlayerCamera;
 
-
 /// Cache for loaded sprite materials to avoid duplicate texture loading.
 #[derive(Resource, Default, Clone)]
 pub struct SpriteCache {
-    /// Maps "root_name + frame_letter + direction" → material handle
+    /// Maps "root_name + frame_letter + direction" to material handle
     materials: HashMap<String, Handle<StandardMaterial>>,
-    /// Maps "root_name" → (width, height)
+    /// Maps cache key to (width, height)
     dimensions: HashMap<String, (f32, f32)>,
 }
 
 impl SpriteCache {
-    /// Pre-decode a list of (sprite_root, hue_shift) pairs into the cache.
+    /// Pre-decode a list of (sprite_root, variant) pairs into the cache.
     /// Call during loading screen to avoid decoding during gameplay.
     pub fn preload(
         &mut self,
-        roots: &[(&str, f32)],
+        roots: &[(&str, u8)],
         lod_manager: &LodManager,
         images: &mut Assets<Image>,
         materials: &mut Assets<StandardMaterial>,
     ) {
-        for &(root, hue) in roots {
-            load_sprite_frames_cached(root, lod_manager, images, materials, &mut Some(self), hue);
+        for &(root, variant) in roots {
+            load_sprite_frames(root, lod_manager, images, materials, &mut Some(self), variant, 0, 0);
         }
+    }
+}
+
+/// Build a cache key for a sprite root with optional variant and minimum size.
+/// Format: "root" or "root@v2" or "root@64x128" or "root@64x128@v2"
+fn cache_key(root: &str, variant: u8, min_w: u32, min_h: u32) -> String {
+    let has_size = min_w > 0 || min_h > 0;
+    let has_variant = variant > 1;
+    match (has_size, has_variant) {
+        (false, false) => root.to_string(),
+        (false, true) => format!("{}@v{}", root, variant),
+        (true, false) => format!("{}@{}x{}", root, min_w, min_h),
+        (true, true) => format!("{}@{}x{}@v{}", root, min_w, min_h, variant),
     }
 }
 
@@ -52,7 +64,7 @@ pub struct SpriteSheet {
     pub current_state: usize,
     pub frame_timer: f32,
     pub frame_duration: f32,
-    /// Last applied (state, frame, direction) — skip material swap when unchanged.
+    /// Last applied (state, frame, direction) -- skip material swap when unchanged.
     last_applied: (usize, usize, usize),
 }
 
@@ -83,19 +95,16 @@ pub fn load_entity_sprites(
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
-    hue_shift_deg: f32,
+    variant: u8,
 ) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, f32, f32) {
     // Load walking first (usually wider) to get target dimensions
-    let (walking, ww, wh) = load_sprite_frames_cached(
-        walking_root, lod_manager, images, materials, cache, hue_shift_deg);
-
-    let target_w = ww as u32;
-    let target_h = wh as u32;
+    let (walking, ww, wh) = load_sprite_frames(
+        walking_root, lod_manager, images, materials, cache, variant, 0, 0);
 
     // Load standing, padded to at least walking dimensions
-    let (standing, sw, sh) = load_sprite_frames_with_min_size(
-        standing_root, lod_manager, images, materials, cache, hue_shift_deg,
-        target_w, target_h);
+    let (standing, sw, sh) = load_sprite_frames(
+        standing_root, lod_manager, images, materials, cache, variant,
+        ww as u32, wh as u32);
     if standing.is_empty() {
         return (Vec::new(), 0.0, 0.0);
     }
@@ -111,83 +120,40 @@ pub fn load_entity_sprites(
     (states, qw, qh)
 }
 
-/// Like load_sprite_frames_cached but enforces minimum padding dimensions.
-/// Used to pad standing sprites to match walking sprite size.
-fn load_sprite_frames_with_min_size(
+/// Load sprite frames for a single animation (e.g. standing or walking).
+///
+/// `variant` controls tinting: 0/1 = none, 2 = blue, 3 = red.
+/// `min_w`/`min_h` enforce minimum padding dimensions (used to pad standing
+/// sprites to match walking sprite size). Pass 0 for no minimum.
+pub fn load_sprite_frames(
     root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
-    hue_shift_deg: f32,
+    variant: u8,
     min_w: u32,
     min_h: u32,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
-    if min_w == 0 && min_h == 0 {
-        return load_sprite_frames_cached(root, lod_manager, images, materials, cache, hue_shift_deg);
-    }
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
-
-    // Cache key includes min size to avoid returning smaller cached version
-    let cache_key = format!("{}@{}x{}{}",
-        root, min_w, min_h,
-        if hue_shift_deg.abs() > 0.1 { format!("@h{}", hue_shift_deg as i32) } else { String::new() });
+    let key = cache_key(root, variant, min_w, min_h);
 
     if let Some(c) = cache.as_ref() {
-        if let Some(&(w, h)) = c.dimensions.get(&cache_key) {
-            let frames = rebuild_from_cache(&cache_key, c, w, h);
+        if let Some(&(w, h)) = c.dimensions.get(&key) {
+            let frames = rebuild_from_cache(&key, c);
             if !frames.is_empty() {
                 return (frames, w, h);
             }
         }
     }
 
+    // Try progressively shorter root names (e.g. "gobla" -> "gobl" -> "gob")
     let mut try_root = root;
     while try_root.len() >= 3 {
-        let (frames, w, h) = load_frames_with_root_padded(
-            try_root, lod_manager, images, materials, hue_shift_deg, min_w, min_h);
+        let (frames, w, h) = decode_sprite_frames(
+            try_root, lod_manager, images, materials, variant, min_w, min_h);
         if !frames.is_empty() {
-            store_in_cache(&cache_key, &frames, w, h, cache);
-            return (frames, w, h);
-        }
-        try_root = &try_root[..try_root.len() - 1];
-    }
-    (Vec::new(), 0.0, 0.0)
-}
-
-/// Load sprite frames with an optional cache for sharing materials.
-/// `hue_shift_deg` rotates the hue of the sprite (in degrees), preserving skin tones.
-/// Use 0.0 for no shift, ~120 for blue, ~240 for red/green variants.
-pub fn load_sprite_frames_cached(
-    root: &str,
-    lod_manager: &LodManager,
-    images: &mut Assets<Image>,
-    materials: &mut Assets<StandardMaterial>,
-    cache: &mut Option<&mut SpriteCache>,
-    hue_shift_deg: f32,
-) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
-    let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
-
-    let cache_key = if hue_shift_deg.abs() > 0.1 {
-        format!("{}@h{}", root, hue_shift_deg as i32)
-    } else {
-        root.to_string()
-    };
-
-    if let Some(cache) = cache.as_ref() {
-        if let Some(&(w, h)) = cache.dimensions.get(&cache_key) {
-            let frames = rebuild_from_cache(&cache_key, cache, w, h);
-            if !frames.is_empty() {
-                return (frames, w, h);
-            }
-        }
-    }
-
-    let mut try_root = root;
-    while try_root.len() >= 3 {
-        let (frames, w, h) = load_frames_with_root_padded(try_root, lod_manager, images, materials, hue_shift_deg, 0, 0);
-        if !frames.is_empty() {
-            store_in_cache(&cache_key, &frames, w, h, cache);
+            store_in_cache(&key, &frames, w, h, cache);
             return (frames, w, h);
         }
         try_root = &try_root[..try_root.len() - 1];
@@ -196,38 +162,36 @@ pub fn load_sprite_frames_cached(
 }
 
 fn store_in_cache(
-    cache_key: &str,
+    key: &str,
     frames: &[[Handle<StandardMaterial>; 5]],
     w: f32, h: f32,
     cache: &mut Option<&mut SpriteCache>,
 ) {
     if let Some(cache) = cache.as_mut() {
-        cache.dimensions.insert(cache_key.to_string(), (w, h));
+        cache.dimensions.insert(key.to_string(), (w, h));
         for (fi, dirs) in frames.iter().enumerate() {
             let frame_letter = (b'a' + fi as u8) as char;
             for (di, mat) in dirs.iter().enumerate() {
-                // Use cache_key as prefix so hue-shifted variants don't collide
-                let key = format!("{}{}{}", cache_key, frame_letter, di);
-                cache.materials.insert(key, mat.clone());
+                let mat_key = format!("{}{}{}", key, frame_letter, di);
+                cache.materials.insert(mat_key, mat.clone());
             }
         }
     }
 }
 
 fn rebuild_from_cache(
-    cache_key: &str,
+    key: &str,
     cache: &SpriteCache,
-    _w: f32, _h: f32,
 ) -> Vec<[Handle<StandardMaterial>; 5]> {
     let mut frames = Vec::new();
     for fi in 0..6 {
         let frame_letter = (b'a' + fi) as char;
-        let key0 = format!("{}{}0", cache_key, frame_letter);
+        let key0 = format!("{}{}0", key, frame_letter);
         if let Some(mat0) = cache.materials.get(&key0) {
             let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
             for di in 0..5 {
-                let key = format!("{}{}{}", cache_key, frame_letter, di);
-                dirs[di] = cache.materials.get(&key).cloned().unwrap_or_else(|| mat0.clone());
+                let mat_key = format!("{}{}{}", key, frame_letter, di);
+                dirs[di] = cache.materials.get(&mat_key).cloned().unwrap_or_else(|| mat0.clone());
             }
             frames.push(dirs);
         } else {
@@ -237,12 +201,13 @@ fn rebuild_from_cache(
     frames
 }
 
-fn load_frames_with_root_padded(
+/// Decode sprite frames from the LOD, apply variant tinting, and pad to uniform size.
+fn decode_sprite_frames(
     root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
-    hue_shift_deg: f32,
+    variant: u8,
     min_w: u32,
     min_h: u32,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
@@ -280,28 +245,14 @@ fn load_frames_with_root_padded(
         return (Vec::new(), 0.0, 0.0);
     }
 
-    // Second pass: pad all sprites to max dimensions and create materials.
+    // Second pass: tint, pad to uniform size, and create materials.
     let mut frames = Vec::new();
     for dir_imgs in raw_sprites {
         let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
         for (dir, img_opt) in dir_imgs.into_iter().enumerate() {
             if let Some(mut img) = img_opt {
-                // Apply variant tint directly on RGBA pixels
-                if hue_shift_deg.abs() > 0.1 {
-                    if let Some(rgba) = img.as_mut_rgba8() {
-                        let (mr, mg, mb): (f32, f32, f32) = if hue_shift_deg > 100.0 && hue_shift_deg < 180.0 {
-                            (0.3, 0.4, 1.4) // Blue
-                        } else {
-                            (1.4, 0.3, 0.3) // Red
-                        };
-                        for pixel in rgba.pixels_mut() {
-                            if pixel[3] == 0 { continue; }
-                            pixel[0] = (pixel[0] as f32 * mr).min(255.0) as u8;
-                            pixel[1] = (pixel[1] as f32 * mg).min(255.0) as u8;
-                            pixel[2] = (pixel[2] as f32 * mb).min(255.0) as u8;
-                        }
-                    }
-                }
+                lod::image::tint_variant(&mut img, variant);
+
                 // Pad to uniform size: center horizontally, align bottom vertically
                 let img = if img.width() != max_w || img.height() != max_h {
                     let mut padded = RgbaImage::new(max_w, max_h);
@@ -425,7 +376,7 @@ pub fn update_sprite_sheets(
             *mat_handle = MeshMaterial3d(new_mat);
         }
 
-        // Billboard: always face camera. Only rotate around Y axis, never scale.
+        // Billboard: always face camera. Only rotate around Y axis.
         // The directional texture already shows the correct view angle.
         let face_angle = dir_to_camera.x.atan2(dir_to_camera.z);
         transform.rotation = Quat::from_rotation_y(face_angle);

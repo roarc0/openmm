@@ -448,10 +448,10 @@ fn loading_step(
             let mut cache = progress.sprite_cache.take().unwrap_or_default();
 
             // NPC sprite roots (standing + walking)
-            let npc_roots: Vec<(&str, f32)> = vec![
-                ("pfemst", 0.0), ("pfemwa", 0.0),
-                ("pmanst", 0.0), ("pmanwa", 0.0),
-                ("pmn2st", 0.0), ("pmn2wa", 0.0),
+            let npc_roots: Vec<(&str, u8)> = vec![
+                ("pfemst", 0), ("pfemwa", 0),
+                ("pmanst", 0), ("pmanwa", 0),
+                ("pmn2st", 0), ("pmn2wa", 0),
             ];
             cache.preload(&npc_roots, game_assets.lod_manager(), &mut images, &mut materials);
 
@@ -463,27 +463,26 @@ fn loading_step(
                 let map_cfg = mapstats.get(&format!("out{}{}.odm",
                     load_request.map_name.x, load_request.map_name.y));
                 if let Some(cfg) = map_cfg {
-                    // Collect unique (sprite_root, hue_shift) pairs — owned strings
-                    let mut monster_roots: Vec<(String, f32)> = Vec::new();
+                    // Collect unique (sprite_root, variant) pairs
+                    let mut monster_roots: Vec<(String, u8)> = Vec::new();
                     let mut seen = std::collections::HashSet::new();
                     if let Some(odm) = &progress.odm {
                         for sp in &odm.spawn_points {
                             let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) as u32;
-                            if let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) {
-                                if let Some(desc) = monlist.find_by_name(mon_name, dif) {
-                                    let hue = match dif { 2 => 120.0, 3 => 240.0, _ => 0.0 };
+                            if let Some((mon_name, variant)) = cfg.monster_for_index(sp.monster_index, seed) {
+                                if let Some(desc) = monlist.find_by_name(mon_name, variant) {
                                     for name in &desc.sprite_names[..2] {
-                                        let key = format!("{}@{}", name, hue as i32);
+                                        let key = format!("{}@v{}", name, variant);
                                         if seen.insert(key) {
-                                            monster_roots.push((name.clone(), hue));
+                                            monster_roots.push((name.clone(), variant));
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    let refs: Vec<(&str, f32)> = monster_roots.iter()
-                        .map(|(s, h)| (s.as_str(), *h)).collect();
+                    let refs: Vec<(&str, u8)> = monster_roots.iter()
+                        .map(|(s, v)| (s.as_str(), *v)).collect();
                     cache.preload(&refs, game_assets.lod_manager(), &mut images, &mut materials);
                 }
             }

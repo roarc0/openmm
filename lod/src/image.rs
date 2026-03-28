@@ -271,46 +271,46 @@ pub fn get_atlas(
     Ok(join_images_in_grid(&images, row_size, 128, 128))
 }
 
-/// Tint an RGBA image for monster variants.
-/// `degrees` selects the tint: ~120 = blue variant, ~240 = red variant.
-/// Uses direct RGB channel mixing — no HSL conversion, guaranteed visible.
-/// Preserves skin tones on humanoid sprites.
-pub fn hue_shift(image: &mut DynamicImage, degrees: f32) {
-    if degrees.abs() < 0.1 {
+/// Tint an RGBA image for monster difficulty variants.
+///
+/// MM6 monsters come in A/B/C variants with different color tints.
+/// `variant` selects the tint: 2 = blue (B variant), 3 = red (C variant).
+/// Variant 1 (A) or 0 leaves the image unchanged.
+///
+/// Uses RGB channel mixing to produce visible color shifts while preserving
+/// skin tones on humanoid sprites.
+pub fn tint_variant(image: &mut DynamicImage, variant: u8) {
+    if variant <= 1 {
         return;
     }
-    let rgba = match image.as_mut_rgba8() {
-        Some(buf) => buf,
-        None => return,
+    let Some(rgba) = image.as_mut_rgba8() else {
+        return;
     };
 
-    // Channel mixing weights: how much each output channel takes from R, G, B
-    // Blue variant (B): shift green→blue, reduce red
-    // Red variant (C): shift green→red, reduce blue
-    let (rr, rg, rb, gr, gg, gb, br, bg, bb) = if degrees > 100.0 && degrees < 180.0 {
-        // Blue: output_R = 0.3R + 0.1G + 0.2B
-        //        output_G = 0.1R + 0.4G + 0.3B
-        //        output_B = 0.2R + 0.3G + 0.8B
-        (0.3f32, 0.1, 0.2,  0.1, 0.4, 0.3,  0.2, 0.3, 0.8)
+    // Softer channel mixing matrix — tint is visible but not overwhelming.
+    // Each output channel is a weighted sum of input R, G, B.
+    let (rr, rg, rb, gr, gg, gb, br, bg, bb) = if variant == 2 {
+        // Blue tint: cool shift, reduce red warmth
+        (0.5f32, 0.15, 0.15,  0.15, 0.55, 0.2,  0.15, 0.2, 0.85)
     } else {
-        // Red:  output_R = 0.8R + 0.3G + 0.2B
-        //        output_G = 0.3R + 0.4G + 0.1B
-        //        output_B = 0.2R + 0.1G + 0.3B
-        (0.8f32, 0.3, 0.2,  0.3, 0.4, 0.1,  0.2, 0.1, 0.3)
+        // Red tint: warm shift, reduce blue coolness
+        (0.85f32, 0.2, 0.15,  0.2, 0.55, 0.15,  0.15, 0.15, 0.5)
     };
 
     for pixel in rgba.pixels_mut() {
         let [r, g, b, a] = pixel.0;
         if a == 0 { continue; }
 
-        // Preserve skin tones: pinkish/peach pixels on humanoids
-        let rf = r as f32; let gf = g as f32; let bf = b as f32;
+        let rf = r as f32;
+        let gf = g as f32;
+        let bf = b as f32;
+
+        // Preserve skin tones: skip reddish pixels with moderate saturation/brightness
         let max = rf.max(gf).max(bf);
         let min = rf.min(gf).min(bf);
         let lum = (max + min) / 2.0;
         if max > 0.0 {
             let sat = (max - min) / max;
-            // Skin: reddish, moderate saturation and brightness
             if rf > gf && rf > bf && sat > 0.1 && sat < 0.6 && lum > 80.0 && lum < 220.0 {
                 continue;
             }
@@ -321,52 +321,6 @@ pub fn hue_shift(image: &mut DynamicImage, degrees: f32) {
         let nb = (rf * br + gf * bg + bf * bb).min(255.0) as u8;
         *pixel = Rgba([nr, ng, nb, a]);
     }
-
-}
-
-fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
-    let r = r as f32 / 255.0;
-    let g = g as f32 / 255.0;
-    let b = b as f32 / 255.0;
-    let max = r.max(g).max(b);
-    let min = r.min(g).min(b);
-    let l = (max + min) / 2.0;
-    if (max - min).abs() < 1e-6 {
-        return (0.0, 0.0, l);
-    }
-    let d = max - min;
-    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
-    let h = if (max - r).abs() < 1e-6 {
-        ((g - b) / d + if g < b { 6.0 } else { 0.0 }) * 60.0
-    } else if (max - g).abs() < 1e-6 {
-        ((b - r) / d + 2.0) * 60.0
-    } else {
-        ((r - g) / d + 4.0) * 60.0
-    };
-    (h, s, l)
-}
-
-fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
-    if s.abs() < 1e-6 {
-        let v = (l * 255.0) as u8;
-        return (v, v, v);
-    }
-    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
-    let p = 2.0 * l - q;
-    let h = h / 360.0;
-    let r = hue_to_rgb(p, q, h + 1.0 / 3.0);
-    let g = hue_to_rgb(p, q, h);
-    let b = hue_to_rgb(p, q, h - 1.0 / 3.0);
-    ((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
-}
-
-fn hue_to_rgb(p: f32, q: f32, mut t: f32) -> f32 {
-    if t < 0.0 { t += 1.0; }
-    if t > 1.0 { t -= 1.0; }
-    if t < 1.0 / 6.0 { return p + (q - p) * 6.0 * t; }
-    if t < 1.0 / 2.0 { return q; }
-    if t < 2.0 / 3.0 { return p + (q - p) * (2.0 / 3.0 - t) * 6.0; }
-    p
 }
 
 #[cfg(test)]

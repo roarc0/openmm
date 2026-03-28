@@ -116,7 +116,9 @@ impl MapMonsterConfig {
                 // The seed is per-spawn-point so the mix is deterministic across loads.
                 let dif = (self.difficulty[slot] as usize).min(5);
                 let odds = &VARIANT_ODDS[dif];
-                let roll = (seed % 100) as u8;
+                // Hash the seed for better distribution (simple xorshift)
+                let h = seed.wrapping_mul(2654435761); // Knuth multiplicative hash
+                let roll = ((h >> 16) % 100) as u8;
                 if roll < odds[0] { 1 }
                 else if roll < odds[0] + odds[1] { 2 }
                 else { 3 }

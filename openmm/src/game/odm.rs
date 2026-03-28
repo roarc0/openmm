@@ -471,7 +471,7 @@ fn lazy_spawn(
         if let Some((s, w)) = p.npc_sprite_table.get(&a.monster_id) {
             let (s2, w2, h2) = sprites::load_entity_sprites(
                 s, w, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0.0);
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0);
             if !s2.is_empty() && !s2[0].is_empty() {
                 states = s2; sw = w2; sh = h2;
             }
@@ -480,7 +480,7 @@ fn lazy_spawn(
             let (s, w) = npc_fallback[i % npc_fallback.len()];
             let (fb_states, fb_w, fb_h) = sprites::load_entity_sprites(
                 s, w, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0.0);
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0);
             states = fb_states; sw = fb_w; sh = fb_h;
             if states.is_empty() || states[0].is_empty() { continue; }
         }
@@ -511,12 +511,6 @@ fn lazy_spawn(
         let m = &p.resolved_monsters[p.monster_order[monster_idx]];
         monster_idx += 1;
         p.idx += 1;
-        // Hue shift for difficulty variants: A=0°, B=120° (blue), C=240° (red/green)
-        let hue = match m.variant {
-            2 => 120.0,
-            3 => 240.0,
-            _ => 0.0,
-        };
         let sprite_pairs = [
             (m.standing_sprite.as_str(), m.walking_sprite.as_str()),
             ("pfemst", "pfemwa"), ("pmanst", "pmanwa"),
@@ -526,7 +520,7 @@ fn lazy_spawn(
         for (st, wa) in &sprite_pairs {
             let (s, w, h) = sprites::load_entity_sprites(
                 st, wa, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), hue);
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant);
             if !s.is_empty() && !s[0].is_empty() {
                 states = s; sw = w; sh = h; break;
             }
