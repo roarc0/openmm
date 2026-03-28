@@ -246,7 +246,7 @@ fn loading_step(
                                     info!("Map monsters: {:?}", map_config.monster_names);
                                     for sp in &odm.spawn_points {
                                         if let Some((mon_name, dif)) = map_config.monster_for_index(sp.monster_index) {
-                                            if let Some(desc) = monlist.find_by_name(mon_name, dif) {
+                                            if let Some(desc) = monlist.find_with_sprite(mon_name, dif, game_assets.lod_manager()) {
                                                 // Each spawn point creates a group of 3-5 monsters
                                                 let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as i32;
                                                 for g in 0..group_size {

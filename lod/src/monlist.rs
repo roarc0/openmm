@@ -90,14 +90,50 @@ impl MonsterList {
     }
 
     /// Find a monster by internal name prefix + difficulty (1=A, 2=B, 3=C).
-    /// e.g. find_by_name("Goblin", 1) → GoblinA
+    /// Tries the requested variant first, then falls back to A, B, C.
     pub fn find_by_name(&self, name: &str, difficulty: u8) -> Option<&MonsterDesc> {
-        let suffix = match difficulty {
+        let preferred = match difficulty {
             1 => "A",
             2 => "B",
             3 | _ => "C",
         };
-        let target = format!("{}{}", name, suffix);
-        self.monsters.iter().find(|m| m.internal_name.eq_ignore_ascii_case(&target))
+        // Try preferred variant first, then all variants
+        for suffix in &[preferred, "A", "B", "C"] {
+            let target = format!("{}{}", name, suffix);
+            if let Some(m) = self.monsters.iter().find(|m| m.internal_name.eq_ignore_ascii_case(&target)) {
+                return Some(m);
+            }
+        }
+        None
+    }
+
+    /// Find a monster whose sprite actually exists in the LOD.
+    /// Tries all variants (A/B/C) and checks if the standing sprite loads.
+    pub fn find_with_sprite(&self, name: &str, difficulty: u8, lod_manager: &crate::LodManager) -> Option<&MonsterDesc> {
+        let preferred = match difficulty {
+            1 => "A",
+            2 => "B",
+            3 | _ => "C",
+        };
+        for suffix in &[preferred, "A", "B", "C"] {
+            let target = format!("{}{}", name, suffix);
+            if let Some(m) = self.monsters.iter().find(|m| m.internal_name.eq_ignore_ascii_case(&target)) {
+                // Check if standing sprite exists
+                let sprite = &m.sprite_names[0];
+                if !sprite.is_empty() {
+                    let test = format!("{}a0", sprite.trim_end_matches(|c: char| c.is_ascii_alphanumeric()));
+                    // Try loading the sprite
+                    let root = sprite.trim_end_matches(|c: char| c.is_ascii_digit());
+                    if lod_manager.sprite(&format!("{}a0", root)).is_some()
+                        || lod_manager.sprite(&format!("{}0", root)).is_some()
+                        || (root.len() > 1 && lod_manager.sprite(&format!("{}a0", &root[..root.len()-1])).is_some())
+                    {
+                        return Some(m);
+                    }
+                }
+            }
+        }
+        // Last resort: return any variant even if sprite might not load
+        self.find_by_name(name, difficulty)
     }
 }

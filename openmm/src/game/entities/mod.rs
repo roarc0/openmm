@@ -92,7 +92,7 @@ const ENTITY_DRAW_DISTANCE_SQ: f32 = ENTITY_DRAW_DISTANCE * ENTITY_DRAW_DISTANCE
 /// Hide entities that are far from the player, show ones that are close.
 fn distance_culling(
     player_query: Query<&GlobalTransform, With<crate::game::player::Player>>,
-    mut entity_query: Query<(&GlobalTransform, &mut Visibility), With<WorldEntity>>,
+    mut entity_query: Query<(&GlobalTransform, &mut Visibility), With<actor::Actor>>,
 ) {
     let Ok(player_gt) = player_query.single() else {
         return;
