@@ -319,7 +319,8 @@ struct ChartMinLabel;
 fn update_hud_text(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<&Transform, With<Player>>,
-    _cfg: Res<GameConfig>,
+    cfg: Res<GameConfig>,
+    spawn_progress: Res<crate::game::odm::SpawnProgress>,
     mut fps_history: ResMut<FpsHistory>,
     mut fps_query: Query<(&mut Text, &mut TextColor), With<FpsText>>,
     mut pos_query: Query<(&mut TextSpan, &mut TextColor), (With<PosSpan>, Without<FpsText>)>,
@@ -353,10 +354,15 @@ fn update_hud_text(
 
     let pos_str = if let Ok(transform) = player_query.single() {
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+        let spawn_str = if cfg.debug && spawn_progress.total > 0 && spawn_progress.done < spawn_progress.total {
+            format!("  SPAWN: {}/{}", spawn_progress.done, spawn_progress.total)
+        } else {
+            String::new()
+        };
         format!(
-            "\nX:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg",
+            "\nX:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
             transform.translation.x, transform.translation.y,
-            transform.translation.z, yaw.to_degrees(),
+            transform.translation.z, yaw.to_degrees(), spawn_str,
         )
     } else {
         "\nPOS: --".into()

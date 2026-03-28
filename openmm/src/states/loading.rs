@@ -56,6 +56,7 @@ struct LoadingProgress {
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>>,
     water_cells: Option<Vec<bool>>,
+    music_track: u8,
 }
 
 pub struct PreparedModel {
@@ -153,6 +154,8 @@ pub struct PreparedWorld {
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     pub water_cells: Vec<bool>,
+    /// Music track ID from mapstats.txt (maps to Music/{track}.mp3). 0 = no music.
+    pub music_track: u8,
 }
 
 #[derive(Component)]
@@ -198,6 +201,7 @@ fn loading_setup(
         sprite_cache: None,
         billboard_cache: None,
         water_cells: None,
+        music_track: 0,
     });
 
     // Keep the load request around as context
@@ -464,6 +468,13 @@ fn loading_step(
                 .collect();
             cache.preload(&npc_roots, game_assets.lod_manager(), &mut images, &mut materials);
 
+            // Resolve music track from mapstats
+            if let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) {
+                if let Some(cfg) = mapstats.get(&load_request.map_name.to_string()) {
+                    progress.music_track = cfg.music_track;
+                }
+            }
+
             // Resolve and preload monster sprites for this map
             if let (Ok(mapstats), Ok(monlist)) = (
                 lod::mapstats::MapStats::new(game_assets.lod_manager()),
@@ -551,6 +562,7 @@ fn loading_step(
                     start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
                     billboard_cache: progress.billboard_cache.take().unwrap_or_default(),
+                    music_track: progress.music_track,
                 });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);
