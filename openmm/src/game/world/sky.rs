@@ -65,9 +65,36 @@ fn sky_setup(
     ));
 }
 
-/// Slowly rotate the sky dome to simulate cloud movement.
-fn scroll_sky(time: Res<Time>, mut query: Query<&mut Transform, With<SkyDome>>) {
-    for mut transform in query.iter_mut() {
+/// Slowly rotate the sky dome and tint based on time of day.
+fn scroll_sky(
+    time: Res<Time>,
+    mut sky_query: Query<(&mut Transform, &MeshMaterial3d<StandardMaterial>), With<SkyDome>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    clock_query: Query<&super::sun::DayClock>,
+) {
+    for (mut transform, mat_handle) in sky_query.iter_mut() {
         transform.rotate_y(time.delta_secs() * 0.005);
+
+        // Tint sky based on time of day
+        if let Ok(clock) = clock_query.single() {
+            if let Some(mat) = materials.get_mut(&mat_handle.0) {
+                let tod = clock.time_of_day;
+                let day_amount = 1.0 - (tod * 2.0 - 1.0).abs();
+                let dawn_dusk = {
+                    let d1 = (tod - 0.25).abs();
+                    let d2 = (tod - 0.75).abs();
+                    (1.0 - (d1.min(d2) * 10.0).min(1.0)).max(0.0)
+                };
+
+                let r: f32 = 0.2 + 0.8 * day_amount + 0.3 * dawn_dusk;
+                let g: f32 = 0.2 + 0.7 * day_amount + 0.1 * dawn_dusk;
+                let b: f32 = 0.3 + 0.7 * day_amount - 0.15 * dawn_dusk;
+                mat.base_color = Color::srgb(
+                    r.clamp(0.1, 1.0),
+                    g.clamp(0.1, 1.0),
+                    b.clamp(0.15, 1.0),
+                );
+            }
+        }
     }
 }

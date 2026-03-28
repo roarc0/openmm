@@ -3,23 +3,27 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::InGame;
 
+/// Full day/night cycle duration in seconds.
+const DAY_CYCLE_SECS: f32 = 1800.0; // 30 minutes
+
 pub struct SunPlugin;
 
 impl Plugin for SunPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(GameState::Game), sun_setup)
-            .add_systems(Update, animate_sun.run_if(in_state(GameState::Game)));
+            .add_systems(Update, animate_day_cycle.run_if(in_state(GameState::Game)));
     }
 }
 
-/// Marks the directional light entity so we can rotate it.
+/// Tracks the time of day as 0.0 (midnight) → 0.5 (noon) → 1.0 (midnight).
 #[derive(Component)]
-struct Sun {
-    /// Current angle in radians (0 = sunrise east, PI/2 = noon overhead, PI = sunset west)
-    angle: f32,
-    /// Radians per second — full day cycle speed
-    speed: f32,
+pub struct DayClock {
+    /// 0.0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset
+    pub time_of_day: f32,
 }
+
+#[derive(Component)]
+struct AmbientMarker;
 
 fn sun_setup(mut commands: Commands) {
     commands.spawn((
@@ -28,70 +32,106 @@ fn sun_setup(mut commands: Commands) {
             brightness: 280.0,
             ..default()
         },
+        AmbientMarker,
         InGame,
     ));
 
-    // Directional light — no mesh, just light with shadows
-    // Starts at mid-morning angle
-    let initial_angle: f32 = 1.0; // ~57 degrees, morning
-    let (dir_transform, _) = sun_transform_and_color(initial_angle);
+    // Start at morning (0.3 = ~7am)
+    let tod = 0.3;
+    let (dir_transform, color, illuminance) = sun_from_time(tod);
 
     commands.spawn((
         Name::new("sun"),
         DirectionalLight {
             shadows_enabled: false,
-            illuminance: 600.,
-            color: Color::srgb(1.0, 0.95, 0.85),
+            illuminance,
+            color,
             ..default()
         },
         dir_transform,
-        Sun {
-            angle: initial_angle,
-            // Full cycle (0 to PI) in ~5 minutes for visible movement
-            speed: std::f32::consts::PI / 300.0,
-        },
+        DayClock { time_of_day: tod },
         InGame,
     ));
 }
 
-/// Compute the sun's transform and color tint from its angle.
-/// angle 0 = east horizon, PI/2 = directly overhead, PI = west horizon
-fn sun_transform_and_color(angle: f32) -> (Transform, Color) {
-    // Sun orbits in the XY plane (east-west arc)
+/// Compute sun transform, color, and brightness from time of day.
+fn sun_from_time(tod: f32) -> (Transform, Color, f32) {
+    // Sun angle: 0 at sunrise (0.25), PI at sunset (0.75)
+    let sun_progress = ((tod - 0.25) / 0.5).clamp(0.0, 1.0);
+    let angle = sun_progress * std::f32::consts::PI;
+
     let radius = 50000.0;
     let x = angle.cos() * radius;
     let y = angle.sin() * radius;
-
     let transform = Transform::from_xyz(x, y, 0.0).looking_at(Vec3::ZERO, Vec3::Y);
 
-    // Warm color near horizon, white at noon
-    let elevation = angle.sin().max(0.0); // 0 at horizon, 1 at zenith
+    // Elevation: 0 at horizon, 1 at zenith
+    let elevation = angle.sin().max(0.0);
+
+    // Sun color: warm at horizon, white at noon
     let r = 1.0;
-    let g = 0.85 + 0.15 * elevation;
-    let b = 0.7 + 0.3 * elevation;
+    let g = 0.75 + 0.25 * elevation;
+    let b = 0.55 + 0.45 * elevation;
     let color = Color::srgb(r, g, b);
 
-    (transform, color)
+    // Illuminance based on whether sun is up
+    let is_day = tod > 0.22 && tod < 0.78;
+    let illuminance = if is_day {
+        300.0 + 600.0 * elevation
+    } else {
+        0.0
+    };
+
+    (transform, color, illuminance)
 }
 
-fn animate_sun(
-    time: Res<Time>,
-    mut query: Query<(&mut Transform, &mut Sun, &mut DirectionalLight)>,
-) {
-    for (mut transform, mut sun, mut light) in query.iter_mut() {
-        sun.angle += sun.speed * time.delta_secs();
+/// Compute ambient light from time of day.
+fn ambient_from_time(tod: f32) -> (Color, f32) {
+    // Night: dark blue, low brightness
+    // Dawn/dusk: warm orange tint
+    // Day: bright, slightly blue
 
-        // Wrap around: keep between 0.1 and PI-0.1 (never fully below horizon)
-        if sun.angle > std::f32::consts::PI - 0.1 {
-            sun.angle = 0.1;
+    // How much "day" is it (0=midnight, 1=noon)
+    let day_amount = 1.0 - (tod * 2.0 - 1.0).abs(); // 0 at midnight, 1 at noon
+
+    // Smooth transitions
+    let dawn_dusk = {
+        let dist_to_sunrise = (tod - 0.25).abs();
+        let dist_to_sunset = (tod - 0.75).abs();
+        let nearest = dist_to_sunrise.min(dist_to_sunset);
+        (1.0 - (nearest * 10.0).min(1.0)).max(0.0) // peak at sunrise/sunset
+    };
+
+    let r = 0.15 + 0.65 * day_amount + 0.2 * dawn_dusk;
+    let g = 0.15 + 0.60 * day_amount + 0.1 * dawn_dusk;
+    let b = 0.25 + 0.55 * day_amount - 0.1 * dawn_dusk;
+
+    let brightness = 30.0 + 280.0 * day_amount;
+
+    (Color::srgb(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)), brightness)
+}
+
+fn animate_day_cycle(
+    time: Res<Time>,
+    mut sun_query: Query<(&mut Transform, &mut DayClock, &mut DirectionalLight)>,
+    mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
+) {
+    for (mut transform, mut clock, mut light) in sun_query.iter_mut() {
+        clock.time_of_day += time.delta_secs() / DAY_CYCLE_SECS;
+        if clock.time_of_day > 1.0 {
+            clock.time_of_day -= 1.0;
         }
 
-        let (new_transform, color) = sun_transform_and_color(sun.angle);
+        let (new_transform, color, illuminance) = sun_from_time(clock.time_of_day);
         *transform = new_transform;
         light.color = color;
+        light.illuminance = illuminance;
 
-        // Dim light near horizon, bright at noon
-        let elevation = sun.angle.sin().max(0.0);
-        light.illuminance = 300.0 + 600.0 * elevation;
+        // Update ambient
+        let (ambient_color, ambient_brightness) = ambient_from_time(clock.time_of_day);
+        for mut ambient in ambient_query.iter_mut() {
+            ambient.color = ambient_color;
+            ambient.brightness = ambient_brightness;
+        }
     }
 }
