@@ -17,6 +17,7 @@ struct PendingSpawns {
     sprite_cache: sprites::SpriteCache,
     /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
     billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
+    resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
     terrain_entity: Entity,
 }
 use crate::states::loading::PreparedWorld;
@@ -162,6 +163,48 @@ fn spawn_world(
             }
         }).id();
 
+    // Resolve monsters from spawn points (cheap — no sprite loading)
+    let resolved_monsters = {
+        let mut monsters = Vec::new();
+        if let (Ok(mapstats), Ok(monlist)) = (
+            lod::mapstats::MapStats::new(game_assets.lod_manager()),
+            lod::monlist::MonsterList::new(game_assets.lod_manager()),
+        ) {
+            let map_name = prepared.map.name.clone()
+                + ".odm"; // reconstruct filename
+            // Try with proper ODM name from save
+            let map_config = mapstats.get(&format!("out{}{}.odm",
+                save_data.map.map_x, save_data.map.map_y));
+            if let Some(cfg) = map_config {
+                for sp in &prepared.map.spawn_points {
+                    if let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index) {
+                        if let Some(desc) = monlist.find_by_name(mon_name, dif) {
+                            let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as i32;
+                            for g in 0..group_size {
+                                let angle = g as f32 * 2.094;
+                                let spread = sp.radius.max(200) as f32 * 0.5;
+                                monsters.push(crate::states::loading::PreparedMonster {
+                                    position: [
+                                        sp.position[0] + (angle.cos() * spread * g as f32) as i32,
+                                        sp.position[1] + (angle.sin() * spread * g as f32) as i32,
+                                        sp.position[2],
+                                    ],
+                                    radius: sp.radius.max(300),
+                                    standing_sprite: desc.sprite_names[0].clone(),
+                                    walking_sprite: desc.sprite_names[1].clone(),
+                                    height: desc.height,
+                                    move_speed: desc.move_speed,
+                                    hostile: true,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        monsters
+    };
+
     // Sort spawn order by distance from player (closest first)
     let player_spawn = Vec3::new(
         save_data.player.position[0],
@@ -187,10 +230,10 @@ fn spawn_world(
         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let mut monster_order: Vec<usize> = (0..prepared.monsters.len()).collect();
+    let mut monster_order: Vec<usize> = (0..resolved_monsters.len()).collect();
     monster_order.sort_by(|&a, &b| {
-        let pa = &prepared.monsters[a];
-        let pb = &prepared.monsters[b];
+        let pa = &resolved_monsters[a];
+        let pb = &resolved_monsters[b];
         let da = (pa.position[0] as f32 - player_spawn.x).powi(2)
             + (pa.position[1] as f32 + player_spawn.z).powi(2);
         let db = (pb.position[0] as f32 - player_spawn.x).powi(2)
@@ -205,6 +248,7 @@ fn spawn_world(
         idx: 0,
         sprite_cache: prepared.sprite_cache.clone(),
         billboard_cache: prepared.billboard_cache.clone(),
+        resolved_monsters,
         terrain_entity,
     });
 }
@@ -221,24 +265,26 @@ fn lazy_spawn(
     let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
         return;
     };
-    let terrain_entity = pending.terrain_entity;
+    // Destructure to avoid borrow conflicts
+    let p = &mut *pending;
+    let terrain_entity = p.terrain_entity;
     let npc_sprites = [("pfemst", "pfemwa"), ("pmanst", "pmanwk"), ("pmn2st", "pmn2wa")];
     let mut spawned = 0;
-    let bb_len = pending.billboard_order.len();
-    let actor_len = pending.actor_order.len();
-    let monster_len = pending.monster_order.len();
-    let mut bb_idx = pending.idx.min(bb_len);
-    let mut actor_idx = pending.idx.saturating_sub(bb_len).min(actor_len);
-    let mut monster_idx = pending.idx.saturating_sub(bb_len + actor_len).min(monster_len);
+    let bb_len = p.billboard_order.len();
+    let actor_len = p.actor_order.len();
+    let monster_len = p.resolved_monsters.len();
+    let mut bb_idx = p.idx.min(bb_len);
+    let mut actor_idx = p.idx.saturating_sub(bb_len).min(actor_len);
+    let mut monster_idx = p.idx.saturating_sub(bb_len + actor_len).min(monster_len);
 
     // Billboards — decode sprite on first encounter, cache material
     while bb_idx < bb_len && spawned < SPAWN_BATCH_SIZE {
-        let idx = pending.billboard_order[bb_idx];
+        let idx = p.billboard_order[bb_idx];
         bb_idx += 1;
-        pending.idx += 1;
+        p.idx += 1;
         let bb = &prepared.billboards[idx];
         let key = &bb.declist_name;
-        let (mat, quad, h) = if let Some((m, q, h)) = pending.billboard_cache.get(key) {
+        let (mat, quad, h) = if let Some((m, q, h)) = p.billboard_cache.get(key) {
             (m.clone(), q.clone(), *h)
         } else {
             // First time — decode from LOD
@@ -260,7 +306,7 @@ fn lazy_spawn(
                 cull_mode: None, double_sided: true, unlit: true, ..default()
             });
             let q = meshes.add(Rectangle::new(w, h));
-            pending.billboard_cache.insert(key.clone(), (m.clone(), q.clone(), h));
+            p.billboard_cache.insert(key.clone(), (m.clone(), q.clone(), h));
             (m, q, h)
         };
         let pos = bb.position + Vec3::new(0.0, h / 2.0, 0.0);
@@ -276,18 +322,18 @@ fn lazy_spawn(
 
     // NPC actors
     while actor_idx < actor_len && spawned < SPAWN_BATCH_SIZE {
-        let i = pending.actor_order[actor_idx];
+        let i = p.actor_order[actor_idx];
         actor_idx += 1;
-        pending.idx += 1;
+        p.idx += 1;
         let a = &prepared.actors[i];
         if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
 
         let (st, wa) = npc_sprites[i % npc_sprites.len()];
         let (standing, sw, sh) = sprites::load_sprite_frames_cached(
-            st, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut pending.sprite_cache));
+            st, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
         if standing.is_empty() { continue; }
         let (walking, _, _) = sprites::load_sprite_frames_cached(
-            wa, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut pending.sprite_cache));
+            wa, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
         let mut states = vec![standing];
         if !walking.is_empty() { states.push(walking); }
         let initial_mat = states[0][0][0].clone();
@@ -314,9 +360,9 @@ fn lazy_spawn(
 
     // Monsters
     while monster_idx < monster_len && spawned < SPAWN_BATCH_SIZE {
-        let m = &prepared.monsters[pending.monster_order[monster_idx]];
+        let m = &p.resolved_monsters[p.monster_order[monster_idx]];
         monster_idx += 1;
-        pending.idx += 1;
+        p.idx += 1;
         let fallbacks = [
             (m.standing_sprite.as_str(), m.walking_sprite.as_str()),
             ("pfemst", "pfemwa"), ("pmanst", "pmanwk"),
@@ -325,11 +371,11 @@ fn lazy_spawn(
         let mut sw = 0.0f32; let mut sh = 0.0f32;
         for (st, wa) in &fallbacks {
             let (sf, w, h) = sprites::load_sprite_frames_cached(
-                st, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut pending.sprite_cache));
+                st, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
             if !sf.is_empty() && w > 0.0 {
                 standing = sf; sw = w; sh = h;
                 let (wf, _, _) = sprites::load_sprite_frames_cached(
-                    wa, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut pending.sprite_cache));
+                    wa, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
                 walking = wf; break;
             }
         }
@@ -358,7 +404,7 @@ fn lazy_spawn(
         spawned += 1;
     }
 
-    if pending.idx >= bb_len + actor_len + monster_len {
+    if p.idx >= bb_len + actor_len + monster_len {
         commands.remove_resource::<PendingSpawns>();
     }
 }

@@ -242,47 +242,8 @@ fn loading_step(
                                 .unwrap_or_default();
                             progress.actors = Some(actors);
 
-                            // Resolve spawn points to monsters via mapstats + dmonlist
-                            let mut monsters = Vec::new();
-                            info!("Spawn points: {}, map_name: '{}'", odm.spawn_points.len(), map_name);
-                            if let (Ok(mapstats), Ok(monlist)) = (
-                                MapStats::new(game_assets.lod_manager()),
-                                MonsterList::new(game_assets.lod_manager()),
-                            ) {
-                                info!("MapStats has {} maps, looking for '{}'", mapstats.maps.len(), map_name);
-                                if let Some(map_config) = mapstats.get(&map_name) {
-                                    info!("Map monsters: {:?}", map_config.monster_names);
-                                    for sp in &odm.spawn_points {
-                                        if let Some((mon_name, dif)) = map_config.monster_for_index(sp.monster_index) {
-                                            if let Some(desc) = monlist.find_with_sprite(mon_name, dif, game_assets.lod_manager()) {
-                                                // Each spawn point creates a group of 3-5 monsters
-                                                let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as i32;
-                                                for g in 0..group_size {
-                                                    // Spread monsters around the spawn point
-                                                    let angle = g as f32 * 2.094; // ~120° apart
-                                                    let spread = sp.radius.max(200) as f32 * 0.5;
-                                                    let offset_x = (angle.cos() * spread * g as f32) as i32;
-                                                    let offset_y = (angle.sin() * spread * g as f32) as i32;
-                                                    monsters.push(PreparedMonster {
-                                                        position: [
-                                                            sp.position[0] + offset_x,
-                                                            sp.position[1] + offset_y,
-                                                            sp.position[2],
-                                                        ],
-                                                        radius: sp.radius.max(300),
-                                                        standing_sprite: desc.sprite_names[0].clone(),
-                                                        walking_sprite: desc.sprite_names[1].clone(),
-                                                        height: desc.height,
-                                                        move_speed: desc.move_speed,
-                                                        hostile: true,
-                                                    });
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            progress.monsters = Some(monsters);
+                            // Store raw spawn data — monsters resolved lazily
+                            progress.monsters = Some(Vec::new());
 
                             progress.tile_table = Some(tile_table);
                             progress.odm = Some(odm);
