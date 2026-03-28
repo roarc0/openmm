@@ -1,6 +1,6 @@
 use bevy::{asset::RenderAssetUsages, prelude::*};
 
-use lod::{dsft::DSFT, LodManager};
+use lod::{monlist::MonsterList, LodManager};
 
 use crate::game::entities::{AnimationState, EntityKind, WorldEntity};
 use crate::game::player::PlayerCamera;
@@ -33,16 +33,10 @@ pub struct ActorSprites {
     pub frame_duration: f32,
 }
 
-/// Animation state indices in the actor's sprite_ids array:
-/// [0]=dying, [1]=fidget, [2]=standing, [3]=walking, [4]=hit
-const STANDING_SLOT: usize = 2;
-const WALKING_SLOT: usize = 3;
-
-/// Load sprite frames for a single animation group from the DSFT.
-/// Returns frames as Vec of [5 direction materials].
-fn load_sprite_group(
-    dsft: &DSFT,
-    group_id: u16,
+/// Load sprite frames for a sprite name root (e.g. "pfemst" for standing).
+/// Loads frames a-f with directions 0-4. Returns frames + dimensions.
+fn load_sprite_frames(
+    root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
@@ -51,61 +45,31 @@ fn load_sprite_group(
     let mut sprite_w = 0.0_f32;
     let mut sprite_h = 0.0_f32;
 
-    if group_id == 0 || (group_id as usize) >= dsft.groups.len() {
-        return (frames, sprite_w, sprite_h);
-    }
-
-    // Get the first frame index from the group
-    let first_frame_idx = dsft.groups[group_id as usize] as usize;
-    if first_frame_idx >= dsft.frames.len() {
-        return (frames, sprite_w, sprite_h);
-    }
-
-    // Get the base sprite name (e.g. "skesta" or "skewaa")
-    let first_frame = &dsft.frames[first_frame_idx];
-    let base_name = match first_frame.sprite_name() {
-        Some(n) => n,
-        None => return (frames, sprite_w, sprite_h),
-    };
-
-    // The base name might already include the frame letter and direction digit.
-    // Strip trailing digit (direction) and letter (frame) to get the root.
-    // e.g. "skesta" -> root "skest", or "skewaa" -> root "skewa"
-    // Then try loading frames a-f with directions 0-4.
-    let root = if base_name.len() >= 2 {
-        let bytes = base_name.as_bytes();
-        let last = bytes[bytes.len() - 1];
-        let second_last = bytes[bytes.len() - 2];
-        if last.is_ascii_digit() && second_last.is_ascii_lowercase() {
-            // e.g. "skefia0" -> root "skefi"
-            &base_name[..base_name.len() - 2]
-        } else if last.is_ascii_lowercase() {
-            // e.g. "skesta" -> root "skest"
-            &base_name[..base_name.len() - 1]
-        } else {
-            &base_name
-        }
+    // The root might already end with 'a' (the first frame letter).
+    // Strip trailing digits/letters to normalize.
+    let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
+    let root = if root.ends_with('a') && root.len() > 3 {
+        &root[..root.len() - 1]
     } else {
-        &base_name
+        root
     };
 
     for frame_char in b'a'..=b'f' {
         let frame_letter = frame_char as char;
-        // Try loading direction 0 first
-        let test_name = format!("{}{}{}", root, frame_letter, 0);
-        let test_name_nodir = format!("{}{}", root, frame_letter);
+        let test0 = format!("{}{}0", root, frame_letter);
+        let test_nodir = format!("{}{}", root, frame_letter);
 
-        let has_frame = lod_manager.sprite(&test_name).is_some()
-            || lod_manager.sprite(&test_name_nodir).is_some();
+        let has_frame = lod_manager.sprite(&test0).is_some()
+            || lod_manager.sprite(&test_nodir).is_some();
         if !has_frame {
             break;
         }
 
         let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
         for dir in 0..5u8 {
-            let name_with_dir = format!("{}{}{}", root, frame_letter, dir);
-            let img = lod_manager.sprite(&name_with_dir)
-                .or_else(|| lod_manager.sprite(&test_name_nodir));
+            let name = format!("{}{}{}",root, frame_letter, dir);
+            let img = lod_manager.sprite(&name)
+                .or_else(|| lod_manager.sprite(&test_nodir));
 
             if let Some(img) = img {
                 if sprite_w == 0.0 {
@@ -141,8 +105,8 @@ pub fn spawn_actors(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    let dsft = match DSFT::new(lod_manager) {
-        Ok(d) => d,
+    let monlist = match MonsterList::new(lod_manager) {
+        Ok(m) => m,
         Err(_) => return,
     };
 
@@ -154,19 +118,25 @@ pub fn spawn_actors(
             continue;
         }
 
-        // Load standing sprites from sprite_ids[STANDING_SLOT]
-        let standing_id = actor.sprite_ids[STANDING_SLOT];
+        // Look up monster description by ID
+        let monster_desc = match monlist.get(actor.monster_id as usize) {
+            Some(m) => m,
+            None => continue,
+        };
+
+        // sprite_names[0]=standing, [1]=walking
+        let standing_name = &monster_desc.sprite_names[0];
+        let walking_name = &monster_desc.sprite_names[1];
+
         let (standing_frames, sprite_w, sprite_h) =
-            load_sprite_group(&dsft, standing_id, lod_manager, images, materials);
+            load_sprite_frames(standing_name, lod_manager, images, materials);
 
         if standing_frames.is_empty() || sprite_w == 0.0 {
             continue;
         }
 
-        // Load walking sprites from sprite_ids[WALKING_SLOT]
-        let walking_id = actor.sprite_ids[WALKING_SLOT];
         let (walking_frames, _, _) =
-            load_sprite_group(&dsft, walking_id, lod_manager, images, materials);
+            load_sprite_frames(walking_name, lod_manager, images, materials);
 
         let mut states = vec![standing_frames];
         if !walking_frames.is_empty() {

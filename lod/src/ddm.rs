@@ -12,6 +12,8 @@ const ACTOR_SIZE_MM6: usize = 548;
 #[derive(Debug)]
 pub struct DdmActor {
     pub name: String,
+    /// Monster description table index (from MonsterInfo.id).
+    pub monster_id: u8,
     pub hp: i16,
     pub radius: u16,
     pub height: u16,
@@ -124,10 +126,11 @@ impl Ddm {
         let hp = c.read_i16::<LittleEndian>().ok()?;
         let _pad2 = c.read_i16::<LittleEndian>().ok()?;
 
-        // Offset 0x2C: MonsterInfo (variable for MM6, ~72 bytes based on struct size diff)
-        // MM7 MonsterInfo is 88 bytes, MM6 actor is 288 bytes smaller than MM7.
-        // The position is at offset 0x7E which is 32+12+84 = 128 from start.
-        // So MonsterInfo in MM6 is about 84 bytes.
+        // Read monster_id from MonsterInfo area
+        // Empirically found at offset 0x34 as a u8 in MM6 actor struct
+        let monster_id = data[0x34];
+
+        // Skip to position fields
         c.seek(std::io::SeekFrom::Start(0x74)).ok()?;
 
         // Offset 0x74: field_84(2) + monsterId(2)
@@ -181,6 +184,7 @@ impl Ddm {
 
         Some(DdmActor {
             name,
+            monster_id,
             hp,
             radius,
             height,
