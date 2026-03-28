@@ -68,6 +68,7 @@ fn dev_setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfi
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
             InGame,
+            DebugHud,
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -85,16 +86,29 @@ fn dev_setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfi
         });
 }
 
+/// Marker for the debug HUD container.
+#[derive(Component)]
+struct DebugHud;
+
 fn dev_input(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<DevKeyBindings>,
     mut dev_config: ResMut<DevConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
+    mut hud_query: Query<&mut Visibility, With<DebugHud>>,
 ) {
     if keys.just_pressed(key_bindings.toggle_wireframe) {
         wireframe_config.global = !wireframe_config.global;
     } else if keys.just_pressed(key_bindings.toggle_play_area) {
         dev_config.show_play_area = !dev_config.show_play_area;
+    }
+    if keys.just_pressed(KeyCode::F11) {
+        for mut vis in hud_query.iter_mut() {
+            *vis = match *vis {
+                Visibility::Hidden => Visibility::Inherited,
+                _ => Visibility::Hidden,
+            };
+        }
     }
 }
 
