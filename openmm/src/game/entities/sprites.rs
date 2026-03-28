@@ -230,8 +230,15 @@ fn decode_sprite_frames(
         let mut dir_imgs: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
         for dir in 0..5u8 {
             let name = format!("{}{}{}", root, frame_letter, dir);
-            let img = lod_manager.sprite(&name)
-                .or_else(|| lod_manager.sprite(&test_nodir));
+            // For variant B/C, use palette swap: base_palette + (variant-1)
+            let img = if variant > 1 {
+                // Read base sprite's palette_id and offset by variant
+                let pal_offset = (variant - 1) as u16;
+                load_sprite_with_palette_offset(lod_manager, &name, &test_nodir, pal_offset)
+            } else {
+                lod_manager.sprite(&name)
+                    .or_else(|| lod_manager.sprite(&test_nodir))
+            };
             if let Some(ref i) = img {
                 max_w = max_w.max(i.width());
                 max_h = max_h.max(i.height());
@@ -250,8 +257,8 @@ fn decode_sprite_frames(
     for dir_imgs in raw_sprites {
         let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
         for (dir, img_opt) in dir_imgs.into_iter().enumerate() {
-            if let Some(mut img) = img_opt {
-                lod::image::tint_variant(&mut img, variant);
+            if let Some(img) = img_opt {
+                // Palette swap handles variant coloring — no tinting needed
 
                 // Pad to uniform size: center horizontally, align bottom vertically
                 let img = if img.width() != max_w || img.height() != max_h {
@@ -287,6 +294,35 @@ fn decode_sprite_frames(
     }
 
     (frames, max_w as f32, max_h as f32)
+}
+
+/// Load a sprite with a palette offset applied (for monster variant palette swaps).
+/// Reads the base sprite's palette_id from its header, adds the offset, and decodes
+/// with the variant palette. Falls back to normal sprite() if palette not found.
+fn load_sprite_with_palette_offset(
+    lod_manager: &LodManager,
+    name: &str,
+    fallback: &str,
+    palette_offset: u16,
+) -> Option<DynamicImage> {
+    // Try the primary name first, then the fallback (no-direction variant)
+    let sprite_name = if lod_manager.try_get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
+        name
+    } else if lod_manager.try_get_bytes(format!("sprites/{}", fallback.to_lowercase())).is_ok() {
+        fallback
+    } else {
+        return None;
+    };
+
+    // Read the base palette_id from the sprite header (offset 20, u16 LE)
+    let sprite_data = lod_manager.try_get_bytes(format!("sprites/{}", sprite_name.to_lowercase())).ok()?;
+    if sprite_data.len() < 22 { return None; }
+    let base_palette_id = u16::from_le_bytes([sprite_data[20], sprite_data[21]]);
+    let variant_palette_id = base_palette_id + palette_offset;
+
+    // Try with variant palette, fall back to normal decode
+    lod_manager.sprite_with_palette(sprite_name, variant_palette_id)
+        .or_else(|| lod_manager.sprite(sprite_name))
 }
 
 /// Update sprite sheets based on camera angle, entity facing, and animation state.

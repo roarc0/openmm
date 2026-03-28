@@ -141,6 +141,15 @@ impl LodManager {
         sprite.to_image_buffer().ok()
     }
 
+    /// Load a sprite using a specific palette ID (for monster variant palette swaps).
+    /// The sprite data is the same but decoded with a different color palette.
+    pub fn sprite_with_palette(&self, name: &str, palette_id: u16) -> Option<DynamicImage> {
+        let sprite_data = self.try_get_bytes(format!("sprites/{}", name.to_lowercase())).ok()?;
+        let palettes = self.palettes().ok()?;
+        let sprite = crate::image::Image::try_from_with_palette(sprite_data, &palettes, palette_id).ok()?;
+        sprite.to_image_buffer().ok()
+    }
+
     pub fn bitmap(&self, name: &str) -> Option<DynamicImage> {
         let bitmap = self.try_get_bytes(format!("bitmaps/{}", name.to_lowercase())).ok()?;
         let bitmap = crate::image::Image::try_from(bitmap).ok()?;

@@ -108,6 +108,48 @@ impl TryFrom<(&[u8], &Palettes)> for Image {
     }
 }
 
+impl Image {
+    /// Decode a sprite using a specific palette ID instead of the one in the sprite header.
+    /// Used for monster variant palette swaps (e.g., GoblinB uses pal226 instead of pal225).
+    pub fn try_from_with_palette(data: &[u8], palettes: &Palettes, override_palette_id: u16) -> Result<Self, Box<dyn Error>> {
+        let mut cursor = Cursor::new(data);
+        cursor.seek(std::io::SeekFrom::Start(12))?;
+
+        let compressed_size = cursor.read_u32::<LittleEndian>()? as usize;
+        let width = cursor.read_u16::<LittleEndian>()? as usize;
+        let height = cursor.read_u16::<LittleEndian>()? as usize;
+
+        let _original_palette_id = cursor.read_u16::<LittleEndian>()?;
+        // Use the override palette instead of the sprite's embedded one
+        let palette = palettes
+            .get(override_palette_id)
+            .ok_or_else(|| format!("Palette {} not found", override_palette_id))?;
+
+        cursor.seek(std::io::SeekFrom::Current(6))?;
+        let uncompressed_size = cursor.read_u32::<LittleEndian>()? as usize;
+
+        let table_size: usize = height * 8;
+        if data.len() <= SPRITE_HEADER_SIZE + table_size {
+            return Err("Not enough data".into());
+        }
+
+        let table = &data[SPRITE_HEADER_SIZE..(SPRITE_HEADER_SIZE + table_size)];
+        let compressed_data = &data[SPRITE_HEADER_SIZE + table_size..];
+        let uncompressed_data =
+            super::zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
+        let processed_data =
+            process_sprite_data(uncompressed_data.as_slice(), table, width, height)?;
+
+        Ok(Self {
+            height,
+            width,
+            data: processed_data,
+            palette: palette.data,
+            transparency: true,
+        })
+    }
+}
+
 fn process_sprite_data(
     data: &[u8],
     table: &[u8],
