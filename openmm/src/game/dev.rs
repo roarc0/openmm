@@ -54,20 +54,15 @@ impl Default for CurrentMapName {
 
 fn dev_setup(mut commands: Commands, mut wireframe_config: ResMut<WireframeConfig>) {
     wireframe_config.global = false;
+    // UI camera for HUD rendering
+    commands.spawn((Camera2d, InGame));
 
-    // Debug HUD — single text entity with both FPS and position
+    // Debug HUD
     commands.spawn((
         Text::new("FPS: --\nPOS: --"),
-        TextFont { font_size: 14.0, ..default() },
-        TextColor(Color::srgb(0.3, 1.0, 0.3)),
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(8.0),
-            top: Val::Px(8.0),
-            ..default()
-        },
+        TextFont { font_size: 16.0, ..default() },
+        TextColor(Color::srgb(0.2, 1.0, 0.2)),
         FpsText,
-        PositionText,
         InGame,
         DebugHud,
     ));
