@@ -4,12 +4,14 @@ use std::error::Error;
 
 use crate::LodManager;
 
-/// Per-map monster spawn configuration from mapstats.txt.
+/// Per-map configuration from mapstats.txt.
 pub struct MapMonsterConfig {
     /// Monster picture/dmonlist prefix for each of 3 slots (1-indexed in spawn points).
     pub monster_names: [String; 3],
     /// Difficulty level for each monster (1-5, controls A/B/C variant odds).
     pub difficulty: [u8; 3],
+    /// Music track ID (maps to Music/{track}.mp3). 0 = no music.
+    pub music_track: u8,
 }
 
 /// All map stats.
@@ -51,12 +53,14 @@ impl MapStats {
             let m2_dif: u8 = cols.get(19).unwrap_or(&"0").trim().parse().unwrap_or(1);
             let m3_name = cols.get(21).unwrap_or(&"").trim().to_string();
             let m3_dif: u8 = cols.get(23).unwrap_or(&"0").trim().parse().unwrap_or(1);
+            let music_track: u8 = cols.get(25).unwrap_or(&"0").trim().parse().unwrap_or(0);
 
             maps.push((
                 filename,
                 MapMonsterConfig {
                     monster_names: [m1_name, m2_name, m3_name],
                     difficulty: [m1_dif, m2_dif, m3_dif],
+                    music_track,
                 },
             ));
         }
