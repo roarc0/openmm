@@ -273,6 +273,80 @@ pub fn get_atlas(
     Ok(join_images_in_grid(&images, row_size, 128, 128))
 }
 
+/// Apply a hue shift to an RGBA image, preserving skin tones.
+/// `degrees` is the hue rotation in degrees (e.g. 120 for blue, 240 for red/green).
+/// Pixels with skin-like hues (0°-50°, low-mid saturation) are left unchanged.
+pub fn hue_shift(image: &mut DynamicImage, degrees: f32) {
+    if degrees.abs() < 0.1 {
+        return;
+    }
+    let rgba = match image.as_mut_rgba8() {
+        Some(buf) => buf,
+        None => return,
+    };
+    for pixel in rgba.pixels_mut() {
+        let [r, g, b, a] = pixel.0;
+        if a == 0 {
+            continue;
+        }
+        let (h, s, l) = rgb_to_hsl(r, g, b);
+
+        // Preserve skin tones: hue 0-50°, saturation 0.15-0.8, lightness 0.3-0.85
+        if h <= 50.0 && s >= 0.15 && s <= 0.8 && l >= 0.3 && l <= 0.85 {
+            continue;
+        }
+
+        let new_h = (h + degrees) % 360.0;
+        let (nr, ng, nb) = hsl_to_rgb(new_h, s, l);
+        *pixel = Rgba([nr, ng, nb, a]);
+    }
+}
+
+fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
+    let r = r as f32 / 255.0;
+    let g = g as f32 / 255.0;
+    let b = b as f32 / 255.0;
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+    if (max - min).abs() < 1e-6 {
+        return (0.0, 0.0, l);
+    }
+    let d = max - min;
+    let s = if l > 0.5 { d / (2.0 - max - min) } else { d / (max + min) };
+    let h = if (max - r).abs() < 1e-6 {
+        ((g - b) / d + if g < b { 6.0 } else { 0.0 }) * 60.0
+    } else if (max - g).abs() < 1e-6 {
+        ((b - r) / d + 2.0) * 60.0
+    } else {
+        ((r - g) / d + 4.0) * 60.0
+    };
+    (h, s, l)
+}
+
+fn hsl_to_rgb(h: f32, s: f32, l: f32) -> (u8, u8, u8) {
+    if s.abs() < 1e-6 {
+        let v = (l * 255.0) as u8;
+        return (v, v, v);
+    }
+    let q = if l < 0.5 { l * (1.0 + s) } else { l + s - l * s };
+    let p = 2.0 * l - q;
+    let h = h / 360.0;
+    let r = hue_to_rgb(p, q, h + 1.0 / 3.0);
+    let g = hue_to_rgb(p, q, h);
+    let b = hue_to_rgb(p, q, h - 1.0 / 3.0);
+    ((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
+}
+
+fn hue_to_rgb(p: f32, q: f32, mut t: f32) -> f32 {
+    if t < 0.0 { t += 1.0; }
+    if t > 1.0 { t -= 1.0; }
+    if t < 1.0 / 6.0 { return p + (q - p) * 6.0 * t; }
+    if t < 1.0 / 2.0 { return q; }
+    if t < 2.0 / 3.0 { return p + (q - p) * (2.0 / 3.0 - t) * 6.0; }
+    p
+}
+
 #[cfg(test)]
 mod test {
     use super::get_atlas;

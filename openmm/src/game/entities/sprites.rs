@@ -8,10 +8,11 @@ use std::collections::HashMap;
 
 use bevy::{asset::RenderAssetUsages, prelude::*};
 
-use lod::{dsft::DSFT, LodManager};
+use lod::LodManager;
 
 use crate::game::entities::AnimationState;
 use crate::game::player::PlayerCamera;
+
 
 /// Cache for loaded sprite materials to avoid duplicate texture loading.
 #[derive(Resource, Default, Clone)]
@@ -20,6 +21,22 @@ pub struct SpriteCache {
     materials: HashMap<String, Handle<StandardMaterial>>,
     /// Maps "root_name" → (width, height)
     dimensions: HashMap<String, (f32, f32)>,
+}
+
+impl SpriteCache {
+    /// Pre-decode a list of (sprite_root, hue_shift) pairs into the cache.
+    /// Call during loading screen to avoid decoding during gameplay.
+    pub fn preload(
+        &mut self,
+        roots: &[(&str, f32)],
+        lod_manager: &LodManager,
+        images: &mut Assets<Image>,
+        materials: &mut Assets<StandardMaterial>,
+    ) {
+        for &(root, hue) in roots {
+            load_sprite_frames_cached(root, lod_manager, images, materials, &mut Some(self), hue);
+        }
+    }
 }
 
 /// Preloaded sprite frames for an entity.
@@ -34,78 +51,77 @@ pub struct SpriteSheet {
     pub current_state: usize,
     pub frame_timer: f32,
     pub frame_duration: f32,
+    /// Last applied (state, frame, direction) — skip material swap when unchanged.
+    last_applied: (usize, usize, usize),
 }
 
-/// Resolve a DSFT group ID to a sprite root name.
-/// e.g. group 1402 → frame "skesta" → root "skest"
-pub fn resolve_sprite_root(dsft: &DSFT, group_id: u16) -> Option<String> {
-    if group_id == 0 || (group_id as usize) >= dsft.groups.len() {
-        return None;
-    }
-    let frame_idx = dsft.groups[group_id as usize] as usize;
-    if frame_idx >= dsft.frames.len() {
-        return None;
-    }
-    let name = dsft.frames[frame_idx].sprite_name()?;
-    let bytes = name.as_bytes();
-    if bytes.len() < 2 {
-        return Some(name);
-    }
-    let last = bytes[bytes.len() - 1];
-    let second_last = bytes[bytes.len() - 2];
-    if last.is_ascii_digit() && second_last.is_ascii_lowercase() {
-        Some(name[..name.len() - 2].to_string())
-    } else if last.is_ascii_lowercase() {
-        Some(name[..name.len() - 1].to_string())
-    } else {
-        Some(name)
+impl SpriteSheet {
+    pub fn new(
+        states: Vec<Vec<[Handle<StandardMaterial>; 5]>>,
+        state_dimensions: Vec<(f32, f32)>,
+    ) -> Self {
+        Self {
+            states,
+            state_dimensions,
+            current_frame: 0,
+            current_state: 0,
+            frame_timer: 0.0,
+            frame_duration: 0.15,
+            last_applied: (usize::MAX, usize::MAX, usize::MAX),
+        }
     }
 }
 
 /// Load all directional sprite frames for a given root name.
-/// Uses cache to avoid reloading the same textures.
 pub fn load_sprite_frames(
     root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
-    load_sprite_frames_cached(root, lod_manager, images, materials, &mut None)
+    load_sprite_frames_cached(root, lod_manager, images, materials, &mut None, 0.0)
 }
 
 /// Load sprite frames with an optional cache for sharing materials.
+/// `hue_shift_deg` rotates the hue of the sprite (in degrees), preserving skin tones.
+/// Use 0.0 for no shift, ~120 for blue, ~240 for red/green variants.
 pub fn load_sprite_frames_cached(
     root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
+    hue_shift_deg: f32,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
 
+    // Include hue shift in cache key so tinted variants get separate entries.
+    let cache_key = if hue_shift_deg.abs() > 0.1 {
+        format!("{}@h{}", root, hue_shift_deg as i32)
+    } else {
+        root.to_string()
+    };
+
     // Check cache for dimensions (tells us we've loaded this root before)
     if let Some(cache) = cache.as_ref() {
-        if let Some(&(w, h)) = cache.dimensions.get(root) {
-            // Rebuild from cache
-            let frames = rebuild_from_cache(root, cache, w, h);
+        if let Some(&(w, h)) = cache.dimensions.get(&cache_key) {
+            let frames = rebuild_from_cache(&cache_key, cache, w, h);
             if !frames.is_empty() {
                 return (frames, w, h);
             }
         }
     }
 
-    let (frames, w, h) = load_frames_with_root(root, lod_manager, images, materials);
-    if !frames.is_empty() {
-        store_in_cache(root, &frames, w, h, cache);
-        return (frames, w, h);
-    }
-    if root.len() > 3 {
-        let shorter = &root[..root.len() - 1];
-        let (frames, w, h) = load_frames_with_root(shorter, lod_manager, images, materials);
+    // Try progressively shorter roots to handle monlist names like "bar1walk"
+    // where the actual sprite files are "bar1waa0" (root "bar1wa").
+    let mut try_root = root;
+    while try_root.len() >= 3 {
+        let (frames, w, h) = load_frames_with_root(try_root, lod_manager, images, materials, hue_shift_deg);
         if !frames.is_empty() {
-            store_in_cache(shorter, &frames, w, h, cache);
+            store_in_cache(&cache_key, &frames, w, h, cache);
             return (frames, w, h);
         }
+        try_root = &try_root[..try_root.len() - 1];
     }
     (Vec::new(), 0.0, 0.0)
 }
@@ -156,6 +172,7 @@ fn load_frames_with_root(
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
+    hue_shift_deg: f32,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     let mut frames = Vec::new();
     let mut sprite_w = 0.0_f32;
@@ -178,10 +195,13 @@ fn load_frames_with_root(
             let img = lod_manager.sprite(&name)
                 .or_else(|| lod_manager.sprite(&test_nodir));
 
-            if let Some(img) = img {
+            if let Some(mut img) = img {
                 if sprite_w == 0.0 {
                     sprite_w = img.width() as f32;
                     sprite_h = img.height() as f32;
+                }
+                if hue_shift_deg.abs() > 0.1 {
+                    lod::image::hue_shift(&mut img, hue_shift_deg);
                 }
                 let bevy_img = Image::from_dynamic(img, true, RenderAssetUsages::RENDER_WORLD);
                 let tex = images.add(bevy_img);
@@ -203,57 +223,12 @@ fn load_frames_with_root(
     (frames, sprite_w, sprite_h)
 }
 
-/// Load a full SpriteSheet from DSFT group IDs.
-/// `sprite_ids` layout: [0]=dying, [1]=fidget, [2]=standing, [3]=walking, [4]=hit
-/// Returns (SpriteSheet, width, height) or None if no sprites load.
-pub fn load_actor_sprite_sheet(
-    dsft: &DSFT,
-    sprite_ids: &[u16; 8],
-    lod_manager: &LodManager,
-    images: &mut Assets<Image>,
-    materials: &mut Assets<StandardMaterial>,
-) -> Option<(SpriteSheet, f32, f32)> {
-    let standing_root = resolve_sprite_root(dsft, sprite_ids[2]);
-    let walking_root = resolve_sprite_root(dsft, sprite_ids[3]);
-
-    let st_root = standing_root.as_deref().unwrap_or("pfemst");
-    let wa_root = walking_root.as_deref().unwrap_or("pfemwa");
-
-    let (standing_frames, sprite_w, sprite_h) =
-        load_sprite_frames(st_root, lod_manager, images, materials);
-
-    if standing_frames.is_empty() || sprite_w == 0.0 {
-        return None;
-    }
-
-    let (walking_frames, walk_w, walk_h) =
-        load_sprite_frames(wa_root, lod_manager, images, materials);
-
-    let mut states = vec![standing_frames];
-    let mut dims = vec![(sprite_w, sprite_h)];
-    if !walking_frames.is_empty() {
-        states.push(walking_frames);
-        dims.push((walk_w, walk_h));
-    }
-
-    Some((
-        SpriteSheet {
-            states,
-            state_dimensions: dims,
-            current_frame: 0,
-            current_state: 0,
-            frame_timer: 0.0,
-            frame_duration: 0.15,
-        },
-        sprite_w,
-        sprite_h,
-    ))
-}
-
 /// Update sprite sheets based on camera angle, entity facing, and animation state.
-/// Works for any entity with SpriteSheet + AnimationState + a facing direction.
+/// Only processes visible entities within draw distance. Skips material swap when
+/// the displayed (state, frame, direction) hasn't changed.
 pub fn update_sprite_sheets(
     time: Res<Time>,
+    cfg: Res<crate::config::GameConfig>,
     camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
     mut query: Query<(
         &mut SpriteSheet,
@@ -279,6 +254,11 @@ pub fn update_sprite_sheets(
         }
         let actor_pos = global_transform.translation();
 
+        // Skip animation for entities far from camera
+        if cam_pos.distance_squared(actor_pos) > cfg.draw_distance * cfg.draw_distance {
+            continue;
+        }
+
         let state_idx = match anim_state {
             AnimationState::Walking
                 if sprites.states.len() > 1 && !sprites.states[1].is_empty() => 1,
@@ -297,10 +277,9 @@ pub fn update_sprite_sheets(
             // Adjust scale for different sprite dimensions between states
             if sprites.state_dimensions.len() > state_idx {
                 let (base_w, base_h) = sprites.state_dimensions[0];
-                let (new_w, new_h) = sprites.state_dimensions[state_idx];
+                let (_, new_h) = sprites.state_dimensions[state_idx];
                 if base_w > 0.0 && base_h > 0.0 {
                     transform.scale.y = new_h / base_h;
-                    // X scale adjusted below with mirror
                 }
             }
         }
@@ -336,8 +315,13 @@ pub fn update_sprite_sheets(
             _ => (0, false),
         };
 
-        let new_mat = sprites.states[state_idx][sprites.current_frame][direction].clone();
-        *mat_handle = MeshMaterial3d(new_mat);
+        // Only swap material when something actually changed
+        let current_key = (state_idx, sprites.current_frame, direction);
+        if current_key != sprites.last_applied {
+            sprites.last_applied = current_key;
+            let new_mat = sprites.states[state_idx][sprites.current_frame][direction].clone();
+            *mat_handle = MeshMaterial3d(new_mat);
+        }
 
         // Face camera (billboard)
         if dir_to_camera.x.abs() > 0.01 || dir_to_camera.z.abs() > 0.01 {

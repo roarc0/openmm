@@ -86,26 +86,28 @@ impl Plugin for EntitiesPlugin {
     }
 }
 
-const ENTITY_DRAW_DISTANCE: f32 = 10000.0;
-const ENTITY_DRAW_DISTANCE_SQ: f32 = ENTITY_DRAW_DISTANCE * ENTITY_DRAW_DISTANCE;
-
 /// Hide entities that are far from the player, show ones that are close.
 fn distance_culling(
+    cfg: Res<crate::config::GameConfig>,
     player_query: Query<&GlobalTransform, With<crate::game::player::Player>>,
-    mut entity_query: Query<(&GlobalTransform, &mut Visibility), With<actor::Actor>>,
+    mut entity_query: Query<(&GlobalTransform, &mut Visibility), With<WorldEntity>>,
 ) {
     let Ok(player_gt) = player_query.single() else {
         return;
     };
     let player_pos = player_gt.translation();
+    let draw_dist_sq = cfg.draw_distance * cfg.draw_distance;
 
     for (entity_gt, mut vis) in entity_query.iter_mut() {
         let dist_sq = player_pos.distance_squared(entity_gt.translation());
-        *vis = if dist_sq < ENTITY_DRAW_DISTANCE_SQ {
+        let new_vis = if dist_sq < draw_dist_sq {
             Visibility::Inherited
         } else {
             Visibility::Hidden
         };
+        if *vis != new_vis {
+            *vis = new_vis;
+        }
     }
 }
 
@@ -172,18 +174,26 @@ fn wander_system(
     }
 }
 
-/// Rotate all billboard entities to face the camera (Y-axis only, stays upright).
+/// Rotate visible billboard entities to face the camera (Y-axis only, stays upright).
 fn billboard_face_camera(
+    cfg: Res<crate::config::GameConfig>,
     camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
-    mut billboard_query: Query<(&mut Transform, &GlobalTransform), With<Billboard>>,
+    mut billboard_query: Query<(&mut Transform, &GlobalTransform, &Visibility), With<Billboard>>,
 ) {
     let Ok(camera_gt) = camera_query.single() else {
         return;
     };
     let cam_pos = camera_gt.translation();
+    let draw_dist_sq = cfg.draw_distance * cfg.draw_distance;
 
-    for (mut transform, global_transform) in billboard_query.iter_mut() {
+    for (mut transform, global_transform, vis) in billboard_query.iter_mut() {
+        if *vis == Visibility::Hidden {
+            continue;
+        }
         let bb_pos = global_transform.translation();
+        if cam_pos.distance_squared(bb_pos) > draw_dist_sq {
+            continue;
+        }
         let dir = cam_pos - bb_pos;
         if dir.x.abs() > 0.01 || dir.z.abs() > 0.01 {
             let angle = dir.x.atan2(dir.z);

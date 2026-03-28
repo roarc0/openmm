@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::config::GameConfig;
 use crate::{despawn_all, GameState};
 
 // This plugin will display a splash screen for 1 second before switching to the menu
@@ -50,9 +51,13 @@ fn countdown(
     mut game_state: ResMut<NextState<GameState>>,
     time: Res<Time>,
     mut timer: ResMut<SplashTimer>,
+    cfg: Res<GameConfig>,
 ) {
     if timer.tick(time.delta()).just_finished() {
-        // Skip menu in dev — go straight to loading
-        game_state.set(GameState::Loading);
+        if cfg.skip_intro {
+            game_state.set(GameState::Loading);
+        } else {
+            game_state.set(GameState::Menu);
+        }
     }
 }

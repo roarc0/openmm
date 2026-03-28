@@ -53,12 +53,12 @@ pub fn spawn_actors_with_cache(
         let (st_root, wa_root) = NPC_SPRITES[i % NPC_SPRITES.len()];
 
         let (standing_frames, sprite_w, sprite_h) =
-            sprites::load_sprite_frames_cached(st_root, lod_manager, images, materials, &mut Some(cache));
+            sprites::load_sprite_frames_cached(st_root, lod_manager, images, materials, &mut Some(cache), 0.0);
         if standing_frames.is_empty() || sprite_w == 0.0 {
             continue;
         }
         let (walking_frames, _, _) =
-            sprites::load_sprite_frames_cached(wa_root, lod_manager, images, materials, &mut Some(cache));
+            sprites::load_sprite_frames_cached(wa_root, lod_manager, images, materials, &mut Some(cache), 0.0);
 
         let mut states = vec![standing_frames];
         if !walking_frames.is_empty() {
@@ -91,14 +91,7 @@ pub fn spawn_actors_with_cache(
             WorldEntity,
             EntityKind::Npc,
             AnimationState::Idle,
-            sprites::SpriteSheet {
-                state_dimensions: states.iter().map(|_| (0.0, 0.0)).collect(),
-                states,
-                current_frame: 0,
-                current_state: 0,
-                frame_timer: 0.0,
-                frame_duration: 0.15,
-            },
+            sprites::SpriteSheet::new(states, vec![(sprite_w, sprite_h)]),
             Actor {
                 name: actor.name.clone(),
                 hp: actor.hp,
@@ -140,13 +133,18 @@ pub fn spawn_monsters_with_cache(
         let mut sprite_w = 0.0_f32;
         let mut sprite_h = 0.0_f32;
 
+        let hue = match monster.variant {
+            2 => 120.0,
+            3 => 240.0,
+            _ => 0.0,
+        };
         for (st, wa) in &sprite_fallbacks {
-            let (sf, w, h) = sprites::load_sprite_frames_cached(st, lod_manager, images, materials, &mut Some(cache));
+            let (sf, w, h) = sprites::load_sprite_frames_cached(st, lod_manager, images, materials, &mut Some(cache), hue);
             if !sf.is_empty() && w > 0.0 {
                 standing_frames = sf;
                 sprite_w = w;
                 sprite_h = h;
-                let (wf, _, _) = sprites::load_sprite_frames_cached(wa, lod_manager, images, materials, &mut Some(cache));
+                let (wf, _, _) = sprites::load_sprite_frames_cached(wa, lod_manager, images, materials, &mut Some(cache), hue);
                 walking_frames = wf;
                 break;
             }
@@ -179,14 +177,7 @@ pub fn spawn_monsters_with_cache(
             WorldEntity,
             EntityKind::Monster,
             AnimationState::Idle,
-            sprites::SpriteSheet {
-                state_dimensions: states.iter().map(|_| (0.0, 0.0)).collect(),
-                states,
-                current_frame: 0,
-                current_state: 0,
-                frame_timer: 0.0,
-                frame_duration: 0.15,
-            },
+            sprites::SpriteSheet::new(states, vec![(sprite_w, sprite_h)]),
             Actor {
                 name: "Monster".into(),
                 hp: 10,

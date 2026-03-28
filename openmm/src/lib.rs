@@ -4,12 +4,14 @@ use bevy::prelude::{
 use bevy_config::BevyConfigPlugin;
 
 use assets::GameAssets;
+use config::GameConfig;
 use game::InGamePlugin;
 use save::GameSave;
 use states::{loading::LoadingPlugin, menu::MenuPlugin, splash::SplashPlugin};
 
 pub(crate) mod assets;
 pub(crate) mod bevy_config;
+pub mod config;
 pub(crate) mod game;
 pub(crate) mod save;
 pub(crate) mod states;
@@ -29,12 +31,13 @@ pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
+        let cfg = GameConfig::load();
         let game_assets = GameAssets::new(lod::get_lod_path().into())
             .expect("unable to load game data files");
-
         let save_data = GameSave::load_or_default();
 
-        app.insert_resource(game_assets)
+        app.insert_resource(cfg)
+            .insert_resource(game_assets)
             .insert_resource(save_data)
             .add_plugins((
                 BevyConfigPlugin,

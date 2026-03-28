@@ -200,6 +200,7 @@ fn player_movement(
     settings: Res<PlayerSettings>,
     key_bindings: Res<PlayerKeyBindings>,
     fly_mode: Res<FlyMode>,
+    cfg: Res<crate::config::GameConfig>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
     water_map: Option<Res<WaterMap>>,
@@ -210,7 +211,7 @@ fn player_movement(
     let Ok(cursor_options) = cursor_query.single() else {
         return;
     };
-    if matches!(cursor_options.grab_mode, CursorGrabMode::None) {
+    if !cfg.auto_move && matches!(cursor_options.grab_mode, CursorGrabMode::None) {
         return;
     }
 
@@ -249,6 +250,12 @@ fn player_movement(
         }
         if keys.pressed(key_bindings.strafe_right) {
             movement += right_flat;
+        }
+
+        // Auto-move: walk forward and slowly rotate for a patrol pattern
+        if cfg.auto_move && movement == Vec3::ZERO {
+            movement += forward_flat;
+            transform.rotate_y(0.15 * time.delta_secs());
         }
 
         if movement != Vec3::ZERO {

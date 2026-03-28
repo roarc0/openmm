@@ -315,10 +315,15 @@ impl OdmData {
         let (size_x, size_y) = tile_table.size();
         let (size_x, size_y) = (size_x as f32, size_y as f32);
 
-        let u0 = tile_x / size_x;
-        let u1 = (tile_x + 1.0) / size_x;
-        let v0 = tile_y / size_y;
-        let v1 = (tile_y + 1.0) / size_y;
+        // Inset by half a pixel to prevent atlas bleeding at tile boundaries.
+        // Each tile is 128px in the atlas.
+        let half_px_u = 0.5 / (size_x * 128.0);
+        let half_px_v = 0.5 / (size_y * 128.0);
+
+        let u0 = tile_x / size_x + half_px_u;
+        let u1 = (tile_x + 1.0) / size_x - half_px_u;
+        let v0 = tile_y / size_y + half_px_v;
+        let v1 = (tile_y + 1.0) / size_y - half_px_v;
 
         // TL, TR, BL, BR
         ([u0, v0], [u1, v0], [u0, v1], [u1, v1])

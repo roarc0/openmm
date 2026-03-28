@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use crate::{
     assets::GameAssets,
+    config::GameConfig,
     despawn_all,
     game::odm::OdmName,
     GameState,
@@ -82,6 +83,8 @@ pub struct PreparedMonster {
     pub height: u16,
     pub move_speed: u16,
     pub hostile: bool,
+    /// Difficulty variant: 1=A (base), 2=B, 3=C. Used for color tinting.
+    pub variant: u8,
 }
 
 pub struct PreparedBillboard {
@@ -101,6 +104,7 @@ enum LoadingStep {
     BuildAtlas,
     BuildModels,
     BuildBillboards,
+    PreloadSprites,
     Done,
 }
 
@@ -112,6 +116,7 @@ impl LoadingStep {
             Self::BuildAtlas => "Building textures...",
             Self::BuildModels => "Building models...",
             Self::BuildBillboards => "Loading decorations...",
+            Self::PreloadSprites => "Loading sprites...",
             Self::Done => "Done!",
         }
     }
@@ -122,7 +127,8 @@ impl LoadingStep {
             Self::BuildTerrain => Self::BuildAtlas,
             Self::BuildAtlas => Self::BuildModels,
             Self::BuildModels => Self::BuildBillboards,
-            Self::BuildBillboards => Self::Done,
+            Self::BuildBillboards => Self::PreloadSprites,
+            Self::PreloadSprites => Self::Done,
             Self::Done => Self::Done,
         }
     }
@@ -151,9 +157,18 @@ fn loading_setup(
     mut commands: Commands,
     load_request: Option<Res<LoadRequest>>,
     save_data: Res<crate::save::GameSave>,
+    cfg: Res<GameConfig>,
 ) {
+    // Priority: LoadRequest (map switching) > config file/CLI > save data
     let map_name = load_request
         .map(|r| r.map_name.clone())
+        .or_else(|| {
+            cfg.map.as_ref().and_then(|m| {
+                OdmName::try_from(m.as_str())
+                    .inspect_err(|e| eprintln!("warning: invalid map in config: {e}"))
+                    .ok()
+            })
+        })
         .unwrap_or_else(|| OdmName {
             x: save_data.map.map_x,
             y: save_data.map.map_y,
@@ -417,7 +432,79 @@ fn loading_step(
                 progress.step = progress.step.next();
             }
         }
-        // Sprite and billboard materials are loaded on-demand during lazy_spawn
+        LoadingStep::PreloadSprites => {
+            // Pre-decode ALL sprite textures during loading screen so that
+            // lazy_spawn only does cheap cache lookups during gameplay.
+            let mut cache = progress.sprite_cache.take().unwrap_or_default();
+
+            // NPC sprite roots (standing + walking)
+            let npc_roots: Vec<(&str, f32)> = vec![
+                ("pfemst", 0.0), ("pfemwa", 0.0),
+                ("pmanst", 0.0), ("pmanwk", 0.0),
+                ("pmn2st", 0.0), ("pmn2wa", 0.0),
+            ];
+            cache.preload(&npc_roots, game_assets.lod_manager(), &mut images, &mut materials);
+
+            // Resolve and preload monster sprites for this map
+            if let (Ok(mapstats), Ok(monlist)) = (
+                lod::mapstats::MapStats::new(game_assets.lod_manager()),
+                lod::monlist::MonsterList::new(game_assets.lod_manager()),
+            ) {
+                let map_cfg = mapstats.get(&format!("out{}{}.odm",
+                    load_request.map_name.x, load_request.map_name.y));
+                if let Some(cfg) = map_cfg {
+                    // Collect unique (sprite_root, hue_shift) pairs — owned strings
+                    let mut monster_roots: Vec<(String, f32)> = Vec::new();
+                    let mut seen = std::collections::HashSet::new();
+                    if let Some(odm) = &progress.odm {
+                        for sp in &odm.spawn_points {
+                            if let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index) {
+                                if let Some(desc) = monlist.find_by_name(mon_name, dif) {
+                                    let hue = match dif { 2 => 120.0, 3 => 240.0, _ => 0.0 };
+                                    for name in &desc.sprite_names[..2] {
+                                        let key = format!("{}@{}", name, hue as i32);
+                                        if seen.insert(key) {
+                                            monster_roots.push((name.clone(), hue));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let refs: Vec<(&str, f32)> = monster_roots.iter()
+                        .map(|(s, h)| (s.as_str(), *h)).collect();
+                    cache.preload(&refs, game_assets.lod_manager(), &mut images, &mut materials);
+                }
+            }
+
+            // Pre-decode billboard/decoration sprites
+            let mut bb_cache = progress.billboard_cache.take().unwrap_or_default();
+            if let Some(billboards) = &progress.billboards {
+                let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+                if let Some(ref mgr) = bb_mgr {
+                    for bb in billboards {
+                        if bb_cache.contains_key(&bb.declist_name) { continue; }
+                        if let Some(sprite) = mgr.get(game_assets.lod_manager(), &bb.declist_name, bb.declist_id) {
+                            let (w, h) = sprite.dimensions();
+                            let bevy_img = Image::from_dynamic(
+                                sprite.image, true, RenderAssetUsages::RENDER_WORLD);
+                            let tex = images.add(bevy_img);
+                            let m = materials.add(StandardMaterial {
+                                base_color_texture: Some(tex),
+                                alpha_mode: AlphaMode::Mask(0.5),
+                                cull_mode: None, double_sided: true, unlit: true, ..default()
+                            });
+                            let q = meshes.add(Rectangle::new(w, h));
+                            bb_cache.insert(bb.declist_name.clone(), (m, q, h));
+                        }
+                    }
+                }
+            }
+
+            progress.sprite_cache = Some(cache);
+            progress.billboard_cache = Some(bb_cache);
+            progress.step = progress.step.next();
+        }
         LoadingStep::Done => {
             // Move all prepared data into PreparedWorld resource
             let odm = progress.odm.take();

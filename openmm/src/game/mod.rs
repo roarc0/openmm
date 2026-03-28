@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{despawn_all, GameState};
 
 pub(crate) mod collision;
-pub(crate) mod dev;
+pub(crate) mod debug;
 pub(crate) mod entities;
 pub(crate) mod odm;
 pub(crate) mod physics;
@@ -27,7 +27,7 @@ impl Plugin for InGamePlugin {
             physics::PhysicsPlugin,
             odm::OdmPlugin,
             entities::EntitiesPlugin,
-            dev::DevPlugin,
+            debug::DebugPlugin,
         ))
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
     }
