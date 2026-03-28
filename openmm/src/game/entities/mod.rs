@@ -1,13 +1,12 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::player::PlayerCamera;
 
-pub mod decoration;
 pub mod actor;
+pub mod decoration;
+pub mod sprites;
 
 // Future modules:
-// pub mod monster;
 // pub mod loot;
 
 // --- Shared components for all world entities ---
@@ -77,7 +76,7 @@ impl Plugin for EntitiesPlugin {
             Update,
             (
                 wander_system,
-                actor::update_actor_sprites,
+                sprites::update_sprite_sheets,
                 billboard_face_camera,
             )
                 .chain()
@@ -151,7 +150,7 @@ fn wander_system(
 
 /// Rotate all billboard entities to face the camera (Y-axis only, stays upright).
 fn billboard_face_camera(
-    camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
+    camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
     mut billboard_query: Query<(&mut Transform, &GlobalTransform), With<Billboard>>,
 ) {
     let Ok(camera_gt) = camera_query.single() else {
