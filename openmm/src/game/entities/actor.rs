@@ -39,6 +39,7 @@ pub fn spawn_actors(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
+    let mut cache = sprites::SpriteCache::default();
     for (i, actor) in prepared.actors.iter().enumerate() {
         if actor.hp <= 0 {
             continue;
@@ -51,12 +52,12 @@ pub fn spawn_actors(
         let (st_root, wa_root) = NPC_SPRITES[i % NPC_SPRITES.len()];
 
         let (standing_frames, sprite_w, sprite_h) =
-            sprites::load_sprite_frames(st_root, lod_manager, images, materials);
+            sprites::load_sprite_frames_cached(st_root, lod_manager, images, materials, &mut Some(&mut cache));
         if standing_frames.is_empty() || sprite_w == 0.0 {
             continue;
         }
         let (walking_frames, _, _) =
-            sprites::load_sprite_frames(wa_root, lod_manager, images, materials);
+            sprites::load_sprite_frames_cached(wa_root, lod_manager, images, materials, &mut Some(&mut cache));
 
         let mut states = vec![standing_frames];
         if !walking_frames.is_empty() {
@@ -123,9 +124,9 @@ pub fn spawn_monsters(
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
     info!("Spawning {} monsters from spawn points", prepared.monsters.len());
+    let mut cache = sprites::SpriteCache::default();
 
     for monster in &prepared.monsters {
-        // Try monster sprites, fall back to peasant if not found
         let sprite_fallbacks = [
             (monster.standing_sprite.as_str(), monster.walking_sprite.as_str()),
             ("pfemst", "pfemwa"),
@@ -138,12 +139,12 @@ pub fn spawn_monsters(
         let mut sprite_h = 0.0_f32;
 
         for (st, wa) in &sprite_fallbacks {
-            let (sf, w, h) = sprites::load_sprite_frames(st, lod_manager, images, materials);
+            let (sf, w, h) = sprites::load_sprite_frames_cached(st, lod_manager, images, materials, &mut Some(&mut cache));
             if !sf.is_empty() && w > 0.0 {
                 standing_frames = sf;
                 sprite_w = w;
                 sprite_h = h;
-                let (wf, _, _) = sprites::load_sprite_frames(wa, lod_manager, images, materials);
+                let (wf, _, _) = sprites::load_sprite_frames_cached(wa, lod_manager, images, materials, &mut Some(&mut cache));
                 walking_frames = wf;
                 break;
             }

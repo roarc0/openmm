@@ -75,6 +75,7 @@ impl Plugin for EntitiesPlugin {
         app.add_systems(
             Update,
             (
+                distance_culling,
                 wander_system,
                 sprites::update_sprite_sheets,
                 billboard_face_camera,
@@ -82,6 +83,29 @@ impl Plugin for EntitiesPlugin {
                 .chain()
                 .run_if(in_state(GameState::Game)),
         );
+    }
+}
+
+const ENTITY_DRAW_DISTANCE: f32 = 10000.0;
+const ENTITY_DRAW_DISTANCE_SQ: f32 = ENTITY_DRAW_DISTANCE * ENTITY_DRAW_DISTANCE;
+
+/// Hide entities that are far from the player, show ones that are close.
+fn distance_culling(
+    player_query: Query<&GlobalTransform, With<crate::game::player::Player>>,
+    mut entity_query: Query<(&GlobalTransform, &mut Visibility), With<WorldEntity>>,
+) {
+    let Ok(player_gt) = player_query.single() else {
+        return;
+    };
+    let player_pos = player_gt.translation();
+
+    for (entity_gt, mut vis) in entity_query.iter_mut() {
+        let dist_sq = player_pos.distance_squared(entity_gt.translation());
+        *vis = if dist_sq < ENTITY_DRAW_DISTANCE_SQ {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
     }
 }
 

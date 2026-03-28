@@ -4,12 +4,23 @@
 //! and provides the animation update system. Reusable by any entity type
 //! (NPCs, monsters, decorations with animations).
 
+use std::collections::HashMap;
+
 use bevy::{asset::RenderAssetUsages, prelude::*};
 
 use lod::{dsft::DSFT, LodManager};
 
 use crate::game::entities::AnimationState;
 use crate::game::player::PlayerCamera;
+
+/// Cache for loaded sprite materials to avoid duplicate texture loading.
+#[derive(Resource, Default)]
+pub struct SpriteCache {
+    /// Maps "root_name + frame_letter + direction" → material handle
+    materials: HashMap<String, Handle<StandardMaterial>>,
+    /// Maps "root_name" → (width, height)
+    dimensions: HashMap<String, (f32, f32)>,
+}
 
 /// Preloaded sprite frames for an entity.
 /// `states[state_idx][frame_idx]` = array of 5 material handles (directions 0-4).
@@ -49,27 +60,92 @@ pub fn resolve_sprite_root(dsft: &DSFT, group_id: u16) -> Option<String> {
 }
 
 /// Load all directional sprite frames for a given root name.
-/// Tries frames a-f with directions 0-4.
-/// Returns (frames, width, height).
+/// Uses cache to avoid reloading the same textures.
 pub fn load_sprite_frames(
     root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
+    load_sprite_frames_cached(root, lod_manager, images, materials, &mut None)
+}
+
+/// Load sprite frames with an optional cache for sharing materials.
+pub fn load_sprite_frames_cached(
+    root: &str,
+    lod_manager: &LodManager,
+    images: &mut Assets<Image>,
+    materials: &mut Assets<StandardMaterial>,
+    cache: &mut Option<&mut SpriteCache>,
+) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
 
-    // Some sprite roots include the first frame letter (e.g. "gobsta" = root "gobst" + frame "a").
-    // Try as-is first; if no frames load, try stripping the last char.
+    // Check cache for dimensions (tells us we've loaded this root before)
+    if let Some(cache) = cache.as_ref() {
+        if let Some(&(w, h)) = cache.dimensions.get(root) {
+            // Rebuild from cache
+            let frames = rebuild_from_cache(root, cache, w, h);
+            if !frames.is_empty() {
+                return (frames, w, h);
+            }
+        }
+    }
+
     let (frames, w, h) = load_frames_with_root(root, lod_manager, images, materials);
     if !frames.is_empty() {
+        store_in_cache(root, &frames, w, h, cache);
         return (frames, w, h);
     }
     if root.len() > 3 {
         let shorter = &root[..root.len() - 1];
-        return load_frames_with_root(shorter, lod_manager, images, materials);
+        let (frames, w, h) = load_frames_with_root(shorter, lod_manager, images, materials);
+        if !frames.is_empty() {
+            store_in_cache(shorter, &frames, w, h, cache);
+            return (frames, w, h);
+        }
     }
     (Vec::new(), 0.0, 0.0)
+}
+
+fn store_in_cache(
+    root: &str,
+    frames: &[[Handle<StandardMaterial>; 5]],
+    w: f32, h: f32,
+    cache: &mut Option<&mut SpriteCache>,
+) {
+    if let Some(cache) = cache.as_mut() {
+        cache.dimensions.insert(root.to_string(), (w, h));
+        for (fi, dirs) in frames.iter().enumerate() {
+            let frame_letter = (b'a' + fi as u8) as char;
+            for (di, mat) in dirs.iter().enumerate() {
+                let key = format!("{}{}{}", root, frame_letter, di);
+                cache.materials.insert(key, mat.clone());
+            }
+        }
+    }
+}
+
+fn rebuild_from_cache(
+    root: &str,
+    cache: &SpriteCache,
+    _w: f32, _h: f32,
+) -> Vec<[Handle<StandardMaterial>; 5]> {
+    let mut frames = Vec::new();
+    for fi in 0..6 {
+        let frame_letter = (b'a' + fi) as char;
+        let key0 = format!("{}{}0", root, frame_letter);
+        if let Some(mat0) = cache.materials.get(&key0) {
+            let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+            for di in 0..5 {
+                let key = format!("{}{}{}", root, frame_letter, di);
+                dirs[di] = cache.materials.get(&key).cloned().unwrap_or_else(|| mat0.clone());
+            }
+            frames.push(dirs);
+        } else {
+            break;
+        }
+    }
+    frames
 }
 
 fn load_frames_with_root(
@@ -179,6 +255,7 @@ pub fn update_sprite_sheets(
         &GlobalTransform,
         &AnimationState,
         &super::actor::Actor,
+        &Visibility,
     )>,
 ) {
     let Ok(camera_gt) = camera_query.single() else {
@@ -187,9 +264,12 @@ pub fn update_sprite_sheets(
     let cam_pos = camera_gt.translation();
     let dt = time.delta_secs();
 
-    for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state, actor) in
+    for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state, actor, vis) in
         query.iter_mut()
     {
+        if *vis == Visibility::Hidden {
+            continue;
+        }
         let actor_pos = global_transform.translation();
 
         let state_idx = match anim_state {
