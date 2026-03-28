@@ -1,6 +1,6 @@
 use bevy::{asset::RenderAssetUsages, prelude::*};
 
-use lod::{monlist::MonsterList, LodManager};
+use lod::{dsft::DSFT, LodManager};
 
 use crate::game::entities::{AnimationState, EntityKind, WorldEntity};
 use crate::game::player::PlayerCamera;
@@ -31,6 +31,34 @@ pub struct ActorSprites {
     pub current_frame: usize,
     pub frame_timer: f32,
     pub frame_duration: f32,
+}
+
+/// Resolve a DSFT group ID to a sprite root name.
+/// e.g. group 1402 → frame "skesta" → root "skest"
+fn resolve_dsft_sprite_root(dsft: &DSFT, group_id: u16) -> Option<String> {
+    if group_id == 0 || (group_id as usize) >= dsft.groups.len() {
+        return None;
+    }
+    let frame_idx = dsft.groups[group_id as usize] as usize;
+    if frame_idx >= dsft.frames.len() {
+        return None;
+    }
+    let name = dsft.frames[frame_idx].sprite_name()?;
+    // Strip trailing direction digit and frame letter to get root
+    // e.g. "skesta" → "skest", "skefia0" → "skefi"
+    let bytes = name.as_bytes();
+    if bytes.len() < 2 {
+        return Some(name);
+    }
+    let last = bytes[bytes.len() - 1];
+    let second_last = bytes[bytes.len() - 2];
+    if last.is_ascii_digit() && second_last.is_ascii_lowercase() {
+        Some(name[..name.len() - 2].to_string())
+    } else if last.is_ascii_lowercase() {
+        Some(name[..name.len() - 1].to_string())
+    } else {
+        Some(name)
+    }
 }
 
 /// Load sprite frames for a sprite name root (e.g. "pfemst" for standing).
@@ -105,8 +133,8 @@ pub fn spawn_actors(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    let monlist = match MonsterList::new(lod_manager) {
-        Ok(m) => m,
+    let dsft = match DSFT::new(lod_manager) {
+        Ok(d) => d,
         Err(_) => return,
     };
 
@@ -118,43 +146,23 @@ pub fn spawn_actors(
             continue;
         }
 
-        // Look up monster description by ID, try sprite names with fallback
-        let monster_desc = monlist.get(actor.monster_id as usize);
+        // Resolve sprite names from DSFT groups.
+        // sprite_ids layout: [0]=dying, [1]=fidget, [2]=standing, [3]=walking, [4]=hit
+        let standing_root = resolve_dsft_sprite_root(&dsft, actor.sprite_ids[2]);
+        let walking_root = resolve_dsft_sprite_root(&dsft, actor.sprite_ids[3]);
 
-        let (standing_name, walking_name) = if let Some(desc) = monster_desc {
-            (desc.sprite_names[0].clone(), desc.sprite_names[1].clone())
-        } else {
-            ("pfemst".to_string(), "pfemwa".to_string())
-        };
+        let st_root = standing_root.as_deref().unwrap_or("pfemst");
+        let wa_root = walking_root.as_deref().unwrap_or("pfemwa");
 
-        // Try loading standing frames, with fallback chain
-        let fallbacks = [
-            (standing_name.as_str(), walking_name.as_str()),
-            ("pfemst", "pfemwa"),
-            ("pmanst", "pmanwk"),
-            ("pmn2st", "pmn2wa"),
-        ];
-
-        let mut standing_frames = Vec::new();
-        let mut walking_frames = Vec::new();
-        let mut sprite_w = 0.0_f32;
-        let mut sprite_h = 0.0_f32;
-
-        for (st, wa) in &fallbacks {
-            let (sf, w, h) = load_sprite_frames(st, lod_manager, images, materials);
-            if !sf.is_empty() && w > 0.0 {
-                standing_frames = sf;
-                sprite_w = w;
-                sprite_h = h;
-                let (wf, _, _) = load_sprite_frames(wa, lod_manager, images, materials);
-                walking_frames = wf;
-                break;
-            }
-        }
+        let (standing_frames, sprite_w, sprite_h) =
+            load_sprite_frames(st_root, lod_manager, images, materials);
 
         if standing_frames.is_empty() || sprite_w == 0.0 {
             continue;
         }
+
+        let (walking_frames, _, _) =
+            load_sprite_frames(wa_root, lod_manager, images, materials);
 
         let mut states = vec![standing_frames];
         if !walking_frames.is_empty() {
