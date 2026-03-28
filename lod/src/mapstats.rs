@@ -71,23 +71,24 @@ impl MapStats {
 }
 
 impl MapMonsterConfig {
-    /// Get the dmonlist name prefix for a spawn point monster_index (1-based).
-    /// Returns (name_prefix, difficulty) or None.
+    /// Get the dmonlist name prefix for a spawn point monster_index.
+    /// MM6 spawn indices: 1-3 = Mon1 variants A/B/C, 4-6 = Mon2, 7-9 = Mon3,
+    /// 10-12 = Mon1 again (reinforcements?). Returns (name_prefix, difficulty).
     pub fn monster_for_index(&self, index: u16) -> Option<(&str, u8)> {
-        match index {
-            1 => {
-                let n = &self.monster_names[0];
-                if n.is_empty() || n == "0" { None } else { Some((n, self.difficulty[0])) }
-            }
-            2 => {
-                let n = &self.monster_names[1];
-                if n.is_empty() || n == "0" { None } else { Some((n, self.difficulty[1])) }
-            }
-            3 => {
-                let n = &self.monster_names[2];
-                if n.is_empty() || n == "0" { None } else { Some((n, self.difficulty[2])) }
-            }
-            _ => None,
+        // Map index to one of the 3 monster slots.
+        // Indices 1,4,7,10 → Mon1; 2,5,8,11 → Mon2; 3,6,9,12 → Mon3
+        let slot = match index {
+            0 => return None,
+            _ => ((index - 1) % 3) as usize,
+        };
+        if slot >= 3 {
+            return None;
+        }
+        let n = &self.monster_names[slot];
+        if n.is_empty() || n == "0" {
+            None
+        } else {
+            Some((n, self.difficulty[slot]))
         }
     }
 }
