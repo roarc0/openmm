@@ -92,8 +92,10 @@ pub fn spawn_actors_with_cache(
             EntityKind::Npc,
             AnimationState::Idle,
             sprites::SpriteSheet {
+                state_dimensions: states.iter().map(|_| (0.0, 0.0)).collect(),
                 states,
                 current_frame: 0,
+                current_state: 0,
                 frame_timer: 0.0,
                 frame_duration: 0.15,
             },
@@ -178,8 +180,10 @@ pub fn spawn_monsters_with_cache(
             EntityKind::Monster,
             AnimationState::Idle,
             sprites::SpriteSheet {
+                state_dimensions: states.iter().map(|_| (0.0, 0.0)).collect(),
                 states,
                 current_frame: 0,
+                current_state: 0,
                 frame_timer: 0.0,
                 frame_duration: 0.15,
             },

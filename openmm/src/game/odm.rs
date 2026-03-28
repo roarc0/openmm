@@ -254,7 +254,7 @@ fn lazy_spawn(
             Transform::from_translation(pos),
             crate::game::entities::WorldEntity, crate::game::entities::EntityKind::Npc,
             crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet { states, current_frame: 0, frame_timer: 0.0, frame_duration: 0.15 },
+            sprites::SpriteSheet { state_dimensions: states.iter().map(|_| (0.0, 0.0)).collect(), states, current_frame: 0, current_state: 0, frame_timer: 0.0, frame_duration: 0.15 },
             actor::Actor {
                 name: a.name.clone(), hp: a.hp, max_hp: a.hp, move_speed: a.move_speed as f32,
                 initial_position: pos, guarding_position: pos,
@@ -305,7 +305,7 @@ fn lazy_spawn(
             Transform::from_translation(pos),
             crate::game::entities::WorldEntity, crate::game::entities::EntityKind::Monster,
             crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet { states, current_frame: 0, frame_timer: 0.0, frame_duration: 0.15 },
+            sprites::SpriteSheet { state_dimensions: states.iter().map(|_| (0.0, 0.0)).collect(), states, current_frame: 0, current_state: 0, frame_timer: 0.0, frame_duration: 0.15 },
             actor::Actor {
                 name: "Monster".into(), hp: 10, max_hp: 10, move_speed: m.move_speed as f32,
                 initial_position: pos, guarding_position: pos,

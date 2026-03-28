@@ -28,7 +28,10 @@ pub struct SpriteCache {
 pub struct SpriteSheet {
     /// states[0]=standing, states[1]=walking (if available)
     pub states: Vec<Vec<[Handle<StandardMaterial>; 5]>>,
+    /// Width and height per state (sprites can differ between standing/walking).
+    pub state_dimensions: Vec<(f32, f32)>,
     pub current_frame: usize,
+    pub current_state: usize,
     pub frame_timer: f32,
     pub frame_duration: f32,
 }
@@ -223,18 +226,22 @@ pub fn load_actor_sprite_sheet(
         return None;
     }
 
-    let (walking_frames, _, _) =
+    let (walking_frames, walk_w, walk_h) =
         load_sprite_frames(wa_root, lod_manager, images, materials);
 
     let mut states = vec![standing_frames];
+    let mut dims = vec![(sprite_w, sprite_h)];
     if !walking_frames.is_empty() {
         states.push(walking_frames);
+        dims.push((walk_w, walk_h));
     }
 
     Some((
         SpriteSheet {
             states,
+            state_dimensions: dims,
             current_frame: 0,
+            current_state: 0,
             frame_timer: 0.0,
             frame_duration: 0.15,
         },
@@ -282,6 +289,22 @@ pub fn update_sprite_sheets(
             continue;
         }
 
+        // Reset frame when state changes
+        if state_idx != sprites.current_state {
+            sprites.current_state = state_idx;
+            sprites.current_frame = 0;
+            sprites.frame_timer = 0.0;
+            // Adjust scale for different sprite dimensions between states
+            if sprites.state_dimensions.len() > state_idx {
+                let (base_w, base_h) = sprites.state_dimensions[0];
+                let (new_w, new_h) = sprites.state_dimensions[state_idx];
+                if base_w > 0.0 && base_h > 0.0 {
+                    transform.scale.y = new_h / base_h;
+                    // X scale adjusted below with mirror
+                }
+            }
+        }
+
         // Advance animation
         sprites.frame_timer += dt;
         if sprites.frame_timer >= sprites.frame_duration {
@@ -322,6 +345,14 @@ pub fn update_sprite_sheets(
             transform.rotation = Quat::from_rotation_y(face_angle);
         }
 
-        transform.scale.x = if mirrored { -1.0 } else { 1.0 };
+        // Apply mirror + width scale
+        let width_scale = if sprites.state_dimensions.len() > state_idx {
+            let (base_w, _) = sprites.state_dimensions[0];
+            let (new_w, _) = sprites.state_dimensions[state_idx];
+            if base_w > 0.0 { new_w / base_w } else { 1.0 }
+        } else {
+            1.0
+        };
+        transform.scale.x = if mirrored { -width_scale } else { width_scale };
     }
 }
