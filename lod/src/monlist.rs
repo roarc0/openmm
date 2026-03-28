@@ -108,7 +108,7 @@ impl MonsterList {
     }
 
     /// Find a monster whose sprite actually exists in the LOD.
-    /// Tries all variants (A/B/C) and checks if the standing sprite loads.
+    /// Uses try_get_bytes (cheap) instead of sprite() (expensive decode).
     pub fn find_with_sprite(&self, name: &str, difficulty: u8, lod_manager: &crate::LodManager) -> Option<&MonsterDesc> {
         let preferred = match difficulty {
             1 => "A",
@@ -118,22 +118,29 @@ impl MonsterList {
         for suffix in &[preferred, "A", "B", "C"] {
             let target = format!("{}{}", name, suffix);
             if let Some(m) = self.monsters.iter().find(|m| m.internal_name.eq_ignore_ascii_case(&target)) {
-                // Check if standing sprite exists
                 let sprite = &m.sprite_names[0];
                 if !sprite.is_empty() {
-                    let test = format!("{}a0", sprite.trim_end_matches(|c: char| c.is_ascii_alphanumeric()));
-                    // Try loading the sprite
+                    // Cheap check: just see if the raw bytes exist in the LOD
                     let root = sprite.trim_end_matches(|c: char| c.is_ascii_digit());
-                    if lod_manager.sprite(&format!("{}a0", root)).is_some()
-                        || lod_manager.sprite(&format!("{}0", root)).is_some()
-                        || (root.len() > 1 && lod_manager.sprite(&format!("{}a0", &root[..root.len()-1])).is_some())
-                    {
+                    let check_name = if root.ends_with('a') {
+                        format!("{}0", root)
+                    } else {
+                        format!("{}a0", root)
+                    };
+                    if lod_manager.try_get_bytes(&format!("sprites/{}", check_name)).is_ok() {
                         return Some(m);
+                    }
+                    // Try stripped root
+                    if root.len() > 1 {
+                        let shorter = &root[..root.len()-1];
+                        let check2 = format!("{}a0", shorter);
+                        if lod_manager.try_get_bytes(&format!("sprites/{}", check2)).is_ok() {
+                            return Some(m);
+                        }
                     }
                 }
             }
         }
-        // Last resort: return any variant even if sprite might not load
         self.find_by_name(name, difficulty)
     }
 }

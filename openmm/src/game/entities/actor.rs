@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use lod::LodManager;
 
+use crate::game::collision::sample_terrain_height;
 use crate::game::entities::{AnimationState, EntityKind, WorldEntity, sprites};
 use crate::states::loading::PreparedWorld;
 
@@ -30,16 +31,16 @@ const NPC_SPRITES: &[(&str, &str)] = &[
     ("pmn2st", "pmn2wa"),
 ];
 
-/// Spawn DDM actors (NPCs) with peasant sprites.
-pub fn spawn_actors(
+/// Spawn DDM actors (NPCs) with peasant sprites (shared cache).
+pub fn spawn_actors_with_cache(
     parent: &mut ChildSpawnerCommands,
     prepared: &PreparedWorld,
     lod_manager: &LodManager,
     images: &mut ResMut<Assets<Image>>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    cache: &mut sprites::SpriteCache,
 ) {
-    let mut cache = sprites::SpriteCache::default();
     for (i, actor) in prepared.actors.iter().enumerate() {
         if actor.hp <= 0 {
             continue;
@@ -52,12 +53,12 @@ pub fn spawn_actors(
         let (st_root, wa_root) = NPC_SPRITES[i % NPC_SPRITES.len()];
 
         let (standing_frames, sprite_w, sprite_h) =
-            sprites::load_sprite_frames_cached(st_root, lod_manager, images, materials, &mut Some(&mut cache));
+            sprites::load_sprite_frames_cached(st_root, lod_manager, images, materials, &mut Some(cache));
         if standing_frames.is_empty() || sprite_w == 0.0 {
             continue;
         }
         let (walking_frames, _, _) =
-            sprites::load_sprite_frames_cached(wa_root, lod_manager, images, materials, &mut Some(&mut cache));
+            sprites::load_sprite_frames_cached(wa_root, lod_manager, images, materials, &mut Some(cache));
 
         let mut states = vec![standing_frames];
         if !walking_frames.is_empty() {
@@ -114,17 +115,17 @@ pub fn spawn_actors(
     }
 }
 
-/// Spawn monsters from ODM spawn points with sprites from dmonlist.
-pub fn spawn_monsters(
+/// Spawn monsters from ODM spawn points (shared cache).
+pub fn spawn_monsters_with_cache(
     parent: &mut ChildSpawnerCommands,
     prepared: &PreparedWorld,
     lod_manager: &LodManager,
     images: &mut ResMut<Assets<Image>>,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
+    cache: &mut sprites::SpriteCache,
 ) {
     info!("Spawning {} monsters from spawn points", prepared.monsters.len());
-    let mut cache = sprites::SpriteCache::default();
 
     for monster in &prepared.monsters {
         let sprite_fallbacks = [
@@ -139,12 +140,12 @@ pub fn spawn_monsters(
         let mut sprite_h = 0.0_f32;
 
         for (st, wa) in &sprite_fallbacks {
-            let (sf, w, h) = sprites::load_sprite_frames_cached(st, lod_manager, images, materials, &mut Some(&mut cache));
+            let (sf, w, h) = sprites::load_sprite_frames_cached(st, lod_manager, images, materials, &mut Some(cache));
             if !sf.is_empty() && w > 0.0 {
                 standing_frames = sf;
                 sprite_w = w;
                 sprite_h = h;
-                let (wf, _, _) = sprites::load_sprite_frames_cached(wa, lod_manager, images, materials, &mut Some(&mut cache));
+                let (wf, _, _) = sprites::load_sprite_frames_cached(wa, lod_manager, images, materials, &mut Some(cache));
                 walking_frames = wf;
                 break;
             }
@@ -163,11 +164,15 @@ pub fn spawn_monsters(
         let quad = meshes.add(Rectangle::new(sprite_w, sprite_h));
 
         // MM6 coords (x, y, z) → Bevy (x, z, -y)
-        let pos = Vec3::new(
-            monster.position[0] as f32,
-            monster.position[2] as f32 + sprite_h / 2.0,
-            -monster.position[1] as f32,
-        );
+        let world_x = monster.position[0] as f32;
+        let world_z = -monster.position[1] as f32;
+        let terrain_y = if monster.position[2] == 0 {
+            // z=0 means "on terrain" — sample heightmap
+            sample_terrain_height(&prepared.map.height_map, world_x, world_z)
+        } else {
+            monster.position[2] as f32
+        };
+        let pos = Vec3::new(world_x, terrain_y + sprite_h / 2.0, world_z);
 
         parent.spawn((
             Name::new("monster"),

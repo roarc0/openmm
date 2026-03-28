@@ -4,7 +4,7 @@ use bevy::render::render_resource::Face;
 use crate::GameState;
 use crate::game::InGame;
 use crate::assets::GameAssets;
-use crate::game::entities::{decoration, actor};
+use crate::game::entities::{decoration, actor, sprites};
 use crate::states::loading::PreparedWorld;
 
 /// Grid coordinate for outdoor maps. Columns a-e, rows 1-3.
@@ -151,21 +151,24 @@ fn spawn_world(
                 &mut meshes,
                 &mut materials,
             );
-            actor::spawn_actors(
+            let mut sprite_cache = sprites::SpriteCache::default();
+            actor::spawn_actors_with_cache(
                 parent,
                 &prepared,
                 game_assets.lod_manager(),
                 &mut images,
                 &mut meshes,
                 &mut materials,
+                &mut sprite_cache,
             );
-            actor::spawn_monsters(
+            actor::spawn_monsters_with_cache(
                 parent,
                 &prepared,
                 game_assets.lod_manager(),
                 &mut images,
                 &mut meshes,
                 &mut materials,
+                &mut sprite_cache,
             );
         });
 }
