@@ -70,10 +70,11 @@ fn debug_setup(
         Visibility::Hidden
     };
 
+    // HUD text
     commands
         .spawn((
             Text::new("FPS: --"),
-            TextFont { font_size: 24.0, ..default() },
+            TextFont { font_size: 22.0, ..default() },
             TextColor(Color::WHITE),
             hud_visibility,
             FpsText,
@@ -82,10 +83,63 @@ fn debug_setup(
         ))
         .with_child((
             TextSpan::new("\nPOS: --"),
-            TextFont { font_size: 24.0, ..default() },
+            TextFont { font_size: 22.0, ..default() },
             TextColor(Color::WHITE),
             PosSpan,
         ));
+
+    // FPS chart — bars with min/max labels
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(4.0),
+            top: Val::Px(60.0),
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+        hud_visibility,
+        InGame,
+        DebugHud,
+        FpsChart,
+    )).with_children(|parent| {
+        // Max label at top
+        parent.spawn((
+            Text::new(""),
+            TextFont { font_size: 12.0, ..default() },
+            TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)),
+            ChartMaxLabel,
+        ));
+        // Bar container
+        parent.spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::FlexEnd,
+                height: Val::Px(FPS_CHART_HEIGHT),
+                column_gap: Val::Px(1.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
+        )).with_children(|bars| {
+            for i in 0..FPS_CHART_WIDTH {
+                bars.spawn((
+                    Node {
+                        width: Val::Px(FPS_CHART_BAR_W),
+                        height: Val::Px(0.0),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.2, 1.0, 0.2)),
+                    FpsChartBar(i),
+                ));
+            }
+        });
+        // Min label at bottom
+        parent.spawn((
+            Text::new(""),
+            TextFont { font_size: 12.0, ..default() },
+            TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)),
+            ChartMinLabel,
+        ));
+    });
 }
 
 /// Marker for the debug HUD container.
@@ -105,6 +159,8 @@ fn debug_input(
         dev_config.show_play_area = !dev_config.show_play_area;
     }
     if keys.just_pressed(KeyCode::F11) {
+        // Toggle HUD and debug lines together
+        dev_config.show_play_area = !dev_config.show_play_area;
         for mut vis in hud_query.iter_mut() {
             *vis = match *vis {
                 Visibility::Hidden => Visibility::Inherited,
@@ -163,28 +219,56 @@ fn debug_change_map(
 
 /// FPS history for chart and percentile calculations.
 const FPS_HISTORY_SIZE: usize = 120;
-const FPS_CHART_WIDTH: usize = 40;
+const FPS_CHART_WIDTH: usize = 60;
+const FPS_CHART_BAR_W: f32 = 3.0;
+const FPS_CHART_HEIGHT: f32 = 50.0;
+const FPS_AVG_WINDOW: usize = 30;
+/// Only push a new sample every N frames to slow the chart scroll.
+const FPS_SAMPLE_INTERVAL: usize = 15;
 
 #[derive(Resource)]
 struct FpsHistory {
     samples: Vec<f64>,
+    frame_counter: usize,
+    accumulator: f64,
+    accum_count: usize,
 }
 
 impl Default for FpsHistory {
     fn default() -> Self {
-        Self { samples: Vec::with_capacity(FPS_HISTORY_SIZE) }
+        Self {
+            samples: Vec::with_capacity(FPS_HISTORY_SIZE),
+            frame_counter: 0,
+            accumulator: 0.0,
+            accum_count: 0,
+        }
     }
 }
 
 impl FpsHistory {
-    fn push(&mut self, fps: f64) {
-        if self.samples.len() >= FPS_HISTORY_SIZE {
-            self.samples.remove(0);
+    /// Accumulate frames and push an averaged sample every N frames.
+    fn tick(&mut self, fps: f64) {
+        self.accumulator += fps;
+        self.accum_count += 1;
+        self.frame_counter += 1;
+        if self.frame_counter >= FPS_SAMPLE_INTERVAL {
+            let avg = self.accumulator / self.accum_count as f64;
+            if self.samples.len() >= FPS_HISTORY_SIZE {
+                self.samples.remove(0);
+            }
+            self.samples.push(avg);
+            self.frame_counter = 0;
+            self.accumulator = 0.0;
+            self.accum_count = 0;
         }
-        self.samples.push(fps);
     }
 
-    /// 1% low: average of the lowest 1% of samples (min 1 sample).
+    fn averaged(&self) -> f64 {
+        let n = self.samples.len().min(FPS_AVG_WINDOW);
+        if n == 0 { return 0.0; }
+        self.samples[self.samples.len() - n..].iter().sum::<f64>() / n as f64
+    }
+
     fn percentile_low(&self, pct: f32) -> f64 {
         if self.samples.is_empty() { return 0.0; }
         let mut sorted = self.samples.clone();
@@ -193,61 +277,79 @@ impl FpsHistory {
         sorted[..count].iter().sum::<f64>() / count as f64
     }
 
-    /// Build a text-based scrolling chart. Each column is one sample,
-    /// characters represent vertical bars at different heights.
-    fn chart(&self) -> String {
+    /// Min/max of the visible chart window.
+    fn chart_min_max(&self) -> (f64, f64) {
         let width = FPS_CHART_WIDTH.min(self.samples.len());
-        if width == 0 { return String::new(); }
+        if width == 0 { return (0.0, 60.0); }
         let start = self.samples.len() - width;
         let slice = &self.samples[start..];
-        let max_fps = 120.0_f64;
-        let bar_chars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-
-        let mut chart = String::with_capacity(width);
-        for &fps in slice {
-            let ratio = (fps / max_fps).clamp(0.0, 1.0);
-            let idx = (ratio * (bar_chars.len() - 1) as f64) as usize;
-            chart.push(bar_chars[idx]);
-        }
-        chart
+        let min = slice.iter().copied().fold(f64::MAX, f64::min);
+        let max = slice.iter().copied().fold(0.0_f64, f64::max);
+        (min, max)
     }
+}
+
+/// Color for an FPS value: green > 55, yellow > 30, red below.
+fn fps_color(fps: f64) -> Color {
+    if fps >= 55.0 { Color::srgb(0.2, 1.0, 0.2) }
+    else if fps >= 30.0 { Color::srgb(1.0, 0.9, 0.1) }
+    else { Color::srgb(1.0, 0.2, 0.2) }
 }
 
 #[derive(Component)]
 pub struct FpsText;
 
-/// Marker for the position text span (child of FpsText).
 #[derive(Component)]
 struct PosSpan;
+
+/// Marker for the FPS chart container.
+#[derive(Component)]
+struct FpsChart;
+
+/// Marker for individual chart bars.
+#[derive(Component)]
+struct FpsChartBar(usize);
+
+#[derive(Component)]
+struct ChartMaxLabel;
+
+#[derive(Component)]
+struct ChartMinLabel;
 
 fn update_hud_text(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<&Transform, With<Player>>,
+    cfg: Res<GameConfig>,
     mut fps_history: ResMut<FpsHistory>,
     mut fps_query: Query<(&mut Text, &mut TextColor), With<FpsText>>,
     mut pos_query: Query<(&mut TextSpan, &mut TextColor), (With<PosSpan>, Without<FpsText>)>,
+    mut bar_query: Query<(&FpsChartBar, &mut Node, &mut BackgroundColor)>,
+    mut max_label: Query<&mut Text, (With<ChartMaxLabel>, Without<FpsText>)>,
+    mut min_label: Query<&mut Text, (With<ChartMinLabel>, Without<FpsText>, Without<ChartMaxLabel>)>,
 ) {
     let fps_val = diagnostics
         .get(&FrameTimeDiagnosticsPlugin::FPS)
         .and_then(|fps| fps.smoothed());
 
     if let Some(fps) = fps_val {
-        fps_history.push(fps);
+        fps_history.tick(fps);
     }
 
+    let avg = fps_history.averaged();
     let low_1 = fps_history.percentile_low(1.0);
-    let chart = fps_history.chart();
+    let (chart_min, chart_max) = fps_history.chart_min_max();
+    // Snap to nice round boundaries so the scale doesn't jitter.
+    // Floor min down to nearest 10, ceil max up to nearest 20.
+    let scale_min = ((chart_min / 10.0).floor() * 10.0).max(0.0);
+    let scale_max = ((chart_max / 20.0).ceil() * 20.0).max(scale_min + 20.0);
 
-    let fps_str = fps_val
-        .map(|v| format!("FPS: {v:.0}  1%low: {low_1:.0}\n{chart}"))
-        .unwrap_or_else(|| "FPS: --".into());
-
-    let fps_color = match fps_val {
-        Some(v) if v >= 55.0 => Color::srgb(0.2, 1.0, 0.2),
-        Some(v) if v >= 30.0 => Color::srgb(1.0, 0.9, 0.1),
-        Some(_) => Color::srgb(1.0, 0.2, 0.2),
-        None => Color::WHITE,
+    let fps_str = if avg > 0.0 {
+        format!("FPS: {avg:.0}  1%low: {low_1:.0}")
+    } else {
+        "FPS: --".into()
     };
+
+    let color = if avg > 0.0 { fps_color(avg) } else { Color::WHITE };
 
     let pos_str = if let Ok(transform) = player_query.single() {
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
@@ -260,13 +362,37 @@ fn update_hud_text(
         "\nPOS: --".into()
     };
 
-    for (mut text, mut color) in &mut fps_query {
+    for (mut text, mut tc) in &mut fps_query {
         **text = fps_str.clone();
-        *color = TextColor(fps_color);
+        *tc = TextColor(color);
     }
-    for (mut span, mut color) in &mut pos_query {
+    for (mut span, mut tc) in &mut pos_query {
         **span = pos_str.clone();
-        *color = TextColor(Color::WHITE);
+        *tc = TextColor(Color::WHITE);
+    }
+
+    // Update chart bars with adaptive min/max scaling
+    let width = FPS_CHART_WIDTH.min(fps_history.samples.len());
+    let start = fps_history.samples.len().saturating_sub(FPS_CHART_WIDTH);
+    let range = (scale_max - scale_min).max(1.0);
+    for (bar, mut node, mut bg) in bar_query.iter_mut() {
+        let idx = bar.0;
+        if idx < width {
+            let fps = fps_history.samples[start + idx];
+            let ratio = ((fps - scale_min) / range).clamp(0.0, 1.0) as f32;
+            node.height = Val::Px(ratio * FPS_CHART_HEIGHT);
+            *bg = BackgroundColor(fps_color(fps));
+        } else {
+            node.height = Val::Px(0.0);
+        }
+    }
+
+    // Update min/max labels
+    for mut text in max_label.iter_mut() {
+        **text = format!("{scale_max:.0}");
+    }
+    for mut text in min_label.iter_mut() {
+        **text = format!("{scale_min:.0}");
     }
 }
 

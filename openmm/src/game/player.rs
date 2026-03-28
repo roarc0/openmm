@@ -168,6 +168,7 @@ fn spawn_player(
                 Projection::Perspective(PerspectiveProjection {
                     fov: 50.0_f32.to_radians(),
                     near: 10.0,
+                    far: 100000.0,
                     ..Default::default()
                 }),
                 DistanceFog {
