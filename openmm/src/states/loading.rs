@@ -55,6 +55,7 @@ struct LoadingProgress {
     billboards: Option<Vec<PreparedBillboard>>,
     actors: Option<Vec<DdmActor>>,
     monsters: Option<Vec<PreparedMonster>>,
+    sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     water_cells: Option<Vec<bool>>,
 }
 
@@ -100,6 +101,7 @@ enum LoadingStep {
     BuildAtlas,
     BuildModels,
     BuildBillboards,
+    PreloadSprites,
     Done,
 }
 
@@ -111,6 +113,7 @@ impl LoadingStep {
             Self::BuildAtlas => "Building textures...",
             Self::BuildModels => "Building models...",
             Self::BuildBillboards => "Loading decorations...",
+            Self::PreloadSprites => "Loading sprites...",
             Self::Done => "Done!",
         }
     }
@@ -121,7 +124,8 @@ impl LoadingStep {
             Self::BuildTerrain => Self::BuildAtlas,
             Self::BuildAtlas => Self::BuildModels,
             Self::BuildModels => Self::BuildBillboards,
-            Self::BuildBillboards => Self::Done,
+            Self::BuildBillboards => Self::PreloadSprites,
+            Self::PreloadSprites => Self::Done,
             Self::Done => Self::Done,
         }
     }
@@ -138,6 +142,7 @@ pub struct PreparedWorld {
     pub billboards: Vec<PreparedBillboard>,
     pub actors: Vec<DdmActor>,
     pub monsters: Vec<PreparedMonster>,
+    pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub water_cells: Vec<bool>,
 }
 
@@ -168,6 +173,7 @@ fn loading_setup(
         billboards: None,
         actors: None,
         monsters: None,
+        sprite_cache: None,
         water_cells: None,
     });
 
@@ -208,6 +214,8 @@ fn loading_step(
     mut game_state: ResMut<NextState<GameState>>,
     mut commands: Commands,
     mut text_query: Query<&mut Text, With<LoadingText>>,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // Update loading text
     for mut text in &mut text_query {
@@ -467,6 +475,39 @@ fn loading_step(
                 progress.step = progress.step.next();
             }
         }
+        LoadingStep::PreloadSprites => {
+            // Preload all unique sprite roots into a cache so spawn_world is fast.
+            use crate::game::entities::sprites::{SpriteCache, load_sprite_frames_cached};
+            let mut cache = SpriteCache::default();
+
+            // Collect unique sprite roots from monsters
+            let mut roots = std::collections::HashSet::new();
+            if let Some(monsters) = &progress.monsters {
+                for m in monsters {
+                    roots.insert(m.standing_sprite.clone());
+                    roots.insert(m.walking_sprite.clone());
+                }
+            }
+            // NPC sprites
+            for (st, wa) in &[("pfemst", "pfemwa"), ("pmanst", "pmanwk"), ("pmn2st", "pmn2wa")] {
+                roots.insert(st.to_string());
+                roots.insert(wa.to_string());
+            }
+
+            info!("Preloading {} unique sprite roots", roots.len());
+            for root in &roots {
+                let _ = load_sprite_frames_cached(
+                    root,
+                    game_assets.lod_manager(),
+                    &mut images,
+                    &mut materials,
+                    &mut Some(&mut cache),
+                );
+            }
+
+            progress.sprite_cache = Some(cache);
+            progress.step = progress.step.next();
+        }
         LoadingStep::Done => {
             // Move all prepared data into PreparedWorld resource
             let odm = progress.odm.take();
@@ -491,6 +532,7 @@ fn loading_step(
                     billboards,
                     actors,
                     monsters: progress.monsters.take().unwrap_or_default(),
+                    sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
                 });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);

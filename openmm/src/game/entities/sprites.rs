@@ -14,7 +14,7 @@ use crate::game::entities::AnimationState;
 use crate::game::player::PlayerCamera;
 
 /// Cache for loaded sprite materials to avoid duplicate texture loading.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Clone)]
 pub struct SpriteCache {
     /// Maps "root_name + frame_letter + direction" → material handle
     materials: HashMap<String, Handle<StandardMaterial>>,

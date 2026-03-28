@@ -151,7 +151,7 @@ fn spawn_world(
                 &mut meshes,
                 &mut materials,
             );
-            let mut sprite_cache = sprites::SpriteCache::default();
+            let mut sprite_cache = prepared.sprite_cache.clone();
             actor::spawn_actors_with_cache(
                 parent,
                 &prepared,
