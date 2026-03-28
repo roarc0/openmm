@@ -6,6 +6,7 @@ use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 const MAX_STEP_UP: f32 = 50.0;
 
 /// A collision triangle in Bevy coordinates, with precomputed AABB.
+/// Used for floor height sampling (point-in-triangle + barycentric interpolation).
 #[derive(Clone)]
 pub struct CollisionTriangle {
     pub v0: Vec3,
@@ -39,77 +40,129 @@ impl CollisionTriangle {
             && z + radius > self.min_z - radius
             && z - radius < self.max_z + radius
     }
+}
 
-    /// The wall's edges in XZ as line segments.
-    fn edges_xz(&self) -> [(Vec2, Vec2); 3] {
-        [
-            (Vec2::new(self.v0.x, self.v0.z), Vec2::new(self.v1.x, self.v1.z)),
-            (Vec2::new(self.v1.x, self.v1.z), Vec2::new(self.v2.x, self.v2.z)),
-            (Vec2::new(self.v2.x, self.v2.z), Vec2::new(self.v0.x, self.v0.z)),
-        ]
+/// A wall face for plane-based collision. Stores the face plane (outward normal
+/// + distance) and the polygon vertices projected to XZ for containment testing.
+pub struct CollisionWall {
+    /// Outward-facing normal (in Bevy coords).
+    pub normal: Vec3,
+    /// Plane distance: dot(normal, point_on_plane).
+    pub plane_dist: f32,
+    /// Polygon vertices projected to XZ, for point-in-polygon test.
+    pub polygon_xz: Vec<Vec2>,
+    /// AABB bounds.
+    pub min_x: f32,
+    pub max_x: f32,
+    pub min_z: f32,
+    pub max_z: f32,
+    pub min_y: f32,
+    pub max_y: f32,
+}
+
+impl CollisionWall {
+    pub fn new(normal: Vec3, plane_dist: f32, vertices: &[Vec3]) -> Self {
+        let mut min_x = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut min_z = f32::MAX;
+        let mut max_z = f32::MIN;
+        let mut min_y = f32::MAX;
+        let mut max_y = f32::MIN;
+        let mut polygon_xz = Vec::with_capacity(vertices.len());
+
+        for v in vertices {
+            min_x = min_x.min(v.x);
+            max_x = max_x.max(v.x);
+            min_z = min_z.min(v.z);
+            max_z = max_z.max(v.z);
+            min_y = min_y.min(v.y);
+            max_y = max_y.max(v.y);
+            polygon_xz.push(Vec2::new(v.x, v.z));
+        }
+
+        Self { normal, plane_dist, polygon_xz, min_x, max_x, min_z, max_z, min_y, max_y }
+    }
+
+    /// Signed distance from a 3D point to this face's plane.
+    /// Positive = in front (outside), negative = behind (inside).
+    fn signed_distance(&self, point: Vec3) -> f32 {
+        self.normal.dot(point) - self.plane_dist
+    }
+
+    /// Check if a 2D point (XZ) is within the face polygon, expanded by radius.
+    /// Uses the XZ normal component to determine the dominant axis for projection.
+    fn contains_xz(&self, px: f32, pz: f32, radius: f32) -> bool {
+        // AABB pre-check with radius
+        if px + radius < self.min_x || px - radius > self.max_x
+            || pz + radius < self.min_z || pz - radius > self.max_z
+        {
+            return false;
+        }
+        // Point-in-polygon (ray casting) on the XZ polygon, or within radius of any edge
+        let p = Vec2::new(px, pz);
+        if point_in_polygon_2d(p, &self.polygon_xz) {
+            return true;
+        }
+        // Also check if within radius of any polygon edge (handles near-miss at edges)
+        for i in 0..self.polygon_xz.len() {
+            let a = self.polygon_xz[i];
+            let b = self.polygon_xz[(i + 1) % self.polygon_xz.len()];
+            if point_to_segment_dist_sq(p, a, b) < radius * radius {
+                return true;
+            }
+        }
+        false
     }
 }
 
 /// Collection of BSP model collision geometry.
 #[derive(Resource, Default)]
 pub struct BuildingColliders {
-    pub walls: Vec<CollisionTriangle>,
+    pub walls: Vec<CollisionWall>,
     pub floors: Vec<CollisionTriangle>,
 }
 
 impl BuildingColliders {
-    /// Resolve movement: slide along walls the player would collide with.
-    /// Returns the corrected destination position.
+    /// Resolve movement: push the player out of any wall they would penetrate.
+    /// Uses face planes with outward normals — if the player is within `radius`
+    /// of a face plane on the front side, and within the face's XZ footprint,
+    /// push them out along the face normal.
     pub fn resolve_movement(&self, from: Vec3, to: Vec3, radius: f32, eye_height: f32) -> Vec3 {
         let mut result = to;
         let feet_y = from.y - eye_height;
 
-        for wall in &self.walls {
-            // AABB pre-check
-            let r = radius * 2.0;
-            let min_x = from.x.min(result.x) - r;
-            let max_x = from.x.max(result.x) + r;
-            let min_z = from.z.min(result.z) - r;
-            let max_z = from.z.max(result.z) + r;
-            if wall.max_x < min_x || wall.min_x > max_x
-                || wall.max_z < min_z || wall.min_z > max_z
-            {
-                continue;
-            }
+        for _ in 0..3 {
+            let prev = result;
 
-            // Height check: skip walls entirely above head or below feet
-            if feet_y > wall.max_y || from.y < wall.min_y {
-                continue;
-            }
-            // Skip short walls the player can step over
-            let wall_height = wall.max_y - wall.min_y;
-            if wall.max_y < feet_y + MAX_STEP_UP && wall_height < MAX_STEP_UP {
-                continue;
-            }
-
-            // Check distance from result point to each edge of the wall triangle
-            let result_2d = Vec2::new(result.x, result.z);
-            for (e0, e1) in wall.edges_xz() {
-                let edge_dir = e1 - e0;
-                let edge_len_sq = edge_dir.length_squared();
-                if edge_len_sq < 0.01 {
+            for wall in &self.walls {
+                // Height check: skip walls entirely above head or below feet
+                if feet_y > wall.max_y || from.y < wall.min_y {
+                    continue;
+                }
+                let wall_height = wall.max_y - wall.min_y;
+                if wall.max_y < feet_y + MAX_STEP_UP && wall_height < MAX_STEP_UP {
                     continue;
                 }
 
-                // Project result point onto edge line
-                let t = ((result_2d - e0).dot(edge_dir) / edge_len_sq).clamp(0.0, 1.0);
-                let closest = e0 + edge_dir * t;
-                let diff = result_2d - closest;
-                let dist_sq = diff.length_squared();
-
-                if dist_sq < radius * radius && dist_sq > 0.01 {
-                    let dist = dist_sq.sqrt();
-                    let push_dir = diff / dist;
-                    // Push the result point away from the edge
-                    let push = push_dir * (radius - dist);
-                    result.x += push.x;
-                    result.z += push.y;
+                // Check if player is within the face's XZ footprint
+                if !wall.contains_xz(result.x, result.z, radius) {
+                    continue;
                 }
+
+                // Signed distance to face plane
+                let dist = wall.signed_distance(result);
+
+                // Only push if within radius on the front side (approaching from outside)
+                // or already penetrating (negative distance = inside the building)
+                if dist < radius && dist > -radius {
+                    let push = radius - dist;
+                    result.x += wall.normal.x * push;
+                    result.z += wall.normal.z * push;
+                }
+            }
+
+            if (result.x - prev.x).abs() < 0.1 && (result.z - prev.z).abs() < 0.1 {
+                break;
             }
         }
 
@@ -219,8 +272,6 @@ pub fn ground_height_at(
 }
 
 /// Probe for the ground height at a world position from above.
-/// Checks terrain heightmap and all BSP floors, returns the highest solid surface.
-/// Use this for placing entities on the map.
 pub fn probe_ground_height(
     height_map: &[u8],
     colliders: Option<&BuildingColliders>,
@@ -230,7 +281,6 @@ pub fn probe_ground_height(
     let terrain_h = sample_terrain_height(height_map, x, z);
     let mut best = terrain_h;
     if let Some(colliders) = colliders {
-        // Check all BSP floors at this XZ (no height restriction — probe from above)
         let point = Vec2::new(x, z);
         for floor in &colliders.floors {
             if !floor.near_xz(x, z, 0.0) {
@@ -279,4 +329,37 @@ fn barycentric_2d(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> (f32, f32, f32) {
     let u = (dot11 * dot02 - dot01 * dot12) * inv_denom;
     let v = (dot00 * dot12 - dot01 * dot02) * inv_denom;
     (1.0 - u - v, v, u)
+}
+
+/// Point-in-polygon test using ray casting (2D).
+fn point_in_polygon_2d(p: Vec2, polygon: &[Vec2]) -> bool {
+    let n = polygon.len();
+    if n < 3 {
+        return false;
+    }
+    let mut inside = false;
+    let mut j = n - 1;
+    for i in 0..n {
+        let vi = polygon[i];
+        let vj = polygon[j];
+        if ((vi.y > p.y) != (vj.y > p.y))
+            && (p.x < (vj.x - vi.x) * (p.y - vi.y) / (vj.y - vi.y) + vi.x)
+        {
+            inside = !inside;
+        }
+        j = i;
+    }
+    inside
+}
+
+/// Squared distance from a point to a line segment (2D).
+fn point_to_segment_dist_sq(p: Vec2, a: Vec2, b: Vec2) -> f32 {
+    let ab = b - a;
+    let len_sq = ab.length_squared();
+    if len_sq < 0.0001 {
+        return p.distance_squared(a);
+    }
+    let t = ((p - a).dot(ab) / len_sq).clamp(0.0, 1.0);
+    let closest = a + ab * t;
+    p.distance_squared(closest)
 }

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::GameState;
 use crate::game::collision::{
-    BuildingColliders, CollisionTriangle, TerrainHeightMap, WaterMap, WaterWalking,
+    BuildingColliders, CollisionTriangle, CollisionWall, TerrainHeightMap, WaterMap, WaterWalking,
     ground_height_at,
 };
 use crate::game::player::{FlyMode, Player, PlayerPhysics, PlayerSettings};
@@ -30,7 +30,7 @@ fn setup_collision_data(mut commands: Commands, prepared: Option<Res<PreparedWor
         heights: prepared.map.height_map.to_vec(),
     });
 
-    // Build collision triangles from BSP model faces
+    // Build collision geometry from BSP model faces
     let mut walls = Vec::new();
     let mut floors = Vec::new();
     for model in &prepared.map.bsp_models {
@@ -47,27 +47,34 @@ fn setup_collision_data(mut commands: Commands, prepared: Option<Res<PreparedWor
             let is_floor = ny > 0.5;
             let is_wall = ny.abs() < 0.7;
 
-            for i in 0..(face.vertices_count as usize).saturating_sub(2) {
-                let i0 = face.vertices_ids[0] as usize;
-                let i1 = face.vertices_ids[i + 1] as usize;
-                let i2 = face.vertices_ids[i + 2] as usize;
-                if i0 >= model.vertices.len()
-                    || i1 >= model.vertices.len()
-                    || i2 >= model.vertices.len()
-                {
-                    continue;
-                }
-                let tri = CollisionTriangle::new(
-                    Vec3::from(model.vertices[i0]),
-                    Vec3::from(model.vertices[i1]),
-                    Vec3::from(model.vertices[i2]),
-                    normal,
-                );
-                if is_wall {
-                    walls.push(tri.clone());
-                }
-                if is_floor {
-                    floors.push(tri);
+            // Collect face vertices in Bevy coords
+            let vert_count = face.vertices_count as usize;
+            let verts: Vec<Vec3> = (0..vert_count)
+                .filter_map(|i| {
+                    let idx = face.vertices_ids[i] as usize;
+                    if idx < model.vertices.len() {
+                        Some(Vec3::from(model.vertices[idx]))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if verts.len() < 3 {
+                continue;
+            }
+
+            // Walls: store as plane + polygon (no triangulation needed)
+            if is_wall {
+                let plane_dist = normal.dot(verts[0]);
+                walls.push(CollisionWall::new(normal, plane_dist, &verts));
+            }
+
+            // Floors: triangulate for height sampling (needs barycentric interpolation)
+            if is_floor {
+                for i in 0..verts.len().saturating_sub(2) {
+                    floors.push(CollisionTriangle::new(
+                        verts[0], verts[i + 1], verts[i + 2], normal,
+                    ));
                 }
             }
         }

@@ -50,6 +50,14 @@ struct Cli {
     #[arg(long)]
     draw_distance: Option<f32>,
 
+    /// Fog start distance (default 8000)
+    #[arg(long)]
+    fog_start: Option<f32>,
+
+    /// Fog end distance (default 22000)
+    #[arg(long)]
+    fog_end: Option<f32>,
+
     /// Path to config file (default: target/openmm.toml)
     #[arg(long, default_value = CONFIG_PATH)]
     config: PathBuf,
@@ -68,6 +76,8 @@ struct ConfigFile {
     fps_cap: Option<u32>,
     auto_move: Option<bool>,
     draw_distance: Option<f32>,
+    fog_start: Option<f32>,
+    fog_end: Option<f32>,
 }
 
 /// Resolved game configuration — available as a Bevy resource.
@@ -93,6 +103,10 @@ pub struct GameConfig {
     pub auto_move: bool,
     /// Entity draw/culling distance in world units
     pub draw_distance: f32,
+    /// Fog start distance (fully clear before this)
+    pub fog_start: f32,
+    /// Fog end distance (fully opaque after this)
+    pub fog_end: f32,
 }
 
 impl Default for GameConfig {
@@ -108,6 +122,8 @@ impl Default for GameConfig {
             fps_cap: 60,
             auto_move: false,
             draw_distance: 10000.0,
+            fog_start: 8000.0,
+            fog_end: 22000.0,
         }
     }
 }
@@ -157,6 +173,12 @@ impl GameConfig {
             draw_distance: cli.draw_distance
                 .or(file_cfg.draw_distance)
                 .unwrap_or(defaults.draw_distance),
+            fog_start: cli.fog_start
+                .or(file_cfg.fog_start)
+                .unwrap_or(defaults.fog_start),
+            fog_end: cli.fog_end
+                .or(file_cfg.fog_end)
+                .unwrap_or(defaults.fog_end),
         }
     }
 }

@@ -136,6 +136,7 @@ fn spawn_player(
     mut commands: Commands,
     prepared: Option<Res<PreparedWorld>>,
     settings: Res<PlayerSettings>,
+    cfg: Res<crate::config::GameConfig>,
     save_data: Res<GameSave>,
 ) {
     let start_x = save_data.player.position[0];
@@ -170,10 +171,10 @@ fn spawn_player(
                     ..Default::default()
                 }),
                 DistanceFog {
-                    color: Color::srgba(0.02, 0.02, 0.02, 0.70),
+                    color: Color::srgba(0.45, 0.55, 0.8, 1.0),
                     falloff: FogFalloff::Linear {
-                        start: 20000.0,
-                        end: 64000.0,
+                        start: cfg.fog_start,
+                        end: cfg.fog_end,
                     },
                     ..default()
                 },

@@ -7,7 +7,12 @@ pub struct SkyPlugin;
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ClearColor(Color::srgb(0.45, 0.55, 0.8)))
-            .add_systems(Update, update_sky_color.run_if(in_state(GameState::Game)));
+            .add_systems(
+                Update,
+                (update_sky_color, sync_fog_to_sky)
+                    .chain()
+                    .run_if(in_state(GameState::Game)),
+            );
     }
 }
 
@@ -39,4 +44,15 @@ fn update_sky_color(
         g.clamp(0.02, 0.85),
         b.clamp(0.05, 0.90),
     );
+}
+
+/// Keep fog color in sync with the sky so distant objects fade into the horizon.
+fn sync_fog_to_sky(
+    clear_color: Res<ClearColor>,
+    mut fog_query: Query<&mut DistanceFog>,
+) {
+    let sky = clear_color.0;
+    for mut fog in fog_query.iter_mut() {
+        fog.color = sky;
+    }
 }
