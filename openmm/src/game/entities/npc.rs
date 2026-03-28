@@ -17,6 +17,8 @@ pub struct Actor {
     pub tether_distance: f32,
     pub wander_timer: f32,
     pub wander_target: Vec3,
+    /// Actor's facing direction in radians (Y-axis rotation). Used for directional sprites.
+    pub facing_yaw: f32,
 }
 
 /// Holds all preloaded sprite frames for an actor, indexed by [state][frame][direction].
@@ -172,6 +174,7 @@ pub fn spawn_actors(
                 tether_distance: actor.tether_distance as f32,
                 wander_timer: 0.0,
                 wander_target: pos,
+                facing_yaw: 0.0,
             },
         ));
     }
@@ -188,6 +191,7 @@ pub fn update_actor_sprites(
         &mut Transform,
         &GlobalTransform,
         &AnimationState,
+        &Actor,
     )>,
 ) {
     let Ok(camera_gt) = camera_query.single() else {
@@ -196,18 +200,17 @@ pub fn update_actor_sprites(
     let cam_pos = camera_gt.translation();
     let dt = time.delta_secs();
 
-    for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state) in
+    for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state, actor) in
         query.iter_mut()
     {
         let actor_pos = global_transform.translation();
 
         // Determine which animation state to use
         let state_idx = match anim_state {
-            AnimationState::Walking => 1,
+            AnimationState::Walking if sprites.states.len() > 1 && !sprites.states[1].is_empty() => 1,
             _ => 0,
         };
-        let state_idx = state_idx.min(sprites.states.len() - 1);
-        let frame_count = sprites.frame_count[state_idx];
+        let frame_count = sprites.states[state_idx].len();
         if frame_count == 0 {
             continue;
         }
@@ -218,16 +221,17 @@ pub fn update_actor_sprites(
             sprites.frame_timer -= sprites.frame_duration;
             sprites.current_frame = (sprites.current_frame + 1) % frame_count;
         }
+        // Clamp in case state changed and frame count differs
+        if sprites.current_frame >= frame_count {
+            sprites.current_frame = 0;
+        }
 
-        // Calculate direction based on camera angle relative to actor facing
+        // Calculate direction based on camera angle relative to actor's facing
         let dir_to_camera = cam_pos - actor_pos;
         let camera_angle = dir_to_camera.x.atan2(dir_to_camera.z);
 
-        // Actor's facing direction from transform
-        let (actor_yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-
-        // Relative angle: how the camera sees the actor
-        let relative = (camera_angle - actor_yaw).rem_euclid(std::f32::consts::TAU);
+        // Use actor's movement facing, not transform rotation
+        let relative = (camera_angle - actor.facing_yaw).rem_euclid(std::f32::consts::TAU);
 
         // Map to 8 octants, then to our 5 directions (0-4) with mirroring
         let octant = ((relative + std::f32::consts::FRAC_PI_8)
@@ -253,11 +257,12 @@ pub fn update_actor_sprites(
         let new_mat = sprites.states[state_idx][sprites.current_frame][direction].clone();
         *mat_handle = MeshMaterial3d(new_mat);
 
-        // Face camera but apply mirror via scale
+        // Always face camera (billboard behavior)
         if dir_to_camera.x.abs() > 0.01 || dir_to_camera.z.abs() > 0.01 {
             let face_angle = dir_to_camera.x.atan2(dir_to_camera.z);
             transform.rotation = Quat::from_rotation_y(face_angle);
         }
+
 
         // Mirror by flipping X scale
         let x_scale = if mirrored { -1.0 } else { 1.0 };

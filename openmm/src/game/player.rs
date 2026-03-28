@@ -62,7 +62,7 @@ impl Default for PlayerSettings {
             eye_height: 180.0,
             gravity: 9800.0,
             max_slope_height: 512.0,
-            jump_velocity: 700.0,
+            jump_velocity: 1100.0,
             collision_radius: 24.0,
             max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
         }

@@ -90,36 +90,49 @@ impl Plugin for EntitiesPlugin {
 /// and slowly walk toward it, then pick a new target.
 fn wander_system(
     time: Res<Time>,
+    colliders: Option<Res<crate::game::collision::BuildingColliders>>,
     mut query: Query<(&mut Transform, &mut npc::Actor, &mut AnimationState), With<WorldEntity>>,
 ) {
     let dt = time.delta_secs();
 
     for (mut transform, mut actor, mut anim_state) in query.iter_mut() {
-        if actor.tether_distance < 1.0 && actor.move_speed < 1.0 {
+        if actor.move_speed < 1.0 {
             continue;
         }
 
         actor.wander_timer -= dt;
         if actor.wander_timer <= 0.0 {
-            let angle = (time.elapsed_secs() * 137.5 + actor.initial_position.x)
-                % std::f32::consts::TAU;
-            let dist = actor.tether_distance.max(200.0) * 0.5;
+            // Use a pseudo-random angle based on position + time
+            let seed = actor.initial_position.x * 7.3 + actor.initial_position.z * 13.7
+                + time.elapsed_secs() * 0.5;
+            let angle = (seed * 2.3).sin() * std::f32::consts::TAU;
+            let dist = actor.tether_distance.max(300.0) * 0.4;
             actor.wander_target = actor.guarding_position
                 + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
-            actor.wander_timer = 3.0 + (angle * 2.0).sin().abs() * 4.0;
+            // Alternate between moving (3-5s) and standing (2-4s)
+            let pause = ((seed * 1.7).cos() + 1.0) * 2.0 + 2.0;
+            actor.wander_timer = pause;
         }
 
         let dir = actor.wander_target - transform.translation;
         let flat_dir = Vec3::new(dir.x, 0.0, dir.z);
-        if flat_dir.length() > 10.0 {
-            let speed = actor.move_speed.min(80.0) * dt;
+        if flat_dir.length() > 20.0 {
+            let speed = actor.move_speed.min(60.0) * dt;
             let move_vec = flat_dir.normalize() * speed;
-            transform.translation.x += move_vec.x;
-            transform.translation.z += move_vec.z;
 
-            // Face movement direction
-            let face_angle = move_vec.x.atan2(move_vec.z);
-            transform.rotation = Quat::from_rotation_y(face_angle);
+            let from = transform.translation;
+            let mut dest = from + Vec3::new(move_vec.x, 0.0, move_vec.z);
+
+            // BSP wall collision
+            if let Some(ref c) = colliders {
+                dest = c.resolve_movement(from, dest, 20.0, 140.0);
+            }
+
+            transform.translation.x = dest.x;
+            transform.translation.z = dest.z;
+
+            // Update facing direction for sprite system
+            actor.facing_yaw = move_vec.x.atan2(move_vec.z);
 
             *anim_state = AnimationState::Walking;
         } else {
