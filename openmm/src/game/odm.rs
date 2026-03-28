@@ -18,7 +18,7 @@ struct PendingSpawns {
     /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
     billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
-    /// NPC sprite lookup: monster_id → (standing_root, walking_root, palette_id)
+    /// NPC sprite lookup: monlist_id → (standing_root, walking_root, palette_id)
     npc_sprite_table: std::collections::HashMap<u8, (String, String, u16)>,
     terrain_entity: Entity,
 }
@@ -244,7 +244,7 @@ fn spawn_world(
     // Resolve monsters from spawn points (cheap — no sprite loading)
     let resolved_monsters = resolve_monsters(&prepared, &game_assets, &save_data);
 
-    // Build NPC sprite lookup from monlist — each DDM actor has a monster_id
+    // Build NPC sprite lookup from monlist — each DDM actor has a monlist_id
     // that maps to a monlist entry with specific sprite names.
     let npc_sprite_table = build_npc_sprite_table(&game_assets);
 
@@ -319,7 +319,7 @@ fn resolve_monsters(
     monsters
 }
 
-/// Build a lookup table: monster_id → (standing_sprite, walking_sprite) from monlist.
+/// Build a lookup table: monlist_id → (standing_sprite, walking_sprite) from monlist.
 /// Resolves monlist sprite group names through the DSFT to get actual sprite file
 /// names and palette IDs. The DSFT is the authoritative mapping from monlist names
 /// to LOD sprite files.
@@ -496,8 +496,8 @@ fn lazy_spawn(
         let a = &prepared.actors[i];
         if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
 
-        let Some((s, w, pal_id)) = p.npc_sprite_table.get(&a.monster_id) else {
-            error!("NPC '{}' monster_id={} has no sprite in DSFT table — skipping", a.name, a.monster_id);
+        let Some((s, w, pal_id)) = p.npc_sprite_table.get(&a.monlist_id) else {
+            error!("NPC '{}' monster_id={} has no sprite in DSFT table — skipping", a.name, a.monlist_id);
             continue;
         };
         // Compute palette variant: base palette is the minimum among same-sprite entries.
@@ -511,7 +511,7 @@ fn lazy_spawn(
             s, w, game_assets.lod_manager(),
             &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant);
         if s2.is_empty() || s2[0].is_empty() {
-            error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monster_id, s, w);
+            error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, s, w);
             continue;
         }
         let states = s2;

@@ -1,42 +1,30 @@
 use lod::LodManager;
-use std::io::{Cursor, Seek};
-use byteorder::{LittleEndian, ReadBytesExt};
 
 fn main() {
-    let lod_path = lod::get_lod_path();
-    let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
-    
-    let sprite_names = vec![
-        // Goblins
-        "gobsta", "gobwaa", "gobata0",
-        "gbbsta", "gbbwaa", "gbbata0",
-        "gcbsta", "gcbwaa", "gcbata0",
-        // Barbarians
-        "bar1sta", "bar1walk", "bar1ata",
-        "bar2sta", "bar2walk", "bar2ata",
-        "bar3sta", "bar3walk", "bar3ata",
-    ];
-    
-    println!("Sprite Palette IDs:");
-    println!();
-    
-    for name in sprite_names {
-        match lod_manager.try_get_bytes(&format!("sprites/{}", name)) {
-            Ok(data) => {
-                if data.len() > 28 {
-                    let mut cursor = Cursor::new(data);
-                    cursor.seek(std::io::SeekFrom::Start(24)).ok();
-                    match cursor.read_u16::<LittleEndian>() {
-                        Ok(palette_id) => {
-                            println!("{:12} -> palette_id: {}", name, palette_id);
-                        }
-                        Err(e) => println!("{:12} -> ERROR reading palette_id: {}", name, e),
-                    }
-                } else {
-                    println!("{:12} -> data too short", name);
+    let lod_manager = LodManager::new(lod::get_lod_path()).expect("failed to open LOD files");
+
+    // List all peasant sprite files and check their palette IDs
+    if let Some(files) = lod_manager.files_in("sprites") {
+        let mut peasant_files: Vec<_> = files.iter()
+            .filter(|f| {
+                let l = f.to_lowercase();
+                l.starts_with("pfem") || l.starts_with("pman") || l.starts_with("pmn2")
+                    || l.starts_with("fmpst") || l.starts_with("fmpwa")
+            })
+            .collect();
+        peasant_files.sort();
+
+        println!("Peasant sprite files and their embedded palette IDs:\n");
+        for file in &peasant_files {
+            let path = format!("sprites/{}", file);
+            if let Ok(data) = lod_manager.try_get_bytes(&path) {
+                if data.len() >= 22 {
+                    let pal = u16::from_le_bytes([data[20], data[21]]);
+                    println!("{:20} pal={}", file, pal);
                 }
             }
-            Err(_) => println!("{:12} -> NOT FOUND", name),
         }
+
+        println!("\nTotal peasant sprite files: {}", peasant_files.len());
     }
 }

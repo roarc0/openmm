@@ -5,36 +5,52 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{lod_data::LodData, LodManager};
 
-/// MM6 actor struct size (discovered empirically).
+/// MM6 MapMonster struct size = 0x224 = 548 bytes.
+/// Layout from MMExtension: Scripts/Structs/01 common structs.lua (MapMonster).
 const ACTOR_SIZE_MM6: usize = 548;
 
 /// An actor (monster/NPC) from the DDM delta file.
+///
+/// Field offsets verified against MMExtension's MapMonster struct (MM6, o=0):
+///   0x00: Name[32], 0x20: NPC_ID, 0x24: Bits, 0x28: HP,
+///   0x2C: CommonMonsterProps (skip 8 + Id @ 0x34, Level @ 0x35, ...),
+///   0x78: BodyRadius, 0x7A: BodyHeight, 0x7C: Velocity,
+///   0x7E: Pos[3], 0x84: Vel[3], 0x8A: Direction, 0x8E: Room,
+///   0x92: Start[3], 0x98: Guard[3], 0x9E: GuardRadius,
+///   0xA0: AIState, 0xA2: GraphicState, 0xA4: Item,
+///   0xA8: CurrentActionStep, 0xAC: Frames[8], 0xBC: Sounds[4],
+///   0xC4: SpellBuffs[14], ...
 #[derive(Debug)]
 pub struct DdmActor {
     pub name: String,
-    /// Monster description table index (from MonsterInfo.id).
-    pub monster_id: u8,
+    /// Index into dmonlist.bin (MonsterList). Contains both NPCs and monsters.
+    /// Offset 0x34 (CommonMonsterProps.Id, u8).
+    pub monlist_id: u8,
+    /// NPC dialogue index (Game.StreetNPC + 1). Zero for monsters.
+    /// Offset 0x20 (i16).
+    pub npc_id: i16,
     pub hp: i16,
     pub radius: u16,
     pub height: u16,
     pub move_speed: u16,
-    /// Current position in MM6 coordinates (x, y, z as i16).
+    /// Current position in MM6 coordinates (x, y, z as i16). Offset 0x7E.
     pub position: [i16; 3],
-    /// Velocity.
+    /// Velocity. Offset 0x84.
     pub velocity: [i16; 3],
-    /// Facing angle (0-65535 for 360 degrees).
+    /// Facing angle (0-65535 for 360 degrees). Offset 0x8A.
     pub yaw: u16,
-    /// Spawn/initial position.
+    /// Spawn/initial position. Offset 0x92.
     pub initial_position: [i16; 3],
-    /// Guarding position (patrol center).
+    /// Guarding position (patrol center). Offset 0x98.
     pub guarding_position: [i16; 3],
-    /// Max wander distance from guarding position.
+    /// Max wander distance from guarding position. Offset 0x9E.
     pub tether_distance: u16,
-    /// AI state (0=standing, 1=tethered, 4=dying, 5=dead, 6=pursuing, etc.)
+    /// AI state (0=standing, 1=tethered, 4=dying, 5=dead, 6=pursuing, etc.). Offset 0xA0.
     pub ai_state: u16,
-    /// Current animation (0=standing, 1=walking, 2=melee, etc.)
+    /// Current animation/graphic state. Offset 0xA2.
     pub current_animation: u16,
-    /// Sprite frame table IDs for each of 8 animation states.
+    /// DSFT frame table indices for 8 animation states. Offset 0xAC.
+    /// Zero in DDM files — populated at runtime by LoadFrames(). Use monlist_id instead.
     pub sprite_ids: [u16; 8],
 }
 
@@ -119,18 +135,17 @@ impl Ddm {
         let mut c = Cursor::new(data);
         c.seek(std::io::SeekFrom::Start(32)).ok()?; // skip name
 
-        // Offset 0x20: npcId(2) + pad(2) + attrs(4) + hp(2) + pad(2) = 12 bytes
-        let _npc_id = c.read_i16::<LittleEndian>().ok()?;
+        // Offset 0x20: NPC_ID(2) + pad(2) + Bits(4) + HP(2) + pad(2) = 12 bytes
+        let npc_id = c.read_i16::<LittleEndian>().ok()?;
         let _pad = c.read_i16::<LittleEndian>().ok()?;
         let _attrs = c.read_u32::<LittleEndian>().ok()?;
         let hp = c.read_i16::<LittleEndian>().ok()?;
         let _pad2 = c.read_i16::<LittleEndian>().ok()?;
 
-        // MonsterInfo area contains the monsterInfo.id field.
-        // In MM6's 548-byte actor struct, the layout differs from MM7's 836-byte struct.
-        // Offset 0x34 within the actor was empirically verified to contain a value
-        // matching monlist peasant indices (120-140 range).
-        let monster_id = data[0x34];
+        // CommonMonsterProps starts at 0x2C: skip(8) + Id(u8) @ 0x34.
+        // Confirmed via MMExtension MapMonster struct definition.
+        // The Id field is 1-indexed in the game engine; subtract 1 for our 0-based monlist array.
+        let monlist_id = data[0x34].saturating_sub(1);
 
         // Skip to position fields (MM6 offsets, verified to produce correct coordinates)
         c.seek(std::io::SeekFrom::Start(0x74)).ok()?;
@@ -175,8 +190,10 @@ impl Ddm {
         let _pad3 = c.read_u16::<LittleEndian>().ok()?;
         let _action_time = c.read_u32::<LittleEndian>().ok()?;
 
-        // Sprite IDs at absolute offset 0xBC in the actor struct
-        c.seek(std::io::SeekFrom::Start(0xBC)).ok()?;
+        // Sprite frame table IDs (DSFT indices) at offset 0xAC.
+        // 8 entries: standing, walking, attack, shoot, stun, dying, dead, fidget.
+        // (0xBC is the Sounds array, not Frames — confirmed via MMExtension structs.)
+        c.seek(std::io::SeekFrom::Start(0xAC)).ok()?;
         let mut sprite_ids = [0u16; 8];
         for sid in &mut sprite_ids {
             *sid = c.read_u16::<LittleEndian>().ok()?;
@@ -184,7 +201,8 @@ impl Ddm {
 
         Some(DdmActor {
             name,
-            monster_id,
+            monlist_id,
+            npc_id,
             hp,
             radius,
             height,
