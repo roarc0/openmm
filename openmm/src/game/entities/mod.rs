@@ -4,7 +4,7 @@ use crate::GameState;
 use crate::game::player::PlayerCamera;
 
 pub mod decoration;
-pub mod npc;
+pub mod actor;
 
 // Future modules:
 // pub mod monster;
@@ -77,7 +77,7 @@ impl Plugin for EntitiesPlugin {
             Update,
             (
                 wander_system,
-                npc::update_actor_sprites,
+                actor::update_actor_sprites,
                 billboard_face_camera,
             )
                 .chain()
@@ -91,7 +91,7 @@ impl Plugin for EntitiesPlugin {
 fn wander_system(
     time: Res<Time>,
     colliders: Option<Res<crate::game::collision::BuildingColliders>>,
-    mut query: Query<(&mut Transform, &mut npc::Actor, &mut AnimationState), With<WorldEntity>>,
+    mut query: Query<(&mut Transform, &mut actor::Actor, &mut AnimationState), With<WorldEntity>>,
 ) {
     let dt = time.delta_secs();
 

@@ -4,7 +4,7 @@ use bevy::render::render_resource::Face;
 use crate::GameState;
 use crate::game::InGame;
 use crate::assets::GameAssets;
-use crate::game::entities::{decoration, npc};
+use crate::game::entities::{decoration, actor};
 use crate::states::loading::PreparedWorld;
 
 /// Grid coordinate for outdoor maps. Columns a-e, rows 1-3.
@@ -151,7 +151,7 @@ fn spawn_world(
                 &mut meshes,
                 &mut materials,
             );
-            npc::spawn_actors(
+            actor::spawn_actors(
                 parent,
                 &prepared,
                 game_assets.lod_manager(),
