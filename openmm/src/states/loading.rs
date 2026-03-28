@@ -247,15 +247,28 @@ fn loading_step(
                                     for sp in &odm.spawn_points {
                                         if let Some((mon_name, dif)) = map_config.monster_for_index(sp.monster_index) {
                                             if let Some(desc) = monlist.find_by_name(mon_name, dif) {
-                                                monsters.push(PreparedMonster {
-                                                    position: sp.position,
-                                                    radius: sp.radius,
-                                                    standing_sprite: desc.sprite_names[0].clone(),
-                                                    walking_sprite: desc.sprite_names[1].clone(),
-                                                    height: desc.height,
-                                                    move_speed: desc.move_speed,
-                                                    hostile: true,
-                                                });
+                                                // Each spawn point creates a group of 3-5 monsters
+                                                let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as i32;
+                                                for g in 0..group_size {
+                                                    // Spread monsters around the spawn point
+                                                    let angle = g as f32 * 2.094; // ~120° apart
+                                                    let spread = sp.radius.max(200) as f32 * 0.5;
+                                                    let offset_x = (angle.cos() * spread * g as f32) as i32;
+                                                    let offset_y = (angle.sin() * spread * g as f32) as i32;
+                                                    monsters.push(PreparedMonster {
+                                                        position: [
+                                                            sp.position[0] + offset_x,
+                                                            sp.position[1] + offset_y,
+                                                            sp.position[2],
+                                                        ],
+                                                        radius: sp.radius.max(300),
+                                                        standing_sprite: desc.sprite_names[0].clone(),
+                                                        walking_sprite: desc.sprite_names[1].clone(),
+                                                        height: desc.height,
+                                                        move_speed: desc.move_speed,
+                                                        hostile: true,
+                                                    });
+                                                }
                                             }
                                         }
                                     }

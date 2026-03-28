@@ -125,16 +125,33 @@ pub fn spawn_monsters(
     info!("Spawning {} monsters from spawn points", prepared.monsters.len());
 
     for monster in &prepared.monsters {
-        let (standing_frames, sprite_w, sprite_h) =
-            sprites::load_sprite_frames(&monster.standing_sprite, lod_manager, images, materials);
+        // Try monster sprites, fall back to peasant if not found
+        let sprite_fallbacks = [
+            (monster.standing_sprite.as_str(), monster.walking_sprite.as_str()),
+            ("pfemst", "pfemwa"),
+            ("pmanst", "pmanwk"),
+        ];
 
-        if standing_frames.is_empty() || sprite_w == 0.0 {
-            info!("  Failed to load sprite '{}' for monster", monster.standing_sprite);
-            continue;
+        let mut standing_frames = Vec::new();
+        let mut walking_frames = Vec::new();
+        let mut sprite_w = 0.0_f32;
+        let mut sprite_h = 0.0_f32;
+
+        for (st, wa) in &sprite_fallbacks {
+            let (sf, w, h) = sprites::load_sprite_frames(st, lod_manager, images, materials);
+            if !sf.is_empty() && w > 0.0 {
+                standing_frames = sf;
+                sprite_w = w;
+                sprite_h = h;
+                let (wf, _, _) = sprites::load_sprite_frames(wa, lod_manager, images, materials);
+                walking_frames = wf;
+                break;
+            }
         }
 
-        let (walking_frames, _, _) =
-            sprites::load_sprite_frames(&monster.walking_sprite, lod_manager, images, materials);
+        if standing_frames.is_empty() || sprite_w == 0.0 {
+            continue;
+        }
 
         let mut states = vec![standing_frames];
         if !walking_frames.is_empty() {
