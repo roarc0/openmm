@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::collision::{
     BuildingColliders, CollisionTriangle, CollisionWall, TerrainHeightMap, WaterMap, WaterWalking,
-    ground_height_at,
+    ground_height_at, sample_terrain_height,
 };
 use crate::game::player::{FlyMode, Player, PlayerPhysics, PlayerSettings};
 use crate::states::loading::PreparedWorld;
@@ -88,7 +88,15 @@ fn setup_collision_data(mut commands: Commands, prepared: Option<Res<PreparedWor
     commands.init_resource::<WaterWalking>();
 }
 
-/// Apply gravity, ground clamping, and fly mode vertical behavior.
+/// Maximum terrain slope angle (radians) the player can stand on.
+/// ~35 degrees — anything steeper slides the player downhill.
+const MAX_SLOPE_ANGLE: f32 = 0.6;
+/// How fast the player slides down steep slopes.
+const SLOPE_SLIDE_SPEED: f32 = 4000.0;
+/// Sample offset for terrain gradient calculation.
+const SLOPE_SAMPLE_DIST: f32 = 32.0;
+
+/// Apply gravity, ground clamping, slope sliding, and fly mode vertical behavior.
 fn gravity_system(
     time: Res<Time>,
     height_map: Option<Res<TerrainHeightMap>>,
@@ -133,6 +141,29 @@ fn gravity_system(
                 physics.on_ground = true;
             } else {
                 physics.on_ground = false;
+            }
+
+            // Slope sliding: when on the ground on steep terrain, push downhill.
+            if physics.on_ground {
+                let px = transform.translation.x;
+                let pz = transform.translation.z;
+                // Sample terrain gradient using central differences
+                let h_xp = sample_terrain_height(&height_map.heights, px + SLOPE_SAMPLE_DIST, pz);
+                let h_xn = sample_terrain_height(&height_map.heights, px - SLOPE_SAMPLE_DIST, pz);
+                let h_zp = sample_terrain_height(&height_map.heights, px, pz + SLOPE_SAMPLE_DIST);
+                let h_zn = sample_terrain_height(&height_map.heights, px, pz - SLOPE_SAMPLE_DIST);
+
+                let grad_x = (h_xp - h_xn) / (2.0 * SLOPE_SAMPLE_DIST);
+                let grad_z = (h_zp - h_zn) / (2.0 * SLOPE_SAMPLE_DIST);
+                let slope = (grad_x * grad_x + grad_z * grad_z).sqrt();
+
+                if slope > MAX_SLOPE_ANGLE.tan() {
+                    // Push downhill (opposite to gradient = uphill direction)
+                    let slide_strength = (slope - MAX_SLOPE_ANGLE.tan()) * SLOPE_SLIDE_SPEED * dt;
+                    let grad_len = slope.max(0.001);
+                    transform.translation.x -= (grad_x / grad_len) * slide_strength;
+                    transform.translation.z -= (grad_z / grad_len) * slide_strength;
+                }
             }
         }
     }

@@ -60,7 +60,7 @@ impl Default for PlayerSettings {
             rotation_speed: 1.8,
             eye_height: 160.0,
             gravity: 9800.0,
-            max_slope_height: 512.0,
+            max_slope_height: 200.0,
             jump_velocity: 1300.0,
             collision_radius: 24.0,
             max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
@@ -269,22 +269,32 @@ fn player_movement(
                 let from = transform.translation;
                 let mut dest = from + movement;
 
-                // Terrain slope check
+                // Terrain slope check — block movement if slope angle > ~35 degrees.
+                // Uses the actual angle (atan of height/distance) not just height diff.
                 if let Some(ref hm) = height_map {
                     let current_ground = sample_terrain_height(&hm.heights, from.x, from.z);
                     let dest_ground = sample_terrain_height(&hm.heights, dest.x, dest.z);
+                    let height_diff = dest_ground - current_ground;
 
-                    if dest_ground - current_ground > settings.max_slope_height {
-                        let mut slid = from;
-                        let gx = sample_terrain_height(&hm.heights, dest.x, from.z);
-                        if gx - current_ground <= settings.max_slope_height {
-                            slid.x = dest.x;
+                    if height_diff > 0.0 {
+                        let horiz_dist = ((dest.x - from.x).powi(2) + (dest.z - from.z).powi(2)).sqrt().max(0.1);
+                        let slope_angle = (height_diff / horiz_dist).atan();
+
+                        if slope_angle > 0.6 { // ~35 degrees, matches physics slide threshold
+                            // Try sliding along each axis independently
+                            let mut slid = from;
+                            let gx = sample_terrain_height(&hm.heights, dest.x, from.z);
+                            let dx = (dest.x - from.x).abs().max(0.1);
+                            if ((gx - current_ground) / dx).atan() <= 0.6 {
+                                slid.x = dest.x;
+                            }
+                            let gz = sample_terrain_height(&hm.heights, slid.x, dest.z);
+                            let dz = (dest.z - from.z).abs().max(0.1);
+                            if ((gz - current_ground) / dz).atan() <= 0.6 {
+                                slid.z = dest.z;
+                            }
+                            dest = slid;
                         }
-                        let gz = sample_terrain_height(&hm.heights, slid.x, dest.z);
-                        if gz - current_ground <= settings.max_slope_height {
-                            slid.z = dest.z;
-                        }
-                        dest = slid;
                     }
                 }
 
