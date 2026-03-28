@@ -15,6 +15,7 @@ pub mod config;
 pub(crate) mod game;
 pub(crate) mod save;
 pub(crate) mod states;
+pub(crate) mod ui_assets;
 
 const APP_NAME: &str = "openmm";
 
@@ -39,6 +40,7 @@ impl Plugin for GamePlugin {
         app.insert_resource(cfg)
             .insert_resource(game_assets)
             .insert_resource(save_data)
+            .init_resource::<ui_assets::UiAssets>()
             .add_plugins((
                 BevyConfigPlugin,
                 SplashPlugin,

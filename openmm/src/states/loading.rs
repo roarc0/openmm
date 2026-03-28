@@ -158,6 +158,9 @@ fn loading_setup(
     load_request: Option<Res<LoadRequest>>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<GameConfig>,
+    game_assets: Res<GameAssets>,
+    mut ui_assets: ResMut<crate::ui_assets::UiAssets>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     // Priority: LoadRequest (map switching) > config file/CLI > save data
     let map_name = load_request
@@ -194,28 +197,35 @@ fn loading_setup(
     // Keep the load request around as context
     commands.insert_resource(LoadRequest { map_name });
 
-    // Spawn loading screen UI
+    // Spawn loading screen with loading.pcx background from LOD
     commands.spawn((Camera2d, InLoading));
+
+    let loading_bg = ui_assets.get_or_load("loading.pcx", &game_assets, &mut images);
+
     commands
         .spawn((
             Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-                align_items: AlignItems::Center,
+                align_items: AlignItems::FlexEnd,
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            BackgroundColor(Color::srgb(0.05, 0.05, 0.05)),
+            ImageNode::new(loading_bg.unwrap_or_default()),
             InLoading,
         ))
         .with_children(|parent| {
             parent.spawn((
                 Text::new("Loading..."),
                 TextFont {
-                    font_size: 40.0,
+                    font_size: 24.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
+                Node {
+                    margin: UiRect::all(Val::Px(20.0)),
+                    ..default()
+                },
                 LoadingText,
             ));
         });

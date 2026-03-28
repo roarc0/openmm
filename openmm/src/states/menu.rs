@@ -1,279 +1,132 @@
-use bevy::{app::AppExit, color::palettes::css, ecs::message::MessageWriter, prelude::*};
+use bevy::{app::AppExit, ecs::message::MessageWriter, prelude::*};
 
+use crate::assets::GameAssets;
+use crate::ui_assets::UiAssets;
 use crate::{despawn_all, GameState};
-
-const TEXT_COLOR: Color = Color::srgb(0.3, 0.9, 0.3);
 
 pub struct MenuPlugin;
 
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_state(MenuState::Disabled)
-            .add_systems(OnEnter(GameState::Menu), menu_setup)
-            .add_systems(OnEnter(MenuState::Main), main_menu_setup)
-            .add_systems(OnExit(MenuState::Main), despawn_all::<OnMainMenuScreen>)
-            .add_systems(OnEnter(MenuState::Settings), settings_menu_setup)
+        app.add_systems(OnEnter(GameState::Menu), main_menu_setup)
+            .add_systems(OnExit(GameState::Menu), despawn_all::<OnMenuScreen>)
             .add_systems(
-                OnExit(MenuState::Settings),
-                despawn_all::<OnSettingsMenuScreen>,
-            )
-            .add_systems(
-                OnExit(MenuState::SettingsSound),
-                despawn_all::<OnSoundSettingsMenuScreen>,
+                Update,
+                menu_action.run_if(in_state(GameState::Menu)),
             )
             .add_systems(
                 Update,
-                (menu_action, button_system).run_if(in_state(GameState::Menu)),
+                button_hover.run_if(in_state(GameState::Menu)),
             );
     }
 }
 
-// State used for the current menu screen
-#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
-enum MenuState {
-    Main,
-    Settings,
-    SettingsDisplay,
-    SettingsSound,
-    #[default]
-    Disabled,
+#[derive(Component)]
+struct OnMenuScreen;
+
+/// Actions triggered by menu buttons.
+#[derive(Component)]
+enum MenuAction {
+    NewGame,
+    LoadGame,
+    Credits,
+    Exit,
 }
 
-#[derive(Component)]
-struct OnMainMenuScreen;
+/// MM6 title screen button positions (640×480 reference resolution).
+/// Buttons are baked into title.pcx — we overlay invisible click regions.
+const BTN_X: f32 = 495.0;
+const BTN_W: f32 = 130.0;
+const BTN_H: f32 = 42.0;
+const BTN_NEW_Y: f32 = 172.0;
+const BTN_LOAD_Y: f32 = 227.0;
+const BTN_CREDITS_Y: f32 = 282.0;
+const BTN_EXIT_Y: f32 = 337.0;
+const REF_W: f32 = 640.0;
+const REF_H: f32 = 480.0;
 
-#[derive(Component)]
-struct OnSettingsMenuScreen;
-
-#[derive(Component)]
-struct OnDisplaySettingsMenuScreen;
-
-#[derive(Component)]
-struct OnSoundSettingsMenuScreen;
-
-const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
-const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
-const HOVERED_PRESSED_BUTTON: Color = Color::srgb(0.25, 0.65, 0.25);
-const PRESSED_BUTTON: Color = Color::srgb(0.35, 0.75, 0.35);
-
-#[derive(Component)]
-struct SelectedOption;
-
-#[derive(Component)]
-enum MenuButtonAction {
-    Play,
-    Settings,
-    SettingsDisplay,
-    //SettingsSound,
-    BackToMainMenu,
-    BackToSettings,
-    Quit,
-}
-
-fn button_system(
-    mut interaction_query: Query<
-        (&Interaction, &mut BackgroundColor, Option<&SelectedOption>),
-        (Changed<Interaction>, With<Button>),
-    >,
+fn main_menu_setup(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    mut images: ResMut<Assets<Image>>,
+    mut ui: ResMut<UiAssets>,
 ) {
-    for (interaction, mut color, selected) in &mut interaction_query {
-        *color = match (*interaction, selected) {
-            (Interaction::Pressed, _) | (Interaction::None, Some(_)) => PRESSED_BUTTON.into(),
-            (Interaction::Hovered, Some(_)) => HOVERED_PRESSED_BUTTON.into(),
-            (Interaction::Hovered, None) => HOVERED_BUTTON.into(),
-            (Interaction::None, None) => NORMAL_BUTTON.into(),
-        }
+    commands.spawn((Camera2d, OnMenuScreen));
+
+    // Load title screen from LOD (title.pcx in MM6)
+    let bg = ui.get_or_load("title.pcx", &game_assets, &mut images)
+        .or_else(|| ui.get_or_load("mm6title.pcx", &game_assets, &mut images));
+
+    // Full-screen background with the title image
+    commands.spawn((
+        Node {
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        ImageNode::new(bg.unwrap_or_default()),
+        OnMenuScreen,
+    )).with_children(|parent| {
+        // Invisible button overlays at the exact positions where
+        // the buttons are drawn in the title.pcx image.
+        // Positions are percentage-based relative to 640×480.
+        spawn_menu_button(parent, BTN_NEW_Y, MenuAction::NewGame);
+        spawn_menu_button(parent, BTN_LOAD_Y, MenuAction::LoadGame);
+        spawn_menu_button(parent, BTN_CREDITS_Y, MenuAction::Credits);
+        spawn_menu_button(parent, BTN_EXIT_Y, MenuAction::Exit);
+    });
+}
+
+fn spawn_menu_button(parent: &mut ChildSpawnerCommands, y: f32, action: MenuAction) {
+    parent.spawn((
+        Button,
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(BTN_X / REF_W * 100.0),
+            top: Val::Percent(y / REF_H * 100.0),
+            width: Val::Percent(BTN_W / REF_W * 100.0),
+            height: Val::Percent(BTN_H / REF_H * 100.0),
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        action,
+    ));
+}
+
+fn button_hover(
+    mut query: Query<(&Interaction, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
+) {
+    for (interaction, mut bg) in &mut query {
+        *bg = match interaction {
+            Interaction::Hovered => BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.15)),
+            Interaction::Pressed => BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.2)),
+            Interaction::None => BackgroundColor(Color::NONE),
+        };
     }
 }
 
-fn menu_setup(mut menu_state: ResMut<NextState<MenuState>>) {
-    menu_state.set(MenuState::Main);
-}
-
-fn main_menu_setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let button_node = Node {
-        width: Val::Px(250.0),
-        height: Val::Px(65.0),
-        margin: UiRect::all(Val::Px(20.0)),
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        ..default()
-    };
-    let button_icon_node = Node {
-        width: Val::Px(30.0),
-        position_type: PositionType::Absolute,
-        left: Val::Px(10.0),
-        right: Val::Auto,
-        ..default()
-    };
-
-    commands.spawn((Camera2d, OnMainMenuScreen));
-
-    commands
-        .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                align_items: AlignItems::Stretch,
-                justify_content: JustifyContent::End,
-                ..default()
-            },
-            OnMainMenuScreen,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Node {
-                    flex_grow: 1.,
-                    ..default()
-                },
-                ImageNode::new(asset_server.load("mm6title.png")),
-            ));
-
-            parent
-                .spawn(Node {
-                    position_type: PositionType::Absolute,
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::End,
-                    ..default()
-                })
-                .with_children(|parent| {
-                    parent
-                        .spawn((
-                            Button,
-                            button_node.clone(),
-                            BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::Play,
-                        ))
-                        .with_children(|parent| {
-                            let icon = asset_server.load("right.png");
-                            parent.spawn((
-                                button_icon_node.clone(),
-                                ImageNode::new(icon),
-                            ));
-                            parent.spawn((
-                                Text::new("New Game"),
-                                TextFont { font_size: 40.0, ..default() },
-                                TextColor(TEXT_COLOR),
-                            ));
-                        });
-                    parent
-                        .spawn((
-                            Button,
-                            button_node.clone(),
-                            BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::Settings,
-                        ))
-                        .with_children(|parent| {
-                            let icon = asset_server.load("wrench.png");
-                            parent.spawn((
-                                button_icon_node.clone(),
-                                ImageNode::new(icon),
-                            ));
-                            parent.spawn((
-                                Text::new("Settings"),
-                                TextFont { font_size: 40.0, ..default() },
-                                TextColor(TEXT_COLOR),
-                            ));
-                        });
-                    parent
-                        .spawn((
-                            Button,
-                            button_node,
-                            BackgroundColor(NORMAL_BUTTON),
-                            MenuButtonAction::Quit,
-                        ))
-                        .with_children(|parent| {
-                            let icon = asset_server.load("exitRight.png");
-                            parent.spawn((
-                                button_icon_node,
-                                ImageNode::new(icon),
-                            ));
-                            parent.spawn((
-                                Text::new("Quit"),
-                                TextFont { font_size: 40.0, ..default() },
-                                TextColor(TEXT_COLOR),
-                            ));
-                        });
-                });
-        });
-}
-
-fn settings_menu_setup(mut commands: Commands) {
-    let button_node = Node {
-        width: Val::Px(200.0),
-        height: Val::Px(65.0),
-        margin: UiRect::all(Val::Px(20.0)),
-        justify_content: JustifyContent::Center,
-        align_items: AlignItems::Center,
-        ..default()
-    };
-
-    commands
-        .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            OnSettingsMenuScreen,
-        ))
-        .with_children(|parent| {
-            parent
-                .spawn((
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(Color::from(css::CRIMSON)),
-                ))
-                .with_children(|parent| {
-                    for (action, text) in [
-                        (MenuButtonAction::SettingsDisplay, "Display"),
-                        (MenuButtonAction::BackToMainMenu, "Back"),
-                    ] {
-                        parent
-                            .spawn((
-                                Button,
-                                button_node.clone(),
-                                BackgroundColor(NORMAL_BUTTON),
-                                action,
-                            ))
-                            .with_children(|parent| {
-                                parent.spawn((
-                                    Text::new(text),
-                                    TextFont { font_size: 40.0, ..default() },
-                                    TextColor(TEXT_COLOR),
-                                ));
-                            });
-                    }
-                });
-        });
-}
-
 fn menu_action(
-    interaction_query: Query<
-        (&Interaction, &MenuButtonAction),
-        (Changed<Interaction>, With<Button>),
-    >,
-    mut app_exit_events: MessageWriter<AppExit>,
-    mut menu_state: ResMut<NextState<MenuState>>,
+    query: Query<(&Interaction, &MenuAction), (Changed<Interaction>, With<Button>)>,
     mut game_state: ResMut<NextState<GameState>>,
+    mut exit_writer: MessageWriter<AppExit>,
 ) {
-    for (interaction, menu_button_action) in &interaction_query {
-        if *interaction == Interaction::Pressed {
-            match menu_button_action {
-                MenuButtonAction::Quit => {
-                    app_exit_events.write(AppExit::Success);
-                }
-                MenuButtonAction::Play => {
-                    game_state.set(GameState::Loading);
-                    menu_state.set(MenuState::Disabled);
-                }
-                MenuButtonAction::Settings => menu_state.set(MenuState::Settings),
-                MenuButtonAction::SettingsDisplay => menu_state.set(MenuState::SettingsDisplay),
-                MenuButtonAction::BackToMainMenu => menu_state.set(MenuState::Main),
-                MenuButtonAction::BackToSettings => menu_state.set(MenuState::Settings),
+    for (interaction, action) in &query {
+        if *interaction != Interaction::Pressed {
+            continue;
+        }
+        match action {
+            MenuAction::NewGame => {
+                game_state.set(GameState::Loading);
+            }
+            MenuAction::LoadGame => {
+                // TODO: show load game dialog
+                game_state.set(GameState::Loading);
+            }
+            MenuAction::Credits => {
+                // TODO: show credits
+            }
+            MenuAction::Exit => {
+                exit_writer.write(AppExit::Success);
             }
         }
     }
