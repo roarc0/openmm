@@ -270,11 +270,13 @@ fn decode_sprite_frames(
                 let bevy_img = crate::assets::dynamic_to_bevy_image(img);
                 let tex = images.add(bevy_img);
                 dir_materials[dir] = materials.add(StandardMaterial {
+                    unlit: true,
                     base_color_texture: Some(tex),
                     alpha_mode: AlphaMode::Mask(0.5),
-                    unlit: true,
                     double_sided: true,
                     cull_mode: None,
+                    perceptual_roughness: 1.0,
+                    reflectance: 0.0,
                     ..default()
                 });
             } else if dir > 0 {

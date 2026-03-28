@@ -421,8 +421,11 @@ fn lazy_spawn(
             let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
             let tex = images.add(bevy_img);
             let m = materials.add(StandardMaterial {
+                unlit: true,
                 base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
-                cull_mode: None, double_sided: true, unlit: true, ..default()
+                cull_mode: None, double_sided: true,
+                perceptual_roughness: 1.0, reflectance: 0.0,
+                ..default()
             });
             let q = meshes.add(Rectangle::new(w, h));
             p.billboard_cache.insert(key.clone(), (m.clone(), q.clone(), h));

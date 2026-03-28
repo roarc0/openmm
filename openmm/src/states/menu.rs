@@ -65,73 +65,26 @@ fn title_setup(
     mut ui: ResMut<UiAssets>,
 ) {
     commands.spawn((Camera2d, OnScreen));
-    // Use mm6title.pcx (no buttons) as background
-    let bg = ui.get_or_load("mm6title.pcx", &game_assets, &mut images)
-        .or_else(|| ui.get_or_load("title.pcx", &game_assets, &mut images));
-    // Extract button overlay by diffing title.pcx vs mm6title.pcx
-    let btn_overlay = load_button_overlay(&game_assets, &mut images, &mut ui);
+    // Use title.pcx (with buttons baked in) as background
+    let bg = ui.get_or_load("title.pcx", &game_assets, &mut images)
+        .or_else(|| ui.get_or_load("mm6title.pcx", &game_assets, &mut images));
 
     commands.spawn((
         fullscreen_bg(bg),
         OnScreen,
     )).with_children(|p| {
-        // Full button overlay (always visible, from diff of title vs mm6title)
-        if let Some(ref overlay) = btn_overlay {
-            p.spawn((
-                Node {
-                    position_type: PositionType::Absolute,
-                    width: Val::Percent(100.0),
-                    height: Val::Percent(100.0),
-                    ..default()
-                },
-                ImageNode::new(overlay.clone()),
-            ));
-        }
         // Hover button images (start00a=NEW, b=LOAD, c=CREDITS, d=EXIT)
         let hover_new = ui.get_or_load("start00a", &game_assets, &mut images);
         let hover_load = ui.get_or_load("start00b", &game_assets, &mut images);
         let hover_credits = ui.get_or_load("start00c", &game_assets, &mut images);
         let hover_exit = ui.get_or_load("start00d", &game_assets, &mut images);
 
-        // Clickable buttons with hover images at pixel-diff positions
-        title_btn(p, 477.0,   3.0, 163.0, 57.0, MenuAction::NewGame, hover_new);
-        title_btn(p, 477.0,  65.0, 163.0, 57.0, MenuAction::LoadGame, hover_load);
-        title_btn(p, 477.0, 127.0, 163.0, 57.0, MenuAction::Credits, hover_credits);
-        title_btn(p, 477.0, 190.0, 163.0, 57.0, MenuAction::Exit, hover_exit);
+        // Button positions matched to hover images (135×45px, x=482, y step=62)
+        title_btn(p, 482.0,   9.0, 135.0, 45.0, MenuAction::NewGame, hover_new);
+        title_btn(p, 482.0,  71.0, 135.0, 45.0, MenuAction::LoadGame, hover_load);
+        title_btn(p, 482.0, 133.0, 135.0, 45.0, MenuAction::Credits, hover_credits);
+        title_btn(p, 482.0, 195.0, 135.0, 45.0, MenuAction::Exit, hover_exit);
     });
-}
-
-/// Diff title.pcx (with buttons) vs mm6title.pcx (without) to get button overlay.
-fn load_button_overlay(
-    game_assets: &GameAssets,
-    images: &mut Assets<Image>,
-    _ui: &mut UiAssets,
-) -> Option<Handle<Image>> {
-    use image::{GenericImageView, RgbaImage, DynamicImage};
-
-    let with_btns = game_assets.lod_manager().icon("title.pcx")?;
-    let without = game_assets.lod_manager().icon("mm6title.pcx")?;
-
-    let (w, h) = with_btns.dimensions();
-    let mut overlay = RgbaImage::new(w, h);
-
-    for y in 0..h {
-        for x in 0..w {
-            let a = with_btns.get_pixel(x, y);
-            let b = without.get_pixel(x, y);
-            let dr = (a[0] as i32 - b[0] as i32).unsigned_abs();
-            let dg = (a[1] as i32 - b[1] as i32).unsigned_abs();
-            let db = (a[2] as i32 - b[2] as i32).unsigned_abs();
-            if dr + dg + db > 30 {
-                overlay.put_pixel(x, y, image::Rgba([a[0], a[1], a[2], 255]));
-            }
-        }
-    }
-
-    let bevy_img = crate::assets::dynamic_to_bevy_image(
-        DynamicImage::ImageRgba8(overlay),
-    );
-    Some(images.add(bevy_img))
 }
 
 
@@ -269,7 +222,7 @@ fn title_btn(
         BackgroundColor(Color::NONE),
         action,
     ));
-    // Add hover image as hidden child
+    // Hover image sized to fill the button area (scales with window like the background)
     if let Some(img) = hover_img {
         btn.with_children(|btn_parent| {
             btn_parent.spawn((

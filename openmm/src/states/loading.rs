@@ -381,6 +381,7 @@ fn loading_step(
                                     });
 
                                 let material = StandardMaterial {
+                                    base_color: Color::srgb(1.4, 1.4, 1.4),
                                     alpha_mode: AlphaMode::Opaque,
                                     cull_mode: None,
                                     double_sided: true,
@@ -508,7 +509,9 @@ fn loading_step(
                             let m = materials.add(StandardMaterial {
                                 base_color_texture: Some(tex),
                                 alpha_mode: AlphaMode::Mask(0.5),
-                                cull_mode: None, double_sided: true, unlit: true, ..default()
+                                unlit: true,
+                                cull_mode: None, double_sided: true,
+                                perceptual_roughness: 1.0, reflectance: 0.0, ..default()
                             });
                             let q = meshes.add(Rectangle::new(w, h));
                             bb_cache.insert(bb.declist_name.clone(), (m, q, h));

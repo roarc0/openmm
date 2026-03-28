@@ -304,17 +304,6 @@ pub fn tint_variant(image: &mut DynamicImage, variant: u8) {
         let gf = g as f32;
         let bf = b as f32;
 
-        // Preserve skin tones: skip reddish pixels with moderate saturation/brightness
-        let max = rf.max(gf).max(bf);
-        let min = rf.min(gf).min(bf);
-        let lum = (max + min) / 2.0;
-        if max > 0.0 {
-            let sat = (max - min) / max;
-            if rf > gf && rf > bf && sat > 0.1 && sat < 0.6 && lum > 80.0 && lum < 220.0 {
-                continue;
-            }
-        }
-
         let nr = (rf * rr + gf * rg + bf * rb).min(255.0) as u8;
         let ng = (rf * gr + gf * gg + bf * gb).min(255.0) as u8;
         let nb = (rf * br + gf * bg + bf * bb).min(255.0) as u8;
