@@ -73,14 +73,9 @@ fn load_sprite_frames(
     let mut sprite_w = 0.0_f32;
     let mut sprite_h = 0.0_f32;
 
-    // The root might already end with 'a' (the first frame letter).
-    // Strip trailing digits/letters to normalize.
+    // Root should already be stripped by resolve_dsft_sprite_root.
+    // Just clean any trailing digits.
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
-    let root = if root.ends_with('a') && root.len() > 3 {
-        &root[..root.len() - 1]
-    } else {
-        root
-    };
 
     for frame_char in b'a'..=b'f' {
         let frame_letter = frame_char as char;
