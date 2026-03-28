@@ -8,7 +8,7 @@ use crate::LodManager;
 pub struct MapMonsterConfig {
     /// Monster picture/dmonlist prefix for each of 3 slots (1-indexed in spawn points).
     pub monster_names: [String; 3],
-    /// Difficulty level for each monster (1-5, maps to A/B/C variant).
+    /// Difficulty level for each monster (1-5, controls A/B/C variant odds).
     pub difficulty: [u8; 3],
 }
 
@@ -70,25 +70,63 @@ impl MapStats {
     }
 }
 
+/// Weighted odds for A/B/C variant selection per difficulty level.
+/// From OpenEnroth word_4E8152: [A%, B%, C%] for each difficulty 0-5.
+const VARIANT_ODDS: [[u8; 3]; 6] = [
+    [100, 0, 0],   // difficulty 0: all A
+    [90, 8, 2],    // difficulty 1: mostly A
+    [70, 20, 10],  // difficulty 2
+    [50, 30, 20],  // difficulty 3
+    [30, 40, 30],  // difficulty 4
+    [10, 50, 40],  // difficulty 5: mostly B/C
+];
+
 impl MapMonsterConfig {
-    /// Get the dmonlist name prefix for a spawn point monster_index.
-    /// MM6 spawn indices: 1-3 = Mon1 variants A/B/C, 4-6 = Mon2, 7-9 = Mon3,
-    /// 10-12 = Mon1 again (reinforcements?). Returns (name_prefix, difficulty).
-    pub fn monster_for_index(&self, index: u16) -> Option<(&str, u8)> {
-        // Map index to one of the 3 monster slots.
-        // Indices 1,4,7,10 → Mon1; 2,5,8,11 → Mon2; 3,6,9,12 → Mon3
-        let slot = match index {
-            0 => return None,
-            _ => ((index - 1) % 3) as usize,
-        };
-        if slot >= 3 {
+    /// Resolve a spawn point's monster_index to (monster_name_prefix, variant).
+    ///
+    /// MM6 spawn index mapping (from OpenEnroth SpawnEncounter):
+    /// - 1-3: Mon1/Mon2/Mon3 with random A/B/C based on difficulty odds
+    /// - 4-6: Mon1/Mon2/Mon3, forced variant A
+    /// - 7-9: Mon1/Mon2/Mon3, forced variant B
+    /// - 10-12: Mon1/Mon2/Mon3, forced variant C
+    ///
+    /// Returns (name, difficulty_for_variant_selection).
+    /// The `difficulty` here encodes: 1=A, 2=B, 3=C for forced variants,
+    /// or the random roll result for indices 1-3.
+    pub fn monster_for_index(&self, index: u16, seed: u32) -> Option<(&str, u8)> {
+        if index == 0 || index > 12 { return None; }
+
+        let idx0 = (index - 1) as usize;
+        let slot = idx0 % 3; // 0=Mon1, 1=Mon2, 2=Mon3
+        let group = idx0 / 3; // 0=base, 1=A, 2=B, 3=C
+
+        let name = &self.monster_names[slot];
+        if name.is_empty() || name == "0" {
             return None;
         }
-        let n = &self.monster_names[slot];
-        if n.is_empty() || n == "0" {
-            None
-        } else {
-            Some((n, self.difficulty[slot]))
-        }
+
+        // MM6 spawn index mapping (from OpenEnroth SpawnEncounter):
+        // 1-3:   Mon1/Mon2/Mon3 — base group (uses difficulty odds for A/B/C mix)
+        // 4-6:   Mon1/Mon2/Mon3 — forced variant A
+        // 7-9:   Mon1/Mon2/Mon3 — forced variant B
+        // 10-12: Mon1/Mon2/Mon3 — forced variant C
+        let variant = match group {
+            0 => {
+                // Base group: each individual spawn rolls A/B/C using difficulty odds.
+                // The seed is per-spawn-point so the mix is deterministic across loads.
+                let dif = (self.difficulty[slot] as usize).min(5);
+                let odds = &VARIANT_ODDS[dif];
+                let roll = (seed % 100) as u8;
+                if roll < odds[0] { 1 }
+                else if roll < odds[0] + odds[1] { 2 }
+                else { 3 }
+            }
+            1 => 1, // forced A
+            2 => 2, // forced B
+            3 => 3, // forced C
+            _ => return None,
+        };
+
+        Some((name, variant))
     }
 }

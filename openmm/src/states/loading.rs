@@ -468,7 +468,8 @@ fn loading_step(
                     let mut seen = std::collections::HashSet::new();
                     if let Some(odm) = &progress.odm {
                         for sp in &odm.spawn_points {
-                            if let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index) {
+                            let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) as u32;
+                            if let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) {
                                 if let Some(desc) = monlist.find_by_name(mon_name, dif) {
                                     let hue = match dif { 2 => 120.0, 3 => 240.0, _ => 0.0 };
                                     for name in &desc.sprite_names[..2] {
