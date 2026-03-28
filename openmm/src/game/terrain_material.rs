@@ -1,53 +1,32 @@
 use bevy::{
     prelude::*,
-    render::render_resource::{AsBindGroup, ShaderType},
+    pbr::{ExtendedMaterial, MaterialExtension},
+    render::render_resource::AsBindGroup,
     shader::ShaderRef,
 };
 
-/// Custom terrain material with animated water support.
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-pub struct TerrainMaterial {
-    #[uniform(0)]
-    pub params: TerrainParams,
-    #[texture(1)]
-    #[sampler(2)]
-    pub terrain_texture: Handle<Image>,
-    #[texture(3)]
-    #[sampler(4)]
+/// Type alias for the full terrain material (StandardMaterial + water extension).
+pub type TerrainMaterial = ExtendedMaterial<StandardMaterial, WaterExtension>;
+
+/// Extension to StandardMaterial that replaces cyan marker pixels with
+/// animated water. All PBR lighting, fog, shadows come from StandardMaterial.
+#[derive(Asset, AsBindGroup, Reflect, Debug, Clone)]
+pub struct WaterExtension {
+    #[texture(100)]
+    #[sampler(101)]
     pub water_texture: Handle<Image>,
 }
 
-#[derive(ShaderType, Debug, Clone)]
-pub struct TerrainParams {
-    pub base_color: LinearRgba,
-    pub time: f32,
-    pub water_speed: f32,
-    pub water_distortion: f32,
-    pub _padding: f32,
-}
-
-impl Default for TerrainParams {
-    fn default() -> Self {
-        Self {
-            base_color: LinearRgba::new(0.85, 0.85, 0.85, 1.0),
-            time: 0.0,
-            water_speed: 0.03,
-            water_distortion: 0.015,
-            _padding: 0.0,
-        }
-    }
-}
-
-impl Material for TerrainMaterial {
-    fn vertex_shader() -> ShaderRef {
-        "shaders/terrain.wgsl".into()
-    }
-
+impl MaterialExtension for WaterExtension {
     fn fragment_shader() -> ShaderRef {
-        "shaders/terrain.wgsl".into()
+        "shaders/terrain_water.wgsl".into()
     }
+}
 
-    fn alpha_mode(&self) -> AlphaMode {
-        AlphaMode::Opaque
-    }
+/// Update terrain material is a no-op — water animation uses globals.time
+/// directly in the shader.
+pub fn update_terrain_time(
+    _time: Res<Time>,
+    _materials: ResMut<Assets<TerrainMaterial>>,
+) {
 }

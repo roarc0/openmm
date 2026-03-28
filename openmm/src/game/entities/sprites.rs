@@ -85,16 +85,21 @@ pub fn load_entity_sprites(
     cache: &mut Option<&mut SpriteCache>,
     hue_shift_deg: f32,
 ) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, f32, f32) {
-    let (standing, sw, sh) = load_sprite_frames_cached(
-        standing_root, lod_manager, images, materials, cache, hue_shift_deg);
+    // Load walking first (usually wider) to get target dimensions
+    let (walking, ww, wh) = load_sprite_frames_cached(
+        walking_root, lod_manager, images, materials, cache, hue_shift_deg);
+
+    let target_w = ww as u32;
+    let target_h = wh as u32;
+
+    // Load standing, padded to at least walking dimensions
+    let (standing, sw, sh) = load_sprite_frames_with_min_size(
+        standing_root, lod_manager, images, materials, cache, hue_shift_deg,
+        target_w, target_h);
     if standing.is_empty() {
         return (Vec::new(), 0.0, 0.0);
     }
 
-    let (walking, ww, wh) = load_sprite_frames_cached(
-        walking_root, lod_manager, images, materials, cache, hue_shift_deg);
-
-    // Quad uses max dimensions so neither state gets stretched
     let qw = sw.max(ww);
     let qh = sh.max(wh);
 
@@ -104,6 +109,50 @@ pub fn load_entity_sprites(
     }
 
     (states, qw, qh)
+}
+
+/// Like load_sprite_frames_cached but enforces minimum padding dimensions.
+/// Used to pad standing sprites to match walking sprite size.
+fn load_sprite_frames_with_min_size(
+    root: &str,
+    lod_manager: &LodManager,
+    images: &mut Assets<Image>,
+    materials: &mut Assets<StandardMaterial>,
+    cache: &mut Option<&mut SpriteCache>,
+    hue_shift_deg: f32,
+    min_w: u32,
+    min_h: u32,
+) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
+    if min_w == 0 && min_h == 0 {
+        return load_sprite_frames_cached(root, lod_manager, images, materials, cache, hue_shift_deg);
+    }
+    let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
+
+    // Cache key includes min size to avoid returning smaller cached version
+    let cache_key = format!("{}@{}x{}{}",
+        root, min_w, min_h,
+        if hue_shift_deg.abs() > 0.1 { format!("@h{}", hue_shift_deg as i32) } else { String::new() });
+
+    if let Some(c) = cache.as_ref() {
+        if let Some(&(w, h)) = c.dimensions.get(&cache_key) {
+            let frames = rebuild_from_cache(&cache_key, c, w, h);
+            if !frames.is_empty() {
+                return (frames, w, h);
+            }
+        }
+    }
+
+    let mut try_root = root;
+    while try_root.len() >= 3 {
+        let (frames, w, h) = load_frames_with_root_padded(
+            try_root, lod_manager, images, materials, hue_shift_deg, min_w, min_h);
+        if !frames.is_empty() {
+            store_in_cache(&cache_key, &frames, w, h, cache);
+            return (frames, w, h);
+        }
+        try_root = &try_root[..try_root.len() - 1];
+    }
+    (Vec::new(), 0.0, 0.0)
 }
 
 /// Load sprite frames with an optional cache for sharing materials.
@@ -140,7 +189,7 @@ pub fn load_sprite_frames_cached(
     // where the actual sprite files are "bar1waa0" (root "bar1wa").
     let mut try_root = root;
     while try_root.len() >= 3 {
-        let (frames, w, h) = load_frames_with_root(try_root, lod_manager, images, materials, hue_shift_deg);
+        let (frames, w, h) = load_frames_with_root_padded(try_root, lod_manager, images, materials, hue_shift_deg, 0, 0);
         if !frames.is_empty() {
             store_in_cache(&cache_key, &frames, w, h, cache);
             return (frames, w, h);
@@ -191,20 +240,19 @@ fn rebuild_from_cache(
     frames
 }
 
-fn load_frames_with_root(
+fn load_frames_with_root_padded(
     root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     hue_shift_deg: f32,
+    min_w: u32,
+    min_h: u32,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
-
     // First pass: collect all raw sprites and find max dimensions.
-    // Different directions can have different pixel widths (front=110, side=74).
-    // We need to pad them all to the same size to avoid stretching on the quad.
     let mut raw_sprites: Vec<Vec<Option<DynamicImage>>> = Vec::new();
-    let mut max_w = 0u32;
-    let mut max_h = 0u32;
+    let mut max_w = min_w;
+    let mut max_h = min_h;
 
     for frame_char in b'a'..=b'f' {
         let frame_letter = frame_char as char;

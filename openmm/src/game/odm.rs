@@ -5,6 +5,7 @@ use crate::GameState;
 use crate::game::InGame;
 use crate::assets::GameAssets;
 use crate::game::entities::{actor, sprites};
+use crate::game::terrain_material::{TerrainMaterial, WaterExtension};
 
 /// Pending entities sorted by distance from player, spawned gradually.
 #[derive(Resource)]
@@ -117,6 +118,7 @@ fn spawn_world(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
     prepared: Option<Res<PreparedWorld>>,
     game_assets: Res<GameAssets>,
     save_data: Res<crate::save::GameSave>,
@@ -126,28 +128,57 @@ fn spawn_world(
         return;
     };
 
-    let terrain_texture = prepared.terrain_texture.clone();
+    let mut terrain_texture = prepared.terrain_texture.clone();
     let terrain_mesh = prepared.terrain_mesh.clone();
 
-    let image_handle = images.add(terrain_texture);
-    let material = StandardMaterial {
-        base_color: Color::srgb(0.85, 0.85, 0.85),
-        base_color_texture: Some(image_handle),
-        unlit: false,
-        alpha_mode: AlphaMode::Opaque,
-        perceptual_roughness: 1.0,
-        reflectance: 0.0,
-        metallic: 0.0,
-        cull_mode: Some(Face::Back),
-        double_sided: false,
-        ..default()
+    // Nearest-neighbor filtering on terrain atlas to prevent cyan water markers
+    // from bleeding into neighboring terrain tiles via bilinear interpolation.
+    terrain_texture.sampler = bevy::image::ImageSampler::Descriptor(
+        bevy::image::ImageSamplerDescriptor {
+            min_filter: bevy::image::ImageFilterMode::Nearest,
+            mag_filter: bevy::image::ImageFilterMode::Nearest,
+            mipmap_filter: bevy::image::ImageFilterMode::Nearest,
+            ..default()
+        },
+    );
+    let terrain_tex_handle = images.add(terrain_texture);
+
+    // Load water texture (or create a placeholder if missing)
+    let water_tex_handle = if let Some(ref water_tex) = prepared.water_texture {
+        let mut water = water_tex.clone();
+        water.sampler = bevy::image::ImageSampler::Descriptor(
+            bevy::image::ImageSamplerDescriptor {
+                address_mode_u: bevy::image::ImageAddressMode::Repeat,
+                address_mode_v: bevy::image::ImageAddressMode::Repeat,
+                min_filter: bevy::image::ImageFilterMode::Linear,
+                mag_filter: bevy::image::ImageFilterMode::Linear,
+                ..default()
+            },
+        );
+        images.add(water)
+    } else {
+        images.add(Image::default())
     };
+
+    let terrain_mat = terrain_materials.add(TerrainMaterial {
+        base: StandardMaterial {
+            base_color_texture: Some(terrain_tex_handle),
+            perceptual_roughness: 1.0,
+            reflectance: 0.0,
+            metallic: 0.0,
+            cull_mode: Some(Face::Back),
+            ..default()
+        },
+        extension: WaterExtension {
+            water_texture: water_tex_handle,
+        },
+    });
 
     let terrain_entity = commands
         .spawn((
             Name::new("odm"),
             Mesh3d(meshes.add(terrain_mesh)),
-            MeshMaterial3d(materials.add(material)),
+            MeshMaterial3d(terrain_mat),
             InGame,
         ))
         .with_children(|parent| {

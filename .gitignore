@@ -1,4 +1,8 @@
 assets/
+!assets/shaders/
+!openmm/assets/
+!openmm/assets/shaders/
+!openmm/assets/shaders/*.wgsl
 *.odm
 *.png
 *.bmp

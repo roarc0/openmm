@@ -28,7 +28,12 @@ impl Plugin for InGamePlugin {
             odm::OdmPlugin,
             entities::EntitiesPlugin,
             debug::DebugPlugin,
+            MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
+        .add_systems(
+            Update,
+            terrain_material::update_terrain_time.run_if(in_state(GameState::Game)),
+        )
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
     }
 }

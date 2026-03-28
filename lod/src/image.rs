@@ -244,10 +244,19 @@ pub fn get_atlas(
 ) -> Result<DynamicImage, Box<dyn Error>> {
     let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
 
-    // Replace cyan marker pixels with water texture
-    let image_water = lod_manager.bitmap("wtrtyl").ok_or("water tile not found")?;
-
     for name in names {
+        // Full water tiles ("wtrtyl"): replace with solid cyan so the
+        // shader can detect them and render animated water at runtime.
+        // Transition tiles ("wtrdr*") already contain cyan marker pixels.
+        if *name == "wtrtyl" {
+            let mut cyan = ImageBuffer::new(128, 128);
+            for pixel in cyan.pixels_mut() {
+                *pixel = Rgba([0, 255, 255, 255]);
+            }
+            images.push(DynamicImage::ImageRgba8(cyan));
+            continue;
+        }
+
         let mut image = lod_manager.bitmap(name).ok_or("image not found")?;
         if image.dimensions() != (128, 128) {
             image = DynamicImage::ImageRgba8(imageops::resize(
@@ -257,17 +266,6 @@ pub fn get_atlas(
                 imageops::FilterType::Triangle,
             ));
         }
-
-        let image_buffer = image.as_mut_rgba8().ok_or("wrong image format")?;
-        for y in 0..128 {
-            for x in 0..128 {
-                let rgb: [u8; 4] = image_buffer.get_pixel(x, y).0;
-                if rgb[0] == 0 && rgb[1] >= 252 && rgb[2] >= 252 {
-                    image_buffer.put_pixel(x, y, image_water.get_pixel(x, y));
-                }
-            }
-        }
-
         images.push(image);
     }
     Ok(join_images_in_grid(&images, row_size, 128, 128))
