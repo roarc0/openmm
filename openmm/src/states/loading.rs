@@ -89,6 +89,8 @@ pub struct PreparedBillboard {
     /// Size in game units (width, height).
     pub width: f32,
     pub height: f32,
+    /// Sprite name (for caching).
+    pub sprite_name: String,
     /// Sprite image.
     pub image: Image,
 }
@@ -466,6 +468,7 @@ fn loading_step(
                                 position: pos,
                                 width: w,
                                 height: h,
+                                sprite_name: bb.declist_name.clone(),
                                 image,
                             });
                         }

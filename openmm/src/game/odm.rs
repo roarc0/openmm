@@ -10,12 +10,13 @@ use crate::game::player::Player;
 /// Pending entities sorted by distance from player, spawned gradually.
 #[derive(Resource)]
 struct PendingSpawns {
-    /// Sorted indices into prepared data (closest first).
     billboard_order: Vec<usize>,
     actor_order: Vec<usize>,
     monster_order: Vec<usize>,
-    idx: usize, // current position across all three lists
+    idx: usize,
     sprite_cache: sprites::SpriteCache,
+    /// Cached billboard materials: key = billboard index, value = (material, mesh)
+    billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>)>,
     terrain_entity: Entity,
 }
 use crate::states::loading::PreparedWorld;
@@ -94,7 +95,7 @@ impl OdmName {
     }
 }
 
-const SPAWN_BATCH_SIZE: usize = 1;
+const SPAWN_BATCH_SIZE: usize = 20;
 
 pub struct OdmPlugin;
 
@@ -197,12 +198,27 @@ fn spawn_world(
         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
     });
 
+    // Pre-create billboard materials for unique sprite names
+    let mut bb_cache = std::collections::HashMap::new();
+    for bb in &prepared.billboards {
+        if !bb_cache.contains_key(&bb.sprite_name) {
+            let tex = images.add(bb.image.clone());
+            let mat = materials.add(StandardMaterial {
+                base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
+                cull_mode: None, double_sided: true, unlit: true, ..default()
+            });
+            let quad = meshes.add(Rectangle::new(bb.width, bb.height));
+            bb_cache.insert(bb.sprite_name.clone(), (mat, quad));
+        }
+    }
+
     commands.insert_resource(PendingSpawns {
         billboard_order: bb_order,
         actor_order,
         monster_order,
         idx: 0,
         sprite_cache: prepared.sprite_cache.clone(),
+        billboard_cache: bb_cache,
         terrain_entity,
     });
 }
@@ -229,18 +245,16 @@ fn lazy_spawn(
     let mut actor_idx = pending.idx.saturating_sub(bb_len).min(actor_len);
     let mut monster_idx = pending.idx.saturating_sub(bb_len + actor_len).min(monster_len);
 
-    // Billboards
+    // Billboards — use cached materials (instant, no texture loading)
     while bb_idx < bb_len && spawned < SPAWN_BATCH_SIZE {
         let idx = pending.billboard_order[bb_idx];
         bb_idx += 1;
         pending.idx += 1;
         let bb = &prepared.billboards[idx];
-        let tex = images.add(bb.image.clone());
-        let mat = materials.add(StandardMaterial {
-            base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
-            cull_mode: None, double_sided: true, unlit: true, ..default()
-        });
-        let quad = meshes.add(Rectangle::new(bb.width, bb.height));
+        let (mat, quad) = match pending.billboard_cache.get(&bb.sprite_name) {
+            Some((m, q)) => (m.clone(), q.clone()),
+            None => continue,
+        };
         let pos = bb.position + Vec3::new(0.0, bb.height / 2.0, 0.0);
         commands.entity(terrain_entity).with_child((
             Name::new("decoration"), Mesh3d(quad), MeshMaterial3d(mat),
