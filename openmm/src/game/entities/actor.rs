@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use lod::LodManager;
 
-use crate::game::collision::sample_terrain_height;
+use crate::game::collision::probe_ground_height;
 use crate::game::entities::{AnimationState, EntityKind, WorldEntity, sprites};
 use crate::states::loading::PreparedWorld;
 
@@ -68,11 +68,10 @@ pub fn spawn_actors_with_cache(
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sprite_w, sprite_h));
 
-        let pos = Vec3::new(
-            actor.position[0] as f32,
-            actor.position[2] as f32 + sprite_h / 2.0,
-            -actor.position[1] as f32,
-        );
+        let world_x = actor.position[0] as f32;
+        let world_z = -actor.position[1] as f32;
+        let ground_y = probe_ground_height(&prepared.map.height_map[..], None, world_x, world_z);
+        let pos = Vec3::new(world_x, ground_y + sprite_h / 2.0, world_z);
         let initial = Vec3::new(
             actor.initial_position[0] as f32,
             actor.initial_position[2] as f32,
@@ -166,13 +165,9 @@ pub fn spawn_monsters_with_cache(
         // MM6 coords (x, y, z) → Bevy (x, z, -y)
         let world_x = monster.position[0] as f32;
         let world_z = -monster.position[1] as f32;
-        let terrain_y = if monster.position[2] == 0 {
-            // z=0 means "on terrain" — sample heightmap
-            sample_terrain_height(&prepared.map.height_map, world_x, world_z)
-        } else {
-            monster.position[2] as f32
-        };
-        let pos = Vec3::new(world_x, terrain_y + sprite_h / 2.0, world_z);
+        // Probe ground: heightmap + BSP floors (once at spawn, not per frame)
+        let ground_y = probe_ground_height(&prepared.map.height_map[..], None, world_x, world_z);
+        let pos = Vec3::new(world_x, ground_y + sprite_h / 2.0, world_z);
 
         parent.spawn((
             Name::new("monster"),

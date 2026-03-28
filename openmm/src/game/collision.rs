@@ -218,6 +218,39 @@ pub fn ground_height_at(
     terrain_h
 }
 
+/// Probe for the ground height at a world position from above.
+/// Checks terrain heightmap and all BSP floors, returns the highest solid surface.
+/// Use this for placing entities on the map.
+pub fn probe_ground_height(
+    height_map: &[u8],
+    colliders: Option<&BuildingColliders>,
+    x: f32,
+    z: f32,
+) -> f32 {
+    let terrain_h = sample_terrain_height(height_map, x, z);
+    let mut best = terrain_h;
+    if let Some(colliders) = colliders {
+        // Check all BSP floors at this XZ (no height restriction — probe from above)
+        let point = Vec2::new(x, z);
+        for floor in &colliders.floors {
+            if !floor.near_xz(x, z, 0.0) {
+                continue;
+            }
+            let a = Vec2::new(floor.v0.x, floor.v0.z);
+            let b = Vec2::new(floor.v1.x, floor.v1.z);
+            let c = Vec2::new(floor.v2.x, floor.v2.z);
+            if point_in_triangle_2d(point, a, b, c) {
+                let (u, v, w) = barycentric_2d(point, a, b, c);
+                let h = u * floor.v0.y + v * floor.v1.y + w * floor.v2.y;
+                if h > best {
+                    best = h;
+                }
+            }
+        }
+    }
+    best
+}
+
 // --- Geometry helpers ---
 
 fn point_in_triangle_2d(p: Vec2, a: Vec2, b: Vec2, c: Vec2) -> bool {
