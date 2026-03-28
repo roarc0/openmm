@@ -320,34 +320,69 @@ fn resolve_monsters(
 }
 
 /// Build a lookup table: monster_id → (standing_sprite, walking_sprite) from monlist.
-/// Only includes entries whose sprites actually exist in the LOD.
+/// Resolves monlist sprite group names through the DSFT to get actual sprite file
+/// names and palette IDs. The DSFT is the authoritative mapping from monlist names
+/// to LOD sprite files.
 fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, (String, String)> {
     let mut table = std::collections::HashMap::new();
     let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else {
         return table;
     };
+    let Ok(dsft) = lod::dsft::DSFT::new(game_assets.lod_manager()) else {
+        return table;
+    };
     let lod = game_assets.lod_manager();
+
     for (i, desc) in monlist.monsters.iter().enumerate() {
         if i > 255 { break; }
-        let st = &desc.sprite_names[0];
-        if st.is_empty() { continue; }
-        // Check if the standing sprite actually exists in the LOD
-        let root = st.trim_end_matches(|c: char| c.is_ascii_digit());
-        let mut found = false;
-        let mut try_root = root;
-        while try_root.len() >= 3 {
-            let test = format!("{}a0", try_root);
-            if lod.try_get_bytes(&format!("sprites/{}", test)).is_ok() {
-                found = true;
-                break;
-            }
-            try_root = &try_root[..try_root.len() - 1];
-        }
-        if found {
-            table.insert(i as u8, (st.clone(), desc.sprite_names[1].clone()));
+        let st_group = &desc.sprite_names[0];
+        let wa_group = &desc.sprite_names[1];
+        if st_group.is_empty() { continue; }
+
+        // Resolve standing sprite through DSFT: group name → actual sprite file
+        let st_resolved = resolve_dsft_sprite(&dsft, st_group, lod);
+        let wa_resolved = resolve_dsft_sprite(&dsft, wa_group, lod);
+
+        if let Some(st_name) = st_resolved {
+            let wa_name = wa_resolved.unwrap_or_else(|| st_name.clone());
+            table.insert(i as u8, (st_name, wa_name));
         }
     }
     table
+}
+
+/// Resolve a monlist sprite group name through the DSFT to find the actual
+/// sprite file name that exists in the LOD.
+fn resolve_dsft_sprite(dsft: &lod::dsft::DSFT, group_name: &str, lod: &lod::LodManager) -> Option<String> {
+    // Search DSFT for a frame matching this group name
+    for frame in &dsft.frames {
+        if let Some(gname) = frame.group_name() {
+            if gname.eq_ignore_ascii_case(group_name) {
+                // The DSFT sprite_name is the actual LOD file name
+                if let Some(sprite_name) = frame.sprite_name() {
+                    // Verify it exists in the LOD
+                    let test = format!("sprites/{}", sprite_name.to_lowercase());
+                    if lod.try_get_bytes(&test).is_ok() {
+                        // Return the sprite root (without direction digit)
+                        let root = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
+                        return Some(root.to_lowercase());
+                    }
+                }
+                break;
+            }
+        }
+    }
+    // Fallback: try the group name directly as a sprite file name
+    let root = group_name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let mut try_root = root;
+    while try_root.len() >= 3 {
+        let test = format!("sprites/{}a0", try_root.to_lowercase());
+        if lod.try_get_bytes(&test).is_ok() {
+            return Some(try_root.to_lowercase());
+        }
+        try_root = &try_root[..try_root.len() - 1];
+    }
+    None
 }
 
 /// Sort indices by distance from player using Vec3 positions.
