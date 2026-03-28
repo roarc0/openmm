@@ -1,3 +1,4 @@
+use bevy::input::gamepad::{GamepadAxis, GamepadButton, GamepadInput};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
@@ -116,10 +117,16 @@ impl Plugin for PlayerPlugin {
             )
             .add_systems(
                 Update,
-                (toggle_fly_mode, player_movement, player_look, cursor_grab)
+                (toggle_fly_mode, player_movement, player_look, cursor_grab, log_gamepads)
                     .chain()
                     .run_if(in_state(GameState::Game)),
             );
+    }
+}
+
+fn log_gamepads(gamepads: Query<(Entity, &Gamepad), Added<Gamepad>>) {
+    for (entity, gp) in gamepads.iter() {
+        info!("Gamepad connected: entity={:?} vendor={:?} product={:?}", entity, gp.vendor_id(), gp.product_id());
     }
 }
 
@@ -193,14 +200,41 @@ fn spawn_player(
         });
 }
 
+// --- Gamepad helpers ---
+
+const STICK_DEADZONE: f32 = 0.15;
+
+fn apply_deadzone(value: f32) -> f32 {
+    if value.abs() < STICK_DEADZONE {
+        0.0
+    } else {
+        (value - STICK_DEADZONE.copysign(value)) / (1.0 - STICK_DEADZONE)
+    }
+}
+
+/// Read the right stick, falling back to LeftZ/RightZ for unmapped controllers.
+fn right_stick_with_fallback(gp: &Gamepad) -> Vec2 {
+    let standard = gp.right_stick();
+    if standard != Vec2::ZERO {
+        return standard;
+    }
+    // Unmapped controllers (e.g. GameSir) report right stick as LeftZ/RightZ
+    Vec2::new(
+        gp.get(GamepadInput::Axis(GamepadAxis::LeftZ)).unwrap_or(0.0),
+        gp.get(GamepadInput::Axis(GamepadAxis::RightZ)).unwrap_or(0.0),
+    )
+}
+
 // --- Movement ---
 
 fn toggle_fly_mode(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<PlayerKeyBindings>,
+    gamepads: Query<&Gamepad>,
     mut fly_mode: ResMut<FlyMode>,
 ) {
-    if keys.just_pressed(key_bindings.toggle_fly) {
+    let gamepad_toggle = gamepads.iter().any(|gp| gp.just_pressed(GamepadButton::Select));
+    if keys.just_pressed(key_bindings.toggle_fly) || gamepad_toggle {
         fly_mode.0 = !fly_mode.0;
         info!("Fly mode: {}", if fly_mode.0 { "ON" } else { "OFF" });
     }
@@ -218,12 +252,28 @@ fn player_movement(
     water_map: Option<Res<WaterMap>>,
     water_walking: Option<Res<WaterWalking>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
+    gamepads: Query<&Gamepad>,
     mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
 ) {
+    // Read gamepad left stick (movement)
+    let mut gp_left = Vec2::ZERO;
+    let mut gp_jump = false;
+    let mut gp_fly_up = false;
+    let mut gp_fly_down = false;
+    for gp in gamepads.iter() {
+        let stick = gp.left_stick();
+        gp_left.x += apply_deadzone(stick.x);
+        gp_left.y += apply_deadzone(stick.y);
+        gp_jump = gp_jump || gp.just_pressed(GamepadButton::South);
+        gp_fly_up = gp_fly_up || gp.pressed(GamepadButton::RightTrigger2);
+        gp_fly_down = gp_fly_down || gp.pressed(GamepadButton::LeftTrigger2);
+    }
+    let has_gamepad_input = gp_left != Vec2::ZERO || gp_jump || gp_fly_up || gp_fly_down;
+
     let Ok(cursor_options) = cursor_query.single() else {
         return;
     };
-    if !cfg.auto_move && matches!(cursor_options.grab_mode, CursorGrabMode::None) {
+    if !has_gamepad_input && !cfg.auto_move && matches!(cursor_options.grab_mode, CursorGrabMode::None) {
         return;
     }
 
@@ -234,7 +284,7 @@ fn player_movement(
     };
 
     for (mut transform, mut physics) in query.iter_mut() {
-        // Rotation
+        // Rotation (keyboard only — right stick handles look separately)
         for key in keys.get_pressed() {
             let key = *key;
             if key == key_bindings.rotate_left {
@@ -262,6 +312,12 @@ fn player_movement(
         }
         if keys.pressed(key_bindings.strafe_right) {
             movement += right_flat;
+        }
+
+        // Gamepad left stick: Y forward/back, X strafe
+        if gp_left != Vec2::ZERO {
+            movement += forward_flat * gp_left.y;
+            movement += right_flat * gp_left.x;
         }
 
         // Auto-move: walk forward and slowly rotate for a patrol pattern
@@ -348,8 +404,8 @@ fn player_movement(
             }
         }
 
-        // Jump
-        if !fly_mode.0 && physics.on_ground && keys.just_pressed(key_bindings.jump) {
+        // Jump (keyboard or gamepad South/A button)
+        if !fly_mode.0 && physics.on_ground && (keys.just_pressed(key_bindings.jump) || gp_jump) {
             physics.vertical_velocity = settings.jump_velocity;
             physics.on_ground = false;
         }
@@ -357,10 +413,10 @@ fn player_movement(
         // Fly vertical with BSP collision
         if fly_mode.0 {
             let mut dy = 0.0;
-            if keys.pressed(key_bindings.fly_up) {
+            if keys.pressed(key_bindings.fly_up) || gp_fly_up {
                 dy += speed * time.delta_secs();
             }
-            if keys.pressed(key_bindings.fly_down) {
+            if keys.pressed(key_bindings.fly_down) || gp_fly_down {
                 dy -= speed * time.delta_secs();
             }
             if dy.abs() > 0.0 {
@@ -386,27 +442,55 @@ fn player_look(
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     accumulated: Res<AccumulatedMouseMotion>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
+    gamepads: Query<&Gamepad>,
+    time: Res<Time>,
     mut player_query: Query<&mut Transform, With<Player>>,
     mut camera_query: Query<&mut Transform, (With<PlayerCamera>, Without<Player>)>,
 ) {
-    let (Ok(cursor_options), Ok(window)) = (cursor_query.single(), primary_window.single()) else {
+    // Gamepad right stick look (with fallback for unmapped controllers)
+    let mut gp_look = Vec2::ZERO;
+    for gp in gamepads.iter() {
+        let stick = right_stick_with_fallback(gp);
+        gp_look.x += apply_deadzone(stick.x);
+        gp_look.y += apply_deadzone(stick.y);
+    }
+
+    let Ok(cursor_options) = cursor_query.single() else {
         return;
     };
-    if matches!(cursor_options.grab_mode, CursorGrabMode::None) {
+
+    // Mouse look (only when cursor is grabbed)
+    let mouse_active = !matches!(cursor_options.grab_mode, CursorGrabMode::None);
+
+    let Ok(window) = primary_window.single() else {
         return;
-    }
+    };
 
     let window_scale = window.height().min(window.width());
     let delta = accumulated.delta;
 
     for mut transform in player_query.iter_mut() {
-        let yaw = -(settings.sensitivity * delta.x * window_scale).to_radians();
-        transform.rotate_y(yaw);
+        // Mouse yaw
+        if mouse_active {
+            let yaw = -(settings.sensitivity * delta.x * window_scale).to_radians();
+            transform.rotate_y(yaw);
+        }
+        // Gamepad yaw (right stick X)
+        if gp_look.x.abs() > 0.0 {
+            transform.rotate_y(-gp_look.x * settings.rotation_speed * time.delta_secs());
+        }
     }
 
     for mut transform in camera_query.iter_mut() {
         let (_, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
-        pitch -= (settings.sensitivity * delta.y * window_scale).to_radians();
+        // Mouse pitch
+        if mouse_active {
+            pitch -= (settings.sensitivity * delta.y * window_scale).to_radians();
+        }
+        // Gamepad pitch (right stick Y) — reduced sensitivity, pitch isn't critical
+        if gp_look.y.abs() > 0.0 {
+            pitch += gp_look.y * settings.rotation_speed * 0.3 * time.delta_secs();
+        }
         pitch = pitch.clamp(-1.54, 1.54);
         transform.rotation = Quat::from_axis_angle(Vec3::X, pitch);
     }
