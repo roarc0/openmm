@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use bevy::{asset::RenderAssetUsages, prelude::*};
+use bevy::prelude::*;
 use image::{DynamicImage, GenericImageView, RgbaImage};
 
 use lod::LodManager;
@@ -267,7 +267,7 @@ fn decode_sprite_frames(
                 } else {
                     img
                 };
-                let bevy_img = Image::from_dynamic(img, true, RenderAssetUsages::RENDER_WORLD);
+                let bevy_img = crate::assets::dynamic_to_bevy_image(img);
                 let tex = images.add(bevy_img);
                 dir_materials[dir] = materials.add(StandardMaterial {
                     base_color_texture: Some(tex),

@@ -1,4 +1,4 @@
-use bevy::{asset::RenderAssetUsages, prelude::*};
+use bevy::prelude::*;
 use std::collections::HashMap;
 
 use crate::assets::GameAssets;
@@ -23,7 +23,7 @@ impl UiAssets {
             return Some(handle.clone());
         }
         let img = game_assets.lod_manager().icon(name)?;
-        let bevy_img = Image::from_dynamic(img, true, RenderAssetUsages::RENDER_WORLD);
+        let bevy_img = crate::assets::dynamic_to_bevy_image(img);
         let handle = images.add(bevy_img);
         self.textures.insert(name.to_string(), handle.clone());
         Some(handle)

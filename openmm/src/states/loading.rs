@@ -1,6 +1,5 @@
 use bevy::{
     asset::RenderAssetUsages,
-    image::{ImageAddressMode, ImageSamplerDescriptor},
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
 };
@@ -15,12 +14,9 @@ use crate::{
     GameState,
 };
 use lod::{
-    billboard::BillboardManager,
     ddm::{Ddm, DdmActor},
     dtile::{Dtile, TileTable},
-    mapstats::MapStats,
-    monlist::MonsterList,
-    odm::{Odm, OdmData, SpawnPoint},
+    odm::{Odm, OdmData},
 };
 
 pub struct LoadingPlugin;
@@ -309,30 +305,15 @@ fn loading_step(
             if let Some(tile_table) = &progress.tile_table {
                 match tile_table.atlas_image(game_assets.lod_manager()) {
                     Ok(atlas) => {
-                        let image = Image::from_dynamic(
-                            atlas,
-                            true,
-                            RenderAssetUsages::RENDER_WORLD,
-                        );
-                        progress.terrain_texture = Some(image);
+                        progress.terrain_texture = Some(crate::assets::dynamic_to_bevy_image(atlas));
 
                         // Load water texture
                         progress.water_texture = game_assets
                             .lod_manager()
                             .bitmap("wtrtyl")
                             .map(|img| {
-                                let mut water_img = Image::from_dynamic(
-                                    img,
-                                    true,
-                                    RenderAssetUsages::RENDER_WORLD,
-                                );
-                                water_img.sampler = bevy::image::ImageSampler::Descriptor(
-                                    bevy::image::ImageSamplerDescriptor {
-                                        address_mode_u: bevy::image::ImageAddressMode::Repeat,
-                                        address_mode_v: bevy::image::ImageAddressMode::Repeat,
-                                        ..default()
-                                    },
-                                );
+                                let mut water_img = crate::assets::dynamic_to_bevy_image(img);
+                                water_img.sampler = crate::assets::repeat_sampler();
                                 water_img
                             });
 
@@ -384,18 +365,8 @@ fn loading_step(
                                     .lod_manager()
                                     .bitmap(&tm.texture_name)
                                     .map(|img| {
-                                        let mut image = Image::from_dynamic(
-                                            img,
-                                            true,
-                                            RenderAssetUsages::RENDER_WORLD,
-                                        );
-                                        image.sampler = bevy::image::ImageSampler::Descriptor(
-                                            ImageSamplerDescriptor {
-                                                address_mode_u: ImageAddressMode::Repeat,
-                                                address_mode_v: ImageAddressMode::Repeat,
-                                                ..default()
-                                            },
-                                        );
+                                        let mut image = crate::assets::dynamic_to_bevy_image(img);
+                                        image.sampler = crate::assets::repeat_sampler();
                                         image
                                     });
 
@@ -429,11 +400,11 @@ fn loading_step(
                 let billboards: Vec<PreparedBillboard> = odm.billboards.iter()
                     .filter(|bb| !bb.data.is_invisible())
                     .map(|bb| PreparedBillboard {
-                        position: Vec3::new(
-                            bb.data.position[0] as f32,
-                            bb.data.position[2] as f32,
-                            -bb.data.position[1] as f32,
-                        ),
+                        position: Vec3::from(lod::odm::mm6_to_bevy(
+                            bb.data.position[0],
+                            bb.data.position[1],
+                            bb.data.position[2],
+                        )),
                         declist_name: bb.declist_name.clone(),
                         declist_id: bb.data.declist_id,
                     })
@@ -448,11 +419,10 @@ fn loading_step(
             let mut cache = progress.sprite_cache.take().unwrap_or_default();
 
             // NPC sprite roots (standing + walking)
-            let npc_roots: Vec<(&str, u8)> = vec![
-                ("pfemst", 0), ("pfemwa", 0),
-                ("pmanst", 0), ("pmanwa", 0),
-                ("pmn2st", 0), ("pmn2wa", 0),
-            ];
+            let npc_roots: Vec<(&str, u8)> = crate::game::entities::actor::NPC_SPRITES
+                .iter()
+                .flat_map(|&(st, wa)| [(st, 0u8), (wa, 0u8)])
+                .collect();
             cache.preload(&npc_roots, game_assets.lod_manager(), &mut images, &mut materials);
 
             // Resolve and preload monster sprites for this map
@@ -460,8 +430,7 @@ fn loading_step(
                 lod::mapstats::MapStats::new(game_assets.lod_manager()),
                 lod::monlist::MonsterList::new(game_assets.lod_manager()),
             ) {
-                let map_cfg = mapstats.get(&format!("out{}{}.odm",
-                    load_request.map_name.x, load_request.map_name.y));
+                let map_cfg = mapstats.get(&load_request.map_name.to_string());
                 if let Some(cfg) = map_cfg {
                     // Collect unique (sprite_root, variant) pairs
                     let mut monster_roots: Vec<(String, u8)> = Vec::new();
@@ -496,8 +465,7 @@ fn loading_step(
                         if bb_cache.contains_key(&bb.declist_name) { continue; }
                         if let Some(sprite) = mgr.get(game_assets.lod_manager(), &bb.declist_name, bb.declist_id) {
                             let (w, h) = sprite.dimensions();
-                            let bevy_img = Image::from_dynamic(
-                                sprite.image, true, RenderAssetUsages::RENDER_WORLD);
+                            let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
                             let tex = images.add(bevy_img);
                             let m = materials.add(StandardMaterial {
                                 base_color_texture: Some(tex),

@@ -319,7 +319,7 @@ struct ChartMinLabel;
 fn update_hud_text(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<&Transform, With<Player>>,
-    cfg: Res<GameConfig>,
+    _cfg: Res<GameConfig>,
     mut fps_history: ResMut<FpsHistory>,
     mut fps_query: Query<(&mut Text, &mut TextColor), With<FpsText>>,
     mut pos_query: Query<(&mut TextSpan, &mut TextColor), (With<PosSpan>, Without<FpsText>)>,

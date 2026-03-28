@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::io::{Cursor, Read, Seek};
+use std::io::{Cursor, Seek};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 

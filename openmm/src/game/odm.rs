@@ -190,28 +190,13 @@ fn spawn_world(
 
     // Nearest-neighbor filtering on terrain atlas to prevent cyan water markers
     // from bleeding into neighboring terrain tiles via bilinear interpolation.
-    terrain_texture.sampler = bevy::image::ImageSampler::Descriptor(
-        bevy::image::ImageSamplerDescriptor {
-            min_filter: bevy::image::ImageFilterMode::Nearest,
-            mag_filter: bevy::image::ImageFilterMode::Nearest,
-            mipmap_filter: bevy::image::ImageFilterMode::Nearest,
-            ..default()
-        },
-    );
+    terrain_texture.sampler = crate::assets::nearest_sampler();
     let terrain_tex_handle = images.add(terrain_texture);
 
     // Load water texture (or create a placeholder if missing)
     let water_tex_handle = if let Some(ref water_tex) = prepared.water_texture {
         let mut water = water_tex.clone();
-        water.sampler = bevy::image::ImageSampler::Descriptor(
-            bevy::image::ImageSamplerDescriptor {
-                address_mode_u: bevy::image::ImageAddressMode::Repeat,
-                address_mode_v: bevy::image::ImageAddressMode::Repeat,
-                min_filter: bevy::image::ImageFilterMode::Linear,
-                mag_filter: bevy::image::ImageFilterMode::Linear,
-                ..default()
-            },
-        );
+        water.sampler = crate::assets::repeat_linear_sampler();
         images.add(water)
     } else {
         images.add(Image::default())
@@ -301,7 +286,7 @@ fn resolve_monsters(
     let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) else { return monsters };
     let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else { return monsters };
 
-    let map_config = mapstats.get(&format!("out{}{}.odm", save_data.map.map_x, save_data.map.map_y));
+    let map_config = mapstats.get(&OdmName { x: save_data.map.map_x, y: save_data.map.map_y }.to_string());
     let Some(cfg) = map_config else { return monsters };
 
     for sp in &prepared.map.spawn_points {
@@ -403,7 +388,7 @@ fn lazy_spawn(
     };
     let p = &mut *pending;
     let terrain_entity = p.terrain_entity;
-    let npc_fallback = [("pfemst", "pfemwa"), ("pmanst", "pmanwa"), ("pmn2st", "pmn2wa")];
+    let npc_fallback = actor::NPC_SPRITES;
     let mut spawned = 0;
     let start = std::time::Instant::now();
     let bb_len = p.billboard_order.len();
@@ -433,8 +418,7 @@ fn lazy_spawn(
                 None => continue,
             };
             let (w, h) = sprite.dimensions();
-            let bevy_img = bevy::image::Image::from_dynamic(
-                sprite.image, true, bevy::asset::RenderAssetUsages::RENDER_WORLD);
+            let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
             let tex = images.add(bevy_img);
             let m = materials.add(StandardMaterial {
                 base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
@@ -511,10 +495,10 @@ fn lazy_spawn(
         let m = &p.resolved_monsters[p.monster_order[monster_idx]];
         monster_idx += 1;
         p.idx += 1;
-        let sprite_pairs = [
+        let mut sprite_pairs: Vec<(&str, &str)> = vec![
             (m.standing_sprite.as_str(), m.walking_sprite.as_str()),
-            ("pfemst", "pfemwa"), ("pmanst", "pmanwa"),
         ];
+        sprite_pairs.extend_from_slice(actor::NPC_SPRITES);
         let mut states = Vec::new();
         let mut sw = 0.0f32; let mut sh = 0.0f32;
         for (st, wa) in &sprite_pairs {

@@ -82,16 +82,8 @@ fn spawn_sky(
     info!("Sky: texture loaded = {}", sky_img.is_some());
 
     let sky_tex_handle = if let Some(img) = sky_img {
-        let mut bevy_img = Image::from_dynamic(img, true, RenderAssetUsages::RENDER_WORLD);
-        bevy_img.sampler = bevy::image::ImageSampler::Descriptor(
-            bevy::image::ImageSamplerDescriptor {
-                address_mode_u: bevy::image::ImageAddressMode::Repeat,
-                address_mode_v: bevy::image::ImageAddressMode::Repeat,
-                min_filter: bevy::image::ImageFilterMode::Linear,
-                mag_filter: bevy::image::ImageFilterMode::Linear,
-                ..default()
-            },
-        );
+        let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
+        bevy_img.sampler = crate::assets::repeat_linear_sampler();
         images.add(bevy_img)
     } else {
         images.add(Image::default())

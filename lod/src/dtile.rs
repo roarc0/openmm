@@ -233,6 +233,7 @@ impl TileTable {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::{dtile::Dtile, get_lod_path, odm::Odm, LodManager};
 

@@ -100,7 +100,7 @@ fn title_setup(
 fn load_button_overlay(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
-    ui: &mut UiAssets,
+    _ui: &mut UiAssets,
 ) -> Option<Handle<Image>> {
     use image::{GenericImageView, RgbaImage, DynamicImage};
 
@@ -123,9 +123,8 @@ fn load_button_overlay(
         }
     }
 
-    let bevy_img = bevy::image::Image::from_dynamic(
-        DynamicImage::ImageRgba8(overlay), true,
-        bevy::asset::RenderAssetUsages::RENDER_WORLD,
+    let bevy_img = crate::assets::dynamic_to_bevy_image(
+        DynamicImage::ImageRgba8(overlay),
     );
     Some(images.add(bevy_img))
 }

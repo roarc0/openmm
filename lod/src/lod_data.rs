@@ -30,7 +30,7 @@ impl<'a> TryFrom<&'a [u8]> for LodData<'a> {
     }
 }
 
-fn decompress_with_48_bytes_header(data: &[u8]) -> Result<LodData, Box<dyn Error>> {
+fn decompress_with_48_bytes_header(data: &[u8]) -> Result<LodData<'_>, Box<dyn Error>> {
     let mut cursor = Cursor::new(data);
     cursor.seek(std::io::SeekFrom::Start(20))?;
     let compressed_size = cursor.read_u32::<LittleEndian>()? as usize;
@@ -42,7 +42,7 @@ fn decompress_with_48_bytes_header(data: &[u8]) -> Result<LodData, Box<dyn Error
     })
 }
 
-fn decompress_with_8_bytes_header(data: &[u8]) -> Result<LodData, Box<dyn Error>> {
+fn decompress_with_8_bytes_header(data: &[u8]) -> Result<LodData<'_>, Box<dyn Error>> {
     if data.len() < 8 {
         return Err("data too short for 8-byte header".into());
     }

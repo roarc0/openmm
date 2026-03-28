@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::{lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{lod_data::LodData, LodManager};
 
 const RECORD_SIZE: usize = 148;
 

@@ -21,6 +21,12 @@ pub const ODM_AREA: usize = ODM_SIZE * ODM_SIZE;
 pub const ODM_TILE_SCALE: f32 = 512.;
 pub const ODM_HEIGHT_SCALE: f32 = 32.;
 
+/// Convert MM6 coordinates (X right, Y forward, Z up) to Bevy (X right, Y up, Z = -Y_mm6).
+/// No height scaling -- raw coordinate swap only.
+pub fn mm6_to_bevy(x: i32, y: i32, z: i32) -> [f32; 3] {
+    [x as f32, z as f32, -(y as f32)]
+}
+
 const HEIGHT_MAP_OFFSET: u64 = 176;
 const HEIGHT_MAP_SIZE: usize = ODM_AREA;
 
