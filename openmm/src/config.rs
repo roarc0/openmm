@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use bevy::prelude::Resource;
 use clap::Parser;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 const CONFIG_PATH: &str = "target/openmm.toml";
 
@@ -58,6 +58,14 @@ struct Cli {
     #[arg(long)]
     fog_end: Option<f32>,
 
+    /// Music volume 0.0 - 1.0 (0 = muted)
+    #[arg(long)]
+    music_volume: Option<f32>,
+
+    /// Environment/SFX volume 0.0 - 1.0 (0 = muted)
+    #[arg(long)]
+    sfx_volume: Option<f32>,
+
     /// Path to config file (default: target/openmm.toml)
     #[arg(long, default_value = CONFIG_PATH)]
     config: PathBuf,
@@ -78,10 +86,12 @@ struct ConfigFile {
     draw_distance: Option<f32>,
     fog_start: Option<f32>,
     fog_end: Option<f32>,
+    music_volume: Option<f32>,
+    sfx_volume: Option<f32>,
 }
 
 /// Resolved game configuration — available as a Bevy resource.
-#[derive(Resource, Debug, Clone)]
+#[derive(Resource, Debug, Clone, Serialize)]
 pub struct GameConfig {
     /// Map to load directly into (e.g. "oute3"), bypasses save data
     pub map: Option<String>,
@@ -107,6 +117,10 @@ pub struct GameConfig {
     pub fog_start: f32,
     /// Fog end distance (fully opaque after this)
     pub fog_end: f32,
+    /// Music volume (0.0 - 1.0, 0 = muted)
+    pub music_volume: f32,
+    /// Environment/SFX volume (0.0 - 1.0, 0 = muted)
+    pub sfx_volume: f32,
 }
 
 impl Default for GameConfig {
@@ -124,14 +138,33 @@ impl Default for GameConfig {
             draw_distance: 10000.0,
             fog_start: 8000.0,
             fog_end: 22000.0,
+            music_volume: 1.0,
+            sfx_volume: 1.0,
         }
     }
 }
 
 impl GameConfig {
     /// Load config from file, then apply CLI overrides.
+    /// If the config file doesn't exist, writes a default one.
     pub fn load() -> Self {
         let cli = Cli::parse();
+
+        if !cli.config.exists() {
+            let defaults = GameConfig::default();
+            match toml::to_string_pretty(&defaults) {
+                Ok(contents) => {
+                    if let Some(parent) = cli.config.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    match std::fs::write(&cli.config, &contents) {
+                        Ok(()) => eprintln!("info: wrote default config to {}", cli.config.display()),
+                        Err(e) => eprintln!("warning: failed to write default config to {}: {e}", cli.config.display()),
+                    }
+                }
+                Err(e) => eprintln!("warning: failed to serialize default config: {e}"),
+            }
+        }
 
         let file_cfg = std::fs::read_to_string(&cli.config)
             .ok()
@@ -179,6 +212,12 @@ impl GameConfig {
             fog_end: cli.fog_end
                 .or(file_cfg.fog_end)
                 .unwrap_or(defaults.fog_end),
+            music_volume: cli.music_volume
+                .or(file_cfg.music_volume)
+                .unwrap_or(defaults.music_volume),
+            sfx_volume: cli.sfx_volume
+                .or(file_cfg.sfx_volume)
+                .unwrap_or(defaults.sfx_volume),
         }
     }
 }
