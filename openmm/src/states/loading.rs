@@ -56,7 +56,7 @@ struct LoadingProgress {
     actors: Option<Vec<DdmActor>>,
     monsters: Option<Vec<PreparedMonster>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
-    billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>)>>,
+    billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>>,
     water_cells: Option<Vec<bool>>,
 }
 
@@ -87,13 +87,10 @@ pub struct PreparedMonster {
 pub struct PreparedBillboard {
     /// Position in Bevy coordinates.
     pub position: Vec3,
-    /// Size in game units (width, height).
-    pub width: f32,
-    pub height: f32,
-    /// Sprite name (for caching).
-    pub sprite_name: String,
-    /// Sprite image.
-    pub image: Image,
+    /// Decoration name (for sprite lookup).
+    pub declist_name: String,
+    /// Declist ID for BillboardManager lookup.
+    pub declist_id: u16,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -143,7 +140,7 @@ pub struct PreparedWorld {
     pub actors: Vec<DdmActor>,
     pub monsters: Vec<PreparedMonster>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
-    pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>)>,
+    pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     pub water_cells: Vec<bool>,
 }
 
@@ -441,41 +438,21 @@ fn loading_step(
             }
         }
         LoadingStep::BuildBillboards => {
+            // Just store metadata — images decoded on-demand in lazy_spawn
             if let Some(odm) = &progress.odm {
-                let mut prepared_billboards = Vec::new();
-                if let Ok(bb_mgr) = BillboardManager::new(game_assets.lod_manager()) {
-                    for bb in &odm.billboards {
-                        if bb.data.is_invisible() {
-                            continue;
-                        }
-                        if let Some(sprite) = bb_mgr.get(
-                            game_assets.lod_manager(),
-                            &bb.declist_name,
-                            bb.data.declist_id,
-                        ) {
-                            let (w, h) = sprite.dimensions();
-                            // MM6 coords (x, y, z) → Bevy (x, z, -y)
-                            let pos = Vec3::new(
-                                bb.data.position[0] as f32,
-                                bb.data.position[2] as f32,
-                                -bb.data.position[1] as f32,
-                            );
-                            let image = Image::from_dynamic(
-                                sprite.image,
-                                true,
-                                RenderAssetUsages::RENDER_WORLD,
-                            );
-                            prepared_billboards.push(PreparedBillboard {
-                                position: pos,
-                                width: w,
-                                height: h,
-                                sprite_name: bb.declist_name.clone(),
-                                image,
-                            });
-                        }
-                    }
-                }
-                progress.billboards = Some(prepared_billboards);
+                let billboards: Vec<PreparedBillboard> = odm.billboards.iter()
+                    .filter(|bb| !bb.data.is_invisible())
+                    .map(|bb| PreparedBillboard {
+                        position: Vec3::new(
+                            bb.data.position[0] as f32,
+                            bb.data.position[2] as f32,
+                            -bb.data.position[1] as f32,
+                        ),
+                        declist_name: bb.declist_name.clone(),
+                        declist_id: bb.data.declist_id,
+                    })
+                    .collect();
+                progress.billboards = Some(billboards);
                 progress.step = progress.step.next();
             }
         }

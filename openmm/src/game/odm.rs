@@ -15,8 +15,8 @@ struct PendingSpawns {
     monster_order: Vec<usize>,
     idx: usize,
     sprite_cache: sprites::SpriteCache,
-    /// Cached billboard materials: key = billboard index, value = (material, mesh)
-    billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>)>,
+    /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
+    billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     terrain_entity: Entity,
 }
 use crate::states::loading::PreparedWorld;
@@ -231,26 +231,39 @@ fn lazy_spawn(
     let mut actor_idx = pending.idx.saturating_sub(bb_len).min(actor_len);
     let mut monster_idx = pending.idx.saturating_sub(bb_len + actor_len).min(monster_len);
 
-    // Billboards — use cached materials (instant, no texture loading)
+    // Billboards — decode sprite on first encounter, cache material
     while bb_idx < bb_len && spawned < SPAWN_BATCH_SIZE {
         let idx = pending.billboard_order[bb_idx];
         bb_idx += 1;
         pending.idx += 1;
         let bb = &prepared.billboards[idx];
-        let (mat, quad) = if let Some((m, q)) = pending.billboard_cache.get(&bb.sprite_name) {
-            (m.clone(), q.clone())
+        let key = &bb.declist_name;
+        let (mat, quad, h) = if let Some((m, q, h)) = pending.billboard_cache.get(key) {
+            (m.clone(), q.clone(), *h)
         } else {
-            // Create on first encounter, cache for subsequent
-            let tex = images.add(bb.image.clone());
+            // First time — decode from LOD
+            let bb_mgr_result = lod::billboard::BillboardManager::new(game_assets.lod_manager());
+            let bb_mgr = match &bb_mgr_result {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            let sprite = match bb_mgr.get(game_assets.lod_manager(), key, bb.declist_id) {
+                Some(s) => s,
+                None => continue,
+            };
+            let (w, h) = sprite.dimensions();
+            let bevy_img = bevy::image::Image::from_dynamic(
+                sprite.image, true, bevy::asset::RenderAssetUsages::RENDER_WORLD);
+            let tex = images.add(bevy_img);
             let m = materials.add(StandardMaterial {
                 base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
                 cull_mode: None, double_sided: true, unlit: true, ..default()
             });
-            let q = meshes.add(Rectangle::new(bb.width, bb.height));
-            pending.billboard_cache.insert(bb.sprite_name.clone(), (m.clone(), q.clone()));
-            (m, q)
+            let q = meshes.add(Rectangle::new(w, h));
+            pending.billboard_cache.insert(key.clone(), (m.clone(), q.clone(), h));
+            (m, q, h)
         };
-        let pos = bb.position + Vec3::new(0.0, bb.height / 2.0, 0.0);
+        let pos = bb.position + Vec3::new(0.0, h / 2.0, 0.0);
         commands.entity(terrain_entity).with_child((
             Name::new("decoration"), Mesh3d(quad), MeshMaterial3d(mat),
             Transform::from_translation(pos),
