@@ -118,25 +118,43 @@ pub fn spawn_actors(
             continue;
         }
 
-        // Look up monster description by ID
-        let monster_desc = match monlist.get(actor.monster_id as usize) {
-            Some(m) => m,
-            None => continue,
+        // Look up monster description by ID, try sprite names with fallback
+        let monster_desc = monlist.get(actor.monster_id as usize);
+
+        let (standing_name, walking_name) = if let Some(desc) = monster_desc {
+            (desc.sprite_names[0].clone(), desc.sprite_names[1].clone())
+        } else {
+            ("pfemst".to_string(), "pfemwa".to_string())
         };
 
-        // sprite_names[0]=standing, [1]=walking
-        let standing_name = &monster_desc.sprite_names[0];
-        let walking_name = &monster_desc.sprite_names[1];
+        // Try loading standing frames, with fallback chain
+        let fallbacks = [
+            (standing_name.as_str(), walking_name.as_str()),
+            ("pfemst", "pfemwa"),
+            ("pmanst", "pmanwk"),
+            ("pmn2st", "pmn2wa"),
+        ];
 
-        let (standing_frames, sprite_w, sprite_h) =
-            load_sprite_frames(standing_name, lod_manager, images, materials);
+        let mut standing_frames = Vec::new();
+        let mut walking_frames = Vec::new();
+        let mut sprite_w = 0.0_f32;
+        let mut sprite_h = 0.0_f32;
+
+        for (st, wa) in &fallbacks {
+            let (sf, w, h) = load_sprite_frames(st, lod_manager, images, materials);
+            if !sf.is_empty() && w > 0.0 {
+                standing_frames = sf;
+                sprite_w = w;
+                sprite_h = h;
+                let (wf, _, _) = load_sprite_frames(wa, lod_manager, images, materials);
+                walking_frames = wf;
+                break;
+            }
+        }
 
         if standing_frames.is_empty() || sprite_w == 0.0 {
             continue;
         }
-
-        let (walking_frames, _, _) =
-            load_sprite_frames(walking_name, lod_manager, images, materials);
 
         let mut states = vec![standing_frames];
         if !walking_frames.is_empty() {

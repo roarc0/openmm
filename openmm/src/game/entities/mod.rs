@@ -101,42 +101,50 @@ fn wander_system(
         }
 
         actor.wander_timer -= dt;
+
         if actor.wander_timer <= 0.0 {
-            // Use a pseudo-random angle based on position + time
-            let seed = actor.initial_position.x * 7.3 + actor.initial_position.z * 13.7
-                + time.elapsed_secs() * 0.5;
-            let angle = (seed * 2.3).sin() * std::f32::consts::TAU;
-            let dist = actor.tether_distance.max(300.0) * 0.4;
-            actor.wander_target = actor.guarding_position
-                + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
-            // Alternate between moving (3-5s) and standing (2-4s)
-            let pause = ((seed * 1.7).cos() + 1.0) * 2.0 + 2.0;
-            actor.wander_timer = pause;
+            // Toggle between idle and walking
+            if *anim_state == AnimationState::Idle {
+                // Pick a new target and start walking
+                let seed = actor.initial_position.x * 7.3 + actor.initial_position.z * 13.7
+                    + time.elapsed_secs() * 0.5;
+                let angle = (seed * 2.3).sin() * std::f32::consts::TAU;
+                let dist = actor.tether_distance.max(300.0) * 0.4;
+                actor.wander_target = actor.guarding_position
+                    + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
+                actor.wander_timer = 3.0 + (seed.cos().abs()) * 3.0; // walk for 3-6s
+                *anim_state = AnimationState::Walking;
+            } else {
+                // Stop and idle
+                actor.wander_timer = 2.0 + (time.elapsed_secs() * 3.7).sin().abs() * 3.0; // idle 2-5s
+                *anim_state = AnimationState::Idle;
+            }
         }
 
-        let dir = actor.wander_target - transform.translation;
-        let flat_dir = Vec3::new(dir.x, 0.0, dir.z);
-        if flat_dir.length() > 20.0 {
-            let speed = actor.move_speed.min(60.0) * dt;
-            let move_vec = flat_dir.normalize() * speed;
+        // Only move when walking
+        if *anim_state == AnimationState::Walking {
+            let dir = actor.wander_target - transform.translation;
+            let flat_dir = Vec3::new(dir.x, 0.0, dir.z);
+            if flat_dir.length() > 20.0 {
+                let speed = actor.move_speed.min(60.0) * dt;
+                let move_vec = flat_dir.normalize() * speed;
 
-            let from = transform.translation;
-            let mut dest = from + Vec3::new(move_vec.x, 0.0, move_vec.z);
+                let from = transform.translation;
+                let mut dest = from + Vec3::new(move_vec.x, 0.0, move_vec.z);
 
-            // BSP wall collision
-            if let Some(ref c) = colliders {
-                dest = c.resolve_movement(from, dest, 20.0, 140.0);
+                if let Some(ref c) = colliders {
+                    dest = c.resolve_movement(from, dest, 20.0, 140.0);
+                }
+
+                transform.translation.x = dest.x;
+                transform.translation.z = dest.z;
+
+                actor.facing_yaw = move_vec.x.atan2(move_vec.z);
+            } else {
+                // Reached target, switch to idle
+                *anim_state = AnimationState::Idle;
+                actor.wander_timer = 2.0;
             }
-
-            transform.translation.x = dest.x;
-            transform.translation.z = dest.z;
-
-            // Update facing direction for sprite system
-            actor.facing_yaw = move_vec.x.atan2(move_vec.z);
-
-            *anim_state = AnimationState::Walking;
-        } else {
-            *anim_state = AnimationState::Idle;
         }
     }
 }
