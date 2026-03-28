@@ -7,12 +7,14 @@ use crate::assets::GameAssets;
 use crate::game::entities::{actor, decoration, sprites};
 use crate::game::player::Player;
 
-/// Pending entities to spawn gradually (fixed batch per frame).
+/// Pending entities sorted by distance from player, spawned gradually.
 #[derive(Resource)]
 struct PendingSpawns {
-    billboard_idx: usize,
-    actor_idx: usize,
-    monster_idx: usize,
+    /// Sorted indices into prepared data (closest first).
+    billboard_order: Vec<usize>,
+    actor_order: Vec<usize>,
+    monster_order: Vec<usize>,
+    idx: usize, // current position across all three lists
     sprite_cache: sprites::SpriteCache,
     terrain_entity: Entity,
 }
@@ -92,7 +94,7 @@ impl OdmName {
     }
 }
 
-const SPAWN_BATCH_SIZE: usize = 5;
+const SPAWN_BATCH_SIZE: usize = 1;
 
 pub struct OdmPlugin;
 
@@ -110,6 +112,7 @@ fn spawn_world(
     mut materials: ResMut<Assets<StandardMaterial>>,
     prepared: Option<Res<PreparedWorld>>,
     game_assets: Res<GameAssets>,
+    save_data: Res<crate::save::GameSave>,
 ) {
     let Some(prepared) = prepared else {
         error!("No PreparedWorld available when entering Game state");
@@ -158,10 +161,47 @@ fn spawn_world(
             }
         }).id();
 
+    // Sort spawn order by distance from player (closest first)
+    let player_spawn = Vec3::new(
+        save_data.player.position[0],
+        save_data.player.position[1],
+        save_data.player.position[2],
+    );
+
+    let mut bb_order: Vec<usize> = (0..prepared.billboards.len()).collect();
+    bb_order.sort_by(|&a, &b| {
+        let da = player_spawn.distance_squared(prepared.billboards[a].position);
+        let db = player_spawn.distance_squared(prepared.billboards[b].position);
+        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut actor_order: Vec<usize> = (0..prepared.actors.len()).collect();
+    actor_order.sort_by(|&a, &b| {
+        let pa = &prepared.actors[a];
+        let pb = &prepared.actors[b];
+        let da = (pa.position[0] as f32 - player_spawn.x).powi(2)
+            + (pa.position[1] as f32 + player_spawn.z).powi(2);
+        let db = (pb.position[0] as f32 - player_spawn.x).powi(2)
+            + (pb.position[1] as f32 + player_spawn.z).powi(2);
+        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut monster_order: Vec<usize> = (0..prepared.monsters.len()).collect();
+    monster_order.sort_by(|&a, &b| {
+        let pa = &prepared.monsters[a];
+        let pb = &prepared.monsters[b];
+        let da = (pa.position[0] as f32 - player_spawn.x).powi(2)
+            + (pa.position[1] as f32 + player_spawn.z).powi(2);
+        let db = (pb.position[0] as f32 - player_spawn.x).powi(2)
+            + (pb.position[1] as f32 + player_spawn.z).powi(2);
+        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
     commands.insert_resource(PendingSpawns {
-        billboard_idx: 0,
-        actor_idx: 0,
-        monster_idx: 0,
+        billboard_order: bb_order,
+        actor_order,
+        monster_order,
+        idx: 0,
         sprite_cache: prepared.sprite_cache.clone(),
         terrain_entity,
     });
@@ -182,11 +222,19 @@ fn lazy_spawn(
     let terrain_entity = pending.terrain_entity;
     let npc_sprites = [("pfemst", "pfemwa"), ("pmanst", "pmanwk"), ("pmn2st", "pmn2wa")];
     let mut spawned = 0;
+    let bb_len = pending.billboard_order.len();
+    let actor_len = pending.actor_order.len();
+    let monster_len = pending.monster_order.len();
+    let mut bb_idx = pending.idx.min(bb_len);
+    let mut actor_idx = pending.idx.saturating_sub(bb_len).min(actor_len);
+    let mut monster_idx = pending.idx.saturating_sub(bb_len + actor_len).min(monster_len);
 
-    // Billboards (simple — just a texture quad)
-    while pending.billboard_idx < prepared.billboards.len() && spawned < SPAWN_BATCH_SIZE {
-        let bb = &prepared.billboards[pending.billboard_idx];
-        pending.billboard_idx += 1;
+    // Billboards
+    while bb_idx < bb_len && spawned < SPAWN_BATCH_SIZE {
+        let idx = pending.billboard_order[bb_idx];
+        bb_idx += 1;
+        pending.idx += 1;
+        let bb = &prepared.billboards[idx];
         let tex = images.add(bb.image.clone());
         let mat = materials.add(StandardMaterial {
             base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
@@ -205,10 +253,11 @@ fn lazy_spawn(
     }
 
     // NPC actors
-    while pending.actor_idx < prepared.actors.len() && spawned < SPAWN_BATCH_SIZE {
-        let i = pending.actor_idx;
+    while actor_idx < actor_len && spawned < SPAWN_BATCH_SIZE {
+        let i = pending.actor_order[actor_idx];
+        actor_idx += 1;
+        pending.idx += 1;
         let a = &prepared.actors[i];
-        pending.actor_idx += 1;
         if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
 
         let (st, wa) = npc_sprites[i % npc_sprites.len()];
@@ -242,9 +291,10 @@ fn lazy_spawn(
     }
 
     // Monsters
-    while pending.monster_idx < prepared.monsters.len() && spawned < SPAWN_BATCH_SIZE {
-        let m = &prepared.monsters[pending.monster_idx];
-        pending.monster_idx += 1;
+    while monster_idx < monster_len && spawned < SPAWN_BATCH_SIZE {
+        let m = &prepared.monsters[pending.monster_order[monster_idx]];
+        monster_idx += 1;
+        pending.idx += 1;
         let fallbacks = [
             (m.standing_sprite.as_str(), m.walking_sprite.as_str()),
             ("pfemst", "pfemwa"), ("pmanst", "pmanwk"),
@@ -286,10 +336,7 @@ fn lazy_spawn(
         spawned += 1;
     }
 
-    if pending.billboard_idx >= prepared.billboards.len()
-        && pending.actor_idx >= prepared.actors.len()
-        && pending.monster_idx >= prepared.monsters.len()
-    {
+    if pending.idx >= bb_len + actor_len + monster_len {
         commands.remove_resource::<PendingSpawns>();
     }
 }

@@ -109,13 +109,14 @@ fn update_sky(
                     (1.0 - (d1.min(d2) * 10.0).min(1.0)).max(0.0)
                 };
 
-                let r: f32 = 0.15 + 0.85 * day_amount + 0.3 * dawn_dusk;
-                let g: f32 = 0.15 + 0.75 * day_amount + 0.1 * dawn_dusk;
-                let b: f32 = 0.25 + 0.75 * day_amount - 0.15 * dawn_dusk;
+                // Bright during day, dim at night, warm at dawn/dusk
+                let r: f32 = 0.4 + 0.6 * day_amount + 0.2 * dawn_dusk;
+                let g: f32 = 0.4 + 0.5 * day_amount + 0.05 * dawn_dusk;
+                let b: f32 = 0.5 + 0.5 * day_amount - 0.1 * dawn_dusk;
                 mat.base_color = Color::srgb(
-                    r.clamp(0.08, 1.0),
-                    g.clamp(0.08, 1.0),
-                    b.clamp(0.1, 1.0),
+                    r.clamp(0.15, 1.0),
+                    g.clamp(0.15, 1.0),
+                    b.clamp(0.2, 1.0),
                 );
             }
         }
