@@ -6,11 +6,14 @@ use crate::game::entities::{AnimationState, EntityKind, WorldEntity};
 use crate::game::player::PlayerCamera;
 use crate::states::loading::PreparedWorld;
 
-/// NPC/actor-specific component with runtime data.
+/// Unified NPC/monster actor component. In MM6, NPCs and monsters are the same
+/// entity type — the difference is the `hostile` flag. Peasants are non-hostile
+/// by default but can become hostile if attacked.
 #[derive(Component)]
 pub struct Actor {
     pub name: String,
     pub hp: i16,
+    pub max_hp: i16,
     pub move_speed: f32,
     pub initial_position: Vec3,
     pub guarding_position: Vec3,
@@ -19,6 +22,8 @@ pub struct Actor {
     pub wander_target: Vec3,
     /// Actor's facing direction in radians (Y-axis rotation). Used for directional sprites.
     pub facing_yaw: f32,
+    /// Whether this actor is hostile to the player.
+    pub hostile: bool,
 }
 
 /// Holds all preloaded sprite frames for an actor, indexed by [state][frame][direction].
@@ -128,6 +133,10 @@ pub fn spawn_actors(
         if actor.hp <= 0 {
             continue;
         }
+        // Skip actors with positions far outside the playable area
+        if actor.position[0].abs() > 20000 || actor.position[1].abs() > 20000 {
+            continue;
+        }
 
         let (sprites, sprite_w, sprite_h) =
             match load_actor_sprites(lod_manager, i, images, materials) {
@@ -168,6 +177,7 @@ pub fn spawn_actors(
             Actor {
                 name: actor.name.clone(),
                 hp: actor.hp,
+                max_hp: actor.hp,
                 move_speed: actor.move_speed as f32,
                 initial_position: initial,
                 guarding_position: guarding,
@@ -175,6 +185,7 @@ pub fn spawn_actors(
                 wander_timer: 0.0,
                 wander_target: pos,
                 facing_yaw: 0.0,
+                hostile: false, // TODO: read from MonsterInfo attributes
             },
         ));
     }
