@@ -52,6 +52,7 @@ struct LoadingProgress {
     billboards: Option<Vec<PreparedBillboard>>,
     actors: Option<Vec<DdmActor>>,
     monsters: Option<Vec<PreparedMonster>>,
+    start_points: Option<Vec<StartPoint>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>>,
     water_cells: Option<Vec<bool>>,
@@ -130,6 +131,13 @@ impl LoadingStep {
     }
 }
 
+/// A named start/teleport point extracted from map decorations.
+pub struct StartPoint {
+    pub name: String,
+    pub position: Vec3,
+    pub yaw: f32,
+}
+
 /// Resource containing everything needed to spawn the world after loading.
 #[derive(Resource)]
 pub struct PreparedWorld {
@@ -141,6 +149,7 @@ pub struct PreparedWorld {
     pub billboards: Vec<PreparedBillboard>,
     pub actors: Vec<DdmActor>,
     pub monsters: Vec<PreparedMonster>,
+    pub start_points: Vec<StartPoint>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     pub water_cells: Vec<bool>,
@@ -185,6 +194,7 @@ fn loading_setup(
         billboards: None,
         actors: None,
         monsters: None,
+        start_points: None,
         sprite_cache: None,
         billboard_cache: None,
         water_cells: None,
@@ -395,20 +405,48 @@ fn loading_step(
             }
         }
         LoadingStep::BuildBillboards => {
-            // Just store metadata — images decoded on-demand in lazy_spawn
+            // Extract start/teleport points and filter out non-renderable decorations.
+            // Decorations with game_name containing "Start" are teleport markers
+            // (e.g., "Party Start", "North Start"). They should not render.
             if let Some(odm) = &progress.odm {
-                let billboards: Vec<PreparedBillboard> = odm.billboards.iter()
-                    .filter(|bb| !bb.data.is_invisible())
-                    .map(|bb| PreparedBillboard {
-                        position: Vec3::from(lod::odm::mm6_to_bevy(
-                            bb.data.position[0],
-                            bb.data.position[1],
-                            bb.data.position[2],
-                        )),
+                let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+                let mut start_points = Vec::new();
+                let mut billboards = Vec::new();
+
+                for bb in &odm.billboards {
+                    if bb.data.is_invisible() { continue; }
+
+                    let pos = Vec3::from(lod::odm::mm6_to_bevy(
+                        bb.data.position[0], bb.data.position[1], bb.data.position[2],
+                    ));
+                    let yaw = bb.data.direction_degrees as f32 * std::f32::consts::PI / 1024.0;
+
+                    // Check if this is a start/teleport marker
+                    let is_marker = bb_mgr.as_ref()
+                        .and_then(|mgr| mgr.get_declist_item(bb.data.declist_id))
+                        .map(|item| item.is_marker() || item.is_no_draw())
+                        .unwrap_or(false);
+
+                    let name_lower = bb.declist_name.to_lowercase();
+                    let is_start = name_lower.contains("start") || is_marker;
+
+                    if is_start {
+                        start_points.push(StartPoint {
+                            name: bb.declist_name.clone(),
+                            position: pos,
+                            yaw,
+                        });
+                        continue; // Don't render markers
+                    }
+
+                    billboards.push(PreparedBillboard {
+                        position: pos,
                         declist_name: bb.declist_name.clone(),
                         declist_id: bb.data.declist_id,
-                    })
-                    .collect();
+                    });
+                }
+
+                progress.start_points = Some(start_points);
                 progress.billboards = Some(billboards);
                 progress.step = progress.step.next();
             }
@@ -507,6 +545,7 @@ fn loading_step(
                     billboards,
                     actors,
                     monsters: progress.monsters.take().unwrap_or_default(),
+                    start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
                     billboard_cache: progress.billboard_cache.take().unwrap_or_default(),
                 });

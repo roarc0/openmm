@@ -139,13 +139,23 @@ fn spawn_player(
     cfg: Res<crate::config::GameConfig>,
     save_data: Res<GameSave>,
 ) {
-    let start_x = save_data.player.position[0];
-    let start_z = save_data.player.position[2];
-    let start_yaw = save_data.player.yaw;
-    let start_y = if let Some(prepared) = &prepared {
-        sample_terrain_height(&prepared.map.height_map, start_x, start_z) + settings.eye_height
+    // Use "Party Start" decoration if available, otherwise fall back to save data
+    let (start_x, start_y, start_z, start_yaw) = if let Some(ref prepared) = prepared {
+        let party_start = prepared.start_points.iter()
+            .find(|sp| sp.name.to_lowercase().contains("party start")
+                     || sp.name.to_lowercase().contains("party_start"));
+        if let Some(sp) = party_start {
+            let y = sample_terrain_height(&prepared.map.height_map, sp.position.x, sp.position.z)
+                + settings.eye_height;
+            (sp.position.x, y, sp.position.z, sp.yaw)
+        } else {
+            let y = sample_terrain_height(&prepared.map.height_map,
+                save_data.player.position[0], save_data.player.position[2]) + settings.eye_height;
+            (save_data.player.position[0], y, save_data.player.position[2], save_data.player.yaw)
+        }
     } else {
-        save_data.player.position[1]
+        (save_data.player.position[0], save_data.player.position[1],
+         save_data.player.position[2], save_data.player.yaw)
     };
 
     commands

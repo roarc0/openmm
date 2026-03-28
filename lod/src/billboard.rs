@@ -128,6 +128,11 @@ impl BillboardManager {
         Ok(Self { d_declist, d_sft })
     }
 
+    /// Get the decoration list item for a given declist_id.
+    pub fn get_declist_item(&self, id: u16) -> Option<&DDecListItem> {
+        self.d_declist.items.get(id as usize)
+    }
+
     pub fn get(
         &self,
         lod_manager: &LodManager,

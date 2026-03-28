@@ -87,12 +87,17 @@ fn title_setup(
                 ImageNode::new(overlay.clone()),
             ));
         }
-        // Invisible clickable regions over each button
-        // Positions from pixel-diff: 163×57px, x=477, y step=62
-        menu_btn(p, 477.0,   3.0, 163.0, 57.0, MenuAction::NewGame);
-        menu_btn(p, 477.0,  65.0, 163.0, 57.0, MenuAction::LoadGame);
-        menu_btn(p, 477.0, 127.0, 163.0, 57.0, MenuAction::Credits);
-        menu_btn(p, 477.0, 190.0, 163.0, 57.0, MenuAction::Exit);
+        // Hover button images (start00a=NEW, b=LOAD, c=CREDITS, d=EXIT)
+        let hover_new = ui.get_or_load("start00a", &game_assets, &mut images);
+        let hover_load = ui.get_or_load("start00b", &game_assets, &mut images);
+        let hover_credits = ui.get_or_load("start00c", &game_assets, &mut images);
+        let hover_exit = ui.get_or_load("start00d", &game_assets, &mut images);
+
+        // Clickable buttons with hover images at pixel-diff positions
+        title_btn(p, 477.0,   3.0, 163.0, 57.0, MenuAction::NewGame, hover_new);
+        title_btn(p, 477.0,  65.0, 163.0, 57.0, MenuAction::LoadGame, hover_load);
+        title_btn(p, 477.0, 127.0, 163.0, 57.0, MenuAction::Credits, hover_credits);
+        title_btn(p, 477.0, 190.0, 163.0, 57.0, MenuAction::Exit, hover_exit);
     });
 }
 
@@ -242,6 +247,46 @@ fn fullscreen_bg(tex: Option<Handle<Image>>) -> (Node, ImageNode) {
     )
 }
 
+/// Title screen button with hover image overlay.
+fn title_btn(
+    parent: &mut ChildSpawnerCommands,
+    x: f32, y: f32, w: f32, h: f32,
+    action: MenuAction,
+    hover_img: Option<Handle<Image>>,
+) {
+    let mut btn = parent.spawn((
+        Button,
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(x / REF_W * 100.0),
+            top: Val::Percent(y / REF_H * 100.0),
+            width: Val::Percent(w / REF_W * 100.0),
+            height: Val::Percent(h / REF_H * 100.0),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BackgroundColor(Color::NONE),
+        action,
+    ));
+    // Add hover image as hidden child
+    if let Some(img) = hover_img {
+        btn.with_children(|btn_parent| {
+            btn_parent.spawn((
+                Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    ..default()
+                },
+                ImageNode::new(img),
+                Visibility::Hidden,
+                HoverImage,
+            ));
+        });
+    }
+}
+
+/// Generic menu button (no hover image).
 fn menu_btn(parent: &mut ChildSpawnerCommands, x: f32, y: f32, w: f32, h: f32, action: MenuAction) {
     parent.spawn((
         Button,
@@ -258,15 +303,21 @@ fn menu_btn(parent: &mut ChildSpawnerCommands, x: f32, y: f32, w: f32, h: f32, a
     ));
 }
 
+/// Marker for hover image children of buttons.
+#[derive(Component)]
+struct HoverImage;
+
 fn button_hover(
-    mut query: Query<(&Interaction, &mut BackgroundColor), (Changed<Interaction>, With<Button>)>,
+    query: Query<(&Interaction, &Children), (Changed<Interaction>, With<Button>)>,
+    mut hover_query: Query<&mut Visibility, With<HoverImage>>,
 ) {
-    for (interaction, mut bg) in &mut query {
-        *bg = match interaction {
-            Interaction::Hovered => BackgroundColor(Color::srgba(1.0, 1.0, 0.8, 0.25)),
-            Interaction::Pressed => BackgroundColor(Color::srgba(1.0, 0.9, 0.6, 0.35)),
-            Interaction::None => BackgroundColor(Color::NONE),
-        };
+    for (interaction, children) in &query {
+        let show = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
+        for child in children.iter() {
+            if let Ok(mut vis) = hover_query.get_mut(child) {
+                *vis = if show { Visibility::Inherited } else { Visibility::Hidden };
+            }
+        }
     }
 }
 
