@@ -305,13 +305,14 @@ fn resolve_monsters(
     let Some(cfg) = map_config else { return monsters };
 
     for sp in &prepared.map.spawn_points {
-        // Seed for random A/B/C variant based on position (deterministic)
-        let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) as u32;
-        let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else { continue };
-        let Some(desc) = monlist.find_with_sprite(mon_name, dif, game_assets.lod_manager()) else { continue };
-
         let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as i32;
         for g in 0..group_size {
+            // Each monster in the group gets its own A/B/C roll (matching original engine).
+            // Seed is per-monster (position + group index) for deterministic results.
+            let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs() + g as u32) as u32;
+            let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else { continue };
+            let Some(desc) = monlist.find_with_sprite(mon_name, dif, game_assets.lod_manager()) else { continue };
+
             let angle = g as f32 * 2.094;
             let spread = sp.radius.max(200) as f32 * 0.5;
             monsters.push(crate::states::loading::PreparedMonster {

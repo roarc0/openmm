@@ -168,14 +168,12 @@ pub fn load_sprite_frames_cached(
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
 
-    // Include hue shift in cache key so tinted variants get separate entries.
     let cache_key = if hue_shift_deg.abs() > 0.1 {
         format!("{}@h{}", root, hue_shift_deg as i32)
     } else {
         root.to_string()
     };
 
-    // Check cache for dimensions (tells us we've loaded this root before)
     if let Some(cache) = cache.as_ref() {
         if let Some(&(w, h)) = cache.dimensions.get(&cache_key) {
             let frames = rebuild_from_cache(&cache_key, cache, w, h);
@@ -185,8 +183,6 @@ pub fn load_sprite_frames_cached(
         }
     }
 
-    // Try progressively shorter roots to handle monlist names like "bar1walk"
-    // where the actual sprite files are "bar1waa0" (root "bar1wa").
     let mut try_root = root;
     while try_root.len() >= 3 {
         let (frames, w, h) = load_frames_with_root_padded(try_root, lod_manager, images, materials, hue_shift_deg, 0, 0);
@@ -200,17 +196,18 @@ pub fn load_sprite_frames_cached(
 }
 
 fn store_in_cache(
-    root: &str,
+    cache_key: &str,
     frames: &[[Handle<StandardMaterial>; 5]],
     w: f32, h: f32,
     cache: &mut Option<&mut SpriteCache>,
 ) {
     if let Some(cache) = cache.as_mut() {
-        cache.dimensions.insert(root.to_string(), (w, h));
+        cache.dimensions.insert(cache_key.to_string(), (w, h));
         for (fi, dirs) in frames.iter().enumerate() {
             let frame_letter = (b'a' + fi as u8) as char;
             for (di, mat) in dirs.iter().enumerate() {
-                let key = format!("{}{}{}", root, frame_letter, di);
+                // Use cache_key as prefix so hue-shifted variants don't collide
+                let key = format!("{}{}{}", cache_key, frame_letter, di);
                 cache.materials.insert(key, mat.clone());
             }
         }
@@ -218,18 +215,18 @@ fn store_in_cache(
 }
 
 fn rebuild_from_cache(
-    root: &str,
+    cache_key: &str,
     cache: &SpriteCache,
     _w: f32, _h: f32,
 ) -> Vec<[Handle<StandardMaterial>; 5]> {
     let mut frames = Vec::new();
     for fi in 0..6 {
         let frame_letter = (b'a' + fi) as char;
-        let key0 = format!("{}{}0", root, frame_letter);
+        let key0 = format!("{}{}0", cache_key, frame_letter);
         if let Some(mat0) = cache.materials.get(&key0) {
             let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
             for di in 0..5 {
-                let key = format!("{}{}{}", root, frame_letter, di);
+                let key = format!("{}{}{}", cache_key, frame_letter, di);
                 dirs[di] = cache.materials.get(&key).cloned().unwrap_or_else(|| mat0.clone());
             }
             frames.push(dirs);
@@ -289,8 +286,21 @@ fn load_frames_with_root_padded(
         let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
         for (dir, img_opt) in dir_imgs.into_iter().enumerate() {
             if let Some(mut img) = img_opt {
+                // Apply variant tint directly on RGBA pixels
                 if hue_shift_deg.abs() > 0.1 {
-                    lod::image::hue_shift(&mut img, hue_shift_deg);
+                    if let Some(rgba) = img.as_mut_rgba8() {
+                        let (mr, mg, mb): (f32, f32, f32) = if hue_shift_deg > 100.0 && hue_shift_deg < 180.0 {
+                            (0.3, 0.4, 1.4) // Blue
+                        } else {
+                            (1.4, 0.3, 0.3) // Red
+                        };
+                        for pixel in rgba.pixels_mut() {
+                            if pixel[3] == 0 { continue; }
+                            pixel[0] = (pixel[0] as f32 * mr).min(255.0) as u8;
+                            pixel[1] = (pixel[1] as f32 * mg).min(255.0) as u8;
+                            pixel[2] = (pixel[2] as f32 * mb).min(255.0) as u8;
+                        }
+                    }
                 }
                 // Pad to uniform size: center horizontally, align bottom vertically
                 let img = if img.width() != max_w || img.height() != max_h {

@@ -271,9 +271,10 @@ pub fn get_atlas(
     Ok(join_images_in_grid(&images, row_size, 128, 128))
 }
 
-/// Apply a hue shift to an RGBA image, preserving skin tones.
-/// `degrees` is the hue rotation in degrees (e.g. 120 for blue, 240 for red/green).
-/// Pixels with skin-like hues (0°-50°, low-mid saturation) are left unchanged.
+/// Tint an RGBA image for monster variants.
+/// `degrees` selects the tint: ~120 = blue variant, ~240 = red variant.
+/// Uses direct RGB channel mixing — no HSL conversion, guaranteed visible.
+/// Preserves skin tones on humanoid sprites.
 pub fn hue_shift(image: &mut DynamicImage, degrees: f32) {
     if degrees.abs() < 0.1 {
         return;
@@ -282,22 +283,45 @@ pub fn hue_shift(image: &mut DynamicImage, degrees: f32) {
         Some(buf) => buf,
         None => return,
     };
+
+    // Channel mixing weights: how much each output channel takes from R, G, B
+    // Blue variant (B): shift green→blue, reduce red
+    // Red variant (C): shift green→red, reduce blue
+    let (rr, rg, rb, gr, gg, gb, br, bg, bb) = if degrees > 100.0 && degrees < 180.0 {
+        // Blue: output_R = 0.3R + 0.1G + 0.2B
+        //        output_G = 0.1R + 0.4G + 0.3B
+        //        output_B = 0.2R + 0.3G + 0.8B
+        (0.3f32, 0.1, 0.2,  0.1, 0.4, 0.3,  0.2, 0.3, 0.8)
+    } else {
+        // Red:  output_R = 0.8R + 0.3G + 0.2B
+        //        output_G = 0.3R + 0.4G + 0.1B
+        //        output_B = 0.2R + 0.1G + 0.3B
+        (0.8f32, 0.3, 0.2,  0.3, 0.4, 0.1,  0.2, 0.1, 0.3)
+    };
+
     for pixel in rgba.pixels_mut() {
         let [r, g, b, a] = pixel.0;
-        if a == 0 {
-            continue;
-        }
-        let (h, s, l) = rgb_to_hsl(r, g, b);
+        if a == 0 { continue; }
 
-        // Preserve skin tones: hue 0-50°, saturation 0.15-0.8, lightness 0.3-0.85
-        if h <= 50.0 && s >= 0.15 && s <= 0.8 && l >= 0.3 && l <= 0.85 {
-            continue;
+        // Preserve skin tones: pinkish/peach pixels on humanoids
+        let rf = r as f32; let gf = g as f32; let bf = b as f32;
+        let max = rf.max(gf).max(bf);
+        let min = rf.min(gf).min(bf);
+        let lum = (max + min) / 2.0;
+        if max > 0.0 {
+            let sat = (max - min) / max;
+            // Skin: reddish, moderate saturation and brightness
+            if rf > gf && rf > bf && sat > 0.1 && sat < 0.6 && lum > 80.0 && lum < 220.0 {
+                continue;
+            }
         }
 
-        let new_h = (h + degrees) % 360.0;
-        let (nr, ng, nb) = hsl_to_rgb(new_h, s, l);
+        let nr = (rf * rr + gf * rg + bf * rb).min(255.0) as u8;
+        let ng = (rf * gr + gf * gg + bf * gb).min(255.0) as u8;
+        let nb = (rf * br + gf * bg + bf * bb).min(255.0) as u8;
         *pixel = Rgba([nr, ng, nb, a]);
     }
+
 }
 
 fn rgb_to_hsl(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
