@@ -2,9 +2,11 @@ use bevy::prelude::*;
 
 use crate::{despawn_all, GameState};
 
+pub(crate) mod blv;
 pub(crate) mod collision;
 pub(crate) mod debug;
 pub(crate) mod entities;
+pub(crate) mod events;
 pub(crate) mod interaction;
 pub(crate) mod map_name;
 pub(crate) mod odm;
@@ -28,6 +30,7 @@ impl Plugin for InGamePlugin {
             player::PlayerPlugin,
             physics::PhysicsPlugin,
             odm::OdmPlugin,
+            blv::BlvPlugin,
             entities::EntitiesPlugin,
             debug::DebugPlugin,
             interaction::InteractionPlugin,

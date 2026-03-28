@@ -13,9 +13,11 @@ pub mod bsp_model;
 pub mod ddm;
 pub mod dlv;
 pub mod dtile;
+pub mod evt;
 pub mod mapstats;
 pub mod monlist;
 pub mod odm;
+pub mod twodevents;
 
 pub mod billboard;
 pub mod ddeclist;

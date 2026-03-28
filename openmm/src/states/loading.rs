@@ -15,6 +15,7 @@ use crate::{
     GameState,
 };
 use lod::{
+    blv::Blv,
     ddm::{Ddm, DdmActor},
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData},
@@ -58,6 +59,14 @@ struct LoadingProgress {
     billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>>,
     water_cells: Option<Vec<bool>>,
     music_track: u8,
+    blv: Option<Blv>,
+}
+
+/// Resource for indoor (BLV) maps — the indoor equivalent of PreparedWorld.
+#[derive(Resource)]
+pub struct PreparedIndoorWorld {
+    pub models: Vec<PreparedModel>,
+    pub start_points: Vec<StartPoint>,
 }
 
 pub struct PreparedModel {
@@ -67,8 +76,8 @@ pub struct PreparedModel {
     pub name: String,
     /// Model center position in Bevy coordinates.
     pub position: Vec3,
-    /// Whether any face in this model has event data (trigger_id > 0).
-    pub has_events: bool,
+    /// Unique event IDs from this model's faces (cog_trigger_id values > 0).
+    pub event_ids: Vec<u16>,
 }
 
 pub struct PreparedSubMesh {
@@ -209,6 +218,7 @@ fn loading_setup(
         billboard_cache: None,
         water_cells: None,
         music_track: 0,
+        blv: None,
     });
 
     // Keep the load request around as context
@@ -267,6 +277,20 @@ fn loading_step(
     match progress.step {
         LoadingStep::ParseMap => {
             let map_name = load_request.map_name.to_string();
+            if load_request.map_name.is_indoor() {
+                match Blv::new(game_assets.lod_manager(), &map_name) {
+                    Ok(blv) => {
+                        progress.blv = Some(blv);
+                        // Skip terrain — jump straight to BuildModels
+                        progress.step = LoadingStep::BuildModels;
+                    }
+                    Err(e) => {
+                        error!("Failed to parse indoor map {}: {}", map_name, e);
+                        return;
+                    }
+                }
+                return;
+            }
             match Odm::new(game_assets.lod_manager(), &map_name) {
                 Ok(odm) => {
                     match odm.tile_table(game_assets.lod_manager()) {
@@ -348,6 +372,75 @@ fn loading_step(
             }
         }
         LoadingStep::BuildModels => {
+            if let Some(blv) = &progress.blv {
+                // Indoor: build meshes from BLV faces
+                let mut texture_sizes: HashMap<String, (u32, u32)> = HashMap::new();
+                for name in &blv.texture_names {
+                    if name.is_empty() || texture_sizes.contains_key(name) { continue; }
+                    if let Some(img) = game_assets.lod_manager().bitmap(name) {
+                        texture_sizes.insert(name.clone(), (img.width(), img.height()));
+                    }
+                }
+                let textured = blv.textured_meshes(&texture_sizes);
+                let models = vec![PreparedModel {
+                    sub_meshes: textured.into_iter().map(|tm| {
+                        let mut mesh = Mesh::new(
+                            PrimitiveTopology::TriangleList,
+                            RenderAssetUsages::RENDER_WORLD,
+                        );
+                        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, tm.positions);
+                        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, tm.normals);
+                        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, tm.uvs);
+                        _ = mesh.generate_tangents();
+                        let texture = game_assets.lod_manager().bitmap(&tm.texture_name)
+                            .map(|img| {
+                                let mut image = crate::assets::dynamic_to_bevy_image(img);
+                                image.sampler = crate::assets::repeat_sampler();
+                                image
+                            });
+                        PreparedSubMesh {
+                            mesh,
+                            material: StandardMaterial {
+                                base_color: Color::WHITE,
+                                alpha_mode: AlphaMode::Opaque,
+                                // BLV face normals point inward (toward player).
+                                // Backface cull to avoid Z-fighting from overlapping walls.
+                                cull_mode: Some(bevy::render::render_resource::Face::Back),
+                                double_sided: false,
+                                perceptual_roughness: 1.0,
+                                reflectance: 0.0,
+                                metallic: 0.0,
+                                ..default()
+                            },
+                            texture,
+                        }
+                    }).collect(),
+                    name: "blv_faces".to_string(),
+                    position: Vec3::ZERO,
+                    event_ids: vec![],
+                }];
+                // Compute spawn from sector 1's bounding box (sector 0 is the void).
+                // Use XY center, Z at floor level (min Z in MM6 = lowest point).
+                let spawn_sector = blv.sectors.get(1).or_else(|| blv.sectors.first());
+                let spawn_pos = if let Some(sector) = spawn_sector {
+                    let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2) as i32;
+                    let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2) as i32;
+                    // Floor level: minimum of the two Z values (bbox may be swapped)
+                    let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
+                    Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))
+                } else {
+                    Vec3::ZERO
+                };
+                let start_points = vec![StartPoint {
+                    name: "sector_center".to_string(),
+                    position: spawn_pos,
+                    yaw: 0.0,
+                }];
+                commands.insert_resource(PreparedIndoorWorld { models, start_points });
+                commands.remove_resource::<LoadingProgress>();
+                game_state.set(GameState::Game);
+                return;
+            }
             if let Some(odm) = &progress.odm {
                 // Collect texture sizes for UV normalization
                 let mut texture_sizes: HashMap<String, (u32, u32)> = HashMap::new();
@@ -414,12 +507,16 @@ fn loading_step(
                             b.header.position[1],
                             b.header.position[2],
                         );
-                        let has_events = b.faces.iter().any(|f| f.cog_trigger_id > 0);
+                        let mut event_ids: Vec<u16> = b.faces.iter()
+                            .filter_map(|f| if f.cog_trigger_id > 0 { Some(f.cog_trigger_id) } else { None })
+                            .collect();
+                        event_ids.sort_unstable();
+                        event_ids.dedup();
                         PreparedModel {
                             sub_meshes,
                             name: b.header.name.clone(),
                             position: Vec3::from(pos),
-                            has_events,
+                            event_ids,
                         }
                     })
                     .collect();

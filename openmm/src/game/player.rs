@@ -11,7 +11,7 @@ use crate::game::collision::{
     BuildingColliders, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
 };
 use crate::save::GameSave;
-use crate::states::loading::PreparedWorld;
+use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
 // --- Components ---
 
@@ -119,7 +119,7 @@ impl Plugin for PlayerPlugin {
                 Update,
                 (toggle_fly_mode, player_movement, player_look, cursor_grab, log_gamepads)
                     .chain()
-                    .run_if(in_state(GameState::Game)),
+                    .run_if(in_state(crate::game::interaction::InGameState::Playing)),
             );
     }
 }
@@ -142,12 +142,24 @@ fn grab_cursor_on_enter(mut cursor_query: Query<&mut CursorOptions, With<Primary
 fn spawn_player(
     mut commands: Commands,
     prepared: Option<Res<PreparedWorld>>,
+    indoor: Option<Res<PreparedIndoorWorld>>,
     settings: Res<PlayerSettings>,
     cfg: Res<crate::config::GameConfig>,
     save_data: Res<GameSave>,
 ) {
-    // Use "Party Start" decoration if available, otherwise fall back to save data
-    let (start_x, start_y, start_z, start_yaw) = if let Some(ref prepared) = prepared {
+    let is_indoor = indoor.is_some();
+
+    // Resolve spawn position
+    let (start_x, start_y, start_z, start_yaw) = if let Some(ref indoor) = indoor {
+        // Indoor: use start point directly (no terrain height sampling)
+        let party_start = indoor.start_points.first();
+        if let Some(sp) = party_start {
+            (sp.position.x, sp.position.y + settings.eye_height, sp.position.z, sp.yaw)
+        } else {
+            // Fallback: origin
+            (0.0, settings.eye_height, 0.0, 0.0)
+        }
+    } else if let Some(ref prepared) = prepared {
         let party_start = prepared.start_points.iter()
             .find(|sp| sp.name.to_lowercase().contains("party start")
                      || sp.name.to_lowercase().contains("party_start"));
@@ -165,39 +177,42 @@ fn spawn_player(
          save_data.player.position[2], save_data.player.yaw)
     };
 
-    commands
-        .spawn((
-            Name::new("player"),
-            Player,
-            PlayerPhysics::default(),
-            Transform::from_xyz(start_x, start_y, start_z)
-                .with_rotation(Quat::from_rotation_y(start_yaw)),
-            Visibility::default(),
-            InGame,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Name::new("player_camera"),
-                PlayerCamera,
-                Camera3d::default(),
-                bevy::ui::IsDefaultUiCamera,
-                Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
-                Projection::Perspective(PerspectiveProjection {
-                    fov: 50.0_f32.to_radians(),
-                    near: 10.0,
-                    far: 100000.0,
-                    ..Default::default()
-                }),
-                DistanceFog {
-                    color: Color::srgba(0.45, 0.55, 0.8, 1.0),
-                    falloff: FogFalloff::Linear {
-                        start: cfg.fog_start,
-                        end: cfg.fog_end,
-                    },
-                    ..default()
+    let mut player_entity = commands.spawn((
+        Name::new("player"),
+        Player,
+        PlayerPhysics::default(),
+        Transform::from_xyz(start_x, start_y, start_z)
+            .with_rotation(Quat::from_rotation_y(start_yaw)),
+        Visibility::default(),
+        InGame,
+    ));
+
+    player_entity.with_children(|parent| {
+        let mut cam = parent.spawn((
+            Name::new("player_camera"),
+            PlayerCamera,
+            Camera3d::default(),
+            bevy::ui::IsDefaultUiCamera,
+            Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
+            Projection::Perspective(PerspectiveProjection {
+                fov: 50.0_f32.to_radians(),
+                near: 10.0,
+                far: 100000.0,
+                ..Default::default()
+            }),
+        ));
+        // Outdoor: distance fog for horizon blending. Indoor: no fog.
+        if !is_indoor {
+            cam.insert(DistanceFog {
+                color: Color::srgba(0.45, 0.55, 0.8, 1.0),
+                falloff: FogFalloff::Linear {
+                    start: cfg.fog_start,
+                    end: cfg.fog_end,
                 },
-            ));
-        });
+                ..default()
+            });
+        }
+    });
 }
 
 // --- Gamepad helpers ---

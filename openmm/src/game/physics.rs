@@ -15,7 +15,7 @@ impl Plugin for PhysicsPlugin {
         app.add_systems(OnEnter(GameState::Game), setup_collision_data)
             .add_systems(
                 Update,
-                gravity_system.run_if(in_state(GameState::Game)),
+                gravity_system.run_if(in_state(crate::game::interaction::InGameState::Playing)),
             );
     }
 }

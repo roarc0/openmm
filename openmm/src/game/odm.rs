@@ -197,6 +197,10 @@ fn spawn_world(
     cfg: Res<crate::config::GameConfig>,
     existing_music: Query<Entity, With<MapMusic>>,
 ) {
+    // Load event data for this map
+    let map_base = format!("out{}{}", save_data.map.map_x, save_data.map.map_y);
+    crate::game::events::load_map_events(&mut commands, &game_assets, &map_base);
+
     let Some(prepared) = prepared else {
         error!("No PreparedWorld available when entering Game state");
         return;
@@ -243,7 +247,7 @@ fn spawn_world(
         .with_children(|parent| {
             // BSP models (buildings, structures)
             for model in &prepared.models {
-                let is_building = model.has_events;
+                let is_building = !model.event_ids.is_empty();
                 let mut model_entity = parent.spawn((
                     Name::new(format!("model_{}", model.name)),
                     Transform::default(),
@@ -252,7 +256,7 @@ fn spawn_world(
 
                 if is_building {
                     model_entity.insert(
-                        crate::game::interaction::make_building_info(&model.name, model.position),
+                        crate::game::interaction::make_building_info(&model.name, model.position, model.event_ids.clone()),
                     );
                 }
 

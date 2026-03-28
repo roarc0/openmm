@@ -66,8 +66,15 @@ fn spawn_sky(
     mut images: ResMut<Assets<Image>>,
     mut sky_materials: ResMut<Assets<SkyMaterial>>,
     prepared: Option<Res<PreparedWorld>>,
+    indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
     game_assets: Res<GameAssets>,
 ) {
+    // Indoor maps: dark ceiling, no sky dome
+    if indoor.is_some() {
+        commands.insert_resource(ClearColor(Color::BLACK));
+        return;
+    }
+
     // Determine sky texture name from ODM, fallback to plansky1
     let sky_name = prepared
         .as_ref()
