@@ -172,7 +172,8 @@ impl Ddm {
         let _pad3 = c.read_u16::<LittleEndian>().ok()?;
         let _action_time = c.read_u32::<LittleEndian>().ok()?;
 
-        // Sprite IDs (u16 x 8)
+        // Sprite IDs at absolute offset 0xBC in the actor struct
+        c.seek(std::io::SeekFrom::Start(0xBC)).ok()?;
         let mut sprite_ids = [0u16; 8];
         for sid in &mut sprite_ids {
             *sid = c.read_u16::<LittleEndian>().ok()?;
