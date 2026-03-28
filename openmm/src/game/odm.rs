@@ -18,8 +18,8 @@ struct PendingSpawns {
     /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
     billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
-    /// NPC sprite lookup: monster_id → (standing_root, walking_root)
-    npc_sprite_table: std::collections::HashMap<u8, (String, String)>,
+    /// NPC sprite lookup: monster_id → (standing_root, walking_root, palette_id)
+    npc_sprite_table: std::collections::HashMap<u8, (String, String, u16)>,
     terrain_entity: Entity,
 }
 use crate::states::loading::PreparedWorld;
@@ -323,7 +323,7 @@ fn resolve_monsters(
 /// Resolves monlist sprite group names through the DSFT to get actual sprite file
 /// names and palette IDs. The DSFT is the authoritative mapping from monlist names
 /// to LOD sprite files.
-fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, (String, String)> {
+fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, (String, String, u16)> {
     let mut table = std::collections::HashMap::new();
     let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else {
         return table;
@@ -339,13 +339,13 @@ fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap
         let wa_group = &desc.sprite_names[1];
         if st_group.is_empty() { continue; }
 
-        // Resolve standing sprite through DSFT: group name → actual sprite file
+        // Resolve standing sprite through DSFT: group name → (actual sprite file, palette_id)
         let st_resolved = resolve_dsft_sprite(&dsft, st_group, lod);
         let wa_resolved = resolve_dsft_sprite(&dsft, wa_group, lod);
 
-        if let Some(st_name) = st_resolved {
-            let wa_name = wa_resolved.unwrap_or_else(|| st_name.clone());
-            table.insert(i as u8, (st_name, wa_name));
+        if let Some((st_name, palette_id)) = st_resolved {
+            let wa_name = wa_resolved.map(|(n, _)| n).unwrap_or_else(|| st_name.clone());
+            table.insert(i as u8, (st_name, wa_name, palette_id as u16));
         }
     }
     table
@@ -353,37 +353,34 @@ fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap
 
 /// Resolve a monlist sprite group name through the DSFT to find the actual
 /// sprite file name that exists in the LOD.
-fn resolve_dsft_sprite(dsft: &lod::dsft::DSFT, group_name: &str, lod: &lod::LodManager) -> Option<String> {
-    // Search DSFT for a frame matching this group name
+/// Resolve a monlist sprite group name through the DSFT to find the actual
+/// sprite file name and palette_id. Returns (sprite_root, palette_id).
+fn resolve_dsft_sprite(dsft: &lod::dsft::DSFT, group_name: &str, lod: &lod::LodManager) -> Option<(String, i16)> {
     for frame in &dsft.frames {
         if let Some(gname) = frame.group_name() {
             if gname.eq_ignore_ascii_case(group_name) {
-                // The DSFT sprite_name is the actual LOD file name
                 if let Some(sprite_name) = frame.sprite_name() {
-                    // The DSFT sprite name is like "pfemsta" — the root without
-                    // a direction digit. LOD files are "pfemsta0", "pfemsta1", etc.
                     let root = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
                     let test = format!("sprites/{}0", root.to_lowercase());
                     if lod.try_get_bytes(&test).is_ok() {
-                        return Some(root.to_lowercase());
+                        return Some((root.to_lowercase(), frame.palette_id));
                     }
-                    // Also try with the full name + "0"
                     let test2 = format!("sprites/{}0", sprite_name.to_lowercase());
                     if lod.try_get_bytes(&test2).is_ok() {
-                        return Some(sprite_name.to_lowercase());
+                        return Some((sprite_name.to_lowercase(), frame.palette_id));
                     }
                 }
                 break;
             }
         }
     }
-    // Fallback: try the group name directly as a sprite file name
+    // Fallback: try the group name directly
     let root = group_name.trim_end_matches(|c: char| c.is_ascii_digit());
     let mut try_root = root;
     while try_root.len() >= 3 {
         let test = format!("sprites/{}a0", try_root.to_lowercase());
         if lod.try_get_bytes(&test).is_ok() {
-            return Some(try_root.to_lowercase());
+            return Some((try_root.to_lowercase(), 0));
         }
         try_root = &try_root[..try_root.len() - 1];
     }
@@ -495,10 +492,19 @@ fn lazy_spawn(
         let mut sw = 0.0f32;
         let mut sh = 0.0f32;
 
-        if let Some((s, w)) = p.npc_sprite_table.get(&a.monster_id) {
+        if let Some((s, w, pal_id)) = p.npc_sprite_table.get(&a.monster_id) {
+            // Compute variant from palette offset: the base palette for this sprite
+            // type is at monster_id's slot A. Each variant is +1 palette offset.
+            // E.g., PeasantF1A=270, B=271, C=272 → offset 0/1/2 → variant 1/2/3
+            let base_pal = p.npc_sprite_table.values()
+                .filter(|(ss, _, _)| ss == s)
+                .map(|(_, _, p)| *p)
+                .min()
+                .unwrap_or(*pal_id);
+            let variant = (pal_id - base_pal + 1).min(3) as u8;
             let (s2, w2, h2) = sprites::load_entity_sprites(
                 s, w, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0);
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant);
             if !s2.is_empty() && !s2[0].is_empty() {
                 states = s2; sw = w2; sh = h2;
             }
