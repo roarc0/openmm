@@ -264,7 +264,13 @@ fn player_movement(
             movement = movement.normalize() * speed * time.delta_secs();
 
             if fly_mode.0 {
-                transform.translation += movement;
+                let from = transform.translation;
+                let mut dest = from + movement;
+                // BSP wall collision still applies when flying
+                if let Some(ref c) = colliders {
+                    dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
+                }
+                transform.translation = dest;
             } else {
                 let from = transform.translation;
                 let mut dest = from + movement;
@@ -338,13 +344,22 @@ fn player_movement(
             physics.on_ground = false;
         }
 
-        // Fly vertical
+        // Fly vertical with BSP collision
         if fly_mode.0 {
+            let mut dy = 0.0;
             if keys.pressed(key_bindings.fly_up) {
-                transform.translation.y += speed * time.delta_secs();
+                dy += speed * time.delta_secs();
             }
             if keys.pressed(key_bindings.fly_down) {
-                transform.translation.y -= speed * time.delta_secs();
+                dy -= speed * time.delta_secs();
+            }
+            if dy.abs() > 0.0 {
+                let from = transform.translation;
+                let mut dest = from + Vec3::new(0.0, dy, 0.0);
+                if let Some(ref c) = colliders {
+                    dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
+                }
+                transform.translation = dest;
             }
         }
 
