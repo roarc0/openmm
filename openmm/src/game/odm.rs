@@ -360,14 +360,24 @@ fn resolve_dsft_sprite(dsft: &lod::dsft::DSFT, group_name: &str, lod: &lod::LodM
         if let Some(gname) = frame.group_name() {
             if gname.eq_ignore_ascii_case(group_name) {
                 if let Some(sprite_name) = frame.sprite_name() {
-                    let root = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
-                    let test = format!("sprites/{}0", root.to_lowercase());
+                    // DSFT sprite names include the frame letter (e.g., "fmpstaa" = root "fmpsta" + frame "a").
+                    // Strip trailing digits AND the frame letter to get the root that the
+                    // sprite loader expects (it appends frame letters a-f and direction digits 0-4).
+                    let without_digits = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
+                    // Strip the trailing frame letter (a-f)
+                    let root = if without_digits.len() > 1 {
+                        let last = without_digits.as_bytes()[without_digits.len() - 1];
+                        if last >= b'a' && last <= b'f' {
+                            &without_digits[..without_digits.len() - 1]
+                        } else {
+                            without_digits
+                        }
+                    } else {
+                        without_digits
+                    };
+                    let test = format!("sprites/{}a0", root.to_lowercase());
                     if lod.try_get_bytes(&test).is_ok() {
                         return Some((root.to_lowercase(), frame.palette_id));
-                    }
-                    let test2 = format!("sprites/{}0", sprite_name.to_lowercase());
-                    if lod.try_get_bytes(&test2).is_ok() {
-                        return Some((sprite_name.to_lowercase(), frame.palette_id));
                     }
                 }
                 break;
@@ -425,7 +435,6 @@ fn lazy_spawn(
     };
     let p = &mut *pending;
     let terrain_entity = p.terrain_entity;
-    let npc_fallback = actor::NPC_SPRITES;
     let mut spawned = 0;
     let start = std::time::Instant::now();
     let bb_len = p.billboard_order.len();
@@ -487,36 +496,27 @@ fn lazy_spawn(
         let a = &prepared.actors[i];
         if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
 
-        // Look up sprites from monlist via monster_id. Try loading, fall back to peasants.
-        let mut states = Vec::new();
-        let mut sw = 0.0f32;
-        let mut sh = 0.0f32;
-
-        if let Some((s, w, pal_id)) = p.npc_sprite_table.get(&a.monster_id) {
-            // Compute variant from palette offset: the base palette for this sprite
-            // type is at monster_id's slot A. Each variant is +1 palette offset.
-            // E.g., PeasantF1A=270, B=271, C=272 → offset 0/1/2 → variant 1/2/3
-            let base_pal = p.npc_sprite_table.values()
-                .filter(|(ss, _, _)| ss == s)
-                .map(|(_, _, p)| *p)
-                .min()
-                .unwrap_or(*pal_id);
-            let variant = (pal_id - base_pal + 1).min(3) as u8;
-            let (s2, w2, h2) = sprites::load_entity_sprites(
-                s, w, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant);
-            if !s2.is_empty() && !s2[0].is_empty() {
-                states = s2; sw = w2; sh = h2;
-            }
+        let Some((s, w, pal_id)) = p.npc_sprite_table.get(&a.monster_id) else {
+            error!("NPC '{}' monster_id={} has no sprite in DSFT table — skipping", a.name, a.monster_id);
+            continue;
+        };
+        // Compute palette variant: base palette is the minimum among same-sprite entries.
+        let base_pal = p.npc_sprite_table.values()
+            .filter(|(ss, _, _)| ss == s)
+            .map(|(_, _, p)| *p)
+            .min()
+            .unwrap_or(*pal_id);
+        let variant = (pal_id - base_pal + 1).min(3) as u8;
+        let (s2, w2, h2) = sprites::load_entity_sprites(
+            s, w, game_assets.lod_manager(),
+            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant);
+        if s2.is_empty() || s2[0].is_empty() {
+            error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monster_id, s, w);
+            continue;
         }
-        if states.is_empty() {
-            let (s, w) = npc_fallback[i % npc_fallback.len()];
-            let (fb_states, fb_w, fb_h) = sprites::load_entity_sprites(
-                s, w, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0);
-            states = fb_states; sw = fb_w; sh = fb_h;
-            if states.is_empty() || states[0].is_empty() { continue; }
-        }
+        let states = s2;
+        let sw = w2;
+        let sh = h2;
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
         let wx = a.position[0] as f32;
