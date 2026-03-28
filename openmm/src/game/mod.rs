@@ -5,6 +5,8 @@ use crate::{despawn_all, GameState};
 pub(crate) mod collision;
 pub(crate) mod debug;
 pub(crate) mod entities;
+pub(crate) mod interaction;
+pub(crate) mod map_name;
 pub(crate) mod odm;
 pub(crate) mod physics;
 pub(crate) mod player;
@@ -28,6 +30,7 @@ impl Plugin for InGamePlugin {
             odm::OdmPlugin,
             entities::EntitiesPlugin,
             debug::DebugPlugin,
+            interaction::InteractionPlugin,
             MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
         .add_systems(

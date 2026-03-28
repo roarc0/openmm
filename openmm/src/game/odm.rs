@@ -36,7 +36,7 @@ struct PendingSpawns {
 use crate::states::loading::PreparedWorld;
 
 /// Grid coordinate for outdoor maps. Columns a-e, rows 1-3.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OdmName {
     pub x: char,
     pub y: char,
@@ -143,38 +143,40 @@ fn check_map_boundary(
     player_query: Query<&Transform, With<crate::game::player::Player>>,
 ) {
     let Ok(transform) = player_query.single() else { return };
+    let crate::game::map_name::MapName::Outdoor(ref odm) = current_map.0 else { return };
     let pos = transform.translation;
     let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
 
     // Check which boundary was crossed (Bevy: +X=east, -X=west, -Z=north, +Z=south)
-    let (new_map, new_x, new_z) = if pos.x > PLAY_BOUNDARY {
+    let (new_odm, new_x, new_z) = if pos.x > PLAY_BOUNDARY {
         // East edge → load eastern map, player appears at western edge
-        (current_map.0.go_east(), pos.x - PLAY_WIDTH, pos.z)
+        (odm.go_east(), pos.x - PLAY_WIDTH, pos.z)
     } else if pos.x < -PLAY_BOUNDARY {
         // West edge → load western map, player appears at eastern edge
-        (current_map.0.go_west(), pos.x + PLAY_WIDTH, pos.z)
+        (odm.go_west(), pos.x + PLAY_WIDTH, pos.z)
     } else if pos.z < -PLAY_BOUNDARY {
         // North edge (Bevy -Z = MM6 +Y = north)
-        (current_map.0.go_north(), pos.x, pos.z + PLAY_WIDTH)
+        (odm.go_north(), pos.x, pos.z + PLAY_WIDTH)
     } else if pos.z > PLAY_BOUNDARY {
         // South edge (Bevy +Z = MM6 -Y = south)
-        (current_map.0.go_south(), pos.x, pos.z - PLAY_WIDTH)
+        (odm.go_south(), pos.x, pos.z - PLAY_WIDTH)
     } else {
         return; // Still inside playable area
     };
 
-    let Some(new_map) = new_map else {
+    let Some(new_odm) = new_odm else {
         return; // No adjacent map (edge of the world grid)
     };
 
-    info!("Map transition: {} → {}", current_map.0, new_map);
+    info!("Map transition: {} → {}", current_map.0, new_odm);
 
     // Save player position translated to the new map's coordinate space
     save_data.player.position = [new_x, pos.y, new_z];
     save_data.player.yaw = yaw;
-    save_data.map.map_x = new_map.x;
-    save_data.map.map_y = new_map.y;
+    save_data.map.map_x = new_odm.x;
+    save_data.map.map_y = new_odm.y;
 
+    let new_map = crate::game::map_name::MapName::Outdoor(new_odm);
     commands.insert_resource(crate::states::loading::LoadRequest {
         map_name: new_map.clone(),
     });
@@ -241,18 +243,32 @@ fn spawn_world(
         .with_children(|parent| {
             // BSP models (buildings, structures)
             for model in &prepared.models {
-                for sub in &model.sub_meshes {
-                    let mut mat = sub.material.clone();
-                    if let Some(ref tex) = sub.texture {
-                        let tex_handle = images.add(tex.clone());
-                        mat.base_color_texture = Some(tex_handle);
-                    }
-                    parent.spawn((
-                        Name::new("model"),
-                        Mesh3d(meshes.add(sub.mesh.clone())),
-                        MeshMaterial3d(materials.add(mat)),
-                    ));
+                let is_building = model.has_events;
+                let mut model_entity = parent.spawn((
+                    Name::new(format!("model_{}", model.name)),
+                    Transform::default(),
+                    Visibility::default(),
+                ));
+
+                if is_building {
+                    model_entity.insert(
+                        crate::game::interaction::make_building_info(&model.name, model.position),
+                    );
                 }
+
+                model_entity.with_children(|model_parent| {
+                    for sub in &model.sub_meshes {
+                        let mut mat = sub.material.clone();
+                        if let Some(ref tex) = sub.texture {
+                            let tex_handle = images.add(tex.clone());
+                            mat.base_color_texture = Some(tex_handle);
+                        }
+                        model_parent.spawn((
+                            Mesh3d(meshes.add(sub.mesh.clone())),
+                            MeshMaterial3d(materials.add(mat)),
+                        ));
+                    }
+                });
             }
         }).id();
 

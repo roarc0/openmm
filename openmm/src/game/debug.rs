@@ -12,7 +12,7 @@ use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::odm::OdmName;
+use crate::game::map_name::MapName;
 use crate::game::player::Player;
 use crate::save::{GameSave, PlayerState, MapState};
 use crate::states::loading::LoadRequest;
@@ -47,11 +47,11 @@ impl Default for DebugKeyBindings {
 
 /// Tracks the current map for dev map switching.
 #[derive(Resource)]
-pub struct CurrentMapName(pub OdmName);
+pub struct CurrentMapName(pub MapName);
 
 impl Default for CurrentMapName {
     fn default() -> Self {
-        Self(OdmName::default())
+        Self(MapName::Outdoor(crate::game::odm::OdmName::default()))
     }
 }
 
@@ -195,19 +195,22 @@ fn debug_change_map(
     mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
 ) {
-    let new_map = if keys.just_pressed(KeyCode::KeyJ) {
-        current_map.0.go_north()
+    let MapName::Outdoor(ref odm) = current_map.0 else { return };
+
+    let new_odm = if keys.just_pressed(KeyCode::KeyJ) {
+        odm.go_north()
     } else if keys.just_pressed(KeyCode::KeyH) {
-        current_map.0.go_west()
+        odm.go_west()
     } else if keys.just_pressed(KeyCode::KeyK) {
-        current_map.0.go_south()
+        odm.go_south()
     } else if keys.just_pressed(KeyCode::KeyL) {
-        current_map.0.go_east()
+        odm.go_east()
     } else {
         None
     };
 
-    if let Some(new_map) = new_map {
+    if let Some(new_odm) = new_odm {
+        let new_map = MapName::Outdoor(new_odm);
         info!("Dev: changing map to {}", &new_map);
         commands.insert_resource(LoadRequest {
             map_name: new_map.clone(),
@@ -441,10 +444,12 @@ fn quicksave(
                 ],
                 yaw,
             };
-            save_data.map = MapState {
-                map_x: current_map.0.x,
-                map_y: current_map.0.y,
-            };
+            if let MapName::Outdoor(ref odm) = current_map.0 {
+                save_data.map = MapState {
+                    map_x: odm.x,
+                    map_y: odm.y,
+                };
+            }
             match save_data.autosave() {
                 Ok(()) => info!("Saved to target/saves/autosave.json"),
                 Err(e) => error!("Failed to quicksave: {}", e),

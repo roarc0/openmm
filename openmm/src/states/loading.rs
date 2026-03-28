@@ -10,6 +10,7 @@ use crate::{
     assets::GameAssets,
     config::GameConfig,
     despawn_all,
+    game::map_name::MapName,
     game::odm::OdmName,
     GameState,
 };
@@ -35,7 +36,7 @@ struct InLoading;
 /// Requested map to load. Insert this resource before transitioning to Loading state.
 #[derive(Resource)]
 pub struct LoadRequest {
-    pub map_name: OdmName,
+    pub map_name: MapName,
 }
 
 /// Tracks which step of the loading pipeline we're on.
@@ -62,6 +63,12 @@ struct LoadingProgress {
 pub struct PreparedModel {
     /// Sub-meshes, one per unique texture in the BSP model.
     pub sub_meshes: Vec<PreparedSubMesh>,
+    /// BSP model name (e.g. "TavFrntW", "ArmoryW", "GenStorE").
+    pub name: String,
+    /// Model center position in Bevy coordinates.
+    pub position: Vec3,
+    /// Whether any face in this model has event data (trigger_id > 0).
+    pub has_events: bool,
 }
 
 pub struct PreparedSubMesh {
@@ -175,15 +182,15 @@ fn loading_setup(
         .map(|r| r.map_name.clone())
         .or_else(|| {
             cfg.map.as_ref().and_then(|m| {
-                OdmName::try_from(m.as_str())
+                MapName::try_from(m.as_str())
                     .inspect_err(|e| eprintln!("warning: invalid map in config: {e}"))
                     .ok()
             })
         })
-        .unwrap_or_else(|| OdmName {
+        .unwrap_or_else(|| MapName::Outdoor(OdmName {
             x: save_data.map.map_x,
             y: save_data.map.map_y,
-        });
+        }));
 
     commands.insert_resource(LoadingProgress {
         step: LoadingStep::ParseMap,
@@ -402,7 +409,18 @@ fn loading_step(
                                 }
                             })
                             .collect();
-                        PreparedModel { sub_meshes }
+                        let pos = lod::odm::mm6_to_bevy(
+                            b.header.position[0],
+                            b.header.position[1],
+                            b.header.position[2],
+                        );
+                        let has_events = b.faces.iter().any(|f| f.cog_trigger_id > 0);
+                        PreparedModel {
+                            sub_meshes,
+                            name: b.header.name.clone(),
+                            position: Vec3::from(pos),
+                            has_events,
+                        }
                     })
                     .collect();
                 progress.models = Some(models);
