@@ -287,14 +287,13 @@ pub fn tint_variant(image: &mut DynamicImage, variant: u8) {
         return;
     };
 
-    // Softer channel mixing matrix — tint is visible but not overwhelming.
-    // Each output channel is a weighted sum of input R, G, B.
+    // Channel mixing matrix — visible but not garish.
     let (rr, rg, rb, gr, gg, gb, br, bg, bb) = if variant == 2 {
-        // Blue tint: cool shift, reduce red warmth
-        (0.5f32, 0.15, 0.15,  0.15, 0.55, 0.2,  0.15, 0.2, 0.85)
+        // Blue tint: strong blue, muted red/green
+        (0.35f32, 0.1, 0.15,  0.1, 0.45, 0.25,  0.2, 0.25, 0.9)
     } else {
-        // Red tint: warm shift, reduce blue coolness
-        (0.85f32, 0.2, 0.15,  0.2, 0.55, 0.15,  0.15, 0.15, 0.5)
+        // Red tint: strong red, muted blue/green
+        (0.9f32, 0.25, 0.15,  0.2, 0.45, 0.1,  0.15, 0.1, 0.35)
     };
 
     for pixel in rgba.pixels_mut() {
