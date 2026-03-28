@@ -52,6 +52,7 @@ fn countdown(
     mut timer: ResMut<SplashTimer>,
 ) {
     if timer.tick(time.delta()).just_finished() {
-        game_state.set(GameState::Menu);
+        // Skip menu in dev — go straight to loading
+        game_state.set(GameState::Loading);
     }
 }
