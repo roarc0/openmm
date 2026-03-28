@@ -99,9 +99,9 @@ impl Odm {
         let billboard_count = cursor.read_u32::<LittleEndian>()? as usize;
         let billboards: Vec<Billboard> = read_billboards(&mut cursor, billboard_count)?;
 
-        // Spawn points / actors are in the DDM delta file, not the ODM.
-        // For now, spawn_points is empty — will be loaded from DDM later.
-        let spawn_points = Vec::new();
+        // Spawn points are at the very end of the ODM file.
+        // Scan backwards from the end to find the count.
+        let spawn_points = Self::read_spawn_points(data);
 
         Ok(Self {
             name: "test".into(),
@@ -120,6 +120,62 @@ impl Odm {
 }
 
 impl Odm {
+    /// Read spawn points from the end of the ODM data.
+    /// The spawn point array is the last section: u32 count + N × 20-byte records.
+    fn read_spawn_points(data: &[u8]) -> Vec<SpawnPoint> {
+        // Try reading count from various offsets near the end
+        // The spawn section = count(4) + count*20 bytes, ending at data.len()
+        for candidate_count in (5..200u32).rev() {
+            let section_size = 4 + candidate_count as usize * 20;
+            if section_size > data.len() {
+                break;
+            }
+            let count_offset = data.len() - section_size;
+            let stored_count = u32::from_le_bytes([
+                data[count_offset],
+                data[count_offset + 1],
+                data[count_offset + 2],
+                data[count_offset + 3],
+            ]);
+            if stored_count != candidate_count {
+                continue;
+            }
+            // Verify first entry has plausible coordinates
+            let first = count_offset + 4;
+            if first + 12 > data.len() {
+                continue;
+            }
+            let x = i32::from_le_bytes(data[first..first + 4].try_into().unwrap());
+            let y = i32::from_le_bytes(data[first + 4..first + 8].try_into().unwrap());
+            let z = i32::from_le_bytes(data[first + 8..first + 12].try_into().unwrap());
+            if x.abs() > 50000 || y.abs() > 50000 || z < 0 || z > 10000 {
+                continue;
+            }
+
+            // Read all spawn points
+            let mut spawns = Vec::with_capacity(stored_count as usize);
+            for i in 0..stored_count as usize {
+                let off = count_offset + 4 + i * 20;
+                if off + 20 > data.len() {
+                    break;
+                }
+                spawns.push(SpawnPoint {
+                    position: [
+                        i32::from_le_bytes(data[off..off + 4].try_into().unwrap()),
+                        i32::from_le_bytes(data[off + 4..off + 8].try_into().unwrap()),
+                        i32::from_le_bytes(data[off + 8..off + 12].try_into().unwrap()),
+                    ],
+                    radius: u16::from_le_bytes(data[off + 12..off + 14].try_into().unwrap()),
+                    spawn_type: u16::from_le_bytes(data[off + 14..off + 16].try_into().unwrap()),
+                    monster_index: u16::from_le_bytes(data[off + 16..off + 18].try_into().unwrap()),
+                    attributes: u16::from_le_bytes(data[off + 18..off + 20].try_into().unwrap()),
+                });
+            }
+            return spawns;
+        }
+        Vec::new()
+    }
+
     pub fn size(&self) -> (usize, usize) {
         (ODM_SIZE, ODM_SIZE)
     }

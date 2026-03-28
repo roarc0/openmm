@@ -7,8 +7,7 @@ use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 use crate::GameState;
 use crate::game::InGame;
 use crate::game::collision::{
-    BuildingColliders, TerrainHeightMap, WaterMap, WaterWalking,
-    sample_terrain_height,
+    BuildingColliders, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
 };
 use crate::save::GameSave;
 use crate::states::loading::PreparedWorld;
@@ -59,10 +58,10 @@ impl Default for PlayerSettings {
             speed: 2048.,
             fly_speed: 4096.,
             rotation_speed: 1.8,
-            eye_height: 180.0,
+            eye_height: 160.0,
             gravity: 9800.0,
             max_slope_height: 512.0,
-            jump_velocity: 1100.0,
+            jump_velocity: 1300.0,
             collision_radius: 24.0,
             max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
         }
@@ -117,12 +116,7 @@ impl Plugin for PlayerPlugin {
             )
             .add_systems(
                 Update,
-                (
-                    toggle_fly_mode,
-                    player_movement,
-                    player_look,
-                    cursor_grab,
-                )
+                (toggle_fly_mode, player_movement, player_look, cursor_grab)
                     .chain()
                     .run_if(in_state(GameState::Game)),
             );
@@ -305,7 +299,12 @@ fn player_movement(
 
                 // BSP wall collision
                 if let Some(ref c) = colliders {
-                    dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
+                    dest = c.resolve_movement(
+                        from,
+                        dest,
+                        settings.collision_radius,
+                        settings.eye_height,
+                    );
                 }
 
                 transform.translation.x = dest.x;
@@ -330,8 +329,14 @@ fn player_movement(
         }
 
         // Clamp to play area
-        transform.translation.x = transform.translation.x.clamp(-settings.max_xz, settings.max_xz);
-        transform.translation.z = transform.translation.z.clamp(-settings.max_xz, settings.max_xz);
+        transform.translation.x = transform
+            .translation
+            .x
+            .clamp(-settings.max_xz, settings.max_xz);
+        transform.translation.z = transform
+            .translation
+            .z
+            .clamp(-settings.max_xz, settings.max_xz);
     }
 }
 
