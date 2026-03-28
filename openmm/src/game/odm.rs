@@ -237,9 +237,18 @@ fn lazy_spawn(
         bb_idx += 1;
         pending.idx += 1;
         let bb = &prepared.billboards[idx];
-        let (mat, quad) = match pending.billboard_cache.get(&bb.sprite_name) {
-            Some((m, q)) => (m.clone(), q.clone()),
-            None => continue,
+        let (mat, quad) = if let Some((m, q)) = pending.billboard_cache.get(&bb.sprite_name) {
+            (m.clone(), q.clone())
+        } else {
+            // Create on first encounter, cache for subsequent
+            let tex = images.add(bb.image.clone());
+            let m = materials.add(StandardMaterial {
+                base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
+                cull_mode: None, double_sided: true, unlit: true, ..default()
+            });
+            let q = meshes.add(Rectangle::new(bb.width, bb.height));
+            pending.billboard_cache.insert(bb.sprite_name.clone(), (m.clone(), q.clone()));
+            (m, q)
         };
         let pos = bb.position + Vec3::new(0.0, bb.height / 2.0, 0.0);
         commands.entity(terrain_entity).with_child((

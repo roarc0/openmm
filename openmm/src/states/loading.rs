@@ -104,8 +104,6 @@ enum LoadingStep {
     BuildAtlas,
     BuildModels,
     BuildBillboards,
-    PreloadActorSprites,
-    PreloadBillboardSprites,
     Done,
 }
 
@@ -117,8 +115,6 @@ impl LoadingStep {
             Self::BuildAtlas => "Building textures...",
             Self::BuildModels => "Building models...",
             Self::BuildBillboards => "Loading decorations...",
-            Self::PreloadActorSprites => "Loading actor sprites...",
-            Self::PreloadBillboardSprites => "Loading billboard sprites...",
             Self::Done => "Done!",
         }
     }
@@ -129,9 +125,7 @@ impl LoadingStep {
             Self::BuildTerrain => Self::BuildAtlas,
             Self::BuildAtlas => Self::BuildModels,
             Self::BuildModels => Self::BuildBillboards,
-            Self::BuildBillboards => Self::PreloadActorSprites,
-            Self::PreloadActorSprites => Self::PreloadBillboardSprites,
-            Self::PreloadBillboardSprites => Self::Done,
+            Self::BuildBillboards => Self::Done,
             Self::Done => Self::Done,
         }
     }
@@ -485,34 +479,7 @@ fn loading_step(
                 progress.step = progress.step.next();
             }
         }
-        LoadingStep::PreloadActorSprites => {
-            // Skip heavy preloading — sprites will be loaded on-demand
-            // during lazy_spawn, 1 per frame via the sprite cache.
-            progress.sprite_cache = Some(crate::game::entities::sprites::SpriteCache::default());
-            progress.step = progress.step.next();
-        }
-        LoadingStep::PreloadBillboardSprites => {
-            // Billboard materials created on-demand during lazy_spawn.
-            // Just pre-create unique ones from the prepared images (fast — they're already decoded).
-            let mut bb_cache = std::collections::HashMap::new();
-            if let Some(billboards) = &progress.billboards {
-                for bb in billboards {
-                    if !bb_cache.contains_key(&bb.sprite_name) {
-                        let tex = images.add(bb.image.clone());
-                        let mat = materials.add(StandardMaterial {
-                            base_color_texture: Some(tex),
-                            alpha_mode: AlphaMode::Mask(0.5),
-                            cull_mode: None, double_sided: true, unlit: true,
-                            ..default()
-                        });
-                        let quad = meshes.add(Rectangle::new(bb.width, bb.height));
-                        bb_cache.insert(bb.sprite_name.clone(), (mat, quad));
-                    }
-                }
-            }
-            progress.billboard_cache = Some(bb_cache);
-            progress.step = progress.step.next();
-        }
+        // Sprite and billboard materials are loaded on-demand during lazy_spawn
         LoadingStep::Done => {
             // Move all prepared data into PreparedWorld resource
             let odm = progress.odm.take();

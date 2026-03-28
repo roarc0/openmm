@@ -162,6 +162,7 @@ fn spawn_player(
                 Name::new("player_camera"),
                 PlayerCamera,
                 Camera3d::default(),
+                bevy::ui::IsDefaultUiCamera,
                 Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
                 Projection::Perspective(PerspectiveProjection {
                     fov: 50.0_f32.to_radians(),
