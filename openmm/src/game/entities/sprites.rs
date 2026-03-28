@@ -57,11 +57,30 @@ pub fn load_sprite_frames(
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
+    let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
+
+    // Some sprite roots include the first frame letter (e.g. "gobsta" = root "gobst" + frame "a").
+    // Try as-is first; if no frames load, try stripping the last char.
+    let (frames, w, h) = load_frames_with_root(root, lod_manager, images, materials);
+    if !frames.is_empty() {
+        return (frames, w, h);
+    }
+    if root.len() > 3 {
+        let shorter = &root[..root.len() - 1];
+        return load_frames_with_root(shorter, lod_manager, images, materials);
+    }
+    (Vec::new(), 0.0, 0.0)
+}
+
+fn load_frames_with_root(
+    root: &str,
+    lod_manager: &LodManager,
+    images: &mut Assets<Image>,
+    materials: &mut Assets<StandardMaterial>,
+) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     let mut frames = Vec::new();
     let mut sprite_w = 0.0_f32;
     let mut sprite_h = 0.0_f32;
-
-    let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
 
     for frame_char in b'a'..=b'f' {
         let frame_letter = frame_char as char;

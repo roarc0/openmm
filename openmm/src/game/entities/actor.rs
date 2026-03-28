@@ -1,12 +1,11 @@
-//! Actor entity: NPCs and monsters. Both use the same underlying struct —
-//! the difference is the `hostile` flag.
+//! Actor entity: NPCs and monsters.
 
 use bevy::prelude::*;
 
-use lod::{dsft::DSFT, LodManager};
+use lod::LodManager;
 
 use crate::game::entities::{AnimationState, EntityKind, WorldEntity, sprites};
-use crate::states::loading::{PreparedMonster, PreparedWorld};
+use crate::states::loading::PreparedWorld;
 
 /// Unified NPC/monster actor component.
 #[derive(Component)]
@@ -24,7 +23,14 @@ pub struct Actor {
     pub hostile: bool,
 }
 
-/// Spawn actors from DDM data with sprites resolved via DSFT.
+/// Peasant sprite prefixes — alternated for variety.
+const NPC_SPRITES: &[(&str, &str)] = &[
+    ("pfemst", "pfemwa"),
+    ("pmanst", "pmanwk"),
+    ("pmn2st", "pmn2wa"),
+];
+
+/// Spawn DDM actors (NPCs) with peasant sprites.
 pub fn spawn_actors(
     parent: &mut ChildSpawnerCommands,
     prepared: &PreparedWorld,
@@ -33,12 +39,7 @@ pub fn spawn_actors(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    let dsft = match DSFT::new(lod_manager) {
-        Ok(d) => d,
-        Err(_) => return,
-    };
-
-    for (_i, actor) in prepared.actors.iter().enumerate() {
+    for (i, actor) in prepared.actors.iter().enumerate() {
         if actor.hp <= 0 {
             continue;
         }
@@ -46,21 +47,25 @@ pub fn spawn_actors(
             continue;
         }
 
-        let (sprite_sheet, sprite_w, sprite_h) = match sprites::load_actor_sprite_sheet(
-            &dsft,
-            &actor.sprite_ids,
-            lod_manager,
-            images,
-            materials,
-        ) {
-            Some(s) => s,
-            None => continue,
-        };
+        // Use peasant sprites, cycling through variants
+        let (st_root, wa_root) = NPC_SPRITES[i % NPC_SPRITES.len()];
 
-        let initial_mat = sprite_sheet.states[0][0][0].clone();
+        let (standing_frames, sprite_w, sprite_h) =
+            sprites::load_sprite_frames(st_root, lod_manager, images, materials);
+        if standing_frames.is_empty() || sprite_w == 0.0 {
+            continue;
+        }
+        let (walking_frames, _, _) =
+            sprites::load_sprite_frames(wa_root, lod_manager, images, materials);
+
+        let mut states = vec![standing_frames];
+        if !walking_frames.is_empty() {
+            states.push(walking_frames);
+        }
+
+        let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sprite_w, sprite_h));
 
-        // MM6 coords (x, y, z) → Bevy (x, z, -y)
         let pos = Vec3::new(
             actor.position[0] as f32,
             actor.position[2] as f32 + sprite_h / 2.0,
@@ -78,14 +83,19 @@ pub fn spawn_actors(
         );
 
         parent.spawn((
-            Name::new(format!("actor:{}", actor.name)),
+            Name::new(format!("npc:{}", actor.name)),
             Mesh3d(quad),
             MeshMaterial3d(initial_mat),
             Transform::from_translation(pos),
             WorldEntity,
             EntityKind::Npc,
             AnimationState::Idle,
-            sprite_sheet,
+            sprites::SpriteSheet {
+                states,
+                current_frame: 0,
+                frame_timer: 0.0,
+                frame_duration: 0.15,
+            },
             Actor {
                 name: actor.name.clone(),
                 hp: actor.hp,
@@ -112,11 +122,14 @@ pub fn spawn_monsters(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
+    info!("Spawning {} monsters from spawn points", prepared.monsters.len());
+
     for monster in &prepared.monsters {
         let (standing_frames, sprite_w, sprite_h) =
             sprites::load_sprite_frames(&monster.standing_sprite, lod_manager, images, materials);
 
         if standing_frames.is_empty() || sprite_w == 0.0 {
+            info!("  Failed to load sprite '{}' for monster", monster.standing_sprite);
             continue;
         }
 
@@ -159,7 +172,7 @@ pub fn spawn_monsters(
                 move_speed: monster.move_speed as f32,
                 initial_position: pos,
                 guarding_position: pos,
-                tether_distance: monster.radius as f32,
+                tether_distance: monster.radius.max(200) as f32,
                 wander_timer: 0.0,
                 wander_target: pos,
                 facing_yaw: 0.0,

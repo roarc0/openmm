@@ -2,7 +2,7 @@
 
 use std::error::Error;
 
-use crate::{lod_data::LodData, LodManager};
+use crate::LodManager;
 
 /// Per-map monster spawn configuration from mapstats.txt.
 pub struct MapMonsterConfig {
@@ -20,7 +20,12 @@ pub struct MapStats {
 impl MapStats {
     pub fn new(lod_manager: &LodManager) -> Result<Self, Box<dyn Error>> {
         let raw = lod_manager.try_get_bytes("icons/mapstats.txt")?;
-        let text = String::from_utf8_lossy(raw);
+        // Try decompressing first (LOD entries may be compressed)
+        let data = match crate::lod_data::LodData::try_from(raw) {
+            Ok(d) => d.data,
+            Err(_) => raw.to_vec(),
+        };
+        let text = String::from_utf8_lossy(&data);
         Self::parse(&text)
     }
 

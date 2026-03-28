@@ -236,11 +236,14 @@ fn loading_step(
 
                             // Resolve spawn points to monsters via mapstats + dmonlist
                             let mut monsters = Vec::new();
+                            info!("Spawn points: {}, map_name: '{}'", odm.spawn_points.len(), map_name);
                             if let (Ok(mapstats), Ok(monlist)) = (
                                 MapStats::new(game_assets.lod_manager()),
                                 MonsterList::new(game_assets.lod_manager()),
                             ) {
+                                info!("MapStats has {} maps, looking for '{}'", mapstats.maps.len(), map_name);
                                 if let Some(map_config) = mapstats.get(&map_name) {
+                                    info!("Map monsters: {:?}", map_config.monster_names);
                                     for sp in &odm.spawn_points {
                                         if let Some((mon_name, dif)) = map_config.monster_for_index(sp.monster_index) {
                                             if let Some(desc) = monlist.find_by_name(mon_name, dif) {
