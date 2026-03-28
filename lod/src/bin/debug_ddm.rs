@@ -1,32 +1,69 @@
-use lod::{LodManager, ddm::Ddm};
+use std::io::Cursor;
+use byteorder::{LittleEndian, ReadBytesExt};
+use lod::{LodManager, lod_data::LodData, dsft::DSFT};
 
 fn main() {
     let lod_manager = LodManager::new(lod::get_lod_path()).unwrap();
+    let raw = lod_manager.try_get_bytes("games/oute3.ddm").unwrap();
+    let data = LodData::try_from(raw).unwrap().data;
+    let dsft = DSFT::new(&lod_manager).unwrap();
 
-    let maps = ["outa1", "outa2", "outa3", "outb1", "outb2", "outb3",
-                "outc1", "outc2", "outc3", "outd1", "outd2", "outd3",
-                "oute1", "oute2", "oute3"];
+    println!("DSFT: {} frames, {} groups", dsft.frames.len(), dsft.groups.len());
 
-    for map in &maps {
-        let odm_name = format!("{}.odm", map);
-        match Ddm::new(&lod_manager, &odm_name) {
-            Ok(ddm) => {
-                let names: Vec<_> = ddm.actors.iter()
-                    .map(|a| a.name.as_str())
-                    .collect::<std::collections::HashSet<_>>()
-                    .into_iter().collect();
-                println!("{}: {} actors, types: {:?}", map, ddm.actors.len(), names);
+    let actor_offset = 1948;
+    let actor_stride = 548;
+    let actor_count = 38;
+
+    // Check group lookups for the sprite IDs we found
+    let test_ids: &[u16] = &[1400, 1401, 1402, 1403, 1404, 1440, 1441, 1442, 1443, 1444];
+    println!("\n--- Group lookup for test IDs ---");
+    for &gid in test_ids {
+        if (gid as usize) < dsft.groups.len() {
+            let frame_idx = dsft.groups[gid as usize];
+            print!("  group {} -> frame {}", gid, frame_idx);
+            if (frame_idx as usize) < dsft.frames.len() {
+                let f = &dsft.frames[frame_idx as usize];
+                print!(" sprite={:?} group={:?}", f.sprite_name(), f.group_name());
             }
-            Err(e) => println!("{}: error: {}", map, e),
+            println!();
         }
     }
 
-    // Detailed view of oute3 (starting map)
-    println!("\n--- oute3 detail ---");
-    let ddm = Ddm::new(&lod_manager, "oute3.odm").unwrap();
-    for (i, a) in ddm.actors.iter().enumerate() {
-        println!("  [{:2}] '{}' hp={} pos=({},{},{}) speed={} tether={}",
-            i, a.name, a.hp, a.position[0], a.position[1], a.position[2],
-            a.move_speed, a.tether_distance);
+    // Direct frame lookup
+    println!("\n--- Direct frame lookup ---");
+    for &fid in test_ids {
+        if (fid as usize) < dsft.frames.len() {
+            let f = &dsft.frames[fid as usize];
+            println!("  frame {} sprite={:?} group={:?}", fid, f.sprite_name(), f.group_name());
+        }
+    }
+
+    // For each unique set of sprite IDs, resolve the group->frame->sprite chain
+    println!("\n--- All unique actor sprite sets ---");
+    let mut seen = std::collections::HashSet::new();
+    for i in 0..actor_count {
+        let base = actor_offset + actor_stride * i;
+        let actor_data = &data[base..base + actor_stride];
+        let mut cursor = Cursor::new(&actor_data[0xBC..]);
+        let mut ids = [0u16; 5];
+        for id in &mut ids {
+            *id = cursor.read_u16::<LittleEndian>().unwrap_or(0);
+        }
+        let key = format!("{:?}", ids);
+        if seen.contains(&key) { continue; }
+        seen.insert(key);
+
+        println!("  Actor {}: ids={:?}", i, ids);
+        for &gid in &ids {
+            if gid == 0 { continue; }
+            if (gid as usize) < dsft.groups.len() {
+                let fidx = dsft.groups[gid as usize] as usize;
+                if fidx < dsft.frames.len() {
+                    let f = &dsft.frames[fidx];
+                    println!("    {} -> group_name={:?} sprite_name={:?}",
+                        gid, f.group_name(), f.sprite_name());
+                }
+            }
+        }
     }
 }

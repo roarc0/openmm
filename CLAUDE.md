@@ -87,7 +87,7 @@ src/
 - Terrain is a 128x128 heightmap grid with 512-unit tile scale (u8 height values, multiplied by ODM_HEIGHT_SCALE=32)
 - Per-state entity markers (InGame, InLoading, etc.) for automatic cleanup on state exit
 - Keep this CLAUDE.md up to date when dependency versions, architecture, or conventions change
-- Document notable engine findings in `docs/` — see `docs/actors-and-sprites.md` for the actor/sprite system
+- Document notable engine findings in `docs/` — see `docs/actors-and-sprites.md` for the actor/sprite system, but create more sections based on the topic.
 - Reference OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats
 
 ## Future Ideas
