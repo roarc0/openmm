@@ -27,7 +27,7 @@ pub struct Actor {
 /// Peasant sprite prefixes — alternated for variety.
 const NPC_SPRITES: &[(&str, &str)] = &[
     ("pfemst", "pfemwa"),
-    ("pmanst", "pmanwk"),
+    ("pmanst", "pmanwa"),
     ("pmn2st", "pmn2wa"),
 ];
 
@@ -125,7 +125,7 @@ pub fn spawn_monsters_with_cache(
         let sprite_fallbacks = [
             (monster.standing_sprite.as_str(), monster.walking_sprite.as_str()),
             ("pfemst", "pfemwa"),
-            ("pmanst", "pmanwk"),
+            ("pmanst", "pmanwa"),
         ];
 
         let mut standing_frames = Vec::new();

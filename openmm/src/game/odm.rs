@@ -17,6 +17,8 @@ struct PendingSpawns {
     /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
     billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
+    /// NPC sprite lookup: monster_id → (standing_root, walking_root)
+    npc_sprite_table: std::collections::HashMap<u8, (String, String)>,
     terrain_entity: Entity,
 }
 use crate::states::loading::PreparedWorld;
@@ -169,6 +171,10 @@ fn spawn_world(
     // Resolve monsters from spawn points (cheap — no sprite loading)
     let resolved_monsters = resolve_monsters(&prepared, &game_assets, &save_data);
 
+    // Build NPC sprite lookup from monlist — each DDM actor has a monster_id
+    // that maps to a monlist entry with specific sprite names.
+    let npc_sprite_table = build_npc_sprite_table(&game_assets);
+
     // Sort spawn order by distance from player (closest first)
     let player_spawn = Vec3::new(
         save_data.player.position[0],
@@ -192,6 +198,7 @@ fn spawn_world(
         sprite_cache: prepared.sprite_cache.clone(),
         billboard_cache: prepared.billboard_cache.clone(),
         resolved_monsters,
+        npc_sprite_table,
         terrain_entity,
     });
 }
@@ -211,7 +218,7 @@ fn resolve_monsters(
 
     for sp in &prepared.map.spawn_points {
         let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index) else { continue };
-        let Some(desc) = monlist.find_by_name(mon_name, dif) else { continue };
+        let Some(desc) = monlist.find_with_sprite(mon_name, dif, game_assets.lod_manager()) else { continue };
 
         let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as i32;
         for g in 0..group_size {
@@ -234,6 +241,37 @@ fn resolve_monsters(
         }
     }
     monsters
+}
+
+/// Build a lookup table: monster_id → (standing_sprite, walking_sprite) from monlist.
+/// Only includes entries whose sprites actually exist in the LOD.
+fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, (String, String)> {
+    let mut table = std::collections::HashMap::new();
+    let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else {
+        return table;
+    };
+    let lod = game_assets.lod_manager();
+    for (i, desc) in monlist.monsters.iter().enumerate() {
+        if i > 255 { break; }
+        let st = &desc.sprite_names[0];
+        if st.is_empty() { continue; }
+        // Check if the standing sprite actually exists in the LOD
+        let root = st.trim_end_matches(|c: char| c.is_ascii_digit());
+        let mut found = false;
+        let mut try_root = root;
+        while try_root.len() >= 3 {
+            let test = format!("{}a0", try_root);
+            if lod.try_get_bytes(&format!("sprites/{}", test)).is_ok() {
+                found = true;
+                break;
+            }
+            try_root = &try_root[..try_root.len() - 1];
+        }
+        if found {
+            table.insert(i as u8, (st.clone(), desc.sprite_names[1].clone()));
+        }
+    }
+    table
 }
 
 /// Sort indices by distance from player using Vec3 positions.
@@ -274,7 +312,7 @@ fn lazy_spawn(
     };
     let p = &mut *pending;
     let terrain_entity = p.terrain_entity;
-    let npc_sprites = [("pfemst", "pfemwa"), ("pmanst", "pmanwk"), ("pmn2st", "pmn2wa")];
+    let npc_fallback = [("pfemst", "pfemwa"), ("pmanst", "pmanwa"), ("pmn2st", "pmn2wa")];
     let mut spawned = 0;
     let start = std::time::Instant::now();
     let bb_len = p.billboard_order.len();
@@ -334,15 +372,27 @@ fn lazy_spawn(
         let a = &prepared.actors[i];
         if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
 
-        let (st, wa) = npc_sprites[i % npc_sprites.len()];
-        let (standing, sw, sh) = sprites::load_sprite_frames_cached(
-            st, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0.0);
-        if standing.is_empty() { continue; }
-        let (walking, ww, wh) = sprites::load_sprite_frames_cached(
-            wa, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0.0);
-        let mut states = vec![standing];
-        let mut dims = vec![(sw, sh)];
-        if !walking.is_empty() { states.push(walking); dims.push((ww, wh)); }
+        // Look up sprites from monlist via monster_id. Try loading, fall back to peasants.
+        let mut states = Vec::new();
+        let mut sw = 0.0f32;
+        let mut sh = 0.0f32;
+
+        if let Some((s, w)) = p.npc_sprite_table.get(&a.monster_id) {
+            let (s2, w2, h2) = sprites::load_entity_sprites(
+                s, w, game_assets.lod_manager(),
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0.0);
+            if !s2.is_empty() && !s2[0].is_empty() {
+                states = s2; sw = w2; sh = h2;
+            }
+        }
+        if states.is_empty() {
+            let (s, w) = npc_fallback[i % npc_fallback.len()];
+            let (fb_states, fb_w, fb_h) = sprites::load_entity_sprites(
+                s, w, game_assets.lod_manager(),
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), 0.0);
+            states = fb_states; sw = fb_w; sh = fb_h;
+            if states.is_empty() || states[0].is_empty() { continue; }
+        }
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
         let wx = a.position[0] as f32;
@@ -355,7 +405,7 @@ fn lazy_spawn(
             Transform::from_translation(pos),
             crate::game::entities::WorldEntity, crate::game::entities::EntityKind::Npc,
             crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet::new(states, dims),
+            sprites::SpriteSheet::new(states, vec![(sw, sh)]),
             actor::Actor {
                 name: a.name.clone(), hp: a.hp, max_hp: a.hp, move_speed: a.move_speed as f32,
                 initial_position: pos, guarding_position: pos, tether_distance: a.tether_distance as f32,
@@ -376,27 +426,21 @@ fn lazy_spawn(
             3 => 240.0,
             _ => 0.0,
         };
-        let fallbacks = [
+        let sprite_pairs = [
             (m.standing_sprite.as_str(), m.walking_sprite.as_str()),
-            ("pfemst", "pfemwa"), ("pmanst", "pmanwk"),
+            ("pfemst", "pfemwa"), ("pmanst", "pmanwa"),
         ];
-        let mut standing = Vec::new(); let mut walking = Vec::new();
+        let mut states = Vec::new();
         let mut sw = 0.0f32; let mut sh = 0.0f32;
-        let mut ww = 0.0f32; let mut wh = 0.0f32;
-        for (st, wa) in &fallbacks {
-            let (sf, w, h) = sprites::load_sprite_frames_cached(
-                st, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut p.sprite_cache), hue);
-            if !sf.is_empty() && w > 0.0 {
-                standing = sf; sw = w; sh = h;
-                let (wf, w2, h2) = sprites::load_sprite_frames_cached(
-                    wa, game_assets.lod_manager(), &mut images, &mut materials, &mut Some(&mut p.sprite_cache), hue);
-                walking = wf; ww = w2; wh = h2; break;
+        for (st, wa) in &sprite_pairs {
+            let (s, w, h) = sprites::load_entity_sprites(
+                st, wa, game_assets.lod_manager(),
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), hue);
+            if !s.is_empty() && !s[0].is_empty() {
+                states = s; sw = w; sh = h; break;
             }
         }
-        if standing.is_empty() { continue; }
-        let mut states = vec![standing];
-        let mut dims = vec![(sw, sh)];
-        if !walking.is_empty() { states.push(walking); dims.push((ww, wh)); }
+        if states.is_empty() { continue; }
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
         let wx = m.position[0] as f32;
@@ -409,7 +453,7 @@ fn lazy_spawn(
             Transform::from_translation(pos),
             crate::game::entities::WorldEntity, crate::game::entities::EntityKind::Monster,
             crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet::new(states, dims),
+            sprites::SpriteSheet::new(states, vec![(sw, sh)]),
             actor::Actor {
                 name: "Monster".into(), hp: 10, max_hp: 10, move_speed: m.move_speed as f32,
                 initial_position: pos, guarding_position: pos, tether_distance: m.radius.max(200) as f32,

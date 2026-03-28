@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 
 use bevy::{asset::RenderAssetUsages, prelude::*};
+use image::{DynamicImage, GenericImageView, RgbaImage};
 
 use lod::LodManager;
 
@@ -72,14 +73,37 @@ impl SpriteSheet {
     }
 }
 
-/// Load all directional sprite frames for a given root name.
-pub fn load_sprite_frames(
-    root: &str,
+/// Load a complete entity's sprite set (standing + walking) using the cache.
+/// Returns (states, quad_width, quad_height) where the quad uses the max
+/// dimensions across both states so neither gets stretched.
+pub fn load_entity_sprites(
+    standing_root: &str,
+    walking_root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
-) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
-    load_sprite_frames_cached(root, lod_manager, images, materials, &mut None, 0.0)
+    cache: &mut Option<&mut SpriteCache>,
+    hue_shift_deg: f32,
+) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, f32, f32) {
+    let (standing, sw, sh) = load_sprite_frames_cached(
+        standing_root, lod_manager, images, materials, cache, hue_shift_deg);
+    if standing.is_empty() {
+        return (Vec::new(), 0.0, 0.0);
+    }
+
+    let (walking, ww, wh) = load_sprite_frames_cached(
+        walking_root, lod_manager, images, materials, cache, hue_shift_deg);
+
+    // Quad uses max dimensions so neither state gets stretched
+    let qw = sw.max(ww);
+    let qh = sh.max(wh);
+
+    let mut states = vec![standing];
+    if !walking.is_empty() {
+        states.push(walking);
+    }
+
+    (states, qw, qh)
 }
 
 /// Load sprite frames with an optional cache for sharing materials.
@@ -174,9 +198,13 @@ fn load_frames_with_root(
     materials: &mut Assets<StandardMaterial>,
     hue_shift_deg: f32,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
-    let mut frames = Vec::new();
-    let mut sprite_w = 0.0_f32;
-    let mut sprite_h = 0.0_f32;
+
+    // First pass: collect all raw sprites and find max dimensions.
+    // Different directions can have different pixel widths (front=110, side=74).
+    // We need to pad them all to the same size to avoid stretching on the quad.
+    let mut raw_sprites: Vec<Vec<Option<DynamicImage>>> = Vec::new();
+    let mut max_w = 0u32;
+    let mut max_h = 0u32;
 
     for frame_char in b'a'..=b'f' {
         let frame_letter = frame_char as char;
@@ -189,23 +217,50 @@ fn load_frames_with_root(
             break;
         }
 
-        let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
+        let mut dir_imgs: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
         for dir in 0..5u8 {
-            let name = format!("{}{}{}",root, frame_letter, dir);
+            let name = format!("{}{}{}", root, frame_letter, dir);
             let img = lod_manager.sprite(&name)
                 .or_else(|| lod_manager.sprite(&test_nodir));
+            if let Some(ref i) = img {
+                max_w = max_w.max(i.width());
+                max_h = max_h.max(i.height());
+            }
+            dir_imgs.push(img);
+        }
+        raw_sprites.push(dir_imgs);
+    }
 
-            if let Some(mut img) = img {
-                if sprite_w == 0.0 {
-                    sprite_w = img.width() as f32;
-                    sprite_h = img.height() as f32;
-                }
+    if raw_sprites.is_empty() || max_w == 0 {
+        return (Vec::new(), 0.0, 0.0);
+    }
+
+    // Second pass: pad all sprites to max dimensions and create materials.
+    let mut frames = Vec::new();
+    for dir_imgs in raw_sprites {
+        let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
+        for (dir, img_opt) in dir_imgs.into_iter().enumerate() {
+            if let Some(mut img) = img_opt {
                 if hue_shift_deg.abs() > 0.1 {
                     lod::image::hue_shift(&mut img, hue_shift_deg);
                 }
+                // Pad to uniform size: center horizontally, align bottom vertically
+                let img = if img.width() != max_w || img.height() != max_h {
+                    let mut padded = RgbaImage::new(max_w, max_h);
+                    let x_off = (max_w - img.width()) / 2;
+                    let y_off = max_h - img.height();
+                    for py in 0..img.height() {
+                        for px in 0..img.width() {
+                            padded.put_pixel(px + x_off, py + y_off, img.get_pixel(px, py));
+                        }
+                    }
+                    DynamicImage::ImageRgba8(padded)
+                } else {
+                    img
+                };
                 let bevy_img = Image::from_dynamic(img, true, RenderAssetUsages::RENDER_WORLD);
                 let tex = images.add(bevy_img);
-                dir_materials[dir as usize] = materials.add(StandardMaterial {
+                dir_materials[dir] = materials.add(StandardMaterial {
                     base_color_texture: Some(tex),
                     alpha_mode: AlphaMode::Mask(0.5),
                     unlit: true,
@@ -214,13 +269,13 @@ fn load_frames_with_root(
                     ..default()
                 });
             } else if dir > 0 {
-                dir_materials[dir as usize] = dir_materials[0].clone();
+                dir_materials[dir] = dir_materials[0].clone();
             }
         }
         frames.push(dir_materials);
     }
 
-    (frames, sprite_w, sprite_h)
+    (frames, max_w as f32, max_h as f32)
 }
 
 /// Update sprite sheets based on camera angle, entity facing, and animation state.
@@ -274,34 +329,23 @@ pub fn update_sprite_sheets(
             sprites.current_state = state_idx;
             sprites.current_frame = 0;
             sprites.frame_timer = 0.0;
-            // Adjust scale for different sprite dimensions between states
-            if sprites.state_dimensions.len() > state_idx {
-                let (base_w, base_h) = sprites.state_dimensions[0];
-                let (_, new_h) = sprites.state_dimensions[state_idx];
-                if base_w > 0.0 && base_h > 0.0 {
-                    transform.scale.y = new_h / base_h;
-                }
-            }
         }
 
-        // Advance animation
+        // Advance animation timer
         sprites.frame_timer += dt;
         if sprites.frame_timer >= sprites.frame_duration {
             sprites.frame_timer -= sprites.frame_duration;
             sprites.current_frame = (sprites.current_frame + 1) % frame_count;
         }
-        if sprites.current_frame >= frame_count {
-            sprites.current_frame = 0;
-        }
 
-        // Direction from camera angle relative to actor facing
+        // Pick directional frame based on camera angle relative to actor facing.
+        // MM6 sprites have 5 pre-rendered views (0=front, 1-4=rotations).
+        // Octants 5-7 mirror views 3-1 via negative X scale.
         let dir_to_camera = cam_pos - actor_pos;
         let camera_angle = dir_to_camera.x.atan2(dir_to_camera.z);
-        let relative = (camera_angle - actor.facing_yaw).rem_euclid(std::f32::consts::TAU);
-
+        let relative = (actor.facing_yaw - camera_angle).rem_euclid(std::f32::consts::TAU);
         let octant = ((relative + std::f32::consts::FRAC_PI_8)
-            / std::f32::consts::FRAC_PI_4) as usize
-            % 8;
+            / std::f32::consts::FRAC_PI_4) as usize % 8;
 
         let (direction, mirrored) = match octant {
             0 => (0, false),
@@ -315,7 +359,7 @@ pub fn update_sprite_sheets(
             _ => (0, false),
         };
 
-        // Only swap material when something actually changed
+        // Only swap material when the displayed frame actually changed
         let current_key = (state_idx, sprites.current_frame, direction);
         if current_key != sprites.last_applied {
             sprites.last_applied = current_key;
@@ -323,20 +367,11 @@ pub fn update_sprite_sheets(
             *mat_handle = MeshMaterial3d(new_mat);
         }
 
-        // Face camera (billboard)
-        if dir_to_camera.x.abs() > 0.01 || dir_to_camera.z.abs() > 0.01 {
-            let face_angle = dir_to_camera.x.atan2(dir_to_camera.z);
-            transform.rotation = Quat::from_rotation_y(face_angle);
-        }
-
-        // Apply mirror + width scale
-        let width_scale = if sprites.state_dimensions.len() > state_idx {
-            let (base_w, _) = sprites.state_dimensions[0];
-            let (new_w, _) = sprites.state_dimensions[state_idx];
-            if base_w > 0.0 { new_w / base_w } else { 1.0 }
-        } else {
-            1.0
-        };
-        transform.scale.x = if mirrored { -width_scale } else { width_scale };
+        // Billboard: always face camera. Only rotate around Y axis, never scale.
+        // The directional texture already shows the correct view angle.
+        let face_angle = dir_to_camera.x.atan2(dir_to_camera.z);
+        transform.rotation = Quat::from_rotation_y(face_angle);
+        // Mirror for octants 5-7 via negative X scale, otherwise keep scale at 1.
+        transform.scale = Vec3::new(if mirrored { -1.0 } else { 1.0 }, 1.0, 1.0);
     }
 }

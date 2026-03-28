@@ -440,7 +440,7 @@ fn loading_step(
             // NPC sprite roots (standing + walking)
             let npc_roots: Vec<(&str, f32)> = vec![
                 ("pfemst", 0.0), ("pfemwa", 0.0),
-                ("pmanst", 0.0), ("pmanwk", 0.0),
+                ("pmanst", 0.0), ("pmanwa", 0.0),
                 ("pmn2st", 0.0), ("pmn2wa", 0.0),
             ];
             cache.preload(&npc_roots, game_assets.lod_manager(), &mut images, &mut materials);

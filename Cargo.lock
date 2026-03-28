@@ -4580,6 +4580,7 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "clap",
+ "image 0.25.8",
  "lod",
  "random_color",
  "serde",
