@@ -580,6 +580,8 @@ fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimensions {
     let border2 = dim("border2.pcx");
     let border3 = dim("border3");
     let border4 = dim("border4");
+    let border5 = dim("border5");
+    let border6 = dim("border6");
     let tap1 = dim("tap1");
     let footer = dim("footer");
     let compass = dim("compass");
@@ -588,13 +590,17 @@ fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimensions {
         scale_x,
         scale_y,
         border1_w: border1.0 * scale_x,
-        border1_h: border1.1 * scale_y,
+        border1_h: (border1.1 - 1.0) * scale_y,
         border2_w: border2.0 * scale_x,
         border2_h: border2.1 * scale_y,
         border3_w: border3.0 * scale_x,
         border3_h: border3.1 * scale_y,
         border4_w: border4.0 * scale_x,
         border4_h: border4.1 * scale_y,
+        border5_w: border5.0 * scale_x,
+        border5_h: border5.1 * scale_y,
+        border6_w: border6.0 * scale_x,
+        border6_h: border6.1 * scale_y,
         tap_w: tap1.0 * scale_x,
         tap_h: tap1.1 * scale_y,
         footer_w: footer.0 * scale_x,
@@ -616,6 +622,10 @@ struct HudDimensions {
     border3_h: f32,
     border4_w: f32,
     border4_h: f32,
+    border5_w: f32,
+    border5_h: f32,
+    border6_w: f32,
+    border6_h: f32,
     tap_w: f32,
     tap_h: f32,
     footer_w: f32,
@@ -803,14 +813,23 @@ fn update_hud_layout(
         node.width = Val::Px(d.border4_w);
         node.height = Val::Px(d.border4_h);
     }
-    // border5/border6 — hidden for now (will be corner pieces for columns)
+    // border5 — top-left corner piece, floating over the viewport
     for mut node in set.p4().iter_mut() {
-        node.width = Val::Px(0.0);
-        node.height = Val::Px(0.0);
+        node.left = Val::Px(0.0);
+        node.top = Val::Px(0.0);
+        node.right = Val::Auto;
+        node.bottom = Val::Auto;
+        node.width = Val::Px(d.border5_w);
+        node.height = Val::Px(d.border5_h);
     }
+    // border6 — bottom-left corner piece, floating over the viewport
     for mut node in set.p5().iter_mut() {
-        node.width = Val::Px(0.0);
-        node.height = Val::Px(0.0);
+        node.left = Val::Px(0.0);
+        node.bottom = Val::Px(d.border2_h);
+        node.right = Val::Auto;
+        node.top = Val::Auto;
+        node.width = Val::Px(d.border6_w);
+        node.height = Val::Px(d.border6_h);
     }
     // Corner fill — bottom-right area (below border1+mapback)
     for mut node in set.p6().iter_mut() {

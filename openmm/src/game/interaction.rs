@@ -145,16 +145,10 @@ fn resolve_image(
     for &eid in &info.event_ids {
         if let Some(actions) = evt.events.get(&eid) {
             for action in actions {
-                match action {
-                    lod::evt::EventAction::OpenChest { .. } => {
-                        let img = game_assets.lod_manager().icon("chest01")?;
-                        let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
-                        bevy_img.sampler = bevy::image::ImageSampler::nearest();
-                        return Some(images.add(bevy_img));
-                    }
+                let icon_name = match action {
+                    lod::evt::EventAction::OpenChest { .. } => Some("chest01"),
                     lod::evt::EventAction::SpeakInHouse { house_id } => {
-                        // Look up building type to determine background image
-                        let bg_name = if let Some(houses) = me.houses.as_ref() {
+                        Some(if let Some(houses) = me.houses.as_ref() {
                             if let Some(entry) = houses.houses.get(house_id) {
                                 building_background(&entry.building_type)
                             } else {
@@ -162,20 +156,16 @@ fn resolve_image(
                             }
                         } else {
                             "evt02"
-                        };
-                        let img = game_assets.lod_manager().icon(bg_name)?;
-                        let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
-                        bevy_img.sampler = bevy::image::ImageSampler::nearest();
-                        return Some(images.add(bevy_img));
+                        })
                     }
-                    lod::evt::EventAction::MoveToMap { .. } => {
-                        // Dungeon/map transition — use dialogue background
-                        let img = game_assets.lod_manager().icon("evt02")?;
-                        let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
-                        bevy_img.sampler = bevy::image::ImageSampler::nearest();
-                        return Some(images.add(bevy_img));
-                    }
-                    _ => {}
+                    lod::evt::EventAction::MoveToMap { .. } => Some("evt02"),
+                    _ => None,
+                };
+                if let Some(name) = icon_name {
+                    let img = game_assets.lod_manager().icon(name)?;
+                    let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
+                    bevy_img.sampler = bevy::image::ImageSampler::nearest();
+                    return Some(images.add(bevy_img));
                 }
             }
         }
@@ -351,16 +341,14 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
 /// Show the name of the nearest interactive building in the footer bar.
 fn hover_hint_system(
     player_query: Query<&Transform, With<Player>>,
-    camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
     buildings: Query<(&BuildingInfo, &GlobalTransform)>,
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
     let Ok(player_tf) = player_query.single() else { return };
-    let Ok(cam_global) = camera_query.single() else { return };
 
-    // Check both proximity and raycast for hover
-    if let Some(info) = find_nearest_building(player_tf.translation, &cam_global, &buildings, true) {
+    // Proximity-only check for hover (no raycast — saves a full building scan per frame)
+    if let Some(info) = find_nearest_building(player_tf.translation, &GlobalTransform::default(), &buildings, false) {
         if let Some(name) = resolve_building_name(info, &map_events) {
             footer.set(&name);
             return;

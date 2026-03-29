@@ -44,16 +44,10 @@ pub struct EvtFile {
 
 /// Parse a .str string table: null-separated strings indexed from 0.
 fn parse_str_table(lod: &LodManager, map_base: &str) -> Vec<String> {
-    let path = format!("icons/{}.str", map_base);
-    let raw = lod.try_get_bytes(&path)
-        .or_else(|_| lod.try_get_bytes(&format!("games/{}.str", map_base)))
-        .or_else(|_| lod.try_get_bytes(&format!("new/{}.str", map_base)));
-    let Ok(raw) = raw else { return Vec::new() };
-
-    let data = match crate::lod_data::LodData::try_from(raw) {
-        Ok(d) => d.data,
-        Err(_) => raw.to_vec(),
-    };
+    let data = lod.get_decompressed(format!("icons/{}.str", map_base))
+        .or_else(|_| lod.get_decompressed(format!("games/{}.str", map_base)))
+        .or_else(|_| lod.get_decompressed(format!("new/{}.str", map_base)));
+    let Ok(data) = data else { return Vec::new() };
 
     data.split(|&b| b == 0)
         .filter_map(|s| std::str::from_utf8(s).ok())

@@ -109,6 +109,15 @@ impl LodManager {
         Ok(lod_data)
     }
 
+    /// Load raw bytes from an archive path, decompressing if needed.
+    pub fn get_decompressed<P: AsRef<Path>>(&self, path: P) -> Result<Vec<u8>, Box<dyn Error>> {
+        let raw = self.try_get_bytes(path)?;
+        Ok(match crate::lod_data::LodData::try_from(raw) {
+            Ok(d) => d.data,
+            Err(_) => raw.to_vec(),
+        })
+    }
+
     pub fn palettes(&self) -> Result<Palettes, Box<dyn Error>> {
         let bitmaps_lod = self
             .lods
@@ -157,11 +166,7 @@ impl LodManager {
 
     /// Load a .fnt bitmap font from the icons archive.
     pub fn font(&self, name: &str) -> Option<font::Font> {
-        let raw = self.try_get_bytes(format!("icons/{}", name.to_lowercase())).ok()?;
-        let data = match crate::lod_data::LodData::try_from(raw) {
-            Ok(d) => d.data,
-            Err(_) => raw.to_vec(),
-        };
+        let data = self.get_decompressed(format!("icons/{}", name.to_lowercase())).ok()?;
         font::Font::parse(&data).ok()
     }
 
@@ -187,13 +192,9 @@ impl LodManager {
     /// Load a UI image from the icons archive.
     /// Handles PCX format (title screens, loading) and custom bitmap format (buttons).
     pub fn icon(&self, name: &str) -> Option<DynamicImage> {
-        let raw = self.try_get_bytes(format!("icons/{}", name.to_lowercase())).ok()?;
-
-        // Try decompressing LOD entry first (may have LOD header)
-        let data = match crate::lod_data::LodData::try_from(raw) {
-            Ok(decompressed) => decompressed.data,
-            Err(_) => raw.to_vec(),
-        };
+        let path = format!("icons/{}", name.to_lowercase());
+        let raw = self.try_get_bytes(&path).ok()?;
+        let data = self.get_decompressed(&path).ok()?;
 
         if data.len() > 4 && data[0] == 0x0A {
             decode_pcx(&data)

@@ -23,7 +23,10 @@ impl Plugin for BevyConfigPlugin {
 
         let window_mode = match cfg.window_mode.as_str() {
             "borderless" => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
-            "fullscreen" => WindowMode::Fullscreen(MonitorSelection::Current, bevy::window::VideoModeSelection::Current),
+            "fullscreen" => WindowMode::Fullscreen(
+                MonitorSelection::Current,
+                bevy::window::VideoModeSelection::Current,
+            ),
             _ => WindowMode::Windowed,
         };
 
@@ -55,11 +58,16 @@ pub fn camera_msaa(cfg: &GameConfig) -> Msaa {
     let wants_msaa = matches!(cfg.antialiasing.as_str(), "msaa2" | "msaa4" | "msaa8");
 
     if cfg.ssao && wants_msaa {
-        warn!("SSAO requires Msaa::Off — disabling MSAA (antialiasing='{}' ignored, using SMAA fallback)", cfg.antialiasing);
+        warn!(
+            "SSAO requires Msaa::Off — disabling MSAA (antialiasing='{}' ignored, using SMAA fallback)",
+            cfg.antialiasing
+        );
         return Msaa::Off;
     }
     if cfg.ssao && !matches!(cfg.antialiasing.as_str(), "fxaa" | "smaa" | "taa" | "off") {
-        warn!("SSAO requires Msaa::Off — forcing Msaa::Off (set antialiasing to fxaa/smaa/taa for AA with SSAO)");
+        warn!(
+            "SSAO requires Msaa::Off — forcing Msaa::Off (set antialiasing to fxaa/smaa/taa for AA with SSAO)"
+        );
         return Msaa::Off;
     }
 
@@ -142,18 +150,23 @@ pub fn camera_motion_blur(cfg: &GameConfig) -> Option<bevy::post_process::motion
     }
 }
 
-/// Returns an optional DepthOfField component.
+/// Returns an optional DepthOfField component tuned for far visibility.
 pub fn camera_dof(cfg: &GameConfig) -> Option<bevy::post_process::dof::DepthOfField> {
     if cfg.depth_of_field {
-        Some(bevy::post_process::dof::DepthOfField::default())
+        Some(bevy::post_process::dof::DepthOfField {
+            focal_distance: 30.0,
+            ..default()
+        })
     } else {
         None
     }
 }
 
 /// Returns an Exposure component.
+/// Base EV100 of 9.7 matches a typical overcast/indoor game scene.
+/// cfg.exposure adjusts relative to this base.
 pub fn camera_exposure(cfg: &GameConfig) -> bevy::camera::Exposure {
     bevy::camera::Exposure {
-        ev100: bevy::camera::Exposure::SUNLIGHT.ev100 + cfg.exposure,
+        ev100: 9.4 + cfg.exposure,
     }
 }

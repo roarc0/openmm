@@ -240,7 +240,8 @@ fn spawn_player(
         if let Some(dof) = crate::bevy_config::camera_dof(&cfg) {
             cam.insert(dof);
         }
-        if cfg.tonemapping != "none" {
+        // Tonemapping + exposure (also required when bloom is on since it needs HDR pipeline)
+        if cfg.tonemapping != "none" || cfg.bloom {
             cam.insert(crate::bevy_config::camera_tonemapping(&cfg));
             cam.insert(crate::bevy_config::camera_exposure(&cfg));
         }
