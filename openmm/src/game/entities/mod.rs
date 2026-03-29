@@ -4,7 +4,6 @@ use crate::GameState;
 use crate::game::hud::HudView;
 
 pub mod actor;
-pub mod decoration;
 pub mod sprites;
 
 // Future modules:
@@ -133,7 +132,8 @@ fn wander_system(
             // Toggle between idle and walking
             if *anim_state == AnimationState::Idle {
                 // Pick a new target and start walking
-                let seed = actor.initial_position.x * 7.3 + actor.initial_position.z * 13.7
+                let seed = actor.initial_position.x * 7.3
+                    + actor.initial_position.z * 13.7
                     + time.elapsed_secs() * 0.5;
                 let angle = (seed * 2.3).sin() * std::f32::consts::TAU;
                 let dist = actor.tether_distance.max(300.0) * 0.4;

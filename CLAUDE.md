@@ -100,6 +100,8 @@ When any doc is added, renamed, or removed in `docs/`, update the Documentation 
 
 When implementing a feature, always separate concerns and organize logic into well-defined, modular components, functions, and services. Write clean, maintainable code with clear naming, minimal duplication, and low coupling. Prefer simplicity, readability, and extensibility over quick but messy solutions
 
+### Rule 4: It's ok to log debug noisy stuff and, or info,warn,error. The logger level can be adjusted and it will help debugging.
+
 ### Coordinate conversion
 
 MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6.
