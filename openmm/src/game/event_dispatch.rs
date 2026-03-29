@@ -49,6 +49,11 @@ impl EventQueue {
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }
+
+    /// Clear all pending events.
+    pub fn clear(&mut self) {
+        self.queue.clear();
+    }
 }
 
 pub struct EventDispatchPlugin;
@@ -198,9 +203,7 @@ fn process_events(
             // But EVT uses 0-65535 range (65536 units per circle)
             let yaw = (direction as f32) * std::f32::consts::TAU / 65536.0;
 
-            // Update save data
-            save_data.player.position = pos;
-            save_data.player.yaw = yaw;
+            debug!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg", map_name, x, y, z, direction, pos, yaw.to_degrees());
 
             // Update map coordinates for outdoor maps
             if let MapName::Outdoor(ref odm) = target {
@@ -208,11 +211,21 @@ fn process_events(
                 save_data.map.map_y = odm.y;
             }
 
-            debug!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg", map_name, x, y, z, direction, pos, yaw.to_degrees());
+            // Store spawn position in save data ONLY — don't move the player entity
+            // on the current map, or the boundary crossing system will trigger before
+            // the Loading state takes effect.
+            save_data.player.position = pos;
+            save_data.player.yaw = yaw;
+
+            // Transition to loading immediately — clears the event queue
             commands.insert_resource(LoadRequest {
                 map_name: target,
             });
             game_state.set(GameState::Loading);
+
+            // Clear remaining events to prevent stale events (e.g. SpeakInHouse
+            // after MoveToMap) from firing on the wrong map
+            event_queue.clear();
         }
         GameEvent::ChangeDoorState { door_id, action } => {
             debug!("ChangeDoorState door_id={} action={}", door_id, action);
