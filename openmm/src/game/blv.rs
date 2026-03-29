@@ -183,23 +183,13 @@ fn spawn_indoor_world(
         .collect();
     commands.insert_resource(ClickableFaces { faces });
 
-    // Indoor ambient lighting
+    // Indoor ambient lighting — dim for dungeon atmosphere
     commands.spawn((
         AmbientLight {
-            color: Color::srgb(0.9, 0.85, 0.75),
-            brightness: 800.0,
+            color: Color::srgb(0.8, 0.75, 0.65),
+            brightness: 150.0,
             ..default()
         },
-        InGame,
-    ));
-    commands.spawn((
-        PointLight {
-            intensity: 2_000_000.0,
-            range: 50_000.0,
-            shadows_enabled: false,
-            ..default()
-        },
-        Transform::from_xyz(0.0, 2000.0, 0.0),
         InGame,
     ));
 }
