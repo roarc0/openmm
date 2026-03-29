@@ -213,8 +213,11 @@ fn spawn_world(
         return;
     };
 
-    // Load event data for this outdoor map
-    let map_base = format!("out{}{}", save_data.map.map_x, save_data.map.map_y);
+    // Load event data for this outdoor map (use current_map, not save_data which may be stale)
+    let map_base = match &current_map.0 {
+        crate::game::map_name::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
+        _ => return, // shouldn't happen — we checked PreparedWorld exists
+    };
     crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, false);
 
     let mut terrain_texture = prepared.terrain_texture.clone();
