@@ -182,17 +182,25 @@ fn spawn_player(
             (0.0, settings.eye_height, 0.0, 0.0)
         }
     } else if let Some(ref prepared) = prepared {
-        let party_start = prepared.start_points.iter()
-            .find(|sp| sp.name.to_lowercase().contains("party start")
-                     || sp.name.to_lowercase().contains("party_start"));
-        if let Some(sp) = party_start {
-            let y = sample_terrain_height(&prepared.map.height_map, sp.position.x, sp.position.z)
+        // Outdoor: prefer save_data position (set by MoveToMap / dungeon exit) if non-zero,
+        // otherwise use the map's default "party start" spawn point
+        let pos = save_data.player.position;
+        let has_save_pos = pos[0] != 0.0 || pos[1] != 0.0 || pos[2] != 0.0;
+        if has_save_pos {
+            let y = sample_terrain_height(&prepared.map.height_map, pos[0], pos[2])
                 + settings.eye_height;
-            (sp.position.x, y, sp.position.z, sp.yaw)
+            (pos[0], y, pos[2], save_data.player.yaw)
         } else {
-            let y = sample_terrain_height(&prepared.map.height_map,
-                save_data.player.position[0], save_data.player.position[2]) + settings.eye_height;
-            (save_data.player.position[0], y, save_data.player.position[2], save_data.player.yaw)
+            let party_start = prepared.start_points.iter()
+                .find(|sp| sp.name.to_lowercase().contains("party start")
+                         || sp.name.to_lowercase().contains("party_start"));
+            if let Some(sp) = party_start {
+                let y = sample_terrain_height(&prepared.map.height_map, sp.position.x, sp.position.z)
+                    + settings.eye_height;
+                (sp.position.x, y, sp.position.z, sp.yaw)
+            } else {
+                (0.0, settings.eye_height, 0.0, 0.0)
+            }
         }
     } else {
         (save_data.player.position[0], save_data.player.position[1],
