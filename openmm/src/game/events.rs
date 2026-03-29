@@ -43,6 +43,11 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
         let mut ids: Vec<_> = e.events.keys().collect();
         ids.sort();
         debug!("EVT event_ids: {:?}", ids);
+        for &id in &ids {
+            if let Some(actions) = e.events.get(id) {
+                debug!("  event[{}]: {:?}", id, actions);
+            }
+        }
     }
     commands.insert_resource(MapEvents { evt, houses });
 }

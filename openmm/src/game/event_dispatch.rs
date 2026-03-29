@@ -154,6 +154,8 @@ fn process_events(
         return;
     };
 
+    debug!("EventDispatch: {:?}", event);
+
     match event {
         GameEvent::Hint { text, .. } => {
             footer.set(&text);
@@ -164,7 +166,6 @@ fn process_events(
                 .and_then(|me| resolve_building_image(house_id, me, &game_assets, &mut images))
                 .or_else(|| load_icon("evt02", &game_assets, &mut images));
             if let Some(image) = image {
-                info!("SpeakInHouse house_id={}", house_id);
                 commands.insert_resource(OverlayImage { image });
                 *hud_view = HudView::Building;
                 grab_cursor(&mut cursor_query, false);
@@ -172,7 +173,6 @@ fn process_events(
         }
         GameEvent::OpenChest { id } => {
             if let Some(image) = load_icon("chest01", &game_assets, &mut images) {
-                info!("OpenChest id={}", id);
                 commands.insert_resource(OverlayImage { image });
                 *hud_view = HudView::Chest;
                 grab_cursor(&mut cursor_query, false);
@@ -208,14 +208,14 @@ fn process_events(
                 save_data.map.map_y = odm.y;
             }
 
-            info!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg", map_name, x, y, z, direction, pos, yaw.to_degrees());
+            debug!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg", map_name, x, y, z, direction, pos, yaw.to_degrees());
             commands.insert_resource(LoadRequest {
                 map_name: target,
             });
             game_state.set(GameState::Loading);
         }
         GameEvent::ChangeDoorState { door_id, action } => {
-            info!("ChangeDoorState door_id={} action={}", door_id, action);
+            debug!("ChangeDoorState door_id={} action={}", door_id, action);
             if let Some(ref mut doors) = blv_doors {
                 crate::game::blv::trigger_door(doors, door_id as u32, action);
             }
