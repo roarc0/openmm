@@ -6,6 +6,7 @@ pub(crate) mod blv;
 pub(crate) mod collision;
 pub(crate) mod debug;
 pub(crate) mod entities;
+pub(crate) mod event_dispatch;
 pub(crate) mod events;
 pub(crate) mod hud;
 pub(crate) mod interaction;
@@ -36,6 +37,7 @@ impl Plugin for InGamePlugin {
             debug::DebugPlugin,
             hud::HudPlugin,
             interaction::InteractionPlugin,
+            event_dispatch::EventDispatchPlugin,
             MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
         .add_systems(
