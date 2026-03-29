@@ -23,14 +23,6 @@ fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, 
 /// Face attribute flags.
 const FACE_ATTR_PORTAL: u32 = 0x00000001;
 
-fn point_in_triangle(px: f32, py: f32, ax: f32, ay: f32, bx: f32, by: f32, cx: f32, cy: f32) -> bool {
-    let d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
-    let d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
-    let d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);
-    let has_neg = d1 < 0.0 || d2 < 0.0 || d3 < 0.0;
-    let has_pos = d1 > 0.0 || d2 > 0.0 || d3 > 0.0;
-    !(has_neg && has_pos)
-}
 const FACE_ATTR_INVISIBLE: u32 = 0x00002000;
 
 /// MM6 decoration name size (28 bytes, vs 32 in MM7).
@@ -611,82 +603,16 @@ impl Blv {
     /// Ear-clipping triangulation for coplanar polygons.
     /// Projects vertices to the best-fit 2D plane based on the face normal,
     /// then performs ear clipping to handle concave polygons (arches, doorframes).
-    fn triangulate_face(face: &BlvFace, vertices: &[BlvVertex]) -> Vec<[usize; 3]> {
+    /// Triangulate a BLV face into triangles.
+    ///
+    /// MM6 BLV faces are almost always convex (quads, pentagons, etc.), so simple
+    /// fan triangulation from vertex 0 works correctly and avoids the edge cases
+    /// that plague ear-clipping on near-degenerate or floating-point-sensitive polygons.
+    fn triangulate_face(face: &BlvFace, _vertices: &[BlvVertex]) -> Vec<[usize; 3]> {
         let n = face.num_vertices as usize;
         if n < 3 { return vec![]; }
-        if n == 3 { return vec![[0, 1, 2]]; }
-
-        // Project 3D vertices to 2D using the dominant axis of the face normal
-        let nx = (face.normal_fixed[0] as f32).abs();
-        let ny = (face.normal_fixed[1] as f32).abs();
-        let nz = (face.normal_fixed[2] as f32).abs();
-
-        let project = |vid: u16| -> (f32, f32) {
-            let v = &vertices[vid as usize];
-            if nz >= nx && nz >= ny {
-                // Z dominant: project to XY
-                (v.x as f32, v.y as f32)
-            } else if ny >= nx {
-                // Y dominant: project to XZ
-                (v.x as f32, v.z as f32)
-            } else {
-                // X dominant: project to YZ
-                (v.y as f32, v.z as f32)
-            }
-        };
-
-        let pts: Vec<(f32, f32)> = face.vertex_ids.iter().map(|&vid| project(vid)).collect();
-
-        // Determine winding direction (sign of the signed area)
-        let signed_area: f32 = (0..n).map(|i| {
-            let j = (i + 1) % n;
-            pts[i].0 * pts[j].1 - pts[j].0 * pts[i].1
-        }).sum();
-        let ccw = signed_area > 0.0;
-
-        let mut indices: Vec<usize> = (0..n).collect();
-        let mut triangles = Vec::with_capacity(n - 2);
-
-        let is_ear = |indices: &[usize], prev: usize, curr: usize, next: usize| -> bool {
-            let (ax, ay) = pts[indices[prev]];
-            let (bx, by) = pts[indices[curr]];
-            let (cx, cy) = pts[indices[next]];
-
-            // Check if the triangle has correct winding
-            let cross = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
-            if ccw && cross <= 0.0 { return false; }
-            if !ccw && cross >= 0.0 { return false; }
-
-            // Check no other vertex inside this triangle
-            for (k, &idx) in indices.iter().enumerate() {
-                if k == prev || k == curr || k == next { continue; }
-                let (px, py) = pts[idx];
-                if point_in_triangle(px, py, ax, ay, bx, by, cx, cy) {
-                    return false;
-                }
-            }
-            true
-        };
-
-        let mut safety = n * n;
-        while indices.len() > 2 && safety > 0 {
-            safety -= 1;
-            let len = indices.len();
-            let mut found = false;
-            for i in 0..len {
-                let prev = if i == 0 { len - 1 } else { i - 1 };
-                let next = (i + 1) % len;
-                if is_ear(&indices, prev, i, next) {
-                    triangles.push([indices[prev], indices[i], indices[next]]);
-                    indices.remove(i);
-                    found = true;
-                    break;
-                }
-            }
-            if !found { break; } // degenerate polygon, give up
-        }
-
-        triangles
+        // Fan triangulation: (0,1,2), (0,2,3), (0,3,4), ...
+        (1..n - 1).map(|i| [0, i, i + 1]).collect()
     }
 
     /// Convert visible, non-portal faces into per-texture mesh data for rendering.

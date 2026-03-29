@@ -403,10 +403,8 @@ fn loading_step(
                             material: StandardMaterial {
                                 base_color: Color::WHITE,
                                 alpha_mode: AlphaMode::Opaque,
-                                // BLV face normals point inward (toward player).
-                                // Backface cull to avoid Z-fighting from overlapping walls.
-                                cull_mode: Some(bevy::render::render_resource::Face::Back),
-                                double_sided: false,
+                                cull_mode: None,
+                                double_sided: true,
                                 perceptual_roughness: 1.0,
                                 reflectance: 0.0,
                                 metallic: 0.0,
