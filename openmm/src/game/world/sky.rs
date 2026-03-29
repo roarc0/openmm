@@ -44,8 +44,7 @@ pub struct SkyPlugin;
 
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
-        // ClearColor = fog target. Blend of sky horizon (0.37, 0.42, 0.55)
-        // and terrain (0.28, 0.37, 0.20), slightly desaturated.
+        // ClearColor = fog/sky target. Updated each frame by update_sky_color.
         app.insert_resource(ClearColor(Color::srgb(0.38, 0.43, 0.52)))
             .add_plugins(MaterialPlugin::<SkyMaterial>::default())
             .add_systems(OnEnter(GameState::Game), spawn_sky)

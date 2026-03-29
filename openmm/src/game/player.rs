@@ -231,6 +231,10 @@ fn spawn_player(
         if let Some(bloom) = crate::bevy_config::camera_bloom(&cfg) {
             cam.insert(bloom);
         }
+        // Depth/normal prepasses — needed by SSAO, DOF, and other post-processing.
+        // Always enabled since they're lightweight and required by many effects.
+        cam.insert(bevy::core_pipeline::prepass::DepthPrepass);
+        cam.insert(bevy::core_pipeline::prepass::NormalPrepass);
         if let Some(ssao) = crate::bevy_config::camera_ssao(&cfg) {
             cam.insert(ssao);
         }
@@ -240,11 +244,15 @@ fn spawn_player(
         if let Some(dof) = crate::bevy_config::camera_dof(&cfg) {
             cam.insert(dof);
         }
-        // Tonemapping + exposure (also required when bloom is on since it needs HDR pipeline)
-        if cfg.tonemapping != "none" || cfg.bloom {
-            cam.insert(crate::bevy_config::camera_tonemapping(&cfg));
-            cam.insert(crate::bevy_config::camera_exposure(&cfg));
-        }
+        // Always apply tonemapping + exposure for consistent physically-based rendering.
+        // Bloom requires real tonemapping (not "none") — force AgX if needed.
+        let tonemapping = if cfg.bloom && cfg.tonemapping == "none" {
+            bevy::core_pipeline::tonemapping::Tonemapping::AgX
+        } else {
+            crate::bevy_config::camera_tonemapping(&cfg)
+        };
+        cam.insert(tonemapping);
+        cam.insert(crate::bevy_config::camera_exposure(&cfg));
         // Outdoor: distance fog for horizon blending. Indoor: no fog.
         if !is_indoor {
             cam.insert(DistanceFog {

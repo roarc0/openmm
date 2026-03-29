@@ -95,7 +95,7 @@ fn debug_setup(
             TextColor(Color::WHITE),
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(dbg_left + 35.0),
+                left: Val::Px(dbg_left + 80.0),
                 top: Val::Px(dbg_top),
                 ..default()
             },
@@ -119,7 +119,7 @@ fn debug_setup(
         .spawn((
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(dbg_left + 35.0),
+                left: Val::Px(dbg_left + 80.0),
                 top: Val::Px(dbg_top + 60.0),
                 flex_direction: FlexDirection::Column,
                 ..default()

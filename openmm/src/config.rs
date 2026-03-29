@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use bevy::log::warn;
 use bevy::prelude::Resource;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
@@ -282,7 +283,7 @@ impl Default for GameConfig {
             capslock_toggle_mouse_look: true,
             hud_filtering: "nearest".into(),
             antialiasing: "msaa4".into(),
-            bloom: true,
+            bloom: false,
             bloom_intensity: 0.1,
             ssao: false,
             tonemapping: "agx".into(),
@@ -333,7 +334,7 @@ impl GameConfig {
 
         let d = GameConfig::default();
 
-        GameConfig {
+        let resolved = GameConfig {
             map: cli.map.or(file_cfg.map).or(d.map),
             skip_intro: resolve!(cli.skip_intro, file_cfg.skip_intro, d.skip_intro),
             debug: resolve!(cli.debug, file_cfg.debug, d.debug),
@@ -368,6 +369,36 @@ impl GameConfig {
             depth_of_field: resolve!(cli.depth_of_field, file_cfg.depth_of_field, d.depth_of_field),
             motion_blur: resolve!(cli.motion_blur, file_cfg.motion_blur, d.motion_blur),
             exposure: resolve!(cli.exposure, file_cfg.exposure, d.exposure),
+        };
+        resolved.validate();
+        resolved
+    }
+}
+
+impl GameConfig {
+    fn validate(&self) {
+        // Validate string enum fields
+        if !matches!(self.window_mode.as_str(), "windowed" | "borderless" | "fullscreen") {
+            warn!("Unknown window_mode '{}' — using 'windowed'", self.window_mode);
+        }
+        if !matches!(self.vsync.as_str(), "auto" | "fast" | "off") {
+            warn!("Unknown vsync '{}' — using 'auto'", self.vsync);
+        }
+        if !matches!(self.hud_filtering.as_str(), "nearest" | "linear") {
+            warn!("Unknown hud_filtering '{}' — using 'nearest'", self.hud_filtering);
+        }
+        if !matches!(self.antialiasing.as_str(), "msaa2" | "msaa4" | "msaa8" | "fxaa" | "smaa" | "taa" | "off") {
+            warn!("Unknown antialiasing '{}' — using 'msaa4'", self.antialiasing);
+        }
+        if !matches!(self.tonemapping.as_str(), "none" | "reinhard" | "aces" | "blender_filmic" | "agx") {
+            warn!("Unknown tonemapping '{}' — using 'agx'", self.tonemapping);
+        }
+        // Warn about incompatible combos
+        if self.bloom && self.tonemapping == "none" {
+            warn!("Bloom requires tonemapping — forcing AgX (set tonemapping to avoid this)");
+        }
+        if self.ssao && matches!(self.antialiasing.as_str(), "msaa2" | "msaa4" | "msaa8") {
+            warn!("SSAO requires Msaa::Off — MSAA will be disabled (use fxaa/smaa/taa instead)");
         }
     }
 }

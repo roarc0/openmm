@@ -30,7 +30,7 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>) {
     commands.spawn((
         AmbientLight {
             color: Color::srgb(0.75, 0.75, 0.82),
-            brightness: 280.0,
+            brightness: 300.0,
             ..default()
         },
         AmbientMarker,
@@ -75,10 +75,11 @@ fn sun_from_time(tod: f32) -> (Transform, Color, f32) {
     let b = 0.55 + 0.45 * elevation;
     let color = Color::srgb(r, g, b);
 
-    // Illuminance based on whether sun is up
+    // Illuminance in lux — matches Bevy's default scale (EV100 9.7)
+    // Bevy default DirectionalLight is 10,000 lux (AMBIENT_DAYLIGHT)
     let is_day = tod > 0.22 && tod < 0.78;
     let illuminance = if is_day {
-        300.0 + 600.0 * elevation
+        400.0 + 1500.0 * elevation
     } else {
         0.0
     };
@@ -107,7 +108,7 @@ fn ambient_from_time(tod: f32) -> (Color, f32) {
     let g = 0.15 + 0.60 * day_amount + 0.1 * dawn_dusk;
     let b = 0.25 + 0.55 * day_amount - 0.1 * dawn_dusk;
 
-    let brightness = 30.0 + 280.0 * day_amount;
+    let brightness = 50.0 + 250.0 * day_amount;
 
     (Color::srgb(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)), brightness)
 }

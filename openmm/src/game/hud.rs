@@ -181,7 +181,7 @@ fn spawn_hud(
         Camera2d,
         Camera {
             order: 1,
-            clear_color: ClearColorConfig::Custom(Color::BLACK),
+            clear_color: ClearColorConfig::None,
             ..default()
         },
         bevy::ui::IsDefaultUiCamera,
