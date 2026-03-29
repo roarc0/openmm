@@ -217,6 +217,12 @@ fn loading_setup(
     mut ui_assets: ResMut<crate::ui_assets::UiAssets>,
     mut images: ResMut<Assets<Image>>,
 ) {
+    // Clean up resources from previous map (indoor or outdoor)
+    commands.remove_resource::<PreparedWorld>();
+    commands.remove_resource::<PreparedIndoorWorld>();
+    commands.remove_resource::<crate::game::blv::BlvDoors>();
+    commands.remove_resource::<crate::game::blv::ClickableFaces>();
+
     // Priority: LoadRequest (map switching) > config file/CLI > save data
     let map_name = load_request
         .map(|r| r.map_name.clone())
