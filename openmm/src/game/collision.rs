@@ -199,7 +199,12 @@ impl BuildingColliders {
     }
 
     /// Sample the lowest ceiling height at XZ above the player's head.
-    pub fn ceiling_height_at(&self, x: f32, z: f32, head_y: f32) -> Option<f32> {
+    /// `feet_y` is used to limit the search to the current room (avoids
+    /// clamping against ceilings from other floors in multi-level dungeons).
+    pub fn ceiling_height_at(&self, x: f32, z: f32, head_y: f32, feet_y: f32) -> Option<f32> {
+        // Maximum room height — ceilings further above are likely on a different floor
+        const MAX_ROOM_HEIGHT: f32 = 2000.0;
+
         let mut best: Option<f32> = None;
         let point = Vec2::new(x, z);
 
@@ -213,8 +218,8 @@ impl BuildingColliders {
             if point_in_triangle_2d(point, a, b, c) {
                 let (u, v, w) = barycentric_2d(point, a, b, c);
                 let h = u * ceil.v0.y + v * ceil.v1.y + w * ceil.v2.y;
-                // Only consider ceilings above the player
-                if h > head_y {
+                // Only consider ceilings above the player but within room height
+                if h > head_y && h < feet_y + MAX_ROOM_HEIGHT {
                     best = Some(best.map_or(h, |prev: f32| prev.min(h)));
                 }
             }

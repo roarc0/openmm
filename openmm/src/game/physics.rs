@@ -161,7 +161,8 @@ fn gravity_system(
         // Ceiling clamp: prevent player from going above the lowest ceiling
         let ceiling_y = colliders.as_deref()
             .and_then(|c| c.ceiling_height_at(
-                transform.translation.x, transform.translation.z, transform.translation.y))
+                transform.translation.x, transform.translation.z,
+                transform.translation.y, feet_y))
             .unwrap_or(f32::MAX);
 
         if fly_mode.0 {
