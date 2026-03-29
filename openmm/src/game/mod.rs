@@ -7,6 +7,7 @@ pub(crate) mod collision;
 pub(crate) mod debug;
 pub(crate) mod entities;
 pub(crate) mod events;
+pub(crate) mod hud;
 pub(crate) mod interaction;
 pub(crate) mod map_name;
 pub(crate) mod odm;
@@ -33,6 +34,7 @@ impl Plugin for InGamePlugin {
             blv::BlvPlugin,
             entities::EntitiesPlugin,
             debug::DebugPlugin,
+            hud::HudPlugin,
             interaction::InteractionPlugin,
             MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))

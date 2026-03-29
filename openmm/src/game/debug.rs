@@ -458,6 +458,23 @@ fn quicksave(
     }
 }
 
+fn debug_screenshot(
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+) {
+    use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+    if keys.just_pressed(KeyCode::F12) {
+        let path = format!("target/screenshot_{}.png",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis());
+        info!("Saving screenshot to {}", path);
+        commands.spawn(Screenshot::primary_window())
+            .observe(save_to_disk(path));
+    }
+}
+
 pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
@@ -473,7 +490,7 @@ impl Plugin for DebugPlugin {
             ))
             .add_systems(
                 Update,
-                (debug_input, update_hud_text, debug_change_map, debug_log, quicksave, draw_play_area)
+                (debug_input, update_hud_text, debug_change_map, debug_log, quicksave, draw_play_area, debug_screenshot)
                     .run_if(in_state(GameState::Game)),
             )
             .add_systems(OnEnter(GameState::Game), debug_setup);
