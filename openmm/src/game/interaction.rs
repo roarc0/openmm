@@ -126,8 +126,8 @@ fn resolve_image(
         if let Some(actions) = evt.events.get(&eid) {
             for action in actions {
                 let icon_name = match action {
-                    lod::evt::EventAction::OpenChest { .. } => Some("chest01"),
-                    lod::evt::EventAction::SpeakInHouse { house_id } => {
+                    lod::evt::GameEvent::OpenChest { .. } => Some("chest01"),
+                    lod::evt::GameEvent::SpeakInHouse { house_id } => {
                         Some(if let Some(houses) = me.houses.as_ref() {
                             if let Some(entry) = houses.houses.get(house_id) {
                                 building_background(&entry.building_type)
@@ -138,7 +138,7 @@ fn resolve_image(
                             "evt02"
                         })
                     }
-                    lod::evt::EventAction::MoveToMap { .. } => Some("evt02"),
+                    lod::evt::GameEvent::MoveToMap { .. } => Some("evt02"),
                     _ => None,
                 };
                 if let Some(name) = icon_name {
@@ -242,10 +242,10 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
         if let Some(actions) = evt.events.get(&eid) {
             for action in actions {
                 match action {
-                    lod::evt::EventAction::OpenChest { id } => {
+                    lod::evt::GameEvent::OpenChest { id } => {
                         return Some(format!("Chest #{}", id));
                     }
-                    lod::evt::EventAction::SpeakInHouse { house_id } => {
+                    lod::evt::GameEvent::SpeakInHouse { house_id } => {
                         if let Some(houses) = me.houses.as_ref() {
                             if let Some(entry) = houses.houses.get(house_id) {
                                 return Some(entry.name.clone());
@@ -253,12 +253,12 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
                         }
                         return Some(format!("Building #{}", house_id));
                     }
-                    lod::evt::EventAction::Hint { text, .. } => {
+                    lod::evt::GameEvent::Hint { text, .. } => {
                         if !text.is_empty() {
                             return Some(text.clone());
                         }
                     }
-                    lod::evt::EventAction::MoveToMap { map_name, .. } => {
+                    lod::evt::GameEvent::MoveToMap { map_name, .. } => {
                         return Some(format!("Enter {}", map_name));
                     }
                 }

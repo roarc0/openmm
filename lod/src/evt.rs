@@ -17,9 +17,9 @@ use std::io::Read;
 
 use crate::LodManager;
 
-/// A parsed event action — the simplified result of executing an event script.
+/// A parsed game event — the simplified result of executing an event script.
 #[derive(Debug, Clone)]
-pub enum EventAction {
+pub enum GameEvent {
     /// Open a building UI. house_id indexes into 2devents.txt.
     SpeakInHouse { house_id: u32 },
     /// Move to another map (dungeon entrance, map transition).
@@ -39,7 +39,7 @@ pub enum EventAction {
 /// Parsed events from a .evt file, keyed by event_id.
 pub struct EvtFile {
     /// For each event_id, the list of actions (simplified from raw instructions).
-    pub events: HashMap<u16, Vec<EventAction>>,
+    pub events: HashMap<u16, Vec<GameEvent>>,
 }
 
 /// Parse a .str string table: null-separated strings indexed from 0.
@@ -78,7 +78,7 @@ impl EvtFile {
             raw.to_vec()
         };
 
-        let mut events: HashMap<u16, Vec<EventAction>> = HashMap::new();
+        let mut events: HashMap<u16, Vec<GameEvent>> = HashMap::new();
         let mut pos = 0;
 
         while pos < data.len() {
@@ -97,7 +97,7 @@ impl EvtFile {
                 0x02 => {
                     // SpeakInHouse
                     if params.len() >= 4 {
-                        Some(EventAction::SpeakInHouse {
+                        Some(GameEvent::SpeakInHouse {
                             house_id: u32::from_le_bytes([params[0], params[1], params[2], params[3]]),
                         })
                     } else {
@@ -111,7 +111,7 @@ impl EvtFile {
                         .get(str_id as usize)
                         .cloned()
                         .unwrap_or_default();
-                    Some(EventAction::Hint { str_id, text })
+                    Some(GameEvent::Hint { str_id, text })
                 }
                 0x06 => {
                     // MoveToMap
@@ -124,14 +124,14 @@ impl EvtFile {
                         let name_bytes = &params[name_start..];
                         let end = name_bytes.iter().position(|&b| b == 0).unwrap_or(name_bytes.len());
                         let map_name = String::from_utf8_lossy(&name_bytes[..end]).to_string();
-                        Some(EventAction::MoveToMap { x, y, z, direction, map_name })
+                        Some(GameEvent::MoveToMap { x, y, z, direction, map_name })
                     } else {
                         None
                     }
                 }
                 0x07 => {
                     // OpenChest
-                    Some(EventAction::OpenChest {
+                    Some(GameEvent::OpenChest {
                         id: params.first().copied().unwrap_or(0),
                     })
                 }
@@ -149,9 +149,9 @@ impl EvtFile {
     }
 
     /// Get the primary action for an event (first SpeakInHouse or MoveToMap).
-    pub fn primary_action(&self, event_id: u16) -> Option<&EventAction> {
+    pub fn primary_action(&self, event_id: u16) -> Option<&GameEvent> {
         self.events.get(&event_id)?.iter().find(|a| matches!(a,
-            EventAction::SpeakInHouse { .. } | EventAction::MoveToMap { .. }
+            GameEvent::SpeakInHouse { .. } | GameEvent::MoveToMap { .. }
         ))
     }
 }
