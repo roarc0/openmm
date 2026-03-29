@@ -134,7 +134,6 @@ fn grab_cursor(cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>
 /// Process one event per frame from the EventQueue.
 fn process_events(
     mut event_queue: ResMut<EventQueue>,
-    view: Res<HudView>,
     map_events: Option<Res<MapEvents>>,
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
@@ -146,7 +145,7 @@ fn process_events(
     mut game_state: ResMut<NextState<GameState>>,
 ) {
     // Don't process events while a UI overlay is blocking
-    if !matches!(*view, HudView::World) {
+    if !matches!(*hud_view, HudView::World) {
         return;
     }
 
