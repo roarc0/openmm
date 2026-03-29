@@ -23,6 +23,7 @@ fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, 
 /// Face attribute flags.
 const FACE_ATTR_PORTAL: u32 = 0x00000001;
 
+const FACE_ATTR_CLICKABLE: u32 = 0x02000000;
 const FACE_ATTR_INVISIBLE: u32 = 0x00002000;
 
 /// MM6 decoration name size (28 bytes, vs 32 in MM7).
@@ -91,6 +92,8 @@ pub struct BlvFace {
     pub texture_us: Vec<i16>,
     /// Texture V coordinates per vertex.
     pub texture_vs: Vec<i16>,
+    /// Event ID from face extras (links to EVT script). Zero = no event.
+    pub event_id: u16,
 }
 
 impl BlvFace {
@@ -100,6 +103,10 @@ impl BlvFace {
 
     pub fn is_invisible(&self) -> bool {
         (self.attributes & FACE_ATTR_INVISIBLE) != 0
+    }
+
+    pub fn is_clickable(&self) -> bool {
+        (self.attributes & FACE_ATTR_CLICKABLE) != 0
     }
 
     pub fn moves_by_door(&self) -> bool {
@@ -264,23 +271,27 @@ impl Blv {
         }
 
         // 6. Face extras: u32 count, then count x 36 bytes
-        //    sTextureDeltaU at offset 0x14, sTextureDeltaV at offset 0x16.
+        //    sTextureDeltaU at offset 0x14, sTextureDeltaV at offset 0x16, eventId at offset 0x1A.
         let face_extras_count = cursor.read_u32::<LittleEndian>()? as usize;
-        let face_extra_size = 36;
-        let mut face_extra_deltas: Vec<(i16, i16)> = Vec::with_capacity(face_extras_count);
+        let face_extra_size = 36u64;
+        let mut face_extra_data: Vec<(i16, i16, u16)> = Vec::with_capacity(face_extras_count);
         for _ in 0..face_extras_count {
             let start = cursor.position();
             cursor.seek(std::io::SeekFrom::Current(0x14))?;
             let delta_u = cursor.read_i16::<LittleEndian>()?;
             let delta_v = cursor.read_i16::<LittleEndian>()?;
-            face_extra_deltas.push((delta_u, delta_v));
-            cursor.seek(std::io::SeekFrom::Start(start + face_extra_size as u64))?;
+            // Skip cogNumber (i16) at 0x18
+            cursor.seek(std::io::SeekFrom::Current(2))?;
+            let event_id = cursor.read_u16::<LittleEndian>()?;
+            face_extra_data.push((delta_u, delta_v, event_id));
+            cursor.seek(std::io::SeekFrom::Start(start + face_extra_size))?;
         }
-        // Assign deltas to faces via face_extra_id
+        // Assign deltas and event_id to faces via face_extra_id
         for face in &mut faces {
-            if let Some(&(du, dv)) = face_extra_deltas.get(face.face_extra_id as usize) {
+            if let Some(&(du, dv, eid)) = face_extra_data.get(face.face_extra_id as usize) {
                 face.texture_delta_u = du;
                 face.texture_delta_v = dv;
+                face.event_id = eid;
             }
         }
 
@@ -457,6 +468,7 @@ impl Blv {
             vertex_ids: Vec::new(),
             texture_us: Vec::new(),
             texture_vs: Vec::new(),
+            event_id: 0,
         })
     }
 
@@ -853,5 +865,20 @@ mod tests {
                 mesh.positions.len() / 3
             );
         }
+    }
+
+    #[test]
+    fn face_extras_event_id() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
+
+        let clickable: Vec<_> = blv.faces.iter().enumerate()
+            .filter(|(_, f)| f.is_clickable() && f.event_id != 0)
+            .collect();
+        println!("d01.blv clickable faces with events: {}", clickable.len());
+        for (i, face) in clickable.iter().take(10) {
+            println!("  face[{}]: event_id={} attrs=0x{:08X}", i, face.event_id, face.attributes);
+        }
+        assert!(!clickable.is_empty(), "d01 should have clickable faces with event IDs");
     }
 }
