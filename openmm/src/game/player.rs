@@ -225,7 +225,8 @@ fn spawn_player(
             crate::bevy_config::camera_msaa(&cfg),
             Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
             Projection::Perspective(PerspectiveProjection {
-                fov: 50.0_f32.to_radians(),
+                // MM6 FOV: 75 degrees outdoor, 60 degrees indoor (from OpenEnroth)
+                fov: if is_indoor { 60.0_f32.to_radians() } else { 75.0_f32.to_radians() },
                 near: 10.0,
                 far: 100000.0,
                 ..Default::default()
