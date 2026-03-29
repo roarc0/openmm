@@ -71,6 +71,31 @@ pub struct PreparedIndoorWorld {
     pub collision_walls: Vec<crate::game::collision::CollisionWall>,
     /// Floor collision geometry extracted from BLV faces.
     pub collision_floors: Vec<crate::game::collision::CollisionTriangle>,
+    /// Door definitions from DLV.
+    pub doors: Vec<lod::blv::BlvDoor>,
+    /// Individual door face meshes for animation.
+    pub door_face_meshes: Vec<PreparedDoorFace>,
+    /// Clickable face data for indoor interaction.
+    pub clickable_faces: Vec<ClickableFaceData>,
+}
+
+/// A prepared door face mesh ready for spawning.
+pub struct PreparedDoorFace {
+    pub face_index: usize,
+    pub door_index: usize,
+    pub mesh: Mesh,
+    pub material: StandardMaterial,
+    pub texture: Option<Image>,
+    pub vertex_door_indices: Vec<usize>,
+}
+
+/// Data for a clickable indoor face.
+pub struct ClickableFaceData {
+    pub face_index: usize,
+    pub event_id: u16,
+    pub normal: Vec3,
+    pub plane_dist: f32,
+    pub vertices: Vec<Vec3>,
 }
 
 pub struct PreparedModel {
@@ -385,7 +410,87 @@ fn loading_step(
                         texture_sizes.insert(name.clone(), (img.width(), img.height()));
                     }
                 }
-                let textured = blv.textured_meshes(&texture_sizes);
+                // Load DLV to get door data
+                let dlv_result = lod::dlv::Dlv::new(
+                    game_assets.lod_manager(),
+                    &load_request.map_name.to_string(),
+                    blv.door_count,
+                    blv.doors_data_size,
+                );
+                let dlv_doors = dlv_result
+                    .as_ref()
+                    .map(|d| d.doors.clone())
+                    .unwrap_or_default();
+
+                // Exclude door faces from batched geometry
+                let door_faces = lod::blv::Blv::door_face_set(&dlv_doors);
+                let textured = blv.textured_meshes(&texture_sizes, &door_faces);
+
+                // Generate individual door face meshes
+                let door_face_meshes_raw = blv.door_face_meshes(&dlv_doors, &texture_sizes);
+                let prepared_door_faces: Vec<PreparedDoorFace> = door_face_meshes_raw
+                    .into_iter()
+                    .map(|dfm| {
+                        let mut mesh = Mesh::new(
+                            PrimitiveTopology::TriangleList,
+                            RenderAssetUsages::RENDER_WORLD,
+                        );
+                        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, dfm.positions);
+                        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, dfm.normals);
+                        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, dfm.uvs);
+                        _ = mesh.generate_tangents();
+                        let texture = game_assets.lod_manager().bitmap(&dfm.texture_name)
+                            .map(|img| {
+                                let mut image = crate::assets::dynamic_to_bevy_image(img);
+                                image.sampler = crate::assets::repeat_sampler();
+                                image
+                            });
+                        PreparedDoorFace {
+                            face_index: dfm.face_index,
+                            door_index: dfm.door_index,
+                            mesh,
+                            material: StandardMaterial {
+                                base_color: Color::WHITE,
+                                alpha_mode: AlphaMode::Opaque,
+                                cull_mode: None,
+                                double_sided: true,
+                                perceptual_roughness: 1.0,
+                                reflectance: 0.0,
+                                metallic: 0.0,
+                                ..default()
+                            },
+                            texture,
+                            vertex_door_indices: dfm.vertex_door_indices,
+                        }
+                    })
+                    .collect();
+
+                // Collect clickable faces
+                let clickable_faces: Vec<ClickableFaceData> = blv.faces.iter().enumerate()
+                    .filter(|(_, f)| f.is_clickable() && f.event_id != 0 && f.num_vertices >= 3)
+                    .filter_map(|(i, face)| {
+                        let verts: Vec<Vec3> = face.vertex_ids.iter()
+                            .filter_map(|&vid| {
+                                let v = blv.vertices.get(vid as usize)?;
+                                Some(Vec3::from(lod::odm::mm6_to_bevy(
+                                    v.x as i32, v.y as i32, v.z as i32,
+                                )))
+                            })
+                            .collect();
+                        if verts.len() < 3 { return None; }
+                        let mm6n = face.normal_f32();
+                        let normal = Vec3::new(mm6n[0], mm6n[2], -mm6n[1]);
+                        let plane_dist = normal.dot(verts[0]);
+                        Some(ClickableFaceData {
+                            face_index: i,
+                            event_id: face.event_id,
+                            normal,
+                            plane_dist,
+                            vertices: verts,
+                        })
+                    })
+                    .collect();
+
                 let models = vec![PreparedModel {
                     sub_meshes: textured.into_iter().map(|tm| {
                         let mut mesh = Mesh::new(
@@ -441,7 +546,13 @@ fn loading_step(
                 // Extract collision geometry from BLV faces
                 let (collision_walls, collision_floors) = extract_blv_collision(blv);
                 commands.insert_resource(PreparedIndoorWorld {
-                    models, start_points, collision_walls, collision_floors,
+                    models,
+                    start_points,
+                    collision_walls,
+                    collision_floors,
+                    doors: dlv_doors,
+                    door_face_meshes: prepared_door_faces,
+                    clickable_faces,
                 });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);

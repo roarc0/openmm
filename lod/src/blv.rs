@@ -201,6 +201,24 @@ pub struct BlvMapOutline {
     pub flags: u16,
 }
 
+/// A single door face mesh, ready for rendering and animation.
+pub struct BlvDoorFaceMesh {
+    /// Index into blv.faces.
+    pub face_index: usize,
+    /// Index into the doors array.
+    pub door_index: usize,
+    /// Texture name for material lookup.
+    pub texture_name: String,
+    /// Triangle vertex positions in Bevy coordinates.
+    pub positions: Vec<[f32; 3]>,
+    /// Vertex normals.
+    pub normals: Vec<[f32; 3]>,
+    /// Texture UVs.
+    pub uvs: Vec<[f32; 2]>,
+    /// For each triangle vertex, the index into door.vertex_ids (for animation).
+    pub vertex_door_indices: Vec<usize>,
+}
+
 /// A per-texture mesh extracted from a BLV map, ready for rendering.
 pub struct BlvTexturedMesh {
     pub texture_name: String,
@@ -236,7 +254,7 @@ pub enum DoorState {
 
 /// A door in a BLV indoor map.
 /// Parsed from the DLV file; metadata (door_count, doors_data_size) comes from BLV.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BlvDoor {
     pub attributes: u32,
     pub door_id: u32,
@@ -672,15 +690,138 @@ impl Blv {
         (1..n - 1).map(|i| [0, i, i + 1]).collect()
     }
 
+    /// Collect the set of face indices belonging to any door.
+    pub fn door_face_set(doors: &[BlvDoor]) -> std::collections::HashSet<usize> {
+        doors
+            .iter()
+            .flat_map(|d| d.face_ids.iter().map(|&id| id as usize))
+            .collect()
+    }
+
+    /// Generate individual meshes for each door face, with per-vertex door index tracking
+    /// for animation. Each face produces one mesh.
+    pub fn door_face_meshes(
+        &self,
+        doors: &[BlvDoor],
+        texture_sizes: &HashMap<String, (u32, u32)>,
+    ) -> Vec<BlvDoorFaceMesh> {
+        let mut result = Vec::new();
+
+        // Build reverse map: face_index -> (door_index, vertex mapping)
+        // vertex mapping: face vertex_id -> index in door.vertex_ids
+        let mut face_to_door: HashMap<usize, usize> = HashMap::new();
+        for (di, door) in doors.iter().enumerate() {
+            for &fid in &door.face_ids {
+                face_to_door.insert(fid as usize, di);
+            }
+        }
+
+        for (&face_idx, &door_index) in &face_to_door {
+            let Some(face) = self.faces.get(face_idx) else { continue };
+            if face.num_vertices < 3 || face.is_invisible() || face.is_portal() {
+                continue;
+            }
+            let tex_name = if face_idx < self.texture_names.len() {
+                &self.texture_names[face_idx]
+            } else {
+                continue;
+            };
+            if tex_name.is_empty() {
+                continue;
+            }
+
+            let (tex_w, tex_h) = texture_sizes
+                .get(tex_name)
+                .copied()
+                .unwrap_or((128, 128));
+            let tex_w_f = tex_w as f32;
+            let tex_h_f = tex_h as f32;
+
+            let mm6_normal = face.normal_f32();
+            let normal = [mm6_normal[0], mm6_normal[2], -mm6_normal[1]];
+
+            let door = &doors[door_index];
+            // Build map: blv vertex_id -> index in door.vertex_ids
+            let vert_to_door_idx: HashMap<u16, usize> = door
+                .vertex_ids
+                .iter()
+                .enumerate()
+                .map(|(i, &vid)| (vid, i))
+                .collect();
+
+            let mut mesh = BlvDoorFaceMesh {
+                face_index: face_idx,
+                door_index,
+                texture_name: tex_name.clone(),
+                positions: Vec::new(),
+                normals: Vec::new(),
+                uvs: Vec::new(),
+                vertex_door_indices: Vec::new(),
+            };
+
+            let triangles = Self::triangulate_face(face, &self.vertices);
+            for tri in &triangles {
+                for &vi in tri {
+                    // Position
+                    let vert_idx = if vi < face.vertex_ids.len() {
+                        face.vertex_ids[vi] as usize
+                    } else {
+                        0
+                    };
+                    if vert_idx < self.vertices.len() {
+                        let v = &self.vertices[vert_idx];
+                        mesh.positions.push(mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32));
+                    } else {
+                        mesh.positions.push([0.0, 0.0, 0.0]);
+                    }
+
+                    // UV
+                    let u = if vi < face.texture_us.len() {
+                        (face.texture_us[vi] as f32 + face.texture_delta_u as f32) / tex_w_f
+                    } else {
+                        0.0
+                    };
+                    let v_coord = if vi < face.texture_vs.len() {
+                        (face.texture_vs[vi] as f32 + face.texture_delta_v as f32) / tex_h_f
+                    } else {
+                        0.0
+                    };
+                    mesh.uvs.push([u, v_coord]);
+                    mesh.normals.push(normal);
+
+                    // Door vertex index mapping
+                    let face_vert_id = if vi < face.vertex_ids.len() {
+                        face.vertex_ids[vi]
+                    } else {
+                        0
+                    };
+                    let door_vi = vert_to_door_idx.get(&face_vert_id).copied().unwrap_or(0);
+                    mesh.vertex_door_indices.push(door_vi);
+                }
+            }
+
+            if !mesh.positions.is_empty() {
+                result.push(mesh);
+            }
+        }
+
+        result
+    }
+
     /// Convert visible, non-portal faces into per-texture mesh data for rendering.
     /// `texture_sizes` maps texture name -> (width, height) in pixels.
+    /// `exclude_faces` contains face indices to skip (e.g. door faces spawned separately).
     pub fn textured_meshes(
         &self,
         texture_sizes: &HashMap<String, (u32, u32)>,
+        exclude_faces: &std::collections::HashSet<usize>,
     ) -> Vec<BlvTexturedMesh> {
         let mut meshes_by_texture: HashMap<String, BlvTexturedMesh> = HashMap::new();
 
         for (face_idx, face) in self.faces.iter().enumerate() {
+            if exclude_faces.contains(&face_idx) {
+                continue;
+            }
             if face.num_vertices < 3 {
                 continue;
             }
@@ -892,7 +1033,7 @@ mod tests {
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
 
         let texture_sizes = HashMap::new();
-        let meshes = blv.textured_meshes(&texture_sizes);
+        let meshes = blv.textured_meshes(&texture_sizes, &std::collections::HashSet::new());
 
         println!("d01.blv textured meshes: {}", meshes.len());
         assert!(!meshes.is_empty(), "should produce textured meshes");

@@ -143,6 +143,7 @@ fn process_events(
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut save_data: ResMut<GameSave>,
     mut game_state: ResMut<NextState<GameState>>,
+    mut blv_doors: Option<ResMut<crate::game::blv::BlvDoors>>,
 ) {
     // Don't process events while a UI overlay is blocking
     if !matches!(*hud_view, HudView::World) {
@@ -215,7 +216,9 @@ fn process_events(
         }
         GameEvent::ChangeDoorState { door_id, action } => {
             info!("ChangeDoorState door_id={} action={}", door_id, action);
-            // Door animation will be handled in Task 6
+            if let Some(ref mut doors) = blv_doors {
+                crate::game::blv::trigger_door(doors, door_id as u32, action);
+            }
         }
     }
 }
