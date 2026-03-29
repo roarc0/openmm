@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
-use crate::assets::GameAssets;
+use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::player::{Player, PlayerCamera};
@@ -38,7 +38,7 @@ impl Plugin for InteractionPlugin {
             Update,
             interaction_input
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(HudView::Building)),
+                .run_if(|view: Res<HudView>| matches!(*view, HudView::Building | HudView::Chest)),
         );
     }
 }
@@ -101,70 +101,6 @@ fn find_nearest_building<'a>(
     nearest.map(|(info, _)| info)
 }
 
-/// Map a building type string from 2devents.txt to its background image name.
-fn building_background(building_type: &str) -> &'static str {
-    let lower = building_type.to_lowercase();
-    if lower.contains("weapon") { return "wepntabl"; }
-    if lower.contains("armor") { return "armory"; }
-    if lower.contains("magic") || lower.contains("guild") || lower.contains("alchemy") { return "magshelf"; }
-    if lower.contains("general") || lower.contains("store") { return "genshelf"; }
-    // Taverns, temples, training, houses, stables, banks, etc. use dialogue background
-    "evt02"
-}
-
-/// Resolve the interaction image from event data.
-fn resolve_image(
-    info: &BuildingInfo,
-    map_events: &Option<Res<MapEvents>>,
-    game_assets: &GameAssets,
-    images: &mut Assets<Image>,
-) -> Option<Handle<Image>> {
-    let me = map_events.as_ref()?;
-    let evt = me.evt.as_ref()?;
-
-    for &eid in &info.event_ids {
-        if let Some(actions) = evt.events.get(&eid) {
-            for action in actions {
-                let icon_name = match action {
-                    lod::evt::GameEvent::OpenChest { .. } => Some("chest01"),
-                    lod::evt::GameEvent::SpeakInHouse { house_id } => {
-                        Some(if let Some(houses) = me.houses.as_ref() {
-                            if let Some(entry) = houses.houses.get(house_id) {
-                                building_background(&entry.building_type)
-                            } else {
-                                "evt02"
-                            }
-                        } else {
-                            "evt02"
-                        })
-                    }
-                    lod::evt::GameEvent::MoveToMap { .. } => Some("evt02"),
-                    _ => None,
-                };
-                if let Some(name) = icon_name {
-                    let img = game_assets.lod_manager().icon(name)?;
-                    let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
-                    bevy_img.sampler = bevy::image::ImageSampler::nearest();
-                    return Some(images.add(bevy_img));
-                }
-            }
-        }
-    }
-    None
-}
-
-fn grab_cursor(cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>, grab: bool) {
-    if let Ok(mut cursor) = cursor_query.single_mut() {
-        if grab {
-            cursor.grab_mode = CursorGrabMode::Confined;
-            cursor.visible = false;
-        } else {
-            cursor.grab_mode = CursorGrabMode::None;
-            cursor.visible = true;
-        }
-    }
-}
-
 fn check_exit_input(keys: &ButtonInput<KeyCode>, gamepads: &Query<&Gamepad>) -> bool {
     keys.just_pressed(KeyCode::Escape)
         || keys.just_pressed(KeyCode::KeyE)
@@ -177,6 +113,7 @@ fn check_exit_input(keys: &ButtonInput<KeyCode>, gamepads: &Query<&Gamepad>) -> 
 
 // --- Systems ---
 
+/// Detect interaction input and push events from the building's EVT script to the queue.
 fn interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
@@ -185,11 +122,8 @@ fn interact_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     buildings: Query<(&BuildingInfo, &GlobalTransform)>,
     map_events: Option<Res<MapEvents>>,
-    game_assets: Res<GameAssets>,
-    mut images: ResMut<Assets<Image>>,
-    mut commands: Commands,
-    mut view: ResMut<HudView>,
-    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    mut event_queue: ResMut<EventQueue>,
+    cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
     let Ok(player_tf) = player_query.single() else { return };
     let Ok((cam_global, _)) = camera_query.single() else { return };
@@ -206,19 +140,15 @@ fn interact_system(
         return;
     };
 
-    match resolve_image(info, &map_events, &game_assets, &mut images) {
-        Some(image) => {
-            info!("Opening interaction for '{}' event_ids={:?}", info.model_name, info.event_ids);
-            commands.insert_resource(OverlayImage { image });
-            *view = HudView::Building;
-            grab_cursor(&mut cursor_query, false);
-        }
-        None => {
-            info!("No image found for '{}' event_ids={:?}", info.model_name, info.event_ids);
-        }
+    let Some(me) = map_events else { return };
+    let Some(evt) = me.evt.as_ref() else { return };
+
+    for &eid in &info.event_ids {
+        event_queue.push_all(eid, evt);
     }
 }
 
+/// Handle exit input when in Building or Chest overlay views.
 fn interaction_input(
     keys: Res<ButtonInput<KeyCode>>,
     gamepads: Query<&Gamepad>,
@@ -229,7 +159,10 @@ fn interaction_input(
     if check_exit_input(&keys, &gamepads) {
         commands.remove_resource::<OverlayImage>();
         *view = HudView::World;
-        grab_cursor(&mut cursor_query, true);
+        if let Ok(mut cursor) = cursor_query.single_mut() {
+            cursor.grab_mode = CursorGrabMode::Confined;
+            cursor.visible = false;
+        }
     }
 }
 
