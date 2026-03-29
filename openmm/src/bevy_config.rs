@@ -89,3 +89,61 @@ pub fn camera_taa(cfg: &GameConfig) -> Option<bevy::anti_alias::taa::TemporalAnt
         None
     }
 }
+
+/// Returns an optional Bloom component.
+pub fn camera_bloom(cfg: &GameConfig) -> Option<bevy::post_process::bloom::Bloom> {
+    if cfg.bloom {
+        Some(bevy::post_process::bloom::Bloom {
+            intensity: cfg.bloom_intensity,
+            ..Default::default()
+        })
+    } else {
+        None
+    }
+}
+
+/// Returns the Tonemapping component from config.
+pub fn camera_tonemapping(cfg: &GameConfig) -> bevy::core_pipeline::tonemapping::Tonemapping {
+    use bevy::core_pipeline::tonemapping::Tonemapping;
+    match cfg.tonemapping.as_str() {
+        "none" => Tonemapping::None,
+        "reinhard" => Tonemapping::Reinhard,
+        "aces" => Tonemapping::AcesFitted,
+        "blender_filmic" => Tonemapping::BlenderFilmic,
+        _ => Tonemapping::AgX,
+    }
+}
+
+/// Returns an optional SSAO component.
+pub fn camera_ssao(cfg: &GameConfig) -> Option<bevy::pbr::ScreenSpaceAmbientOcclusion> {
+    if cfg.ssao {
+        Some(bevy::pbr::ScreenSpaceAmbientOcclusion::default())
+    } else {
+        None
+    }
+}
+
+/// Returns an optional MotionBlur component.
+pub fn camera_motion_blur(cfg: &GameConfig) -> Option<bevy::post_process::motion_blur::MotionBlur> {
+    if cfg.motion_blur {
+        Some(bevy::post_process::motion_blur::MotionBlur::default())
+    } else {
+        None
+    }
+}
+
+/// Returns an optional DepthOfField component.
+pub fn camera_dof(cfg: &GameConfig) -> Option<bevy::post_process::dof::DepthOfField> {
+    if cfg.depth_of_field {
+        Some(bevy::post_process::dof::DepthOfField::default())
+    } else {
+        None
+    }
+}
+
+/// Returns an Exposure component.
+pub fn camera_exposure(cfg: &GameConfig) -> bevy::camera::Exposure {
+    bevy::camera::Exposure {
+        ev100: bevy::camera::Exposure::SUNLIGHT.ev100 + cfg.exposure,
+    }
+}

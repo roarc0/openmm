@@ -110,9 +110,41 @@ struct Cli {
     #[arg(long)]
     hud_filtering: Option<String>,
 
-    /// Anti-aliasing mode: "msaa4" (default), "msaa2", "msaa8", "taa", "fxaa", "off"
+    /// Anti-aliasing mode: "msaa4" (default), "msaa2", "msaa8", "taa", "fxaa", "smaa", "off"
     #[arg(long)]
     antialiasing: Option<String>,
+
+    /// Enable bloom glow effect
+    #[arg(long)]
+    bloom: Option<bool>,
+
+    /// Bloom intensity (0.0 - 1.0)
+    #[arg(long)]
+    bloom_intensity: Option<f32>,
+
+    /// Enable screen-space ambient occlusion
+    #[arg(long)]
+    ssao: Option<bool>,
+
+    /// Tonemapping mode: "none", "reinhard", "aces", "agx" (default), "blender_filmic"
+    #[arg(long)]
+    tonemapping: Option<String>,
+
+    /// Enable sun shadows
+    #[arg(long)]
+    shadows: Option<bool>,
+
+    /// Enable depth of field
+    #[arg(long)]
+    depth_of_field: Option<bool>,
+
+    /// Enable motion blur
+    #[arg(long)]
+    motion_blur: Option<bool>,
+
+    /// Exposure compensation (-2.0 to 2.0)
+    #[arg(long)]
+    exposure: Option<f32>,
 
     /// Path to config file
     #[arg(long, default_value = CONFIG_PATH)]
@@ -148,6 +180,14 @@ struct ConfigFile {
     capslock_toggle_mouse_look: Option<bool>,
     hud_filtering: Option<String>,
     antialiasing: Option<String>,
+    bloom: Option<bool>,
+    bloom_intensity: Option<f32>,
+    ssao: Option<bool>,
+    tonemapping: Option<String>,
+    shadows: Option<bool>,
+    depth_of_field: Option<bool>,
+    motion_blur: Option<bool>,
+    exposure: Option<f32>,
 }
 
 /// Resolved game configuration — available as a Bevy resource.
@@ -193,8 +233,24 @@ pub struct GameConfig {
     pub capslock_toggle_mouse_look: bool,
     /// HUD texture filtering mode: "nearest" (crisp pixels) or "linear" (smooth)
     pub hud_filtering: String,
-    /// Anti-aliasing: "msaa4" (default), "msaa2", "msaa8", "taa", "fxaa", "off"
+    /// Anti-aliasing: "msaa4", "msaa2", "msaa8", "taa" (default), "fxaa", "smaa", "off"
     pub antialiasing: String,
+    /// Bloom glow on bright pixels
+    pub bloom: bool,
+    /// Bloom intensity (0.0 - 1.0)
+    pub bloom_intensity: f32,
+    /// Screen-space ambient occlusion (contact shadows)
+    pub ssao: bool,
+    /// Tonemapping: "none", "reinhard", "aces", "agx", "blender_filmic"
+    pub tonemapping: String,
+    /// Sun shadow mapping
+    pub shadows: bool,
+    /// Depth of field blur
+    pub depth_of_field: bool,
+    /// Motion blur
+    pub motion_blur: bool,
+    /// Exposure compensation
+    pub exposure: f32,
 }
 
 impl Default for GameConfig {
@@ -225,7 +281,15 @@ impl Default for GameConfig {
             mouse_wheel_fly: true,
             capslock_toggle_mouse_look: true,
             hud_filtering: "nearest".into(),
-            antialiasing: "taa".into(),
+            antialiasing: "msaa4".into(),
+            bloom: true,
+            bloom_intensity: 0.15,
+            ssao: true,
+            tonemapping: "agx".into(),
+            shadows: true,
+            depth_of_field: false,
+            motion_blur: false,
+            exposure: 0.0,
         }
     }
 }
@@ -296,6 +360,14 @@ impl GameConfig {
             capslock_toggle_mouse_look: resolve!(cli.capslock_toggle_mouse_look, file_cfg.capslock_toggle_mouse_look, d.capslock_toggle_mouse_look),
             hud_filtering: resolve!(cli.hud_filtering, file_cfg.hud_filtering, d.hud_filtering),
             antialiasing: resolve!(cli.antialiasing, file_cfg.antialiasing, d.antialiasing),
+            bloom: resolve!(cli.bloom, file_cfg.bloom, d.bloom),
+            bloom_intensity: resolve!(cli.bloom_intensity, file_cfg.bloom_intensity, d.bloom_intensity),
+            ssao: resolve!(cli.ssao, file_cfg.ssao, d.ssao),
+            tonemapping: resolve!(cli.tonemapping, file_cfg.tonemapping, d.tonemapping),
+            shadows: resolve!(cli.shadows, file_cfg.shadows, d.shadows),
+            depth_of_field: resolve!(cli.depth_of_field, file_cfg.depth_of_field, d.depth_of_field),
+            motion_blur: resolve!(cli.motion_blur, file_cfg.motion_blur, d.motion_blur),
+            exposure: resolve!(cli.exposure, file_cfg.exposure, d.exposure),
         }
     }
 }

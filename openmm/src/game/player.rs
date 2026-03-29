@@ -228,6 +228,20 @@ fn spawn_player(
         if let Some(taa) = crate::bevy_config::camera_taa(&cfg) {
             cam.insert(taa);
         }
+        if let Some(bloom) = crate::bevy_config::camera_bloom(&cfg) {
+            cam.insert(bloom);
+        }
+        if let Some(ssao) = crate::bevy_config::camera_ssao(&cfg) {
+            cam.insert(ssao);
+        }
+        if let Some(motion_blur) = crate::bevy_config::camera_motion_blur(&cfg) {
+            cam.insert(motion_blur);
+        }
+        if let Some(dof) = crate::bevy_config::camera_dof(&cfg) {
+            cam.insert(dof);
+        }
+        cam.insert(crate::bevy_config::camera_tonemapping(&cfg));
+        cam.insert(crate::bevy_config::camera_exposure(&cfg));
         // Outdoor: distance fog for horizon blending. Indoor: no fog.
         if !is_indoor {
             cam.insert(DistanceFog {

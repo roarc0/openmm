@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::GameState;
+use crate::config::GameConfig;
 use crate::game::InGame;
 
 /// Full day/night cycle duration in seconds.
@@ -25,7 +26,7 @@ pub struct DayClock {
 #[derive(Component)]
 struct AmbientMarker;
 
-fn sun_setup(mut commands: Commands) {
+fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>) {
     commands.spawn((
         AmbientLight {
             color: Color::srgb(0.75, 0.75, 0.82),
@@ -43,7 +44,7 @@ fn sun_setup(mut commands: Commands) {
     commands.spawn((
         Name::new("sun"),
         DirectionalLight {
-            shadows_enabled: false,
+            shadows_enabled: cfg.shadows,
             illuminance,
             color,
             ..default()
