@@ -56,7 +56,8 @@ src/
     odm.rs             — OdmPlugin (spawns terrain/models, lazy entity spawning)
     player.rs          — PlayerPlugin (Player entity, terrain following, camera, controls)
     collision.rs       — Ground height probing, building colliders
-    interaction.rs     — InteractionPlugin (building/chest interactions via HudView)
+    interaction.rs     — InteractionPlugin (trigger-only: pushes events to queue, exit input, hover hints)
+    event_dispatch.rs  — EventDispatchPlugin, EventQueue, process_events system
     dev.rs             — DevPlugin (wireframe, FPS/position HUD, debug map switching)
     utils.rs           — Helpers (random_color)
     hud/
@@ -122,6 +123,16 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - Use `OverlayImage` resource to display a background image in the viewport inner area
 - `viewport_inner_rect()` returns the area inside all four HUD borders (for overlay positioning)
 - `viewport_rect()` returns the 3D camera viewport area (extends behind border4 on the left)
+
+### Event dispatch
+
+- `GameEvent` enum in `lod::evt` (renamed from EventAction): SpeakInHouse, MoveToMap, OpenChest, Hint
+- `EventQueue` resource — any system can push events, processed one per frame by `process_events`
+- Sub-events use `push_front()` for depth-first processing
+- UI-opening events (SpeakInHouse, OpenChest) block the queue until HudView returns to World
+- MoveToMap uses `LoadRequest` + `GameState::Loading` pipeline (same as boundary crossing and debug map switch)
+- `interaction.rs` is trigger-only — detects player interaction, pushes events to queue
+- `event_dispatch.rs` handles all event logic (image loading, view switching, map transitions)
 
 ### Player
 
