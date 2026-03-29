@@ -19,6 +19,10 @@ struct Cli {
     #[arg(long)]
     skip_intro: Option<bool>,
 
+    /// Log level: error, warn, info, debug, trace
+    #[arg(long)]
+    log_level: Option<String>,
+
     /// Enable debug HUD and tools
     #[arg(long)]
     debug: Option<bool>,
@@ -161,6 +165,7 @@ struct Cli {
 #[derive(Deserialize, Debug, Default)]
 struct ConfigFile {
     map: Option<String>,
+    log_level: Option<String>,
     skip_intro: Option<bool>,
     debug: Option<bool>,
     console: Option<bool>,
@@ -204,6 +209,8 @@ pub struct GameConfig {
     #[serde(skip)]
     pub config_path: PathBuf,
     pub map: Option<String>,
+    /// Log level: "error", "warn", "info", "debug", "trace"
+    pub log_level: String,
     pub skip_intro: bool,
     pub debug: bool,
     /// Enable developer console (Tab key)
@@ -272,6 +279,7 @@ impl Default for GameConfig {
         Self {
             config_path: PathBuf::from(CONFIG_PATH),
             map: None,
+            log_level: "info".into(),
             skip_intro: false,
             debug: false,
             console: true,
@@ -358,6 +366,7 @@ impl GameConfig {
         let resolved = GameConfig {
             config_path: config_path.clone(),
             map: cli.map.or(file_cfg.map).or(d.map),
+            log_level: resolve!(cli.log_level, file_cfg.log_level, d.log_level),
             skip_intro: resolve!(cli.skip_intro, file_cfg.skip_intro, d.skip_intro),
             debug: resolve!(cli.debug, file_cfg.debug, d.debug),
             console: resolve!(cli.console, file_cfg.console, d.console),

@@ -1,4 +1,5 @@
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use bevy::window::{PresentMode, Window, WindowMode, WindowResolution};
 
@@ -32,22 +33,33 @@ impl Plugin for BevyConfigPlugin {
 
         let resolution = WindowResolution::new(cfg.width, cfg.height);
 
-        let default_plugins = DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: APP_NAME.into(),
-                present_mode,
-                mode: window_mode,
-                resolution,
-                resize_constraints: bevy::window::WindowResizeConstraints {
-                    min_width: 640.0,
-                    min_height: 480.0,
+        // Build tracing filter: set external crates to warn, our crate to configured level.
+        // Format: "warn,openmm=info" or "warn,openmm=debug,lod=debug"
+        let log_level = cfg.log_level.to_lowercase();
+        let log_filter = format!("warn,openmm={log_level},lod={log_level}");
+
+        let default_plugins = DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: APP_NAME.into(),
+                    present_mode,
+                    mode: window_mode,
+                    resolution,
+                    resize_constraints: bevy::window::WindowResizeConstraints {
+                        min_width: 640.0,
+                        min_height: 480.0,
+                        ..default()
+                    },
+                    prevent_default_event_handling: false,
                     ..default()
-                },
-                prevent_default_event_handling: false,
+                }),
                 ..default()
-            }),
-            ..default()
-        });
+            })
+            .set(LogPlugin {
+                filter: log_filter,
+                level: bevy::log::Level::TRACE,
+                ..default()
+            });
 
         app.add_plugins((default_plugins, FrameTimeDiagnosticsPlugin::default()));
     }
