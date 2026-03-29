@@ -690,11 +690,145 @@ impl Blv {
     /// MM6 BLV faces are almost always convex (quads, pentagons, etc.), so simple
     /// fan triangulation from vertex 0 works correctly and avoids the edge cases
     /// that plague ear-clipping on near-degenerate or floating-point-sensitive polygons.
-    fn triangulate_face(face: &BlvFace, _vertices: &[BlvVertex]) -> Vec<[usize; 3]> {
+    fn triangulate_face(face: &BlvFace, vertices: &[BlvVertex]) -> Vec<[usize; 3]> {
         let n = face.num_vertices as usize;
-        if n < 3 { return vec![]; }
-        // Fan triangulation: (0,1,2), (0,2,3), (0,3,4), ...
-        (1..n - 1).map(|i| [0, i, i + 1]).collect()
+        if n < 3 {
+            return vec![];
+        }
+        if n == 3 {
+            return vec![[0, 1, 2]];
+        }
+
+        // Project 3D vertices to 2D by dropping the axis with the largest normal component.
+        let normal = face.normal_f32();
+        let abs_n = [normal[0].abs(), normal[1].abs(), normal[2].abs()];
+        // Choose which two axes to keep (drop the dominant one).
+        let (ax_u, ax_v) = if abs_n[0] >= abs_n[1] && abs_n[0] >= abs_n[2] {
+            (1, 2) // drop X
+        } else if abs_n[1] >= abs_n[0] && abs_n[1] >= abs_n[2] {
+            (0, 2) // drop Y
+        } else {
+            (0, 1) // drop Z
+        };
+
+        let coords_3d = |idx: usize| -> [f32; 3] {
+            let vid = face.vertex_ids[idx] as usize;
+            let v = &vertices[vid];
+            [v.x as f32, v.y as f32, v.z as f32]
+        };
+        let project = |idx: usize| -> [f32; 2] {
+            let c = coords_3d(idx);
+            [c[ax_u], c[ax_v]]
+        };
+
+        let pts: Vec<[f32; 2]> = (0..n).map(|i| project(i)).collect();
+
+        // Compute signed area to determine winding.
+        let signed_area: f32 = (0..n)
+            .map(|i| {
+                let j = (i + 1) % n;
+                pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1]
+            })
+            .sum();
+
+        // If area is essentially zero, fall back to fan.
+        if signed_area.abs() < 1e-6 {
+            return (1..n - 1).map(|i| [0, i, i + 1]).collect();
+        }
+
+        // For CCW winding (positive area), a convex ear has positive cross product.
+        // For CW winding (negative area), a convex ear has negative cross product.
+        // We want the cross product sign to match the sign of signed_area.
+        let winding_sign = signed_area.signum();
+
+        fn cross_2d(o: [f32; 2], a: [f32; 2], b: [f32; 2]) -> f32 {
+            (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+        }
+
+        fn point_in_triangle(p: [f32; 2], a: [f32; 2], b: [f32; 2], c: [f32; 2]) -> bool {
+            let d1 = cross_2d(p, a, b);
+            let d2 = cross_2d(p, b, c);
+            let d3 = cross_2d(p, c, a);
+            let has_neg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);
+            let has_pos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);
+            !(has_neg && has_pos)
+        }
+
+        let mut indices: Vec<usize> = (0..n).collect();
+        let mut triangles: Vec<[usize; 3]> = Vec::with_capacity(n - 2);
+        let mut fail_count = 0;
+
+        while indices.len() > 3 {
+            let len = indices.len();
+            let mut ear_found = false;
+
+            for i in 0..len {
+                let prev = indices[(i + len - 1) % len];
+                let curr = indices[i];
+                let next = indices[(i + 1) % len];
+
+                let cross = cross_2d(pts[prev], pts[curr], pts[next]);
+
+                // Check convexity: cross product sign must match winding.
+                if cross * winding_sign <= 0.0 {
+                    continue;
+                }
+
+                // Check no other vertex is inside this triangle.
+                let mut contains_point = false;
+                for j in 0..len {
+                    let idx = indices[j];
+                    if idx == prev || idx == curr || idx == next {
+                        continue;
+                    }
+                    if point_in_triangle(pts[idx], pts[prev], pts[curr], pts[next]) {
+                        contains_point = true;
+                        break;
+                    }
+                }
+
+                if !contains_point {
+                    triangles.push([prev, curr, next]);
+                    indices.remove(i);
+                    ear_found = true;
+                    break;
+                }
+            }
+
+            if !ear_found {
+                fail_count += 1;
+                if fail_count > indices.len() {
+                    // Degenerate polygon — fall back to fan triangulation.
+                    return (1..n - 1).map(|i| [0, i, i + 1]).collect();
+                }
+                // Try removing the vertex with the smallest absolute cross product
+                // to make progress on near-degenerate polygons.
+                let len = indices.len();
+                let mut best = 0;
+                let mut best_abs = f32::MAX;
+                for i in 0..len {
+                    let prev = indices[(i + len - 1) % len];
+                    let curr = indices[i];
+                    let next = indices[(i + 1) % len];
+                    let abs_cross = cross_2d(pts[prev], pts[curr], pts[next]).abs();
+                    if abs_cross < best_abs {
+                        best_abs = abs_cross;
+                        best = i;
+                    }
+                }
+                let prev = indices[(best + len - 1) % len];
+                let curr = indices[best];
+                let next = indices[(best + 1) % len];
+                triangles.push([prev, curr, next]);
+                indices.remove(best);
+            }
+        }
+
+        if indices.len() == 3 {
+            triangles.push([indices[0], indices[1], indices[2]]);
+        }
+
+        triangles
     }
 
     /// Collect the set of face indices belonging to any door.
