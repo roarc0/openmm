@@ -75,7 +75,7 @@ impl Dlv {
         // 2. visibleOutlines (875 bytes)
         offset += 875;
 
-        // 3. faceAttributes: NO count prefix, face_count x u32 (presized from BLV)
+        // 3. faceAttributes: presized (NO count prefix), face_count x u32
         offset += face_count * 4;
 
         // 4. decorationFlags: NO count prefix, decoration_count x u16 (presized from BLV)
