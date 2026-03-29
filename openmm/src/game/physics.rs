@@ -3,10 +3,10 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::collision::{
     BuildingColliders, CollisionTriangle, CollisionWall, TerrainHeightMap, WaterMap, WaterWalking,
-    ground_height_at, sample_terrain_height,
+    sample_terrain_height,
 };
 use crate::game::player::{FlyMode, Player, PlayerPhysics, PlayerSettings};
-use crate::states::loading::PreparedWorld;
+use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
 pub struct PhysicsPlugin;
 
@@ -23,7 +23,20 @@ impl Plugin for PhysicsPlugin {
 }
 
 /// Build collision resources from the loaded map data.
-fn setup_collision_data(mut commands: Commands, prepared: Option<Res<PreparedWorld>>) {
+fn setup_collision_data(
+    mut commands: Commands,
+    prepared: Option<Res<PreparedWorld>>,
+    indoor: Option<Res<PreparedIndoorWorld>>,
+) {
+    if let Some(indoor) = &indoor {
+        // Indoor map: collision from pre-extracted BLV faces
+        commands.insert_resource(BuildingColliders {
+            walls: indoor.collision_walls.clone(),
+            floors: indoor.collision_floors.clone(),
+        });
+        return;
+    }
+
     let Some(prepared) = &prepared else {
         return;
     };
@@ -49,7 +62,6 @@ fn setup_collision_data(mut commands: Commands, prepared: Option<Res<PreparedWor
             let is_floor = ny > 0.5;
             let is_wall = ny.abs() < 0.7;
 
-            // Collect face vertices in Bevy coords
             let vert_count = face.vertices_count as usize;
             let verts: Vec<Vec3> = (0..vert_count)
                 .filter_map(|i| {
@@ -65,13 +77,11 @@ fn setup_collision_data(mut commands: Commands, prepared: Option<Res<PreparedWor
                 continue;
             }
 
-            // Walls: store as plane + polygon (no triangulation needed)
             if is_wall {
                 let plane_dist = normal.dot(verts[0]);
                 walls.push(CollisionWall::new(normal, plane_dist, &verts));
             }
 
-            // Floors: triangulate for height sampling (needs barycentric interpolation)
             if is_floor {
                 for i in 0..verts.len().saturating_sub(2) {
                     floors.push(CollisionTriangle::new(
@@ -83,7 +93,7 @@ fn setup_collision_data(mut commands: Commands, prepared: Option<Res<PreparedWor
     }
     commands.insert_resource(BuildingColliders { walls, floors });
 
-    // Water map
+    // Water map (outdoor only)
     commands.insert_resource(WaterMap {
         cells: prepared.water_cells.clone(),
     });
@@ -99,6 +109,21 @@ const SLOPE_SLIDE_SPEED: f32 = 4000.0;
 const SLOPE_SAMPLE_DIST: f32 = 32.0;
 
 /// Apply gravity, ground clamping, slope sliding, and fly mode vertical behavior.
+/// Compute effective ground height from terrain heightmap and/or BSP floor colliders.
+fn effective_ground_y(
+    height_map: Option<&TerrainHeightMap>,
+    colliders: Option<&BuildingColliders>,
+    x: f32, z: f32, feet_y: f32,
+) -> f32 {
+    let terrain_h = height_map
+        .map(|hm| sample_terrain_height(&hm.heights, x, z))
+        .unwrap_or(f32::MIN);
+    let floor_h = colliders
+        .and_then(|c| c.floor_height_at(x, z, feet_y))
+        .unwrap_or(f32::MIN);
+    terrain_h.max(floor_h)
+}
+
 fn gravity_system(
     time: Res<Time>,
     height_map: Option<Res<TerrainHeightMap>>,
@@ -107,16 +132,17 @@ fn gravity_system(
     fly_mode: Res<FlyMode>,
     mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
 ) {
-    let Some(height_map) = height_map else {
+    // Need at least one ground source
+    if height_map.is_none() && colliders.is_none() {
         return;
-    };
+    }
 
     let dt = time.delta_secs();
 
     for (mut transform, mut physics) in query.iter_mut() {
         let feet_y = transform.translation.y - settings.eye_height;
-        let ground_y = ground_height_at(
-            &height_map.heights,
+        let ground_y = effective_ground_y(
+            height_map.as_deref(),
             colliders.as_deref(),
             transform.translation.x,
             transform.translation.z,
@@ -145,26 +171,26 @@ fn gravity_system(
                 physics.on_ground = false;
             }
 
-            // Slope sliding: when on the ground on steep terrain, push downhill.
+            // Slope sliding: only on outdoor terrain
             if physics.on_ground {
-                let px = transform.translation.x;
-                let pz = transform.translation.z;
-                // Sample terrain gradient using central differences
-                let h_xp = sample_terrain_height(&height_map.heights, px + SLOPE_SAMPLE_DIST, pz);
-                let h_xn = sample_terrain_height(&height_map.heights, px - SLOPE_SAMPLE_DIST, pz);
-                let h_zp = sample_terrain_height(&height_map.heights, px, pz + SLOPE_SAMPLE_DIST);
-                let h_zn = sample_terrain_height(&height_map.heights, px, pz - SLOPE_SAMPLE_DIST);
+                if let Some(ref hm) = height_map {
+                    let px = transform.translation.x;
+                    let pz = transform.translation.z;
+                    let h_xp = sample_terrain_height(&hm.heights, px + SLOPE_SAMPLE_DIST, pz);
+                    let h_xn = sample_terrain_height(&hm.heights, px - SLOPE_SAMPLE_DIST, pz);
+                    let h_zp = sample_terrain_height(&hm.heights, px, pz + SLOPE_SAMPLE_DIST);
+                    let h_zn = sample_terrain_height(&hm.heights, px, pz - SLOPE_SAMPLE_DIST);
 
-                let grad_x = (h_xp - h_xn) / (2.0 * SLOPE_SAMPLE_DIST);
-                let grad_z = (h_zp - h_zn) / (2.0 * SLOPE_SAMPLE_DIST);
-                let slope = (grad_x * grad_x + grad_z * grad_z).sqrt();
+                    let grad_x = (h_xp - h_xn) / (2.0 * SLOPE_SAMPLE_DIST);
+                    let grad_z = (h_zp - h_zn) / (2.0 * SLOPE_SAMPLE_DIST);
+                    let slope = (grad_x * grad_x + grad_z * grad_z).sqrt();
 
-                if slope > MAX_SLOPE_ANGLE.tan() {
-                    // Push downhill (opposite to gradient = uphill direction)
-                    let slide_strength = (slope - MAX_SLOPE_ANGLE.tan()) * SLOPE_SLIDE_SPEED * dt;
-                    let grad_len = slope.max(0.001);
-                    transform.translation.x -= (grad_x / grad_len) * slide_strength;
-                    transform.translation.z -= (grad_z / grad_len) * slide_strength;
+                    if slope > MAX_SLOPE_ANGLE.tan() {
+                        let slide_strength = (slope - MAX_SLOPE_ANGLE.tan()) * SLOPE_SLIDE_SPEED * dt;
+                        let grad_len = slope.max(0.001);
+                        transform.translation.x -= (grad_x / grad_len) * slide_strength;
+                        transform.translation.z -= (grad_z / grad_len) * slide_strength;
+                    }
                 }
             }
         }

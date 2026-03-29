@@ -44,6 +44,7 @@ impl CollisionTriangle {
 
 /// A wall face for plane-based collision. Stores the face plane (outward normal
 /// + distance) and the polygon vertices projected to XZ for containment testing.
+#[derive(Clone)]
 pub struct CollisionWall {
     /// Outward-facing normal (in Bevy coords).
     pub normal: Vec3,

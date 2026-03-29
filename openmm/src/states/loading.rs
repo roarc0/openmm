@@ -67,6 +67,10 @@ struct LoadingProgress {
 pub struct PreparedIndoorWorld {
     pub models: Vec<PreparedModel>,
     pub start_points: Vec<StartPoint>,
+    /// Wall collision geometry extracted from BLV faces.
+    pub collision_walls: Vec<crate::game::collision::CollisionWall>,
+    /// Floor collision geometry extracted from BLV faces.
+    pub collision_floors: Vec<crate::game::collision::CollisionTriangle>,
 }
 
 pub struct PreparedModel {
@@ -434,7 +438,11 @@ fn loading_step(
                     position: spawn_pos,
                     yaw: 0.0,
                 }];
-                commands.insert_resource(PreparedIndoorWorld { models, start_points });
+                // Extract collision geometry from BLV faces
+                let (collision_walls, collision_floors) = extract_blv_collision(blv);
+                commands.insert_resource(PreparedIndoorWorld {
+                    models, start_points, collision_walls, collision_floors,
+                });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);
                 return;
@@ -682,5 +690,54 @@ fn loading_step(
             }
         }
     }
+}
+
+/// Extract collision walls and floors from BLV face geometry.
+/// Uses the same CollisionWall/CollisionTriangle types as ODM BSP buildings.
+fn extract_blv_collision(blv: &Blv) -> (Vec<crate::game::collision::CollisionWall>, Vec<crate::game::collision::CollisionTriangle>) {
+    use crate::game::collision::{CollisionTriangle, CollisionWall};
+    use lod::odm::mm6_to_bevy;
+
+    let mut walls = Vec::new();
+    let mut floors = Vec::new();
+
+    for face in &blv.faces {
+        if face.num_vertices < 3 || face.is_invisible() || face.is_portal() {
+            continue;
+        }
+
+        // Face normal: MM6 fixed-point (x,y,z) → Bevy float (x,z,-y)
+        let mm6n = face.normal_f32();
+        let normal = Vec3::new(mm6n[0], mm6n[2], -mm6n[1]);
+
+        let is_floor = normal.y > 0.5;
+        let is_wall = normal.y.abs() < 0.7;
+
+        // Collect vertices in Bevy coords
+        let verts: Vec<Vec3> = face.vertex_ids.iter()
+            .filter_map(|&vid| {
+                let v = blv.vertices.get(vid as usize)?;
+                Some(Vec3::from(mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+            })
+            .collect();
+        if verts.len() < 3 {
+            continue;
+        }
+
+        if is_wall {
+            let plane_dist = normal.dot(verts[0]);
+            walls.push(CollisionWall::new(normal, plane_dist, &verts));
+        }
+
+        if is_floor {
+            for i in 0..verts.len().saturating_sub(2) {
+                floors.push(CollisionTriangle::new(
+                    verts[0], verts[i + 1], verts[i + 2], normal,
+                ));
+            }
+        }
+    }
+
+    (walls, floors)
 }
 
