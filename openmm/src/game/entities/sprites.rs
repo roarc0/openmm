@@ -112,6 +112,16 @@ pub fn load_entity_sprites(
     let qw = sw.max(ww);
     let qh = sh.max(wh);
 
+    // If standing is larger than walking, reload walking padded to match
+    let walking = if !walking.is_empty() && (sw > ww || sh > wh) {
+        let (padded, _, _) = load_sprite_frames(
+            walking_root, lod_manager, images, materials, cache, variant,
+            qw as u32, qh as u32);
+        padded
+    } else {
+        walking
+    };
+
     let mut states = vec![standing];
     if !walking.is_empty() {
         states.push(walking);

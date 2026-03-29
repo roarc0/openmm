@@ -205,6 +205,7 @@ fn spawn_world(
     game_assets: Res<GameAssets>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
+    current_map: Res<crate::game::debug::CurrentMapName>,
     existing_music: Query<Entity, With<MapMusic>>,
 ) {
     let Some(prepared) = prepared else {
@@ -288,8 +289,8 @@ fn spawn_world(
             }
         }).id();
 
-    // Resolve monsters from spawn points (cheap — no sprite loading)
-    let resolved_monsters = resolve_monsters(&prepared, &game_assets, &save_data);
+    // Resolve monsters from spawn points using current map (not save_data which may lag)
+    let resolved_monsters = resolve_monsters(&prepared, &game_assets, &current_map.0);
 
     // Build NPC sprite lookup from monlist — each DDM actor has a monlist_id
     // that maps to a monlist entry with specific sprite names.
@@ -357,13 +358,13 @@ fn spawn_world(
 fn resolve_monsters(
     prepared: &PreparedWorld,
     game_assets: &GameAssets,
-    save_data: &crate::save::GameSave,
+    map_name: &crate::game::map_name::MapName,
 ) -> Vec<crate::states::loading::PreparedMonster> {
     let mut monsters = Vec::new();
     let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) else { return monsters };
     let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else { return monsters };
 
-    let map_config = mapstats.get(&OdmName { x: save_data.map.map_x, y: save_data.map.map_y }.to_string());
+    let map_config = mapstats.get(&map_name.to_string());
     let Some(cfg) = map_config else { return monsters };
 
     for sp in &prepared.map.spawn_points {
