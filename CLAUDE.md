@@ -11,7 +11,7 @@ Open-source reimplementation of the Might and Magic VI engine in Rust. Targeting
 - Player entity with terrain-following movement and first-person camera
 - Loading screen with step-based map loader and sprite preloading
 - Splash screen and menu scaffolding
-- Debug map switching between outdoor zones (H/J/K/L keys)
+- Developer console (Tab key) with commands: load, msaa, fullscreen, borderless, windowed, exit
 - Seamless map boundary transitions between adjacent outdoor zones
 
 ## Goal
@@ -113,7 +113,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 - `Splash` -> `Menu` -> `Loading` -> `Game`
 - Loading state runs a step-based pipeline: ParseMap -> BuildTerrain -> BuildAtlas -> BuildModels -> BuildBillboards -> PreloadSprites -> Done
-- Map switching (dev H/J/K/L or boundary crossing) transitions Game -> Loading -> Game
+- Map switching (console `load` command or boundary crossing) transitions Game -> Loading -> Game
 
 ### HUD views
 

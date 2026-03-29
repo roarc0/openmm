@@ -15,7 +15,6 @@ use crate::game::InGame;
 use crate::game::map_name::MapName;
 use crate::game::player::Player;
 use crate::save::{GameSave, MapState, PlayerState};
-use crate::states::loading::LoadRequest;
 
 #[derive(Resource)]
 struct DebugConfig {
@@ -180,7 +179,7 @@ fn debug_setup(
 
 /// Marker for the debug HUD container.
 #[derive(Component)]
-struct DebugHud;
+pub struct DebugHud;
 
 fn debug_input(
     keys: Res<ButtonInput<KeyCode>>,
@@ -238,40 +237,6 @@ fn draw_play_area(config: Res<DebugConfig>, mut gizmos: Gizmos) {
         Vec3::new(-half, y, half),
         Color::srgb(1.0, 0.0, 1.0),
     );
-}
-
-/// Debug map switching with H/J/K/L keys.
-fn debug_change_map(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut current_map: ResMut<CurrentMapName>,
-    mut commands: Commands,
-    mut game_state: ResMut<NextState<GameState>>,
-) {
-    let MapName::Outdoor(ref odm) = current_map.0 else {
-        return;
-    };
-
-    let new_odm = if keys.just_pressed(KeyCode::KeyJ) {
-        odm.go_north()
-    } else if keys.just_pressed(KeyCode::KeyH) {
-        odm.go_west()
-    } else if keys.just_pressed(KeyCode::KeyK) {
-        odm.go_south()
-    } else if keys.just_pressed(KeyCode::KeyL) {
-        odm.go_east()
-    } else {
-        None
-    };
-
-    if let Some(new_odm) = new_odm {
-        let new_map = MapName::Outdoor(new_odm);
-        info!("Dev: changing map to {}", &new_map);
-        commands.insert_resource(LoadRequest {
-            map_name: new_map.clone(),
-        });
-        current_map.0 = new_map;
-        game_state.set(GameState::Loading);
-    }
 }
 
 /// FPS history for chart and percentile calculations.
@@ -574,7 +539,6 @@ impl Plugin for DebugPlugin {
                 (
                     debug_input,
                     update_hud_text,
-                    debug_change_map,
                     debug_log,
                     quicksave,
                     draw_play_area,
