@@ -19,12 +19,14 @@ use crate::save::{GameSave, MapState, PlayerState};
 #[derive(Resource)]
 pub struct DebugConfig {
     pub show_play_area: bool,
+    pub show_events: bool,
 }
 
 impl Default for DebugConfig {
     fn default() -> Self {
         Self {
             show_play_area: true,
+            show_events: true,
         }
     }
 }
@@ -227,6 +229,55 @@ fn draw_play_area(config: Res<DebugConfig>, mut gizmos: Gizmos) {
         Vec3::new(-half, y, half),
         Color::srgb(1.0, 0.0, 1.0),
     );
+}
+
+/// Draw wireframe outlines for clickable/interactive faces and buildings.
+fn draw_events(
+    config: Res<DebugConfig>,
+    mut gizmos: Gizmos,
+    clickable_faces: Option<Res<crate::game::blv::ClickableFaces>>,
+    buildings: Query<(&crate::game::interaction::BuildingInfo, &GlobalTransform)>,
+) {
+    if !config.show_events {
+        return;
+    }
+
+    // Indoor: draw clickable face outlines
+    if let Some(ref faces) = clickable_faces {
+        for face in &faces.faces {
+            if face.vertices.len() < 2 {
+                continue;
+            }
+            // Color by event type: yellow for generic, cyan for doors
+            let color = Color::srgba(1.0, 1.0, 0.0, 0.6);
+            // Draw face outline
+            for i in 0..face.vertices.len() {
+                let a = face.vertices[i];
+                let b = face.vertices[(i + 1) % face.vertices.len()];
+                gizmos.line(a, b, color);
+            }
+            // Draw event_id label at face center
+            let center: Vec3 = face.vertices.iter().copied().sum::<Vec3>() / face.vertices.len() as f32;
+            // Small cross at center
+            let s = 5.0;
+            gizmos.line(center - Vec3::X * s, center + Vec3::X * s, color);
+            gizmos.line(center - Vec3::Y * s, center + Vec3::Y * s, color);
+        }
+    }
+
+    // Outdoor: draw building interaction zones
+    for (info, _gt) in buildings.iter() {
+        let pos = info.position;
+        let color = Color::srgba(0.0, 1.0, 1.0, 0.6);
+        // Draw a diamond at the interaction point
+        let s = 50.0;
+        gizmos.line(pos + Vec3::X * s, pos + Vec3::Z * s, color);
+        gizmos.line(pos + Vec3::Z * s, pos - Vec3::X * s, color);
+        gizmos.line(pos - Vec3::X * s, pos - Vec3::Z * s, color);
+        gizmos.line(pos - Vec3::Z * s, pos + Vec3::X * s, color);
+        // Vertical line to make it visible
+        gizmos.line(pos, pos + Vec3::Y * 100.0, color);
+    }
 }
 
 /// FPS history for chart and percentile calculations.
@@ -531,6 +582,7 @@ impl Plugin for DebugPlugin {
                     debug_log,
                     quicksave,
                     draw_play_area,
+                    draw_events,
                     debug_screenshot,
                 )
                     .run_if(in_state(GameState::Game)),
