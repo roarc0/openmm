@@ -94,8 +94,12 @@ fn spawn_indoor_world(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    game_assets: Res<crate::assets::GameAssets>,
 ) {
     let Some(prepared) = prepared else { return };
+
+    // Load EVT events for this indoor map
+    crate::game::events::load_map_events(&mut commands, &game_assets, &prepared.map_base);
 
     // Spawn all static face meshes (grouped by texture)
     for model in &prepared.models {
@@ -332,9 +336,21 @@ fn indoor_interact_system(
         }
     }
 
-    if let Some((_, event_id)) = nearest_hit {
-        let Some(me) = map_events else { return };
-        let Some(evt) = me.evt.as_ref() else { return };
+    if let Some((dist, event_id)) = nearest_hit {
+        info!("Indoor interact: hit face event_id={} at dist={:.0}", event_id, dist);
+        let Some(me) = map_events else {
+            warn!("Indoor interact: no MapEvents resource");
+            return;
+        };
+        let Some(evt) = me.evt.as_ref() else {
+            warn!("Indoor interact: no EVT file loaded");
+            return;
+        };
+        if let Some(actions) = evt.events.get(&event_id) {
+            info!("Indoor interact: dispatching {} actions for event_id={}", actions.len(), event_id);
+        } else {
+            info!("Indoor interact: no actions found for event_id={}", event_id);
+        }
         event_queue.push_all(event_id, evt);
     }
 }

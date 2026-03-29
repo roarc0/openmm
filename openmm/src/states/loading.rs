@@ -77,6 +77,8 @@ pub struct PreparedIndoorWorld {
     pub door_face_meshes: Vec<PreparedDoorFace>,
     /// Clickable face data for indoor interaction.
     pub clickable_faces: Vec<ClickableFaceData>,
+    /// Map base name for EVT loading (e.g. "d01").
+    pub map_base: String,
 }
 
 /// A prepared door face mesh ready for spawning.
@@ -545,6 +547,10 @@ fn loading_step(
                 }];
                 // Extract collision geometry from BLV faces
                 let (collision_walls, collision_floors) = extract_blv_collision(blv);
+                let map_base = match &load_request.map_name {
+                    crate::game::map_name::MapName::Indoor(name) => name.clone(),
+                    _ => load_request.map_name.to_string().replace(".blv", ""),
+                };
                 commands.insert_resource(PreparedIndoorWorld {
                     models,
                     start_points,
@@ -553,6 +559,7 @@ fn loading_step(
                     doors: dlv_doors,
                     door_face_meshes: prepared_door_faces,
                     clickable_faces,
+                    map_base,
                 });
                 commands.remove_resource::<LoadingProgress>();
                 game_state.set(GameState::Game);
