@@ -11,6 +11,8 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use lod::blv::DoorState;
 use lod::odm::mm6_to_bevy;
 
+use crate::assets::GameAssets;
+use crate::game::entities::{actor, sprites};
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::HudView;
@@ -193,6 +195,67 @@ fn spawn_indoor_world(
         },
         InGame,
     ));
+
+    // Spawn NPC actors from DLV data
+    let npc_sprite_table = crate::game::odm::build_npc_sprite_table(&game_assets);
+    let mut sprite_cache = sprites::SpriteCache::default();
+
+    for a in &prepared.actors {
+        if a.hp <= 0 { continue; }
+
+        let Some((s, w, pal_id)) = npc_sprite_table.get(&a.monlist_id) else {
+            info!("Indoor NPC '{}' monlist_id={} has no sprite in table — skipping", a.name, a.monlist_id);
+            continue;
+        };
+        // Compute palette variant
+        let base_pal = npc_sprite_table.values()
+            .filter(|(ss, _, _)| ss == s)
+            .map(|(_, _, p)| *p)
+            .min()
+            .unwrap_or(*pal_id);
+        let variant = (pal_id - base_pal + 1).min(3) as u8;
+
+        let (states, sw, sh) = sprites::load_entity_sprites(
+            s, w, game_assets.lod_manager(),
+            &mut images, &mut materials, &mut Some(&mut sprite_cache), variant,
+        );
+        if states.is_empty() || states[0].is_empty() {
+            error!("Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, s, w);
+            continue;
+        }
+        let initial_mat = states[0][0][0].clone();
+        let quad = meshes.add(Rectangle::new(sw, sh));
+        // Indoor actors use MM6 coordinates directly (no heightmap probing)
+        let [bx, by, bz] = mm6_to_bevy(a.position[0] as i32, a.position[1] as i32, a.position[2] as i32);
+        let pos = Vec3::new(bx, by + sh / 2.0, bz);
+
+        commands.spawn((
+            Name::new(format!("npc:{}", a.name)),
+            Mesh3d(quad),
+            MeshMaterial3d(initial_mat),
+            Transform::from_translation(pos),
+            crate::game::entities::WorldEntity,
+            crate::game::entities::EntityKind::Npc,
+            crate::game::entities::AnimationState::Idle,
+            sprites::SpriteSheet::new(states, vec![(sw, sh)]),
+            actor::Actor {
+                name: a.name.clone(),
+                hp: a.hp,
+                max_hp: a.hp,
+                move_speed: a.move_speed as f32,
+                initial_position: pos,
+                guarding_position: pos,
+                tether_distance: a.tether_distance as f32,
+                wander_timer: 0.0,
+                wander_target: pos,
+                facing_yaw: 0.0,
+                hostile: false,
+            },
+            crate::game::entities::Billboard,
+            InGame,
+        ));
+        info!("Spawned indoor NPC '{}' at {:?}", a.name, pos);
+    }
 }
 
 // --- Indoor face interaction ---

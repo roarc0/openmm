@@ -81,6 +81,8 @@ pub struct PreparedIndoorWorld {
     pub clickable_faces: Vec<ClickableFaceData>,
     /// Map base name for EVT loading (e.g. "d01").
     pub map_base: String,
+    /// Actors (NPCs) from DLV file.
+    pub actors: Vec<lod::ddm::DdmActor>,
 }
 
 /// A prepared door face mesh ready for spawning.
@@ -426,6 +428,10 @@ fn loading_step(
                     blv.door_count,
                     blv.doors_data_size,
                 );
+                let dlv_actors = dlv_result
+                    .as_ref()
+                    .map(|d| d.actors.clone())
+                    .unwrap_or_default();
                 let dlv_doors = dlv_result
                     .as_ref()
                     .map(|d| d.doors.clone())
@@ -568,6 +574,7 @@ fn loading_step(
                     door_face_meshes: prepared_door_faces,
                     clickable_faces,
                     map_base,
+                    actors: dlv_actors,
                 });
                 commands.remove_resource::<LoadingProgress>();
                 commands.remove_resource::<LoadRequest>();

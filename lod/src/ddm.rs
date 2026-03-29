@@ -20,7 +20,7 @@ const ACTOR_SIZE_MM6: usize = 548;
 ///   0xA0: AIState, 0xA2: GraphicState, 0xA4: Item,
 ///   0xA8: CurrentActionStep, 0xAC: Frames[8], 0xBC: Sounds[4],
 ///   0xC4: SpellBuffs[14], ...
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DdmActor {
     pub name: String,
     /// Index into dmonlist.bin (MonsterList). Contains both NPCs and monsters.

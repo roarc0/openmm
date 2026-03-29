@@ -441,7 +441,7 @@ fn resolve_monsters(
 /// Resolves monlist sprite group names through the DSFT to get actual sprite file
 /// names and palette IDs. The DSFT is the authoritative mapping from monlist names
 /// to LOD sprite files.
-fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, (String, String, u16)> {
+pub fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, (String, String, u16)> {
     let mut table = std::collections::HashMap::new();
     let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else {
         return table;
@@ -614,9 +614,6 @@ fn lazy_spawn(
         p.idx += 1;
         let a = &prepared.actors[i];
         if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
-        // Skip placeholder "Peasant" actors from pristine DDM — the real monsters
-        // come from mapstats spawn points resolved by resolve_monsters().
-        if a.name == "Peasant" { continue; }
 
         let Some((s, w, pal_id)) = p.npc_sprite_table.get(&a.monlist_id) else {
             error!("NPC '{}' monster_id={} has no sprite in DSFT table — skipping", a.name, a.monlist_id);
