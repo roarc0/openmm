@@ -205,7 +205,7 @@ fn spawn_world(
 
     // Load event data for this outdoor map
     let map_base = format!("out{}{}", save_data.map.map_x, save_data.map.map_y);
-    crate::game::events::load_map_events(&mut commands, &game_assets, &map_base);
+    crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, false);
 
     let mut terrain_texture = prepared.terrain_texture.clone();
     let terrain_mesh = prepared.terrain_mesh.clone();

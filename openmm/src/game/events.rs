@@ -13,7 +13,8 @@ pub struct MapEvents {
 
 /// Load event data for a map and insert the MapEvents resource.
 /// `map_base` is the map filename stem without extension, e.g. "oute3" or "d01".
-pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_base: &str) {
+/// `indoor` controls whether to skip loading 2devents.txt (only relevant for outdoor maps).
+pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_base: &str, indoor: bool) {
     let evt = match lod::evt::EvtFile::parse(game_assets.lod_manager(), map_base) {
         Ok(e) => {
             info!("Loaded {}.evt: {} events", map_base, e.events.len());
@@ -24,20 +25,24 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
             None
         }
     };
-    let houses = match lod::twodevents::TwoDEvents::parse(game_assets.lod_manager()) {
-        Ok(h) => {
-            info!("Loaded 2devents.txt: {} houses", h.houses.len());
-            Some(h)
-        }
-        Err(e) => {
-            warn!("Failed to load 2devents.txt: {}", e);
-            None
+    let houses = if indoor {
+        None
+    } else {
+        match lod::twodevents::TwoDEvents::parse(game_assets.lod_manager()) {
+            Ok(h) => {
+                info!("Loaded 2devents.txt: {} houses", h.houses.len());
+                Some(h)
+            }
+            Err(e) => {
+                warn!("Failed to load 2devents.txt: {}", e);
+                None
+            }
         }
     };
     if let Some(ref e) = evt {
         let mut ids: Vec<_> = e.events.keys().collect();
         ids.sort();
-        info!("EVT event_ids: {:?}", ids);
+        debug!("EVT event_ids: {:?}", ids);
     }
     commands.insert_resource(MapEvents { evt, houses });
 }
