@@ -34,7 +34,7 @@ impl SpriteCache {
         materials: &mut Assets<StandardMaterial>,
     ) {
         for &(root, variant) in roots {
-            load_sprite_frames(root, lod_manager, images, materials, &mut Some(self), variant, 0, 0, false);
+            load_sprite_frames(root, lod_manager, images, materials, &mut Some(self), variant, 0, 0);
         }
     }
 }
@@ -96,16 +96,15 @@ pub fn load_entity_sprites(
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
-    sprite_nearest: bool,
 ) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, f32, f32) {
     // Load walking first (usually wider) to get target dimensions
     let (walking, ww, wh) = load_sprite_frames(
-        walking_root, lod_manager, images, materials, cache, variant, 0, 0, sprite_nearest);
+        walking_root, lod_manager, images, materials, cache, variant, 0, 0);
 
     // Load standing, padded to at least walking dimensions
     let (standing, sw, sh) = load_sprite_frames(
         standing_root, lod_manager, images, materials, cache, variant,
-        ww as u32, wh as u32, sprite_nearest);
+        ww as u32, wh as u32);
     if standing.is_empty() {
         return (Vec::new(), 0.0, 0.0);
     }
@@ -117,7 +116,7 @@ pub fn load_entity_sprites(
     let walking = if !walking.is_empty() && (sw > ww || sh > wh) {
         let (padded, _, _) = load_sprite_frames(
             walking_root, lod_manager, images, materials, cache, variant,
-            qw as u32, qh as u32, sprite_nearest);
+            qw as u32, qh as u32);
         padded
     } else {
         walking
@@ -145,7 +144,6 @@ pub fn load_sprite_frames(
     variant: u8,
     min_w: u32,
     min_h: u32,
-    sprite_nearest: bool,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
     let key = cache_key(root, variant, min_w, min_h);
@@ -163,7 +161,7 @@ pub fn load_sprite_frames(
     let mut try_root = root;
     while try_root.len() >= 3 {
         let (frames, w, h) = decode_sprite_frames(
-            try_root, lod_manager, images, materials, variant, min_w, min_h, sprite_nearest);
+            try_root, lod_manager, images, materials, variant, min_w, min_h);
         if !frames.is_empty() {
             store_in_cache(&key, &frames, w, h, cache);
             return (frames, w, h);
@@ -222,7 +220,6 @@ fn decode_sprite_frames(
     variant: u8,
     min_w: u32,
     min_h: u32,
-    sprite_nearest: bool,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     // First pass: collect all raw sprites and find max dimensions.
     let mut raw_sprites: Vec<Vec<Option<DynamicImage>>> = Vec::new();
@@ -289,10 +286,7 @@ fn decode_sprite_frames(
                 } else {
                     img
                 };
-                let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
-                if sprite_nearest {
-                    bevy_img.sampler = bevy::image::ImageSampler::nearest();
-                }
+                let bevy_img = crate::assets::dynamic_to_bevy_image(img);
                 let tex = images.add(bevy_img);
                 dir_materials[dir] = materials.add(StandardMaterial {
                     unlit: true,

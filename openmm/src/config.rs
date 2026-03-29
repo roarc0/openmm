@@ -123,14 +123,6 @@ struct Cli {
     #[arg(long)]
     terrain_filtering: Option<String>,
 
-    /// Building/BSP model texture filtering: "nearest" or "linear"
-    #[arg(long)]
-    building_filtering: Option<String>,
-
-    /// Sprite/billboard texture filtering: "nearest" or "linear"
-    #[arg(long)]
-    sprite_filtering: Option<String>,
-
     /// Anti-aliasing mode: "msaa4" (default), "msaa2", "msaa8", "taa", "fxaa", "smaa", "off"
     #[arg(long)]
     antialiasing: Option<String>,
@@ -204,8 +196,6 @@ struct ConfigFile {
     capslock_toggle_mouse_look: Option<bool>,
     hud_filtering: Option<String>,
     terrain_filtering: Option<String>,
-    building_filtering: Option<String>,
-    sprite_filtering: Option<String>,
     antialiasing: Option<String>,
     bloom: Option<bool>,
     bloom_intensity: Option<f32>,
@@ -269,10 +259,6 @@ pub struct GameConfig {
     pub hud_filtering: String,
     /// Terrain texture filtering: "nearest" (crisp pixels) or "linear" (smooth blending)
     pub terrain_filtering: String,
-    /// Building/BSP model texture filtering: "nearest" or "linear"
-    pub building_filtering: String,
-    /// Sprite/billboard texture filtering: "nearest" or "linear"
-    pub sprite_filtering: String,
     /// Anti-aliasing: "msaa4", "msaa2", "msaa8", "taa" (default), "fxaa", "smaa", "off"
     pub antialiasing: String,
     /// Bloom glow on bright pixels
@@ -326,9 +312,7 @@ impl Default for GameConfig {
             mouse_wheel_fly: true,
             capslock_toggle_mouse_look: true,
             hud_filtering: "nearest".into(),
-            terrain_filtering: "linear".into(),
-            building_filtering: "linear".into(),
-            sprite_filtering: "linear".into(),
+            terrain_filtering: "nearest".into(),
             antialiasing: "msaa4".into(),
             bloom: false,
             bloom_intensity: 0.1,
@@ -417,8 +401,6 @@ impl GameConfig {
             capslock_toggle_mouse_look: resolve!(cli.capslock_toggle_mouse_look, file_cfg.capslock_toggle_mouse_look, d.capslock_toggle_mouse_look),
             hud_filtering: resolve!(cli.hud_filtering, file_cfg.hud_filtering, d.hud_filtering),
             terrain_filtering: resolve!(cli.terrain_filtering, file_cfg.terrain_filtering, d.terrain_filtering),
-            building_filtering: resolve!(cli.building_filtering, file_cfg.building_filtering, d.building_filtering),
-            sprite_filtering: resolve!(cli.sprite_filtering, file_cfg.sprite_filtering, d.sprite_filtering),
             antialiasing: resolve!(cli.antialiasing, file_cfg.antialiasing, d.antialiasing),
             bloom: resolve!(cli.bloom, file_cfg.bloom, d.bloom),
             bloom_intensity: resolve!(cli.bloom_intensity, file_cfg.bloom_intensity, d.bloom_intensity),
