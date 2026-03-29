@@ -171,12 +171,14 @@ fn spawn_player(
 
     // Resolve spawn position
     let (start_x, start_y, start_z, start_yaw) = if let Some(ref indoor) = indoor {
-        // Indoor: use start point directly (no terrain height sampling)
-        let party_start = indoor.start_points.first();
-        if let Some(sp) = party_start {
+        // Indoor: prefer save_data position (set by MoveToMap) if non-zero,
+        // otherwise fall back to sector center start point
+        let pos = save_data.player.position;
+        if pos[0] != 0.0 || pos[1] != 0.0 || pos[2] != 0.0 {
+            (pos[0], pos[1] + settings.eye_height, pos[2], save_data.player.yaw)
+        } else if let Some(sp) = indoor.start_points.first() {
             (sp.position.x, sp.position.y + settings.eye_height, sp.position.z, sp.yaw)
         } else {
-            // Fallback: origin
             (0.0, settings.eye_height, 0.0, 0.0)
         }
     } else if let Some(ref prepared) = prepared {
