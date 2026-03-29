@@ -6,7 +6,7 @@
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
+use bevy::window::{PrimaryWindow, WindowMode};
 
 use lod::evt::GameEvent;
 
@@ -134,6 +134,9 @@ fn console_input(
     mut state: ResMut<ConsoleState>,
     mut keyboard_events: MessageReader<KeyboardInput>,
     mut event_queue: ResMut<EventQueue>,
+    mut camera_msaa: Query<&mut Msaa, With<crate::game::player::PlayerCamera>>,
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    mut exit: MessageWriter<AppExit>,
 ) {
     if !state.open {
         return;
@@ -149,7 +152,7 @@ fn console_input(
                 let cmd = state.input.trim().to_string();
                 if !cmd.is_empty() {
                     state.history.push(cmd.clone());
-                    execute_command(&cmd, &mut state, &mut event_queue);
+                    execute_command(&cmd, &mut state, &mut event_queue, &mut camera_msaa, &mut windows, &mut exit);
                     state.input.clear();
                 }
             }
@@ -175,36 +178,95 @@ fn console_input(
     }
 }
 
-fn execute_command(cmd: &str, state: &mut ConsoleState, event_queue: &mut EventQueue) {
+fn execute_command(
+    cmd: &str,
+    state: &mut ConsoleState,
+    event_queue: &mut EventQueue,
+    camera_msaa: &mut Query<&mut Msaa, With<crate::game::player::PlayerCamera>>,
+    windows: &mut Query<&mut Window, With<PrimaryWindow>>,
+    exit: &mut MessageWriter<AppExit>,
+) {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some(&command) = parts.first() else { return };
+    let arg = parts.get(1).copied().unwrap_or("");
+
+    state.push_output(format!("> {}", cmd));
 
     match command {
         "load" | "map" => {
-            if let Some(&map_name) = parts.get(1) {
-                state.push_output(format!("> {}", cmd));
-                state.push_output(format!("Loading map: {}", map_name));
+            if arg.is_empty() {
+                state.push_output("Usage: load <map> (e.g. load oute3)".to_string());
+            } else {
+                state.push_output(format!("Loading map: {}", arg));
                 event_queue.push(GameEvent::MoveToMap {
                     x: 0,
                     y: 0,
                     z: 0,
                     direction: 0,
-                    map_name: map_name.to_string(),
+                    map_name: arg.to_string(),
                 });
-            } else {
-                state.push_output(format!("> {}", cmd));
-                state.push_output("Usage: load <map_name> (e.g. load oute3)".to_string());
             }
         }
-        "help" => {
-            state.push_output(format!("> {}", cmd));
-            state.push_output("Commands:".to_string());
-            state.push_output("  load <map>  - Load a map (e.g. load oute3, load d01)".to_string());
-            state.push_output("  help        - Show this help".to_string());
+
+        "msaa" => {
+            if let Ok(mut msaa) = camera_msaa.single_mut() {
+                match arg {
+                    "off" | "0" => { *msaa = Msaa::Off; state.push_output("MSAA: off".to_string()); }
+                    "2" => { *msaa = Msaa::Sample2; state.push_output("MSAA: 2x".to_string()); }
+                    "4" => { *msaa = Msaa::Sample4; state.push_output("MSAA: 4x".to_string()); }
+                    "8" => { *msaa = Msaa::Sample8; state.push_output("MSAA: 8x".to_string()); }
+                    _ => {
+                        state.push_output(format!("Current: {:?}", *msaa));
+                        state.push_output("Usage: msaa <off|2|4|8>".to_string());
+                    }
+                }
+            } else {
+                state.push_output("No camera found".to_string());
+            }
         }
+
+        "fullscreen" | "fs" => {
+            if let Ok(mut window) = windows.single_mut() {
+                window.mode = WindowMode::Fullscreen(
+                    bevy::window::MonitorSelection::Current,
+                    bevy::window::VideoModeSelection::Current,
+                );
+                state.push_output("Fullscreen enabled".to_string());
+            }
+        }
+
+        "borderless" => {
+            if let Ok(mut window) = windows.single_mut() {
+                window.mode = WindowMode::BorderlessFullscreen(
+                    bevy::window::MonitorSelection::Current,
+                );
+                state.push_output("Borderless fullscreen enabled".to_string());
+            }
+        }
+
+        "windowed" | "window" => {
+            if let Ok(mut window) = windows.single_mut() {
+                window.mode = WindowMode::Windowed;
+                state.push_output("Windowed mode enabled".to_string());
+            }
+        }
+
+        "exit" | "quit" => {
+            exit.write(AppExit::from_code(0));
+        }
+
+        "help" => {
+            state.push_output("Commands:".to_string());
+            state.push_output("  load <map>     - Load map (e.g. load oute3)".to_string());
+            state.push_output("  msaa <off|2|4|8> - Set anti-aliasing".to_string());
+            state.push_output("  fullscreen     - Fullscreen mode".to_string());
+            state.push_output("  borderless     - Borderless fullscreen".to_string());
+            state.push_output("  windowed       - Windowed mode".to_string());
+            state.push_output("  exit           - Quit the game".to_string());
+        }
+
         _ => {
-            state.push_output(format!("> {}", cmd));
-            state.push_output(format!("Unknown command: '{}'. Type 'help' for commands.", command));
+            state.push_output(format!("Unknown command: '{}'. Type 'help'.", command));
         }
     }
 }
