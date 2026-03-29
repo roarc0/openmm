@@ -142,7 +142,10 @@ fn check_map_boundary(
     mut save_data: ResMut<crate::save::GameSave>,
     mut game_state: ResMut<NextState<GameState>>,
     player_query: Query<&Transform, With<crate::game::player::Player>>,
+    load_request: Option<Res<crate::states::loading::LoadRequest>>,
 ) {
+    // Don't trigger boundary crossing if a map transition is already queued
+    if load_request.is_some() { return; }
     let Ok(transform) = player_query.single() else { return };
     let crate::game::map_name::MapName::Outdoor(ref odm) = current_map.0 else { return };
     let pos = transform.translation;
