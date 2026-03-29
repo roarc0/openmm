@@ -121,6 +121,7 @@ impl CollisionWall {
 pub struct BuildingColliders {
     pub walls: Vec<CollisionWall>,
     pub floors: Vec<CollisionTriangle>,
+    pub ceilings: Vec<CollisionTriangle>,
 }
 
 impl BuildingColliders {
@@ -191,6 +192,30 @@ impl BuildingColliders {
                 let h = u * floor.v0.y + v * floor.v1.y + w * floor.v2.y;
                 if h <= feet_y + MAX_STEP_UP {
                     best = Some(best.map_or(h, |prev: f32| prev.max(h)));
+                }
+            }
+        }
+        best
+    }
+
+    /// Sample the lowest ceiling height at XZ above the player's head.
+    pub fn ceiling_height_at(&self, x: f32, z: f32, head_y: f32) -> Option<f32> {
+        let mut best: Option<f32> = None;
+        let point = Vec2::new(x, z);
+
+        for ceil in &self.ceilings {
+            if !ceil.near_xz(x, z, 0.0) {
+                continue;
+            }
+            let a = Vec2::new(ceil.v0.x, ceil.v0.z);
+            let b = Vec2::new(ceil.v1.x, ceil.v1.z);
+            let c = Vec2::new(ceil.v2.x, ceil.v2.z);
+            if point_in_triangle_2d(point, a, b, c) {
+                let (u, v, w) = barycentric_2d(point, a, b, c);
+                let h = u * ceil.v0.y + v * ceil.v1.y + w * ceil.v2.y;
+                // Only consider ceilings above the player
+                if h > head_y {
+                    best = Some(best.map_or(h, |prev: f32| prev.min(h)));
                 }
             }
         }

@@ -71,6 +71,8 @@ pub struct PreparedIndoorWorld {
     pub collision_walls: Vec<crate::game::collision::CollisionWall>,
     /// Floor collision geometry extracted from BLV faces.
     pub collision_floors: Vec<crate::game::collision::CollisionTriangle>,
+    /// Ceiling collision geometry extracted from BLV faces.
+    pub collision_ceilings: Vec<crate::game::collision::CollisionTriangle>,
     /// Door definitions from DLV.
     pub doors: Vec<lod::blv::BlvDoor>,
     /// Individual door face meshes for animation.
@@ -552,7 +554,7 @@ fn loading_step(
                     yaw: 0.0,
                 }];
                 // Extract collision geometry from BLV faces
-                let (collision_walls, collision_floors) = extract_blv_collision(blv);
+                let (collision_walls, collision_floors, collision_ceilings) = extract_blv_collision(blv);
                 let map_base = match &load_request.map_name {
                     crate::game::map_name::MapName::Indoor(name) => name.clone(),
                     _ => load_request.map_name.to_string().replace(".blv", ""),
@@ -562,6 +564,7 @@ fn loading_step(
                     start_points,
                     collision_walls,
                     collision_floors,
+                    collision_ceilings,
                     doors: dlv_doors,
                     door_face_meshes: prepared_door_faces,
                     clickable_faces,
@@ -818,12 +821,13 @@ fn loading_step(
 
 /// Extract collision walls and floors from BLV face geometry.
 /// Uses the same CollisionWall/CollisionTriangle types as ODM BSP buildings.
-fn extract_blv_collision(blv: &Blv) -> (Vec<crate::game::collision::CollisionWall>, Vec<crate::game::collision::CollisionTriangle>) {
+fn extract_blv_collision(blv: &Blv) -> (Vec<crate::game::collision::CollisionWall>, Vec<crate::game::collision::CollisionTriangle>, Vec<crate::game::collision::CollisionTriangle>) {
     use crate::game::collision::{CollisionTriangle, CollisionWall};
     use lod::odm::mm6_to_bevy;
 
     let mut walls = Vec::new();
     let mut floors = Vec::new();
+    let mut ceilings = Vec::new();
 
     for face in &blv.faces {
         if face.num_vertices < 3 || face.is_invisible() || face.is_portal() {
@@ -835,6 +839,7 @@ fn extract_blv_collision(blv: &Blv) -> (Vec<crate::game::collision::CollisionWal
         let normal = Vec3::new(mm6n[0], mm6n[2], -mm6n[1]);
 
         let is_floor = normal.y > 0.5;
+        let is_ceiling = normal.y < -0.5;
         let is_wall = normal.y.abs() < 0.7;
 
         // Collect vertices in Bevy coords
@@ -853,15 +858,21 @@ fn extract_blv_collision(blv: &Blv) -> (Vec<crate::game::collision::CollisionWal
             walls.push(CollisionWall::new(normal, plane_dist, &verts));
         }
 
-        if is_floor {
+        if is_floor || is_ceiling {
             for i in 0..verts.len().saturating_sub(2) {
-                floors.push(CollisionTriangle::new(
+                let tri = CollisionTriangle::new(
                     verts[0], verts[i + 1], verts[i + 2], normal,
-                ));
+                );
+                if is_floor {
+                    floors.push(tri.clone());
+                }
+                if is_ceiling {
+                    ceilings.push(tri);
+                }
             }
         }
     }
 
-    (walls, floors)
+    (walls, floors, ceilings)
 }
 

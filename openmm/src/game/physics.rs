@@ -33,6 +33,7 @@ fn setup_collision_data(
         commands.insert_resource(BuildingColliders {
             walls: indoor.collision_walls.clone(),
             floors: indoor.collision_floors.clone(),
+            ceilings: indoor.collision_ceilings.clone(),
         });
         return;
     }
@@ -48,6 +49,7 @@ fn setup_collision_data(
     // Build collision geometry from BSP model faces
     let mut walls = Vec::new();
     let mut floors = Vec::new();
+    let mut ceilings = Vec::new();
     for model in &prepared.map.bsp_models {
         for face in &model.faces {
             if face.vertices_count < 3 || face.is_invisible() {
@@ -60,6 +62,7 @@ fn setup_collision_data(
             let normal = Vec3::new(nx, ny, nz);
 
             let is_floor = ny > 0.5;
+            let is_ceiling = ny < -0.5;
             let is_wall = ny.abs() < 0.7;
 
             let vert_count = face.vertices_count as usize;
@@ -82,16 +85,22 @@ fn setup_collision_data(
                 walls.push(CollisionWall::new(normal, plane_dist, &verts));
             }
 
-            if is_floor {
+            if is_floor || is_ceiling {
                 for i in 0..verts.len().saturating_sub(2) {
-                    floors.push(CollisionTriangle::new(
+                    let tri = CollisionTriangle::new(
                         verts[0], verts[i + 1], verts[i + 2], normal,
-                    ));
+                    );
+                    if is_floor {
+                        floors.push(tri.clone());
+                    }
+                    if is_ceiling {
+                        ceilings.push(tri);
+                    }
                 }
             }
         }
     }
-    commands.insert_resource(BuildingColliders { walls, floors });
+    commands.insert_resource(BuildingColliders { walls, floors, ceilings });
 
     // Water map (outdoor only)
     commands.insert_resource(WaterMap {
@@ -149,11 +158,20 @@ fn gravity_system(
             feet_y,
         ) + settings.eye_height;
 
+        // Ceiling clamp: prevent player from going above the lowest ceiling
+        let ceiling_y = colliders.as_deref()
+            .and_then(|c| c.ceiling_height_at(
+                transform.translation.x, transform.translation.z, transform.translation.y))
+            .unwrap_or(f32::MAX);
+
         if fly_mode.0 {
             physics.vertical_velocity = 0.0;
             physics.on_ground = false;
             if transform.translation.y < ground_y {
                 transform.translation.y = ground_y;
+            }
+            if transform.translation.y > ceiling_y - settings.eye_height {
+                transform.translation.y = ceiling_y - settings.eye_height;
             }
         } else {
             physics.vertical_velocity -= settings.gravity * dt;
@@ -169,6 +187,12 @@ fn gravity_system(
                 physics.on_ground = true;
             } else {
                 physics.on_ground = false;
+            }
+
+            // Ceiling clamp
+            if transform.translation.y > ceiling_y - settings.eye_height {
+                transform.translation.y = ceiling_y - settings.eye_height;
+                physics.vertical_velocity = 0.0;
             }
 
             // Slope sliding: only on outdoor terrain
