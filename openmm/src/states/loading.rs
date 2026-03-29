@@ -225,7 +225,7 @@ fn loading_setup(
     commands.remove_resource::<crate::game::blv::BlvDoors>();
     commands.remove_resource::<crate::game::blv::ClickableFaces>();
 
-    // Priority: LoadRequest (map switching) > config file/CLI > save data
+    // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.
     let map_name = load_request
         .map(|r| r.map_name.clone())
         .or_else(|| {
@@ -239,6 +239,7 @@ fn loading_setup(
             x: save_data.map.map_x,
             y: save_data.map.map_y,
         }));
+    commands.remove_resource::<LoadRequest>();
 
     commands.insert_resource(LoadingProgress {
         step: LoadingStep::ParseMap,
