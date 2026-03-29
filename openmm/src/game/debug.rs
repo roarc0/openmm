@@ -262,32 +262,17 @@ fn draw_events(
         }
     }
 
-    // Outdoor: draw building interaction zones at the BSP model's actual transform
-    for (info, gt) in buildings.iter() {
-        let pos = gt.translation();
+    // Outdoor: draw building interaction markers at info.position (BSP model center)
+    for (info, _gt) in buildings.iter() {
+        let pos = info.position;
         let color = Color::srgb(0.0, 1.0, 1.0);
-        // Large diamond + tall vertical pillar
-        let s = 120.0;
-        let h = 300.0;
+        // Diamond + vertical line at the building's event position
+        let s = 80.0;
         gizmos.line(pos + Vec3::X * s, pos + Vec3::Z * s, color);
         gizmos.line(pos + Vec3::Z * s, pos - Vec3::X * s, color);
         gizmos.line(pos - Vec3::X * s, pos - Vec3::Z * s, color);
         gizmos.line(pos - Vec3::Z * s, pos + Vec3::X * s, color);
-        // Second diamond at half height
-        let mid = pos + Vec3::Y * h * 0.5;
-        gizmos.line(mid + Vec3::X * s * 0.5, mid + Vec3::Z * s * 0.5, color);
-        gizmos.line(mid + Vec3::Z * s * 0.5, mid - Vec3::X * s * 0.5, color);
-        gizmos.line(mid - Vec3::X * s * 0.5, mid - Vec3::Z * s * 0.5, color);
-        gizmos.line(mid - Vec3::Z * s * 0.5, mid + Vec3::X * s * 0.5, color);
-        // Vertical pillar
-        gizmos.line(pos, pos + Vec3::Y * h, color);
-        // Also draw at the stored info.position if different (shows the offset)
-        if info.position.distance(pos) > 10.0 {
-            let ip = info.position;
-            let color2 = Color::srgb(1.0, 0.5, 0.0); // orange for info.position
-            gizmos.line(ip, ip + Vec3::Y * h, color2);
-            gizmos.line(ip, pos, color2); // line connecting the two
-        }
+        gizmos.line(pos, pos + Vec3::Y * 200.0, color);
     }
 }
 
