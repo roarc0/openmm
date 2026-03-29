@@ -34,6 +34,10 @@ pub enum GameEvent {
     OpenChest { id: u8 },
     /// Show hint text (tooltip on mouseover). `text` is resolved from the .str table.
     Hint { str_id: u8, text: String },
+    /// Change a door's state (open/close/toggle).
+    /// door_id indexes into the BLV door array.
+    /// action: 0=Open, 1=Close, 2=Toggle.
+    ChangeDoorState { door_id: u8, action: u8 },
 }
 
 /// Parsed events from a .evt file, keyed by event_id.
@@ -134,6 +138,17 @@ impl EvtFile {
                     Some(GameEvent::OpenChest {
                         id: params.first().copied().unwrap_or(0),
                     })
+                }
+                0x0F => {
+                    // ChangeDoorState: door_id (u8), action (u8)
+                    if params.len() >= 2 {
+                        Some(GameEvent::ChangeDoorState {
+                            door_id: params[0],
+                            action: params[1],
+                        })
+                    } else {
+                        None
+                    }
                 }
                 _ => None,
             };

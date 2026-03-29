@@ -213,5 +213,9 @@ fn process_events(
             });
             game_state.set(GameState::Loading);
         }
+        GameEvent::ChangeDoorState { door_id, action } => {
+            info!("ChangeDoorState door_id={} action={}", door_id, action);
+            // Door animation will be handled in Task 6
+        }
     }
 }

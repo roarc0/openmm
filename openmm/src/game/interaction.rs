@@ -194,6 +194,7 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
                     lod::evt::GameEvent::MoveToMap { map_name, .. } => {
                         return Some(format!("Enter {}", map_name));
                     }
+                    lod::evt::GameEvent::ChangeDoorState { .. } => {}
                 }
             }
         }
