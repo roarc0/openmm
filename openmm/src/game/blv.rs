@@ -183,11 +183,12 @@ fn spawn_indoor_world(
         .collect();
     commands.insert_resource(ClickableFaces { faces });
 
-    // Indoor ambient lighting — dim for dungeon atmosphere
+    // Indoor ambient lighting — dim for dungeon atmosphere.
+    // TODO: read per-sector light levels from BLV data for proper local lighting.
     commands.spawn((
         AmbientLight {
-            color: Color::srgb(0.8, 0.75, 0.65),
-            brightness: 150.0,
+            color: Color::srgb(0.7, 0.65, 0.55),
+            brightness: 50.0,
             ..default()
         },
         InGame,
