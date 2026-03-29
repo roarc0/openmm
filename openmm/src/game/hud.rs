@@ -13,8 +13,11 @@ use crate::ui_assets::{UiAssets, make_black_transparent, make_transparent_where}
 // MM6 reference height — all HUD dimensions scale relative to this
 const REF_H: f32 = 480.0;
 
-// Legacy constants kept for inline scale_h/scale_w calls that don't use a _REF tuple
-const FOOTER_H: f32 = 24.0; // footer strip height (reference)
+// Footer layout constants (reference pixels at 640×480)
+const FOOTER_H: f32 = 24.0;
+const FOOTER_OVERLAP: f32 = 10.0;
+const FOOTER_LIFT: f32 = 5.0;
+const FOOTER_EXPOSED_H: f32 = FOOTER_H - FOOTER_OVERLAP + FOOTER_LIFT;
 
 /// Marker for HUD UI entities.
 #[derive(Component)]
@@ -191,8 +194,12 @@ fn spawn_hud(
     let border2 = ui_assets.get_or_load("border2.pcx", &game_assets, &mut images, &cfg);
     let border3 = ui_assets.get_or_load("border3", &game_assets, &mut images, &cfg);
     let border4 = ui_assets.get_or_load("border4", &game_assets, &mut images, &cfg);
-    let border5 = ui_assets.get_or_load("border5", &game_assets, &mut images, &cfg);
-    let border6 = ui_assets.get_or_load("border6", &game_assets, &mut images, &cfg);
+    let border5 = ui_assets.get_or_load_transformed(
+        "border5", "border5_transparent", &game_assets, &mut images, &cfg, make_black_transparent,
+    );
+    let border6 = ui_assets.get_or_load_transformed(
+        "border6", "border6_transparent", &game_assets, &mut images, &cfg, make_black_transparent,
+    );
     let footer = ui_assets.get_or_load("footer", &game_assets, &mut images, &cfg);
 
     // Load tap frames (minimap border with time-of-day sky)
@@ -815,19 +822,19 @@ fn update_hud_layout(
     }
     // border5 — top-left corner piece, floating over the viewport
     for mut node in set.p4().iter_mut() {
-        node.left = Val::Px(0.0);
-        node.top = Val::Px(0.0);
+        node.left = Val::Px(d.border4_w);
+        node.top = Val::Px(d.border3_h);
         node.right = Val::Auto;
         node.bottom = Val::Auto;
         node.width = Val::Px(d.border5_w);
         node.height = Val::Px(d.border5_h);
     }
-    // border6 — bottom-left corner piece, floating over the viewport
+    // border6 — top-right corner piece, floating over the viewport
     for mut node in set.p5().iter_mut() {
-        node.left = Val::Px(0.0);
-        node.bottom = Val::Px(d.border2_h);
-        node.right = Val::Auto;
-        node.top = Val::Auto;
+        node.right = Val::Px(d.border1_w);
+        node.top = Val::Px(d.border3_h);
+        node.left = Val::Auto;
+        node.bottom = Val::Auto;
         node.width = Val::Px(d.border6_w);
         node.height = Val::Px(d.border6_h);
     }
@@ -859,8 +866,8 @@ fn update_hud_layout(
         node.height = Val::Px(arrow_size);
     }
     // Footer (483×24 ref) — sits directly above border2, overlapping its top by 10px.
-    let footer_overlap = d.scale_h(10.0);
-    let footer_lift = d.scale_h(5.0);
+    let footer_overlap = d.scale_h(FOOTER_OVERLAP);
+    let footer_lift = d.scale_h(FOOTER_LIFT);
     let footer_bottom = d.border2_h - footer_overlap + footer_lift;
     for mut node in footer_q.iter_mut() {
         node.bottom = Val::Px(footer_bottom);
@@ -1059,7 +1066,7 @@ fn letterbox_rect(window: &Window, cfg: &GameConfig) -> (u32, u32, u32, u32) {
 }
 
 /// Compute the 3D viewport rect in logical (CSS) pixels: (left, top, width, height).
-/// This is the playable area — letterboxed region minus HUD sidebar and bottom bar.
+/// This is the playable area — letterboxed region minus HUD borders (matches camera viewport).
 pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, f32, f32, f32) {
     let sf = window.scale_factor();
     let (_, _, lpw, lph) = letterbox_rect(window, cfg);
@@ -1068,11 +1075,12 @@ pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, 
     let d = hud_dimensions(lw, lh, ui);
     let bar_x = (window.width() - lw) / 2.0;
     let bar_y = (window.height() - lh) / 2.0;
-    let footer_exposed = d.scale_h(FOOTER_H - 10.0 + 5.0);
+    let footer_exposed = d.scale_h(FOOTER_EXPOSED_H);
+    let vp_left = bar_x;
     let vp_top = bar_y + d.border3_h;
-    let vp_w = d.border2_w;
-    let vp_h = lh - d.border2_h - d.border3_h - footer_exposed;
-    (bar_x, vp_top, vp_w, vp_h)
+    let vp_w = lw - d.border1_w;
+    let vp_h = lh - d.border3_h - d.border2_h - footer_exposed;
+    (vp_left, vp_top, vp_w, vp_h)
 }
 
 /// Update the 3D camera viewport to the letterboxed area minus HUD borders.
@@ -1095,7 +1103,7 @@ fn update_viewport(
 
     let sidebar_w = (d.border1_w * sf) as u32;
     let top_h = (d.border3_h * sf) as u32;
-    let footer_exposed = (d.scale_h(FOOTER_H - 10.0 + 5.0) * sf) as u32;
+    let footer_exposed = (d.scale_h(FOOTER_EXPOSED_H) * sf) as u32;
     let bottom_h = (d.border2_h * sf) as u32 + footer_exposed;
 
     let vp_x = lx;

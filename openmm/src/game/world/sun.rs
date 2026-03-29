@@ -37,8 +37,8 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>) {
         InGame,
     ));
 
-    // Start at 8am (0.33)
-    let tod = 0.33;
+    // Start at 9am (0.375)
+    let tod = 0.375;
     let (dir_transform, color, illuminance) = sun_from_time(tod);
 
     commands.spawn((
