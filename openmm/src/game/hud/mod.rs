@@ -61,14 +61,12 @@ impl Plugin for HudPlugin {
     }
 }
 
-/// Pause/unpause virtual time based on HudView changes.
+/// Pause/unpause virtual time based on HudView.
+/// Runs every frame to enforce the invariant (not just on change).
 fn freeze_system(
     view: Res<HudView>,
     mut time: ResMut<Time<Virtual>>,
 ) {
-    if !view.is_changed() {
-        return;
-    }
     if matches!(*view, HudView::World) {
         time.unpause();
     } else {

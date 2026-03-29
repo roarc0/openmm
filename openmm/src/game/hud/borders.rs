@@ -36,8 +36,6 @@ pub(super) struct HudMapback;
 #[derive(Component)]
 pub(super) struct HudRoot;
 #[derive(Component)]
-pub(super) struct HudBorder4Left;
-#[derive(Component)]
 pub(super) struct HudCamera;
 
 pub(super) struct HudDimensions {

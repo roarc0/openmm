@@ -11,6 +11,7 @@ use super::borders::{
 
 /// Resource holding the image to display as a fullscreen overlay in the viewport area.
 /// Insert this resource (and set HudView to a non-World variant) to show an overlay.
+/// Not auto-initialized by HudPlugin — callers insert/remove it on demand.
 #[derive(Resource)]
 pub struct OverlayImage {
     pub image: Handle<Image>,
