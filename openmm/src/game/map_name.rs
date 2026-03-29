@@ -37,15 +37,16 @@ impl TryFrom<&str> for MapName {
     type Error = String;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        // Strip known extensions
-        let name = value
+        let lower = value.to_lowercase();
+        // Strip known extensions (case-insensitive)
+        let name = lower
             .strip_suffix(".odm")
-            .or_else(|| value.strip_suffix(".blv"))
-            .unwrap_or(value);
+            .or_else(|| lower.strip_suffix(".blv"))
+            .unwrap_or(&lower);
 
         // If starts with "out" and length is 5 (e.g. "oute3"), parse as outdoor
         if name.len() == 5 && name.starts_with("out") {
-            let odm = OdmName::try_from(value)?;
+            let odm = OdmName::try_from(name)?;
             Ok(MapName::Outdoor(odm))
         } else {
             Ok(MapName::Indoor(name.to_string()))
