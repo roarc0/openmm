@@ -393,6 +393,7 @@ fn update_hud_text(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<&Transform, With<Player>>,
     cfg: Res<GameConfig>,
+    current_map: Res<CurrentMapName>,
     spawn_progress: Res<crate::game::odm::SpawnProgress>,
     mut fps_history: ResMut<FpsHistory>,
     mut fps_query: Query<(&mut Text, &mut TextColor), With<FpsText>>,
@@ -436,6 +437,7 @@ fn update_hud_text(
         Color::WHITE
     };
 
+    let map_name = current_map.0.to_string().to_uppercase();
     let pos_str = if let Ok(transform) = player_query.single() {
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
         let spawn_str = if cfg.debug
@@ -447,7 +449,8 @@ fn update_hud_text(
             String::new()
         };
         format!(
-            "\nX:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
+            "\n{}  X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
+            map_name,
             transform.translation.x,
             transform.translation.y,
             transform.translation.z,
@@ -455,7 +458,7 @@ fn update_hud_text(
             spawn_str,
         )
     } else {
-        "\nPOS: --".into()
+        format!("\n{}  POS: --", map_name)
     };
 
     for (mut text, mut tc) in &mut fps_query {
@@ -464,7 +467,7 @@ fn update_hud_text(
     }
     for (mut span, mut tc) in &mut pos_query {
         **span = pos_str.clone();
-        *tc = TextColor(Color::WHITE);
+        *tc = TextColor(Color::srgb(1.0, 0.3, 0.3));
     }
 
     // Update chart bars with adaptive min/max scaling
