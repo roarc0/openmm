@@ -239,8 +239,6 @@ fn loading_setup(
             x: save_data.map.map_x,
             y: save_data.map.map_y,
         }));
-    commands.remove_resource::<LoadRequest>();
-
     commands.insert_resource(LoadingProgress {
         step: LoadingStep::ParseMap,
         odm: None,
@@ -572,6 +570,7 @@ fn loading_step(
                     map_base,
                 });
                 commands.remove_resource::<LoadingProgress>();
+                commands.remove_resource::<LoadRequest>();
                 game_state.set(GameState::Game);
                 return;
             }
@@ -814,6 +813,7 @@ fn loading_step(
                     music_track: progress.music_track,
                 });
                 commands.remove_resource::<LoadingProgress>();
+                commands.remove_resource::<LoadRequest>();
                 game_state.set(GameState::Game);
             }
         }

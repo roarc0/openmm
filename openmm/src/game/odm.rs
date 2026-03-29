@@ -145,9 +145,15 @@ fn check_map_boundary(
     load_request: Option<Res<crate::states::loading::LoadRequest>>,
 ) {
     // Don't trigger boundary crossing if a map transition is already queued
-    if load_request.is_some() { return; }
+    if load_request.is_some() {
+        debug!("check_map_boundary: skipped (LoadRequest exists)");
+        return;
+    }
     let Ok(transform) = player_query.single() else { return };
-    let crate::game::map_name::MapName::Outdoor(ref odm) = current_map.0 else { return };
+    let crate::game::map_name::MapName::Outdoor(ref odm) = current_map.0 else {
+        debug!("check_map_boundary: skipped (not outdoor map: {:?})", current_map.0);
+        return;
+    };
     let pos = transform.translation;
     let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
 
