@@ -223,9 +223,12 @@ fn spawn_world(
     let mut terrain_texture = prepared.terrain_texture.clone();
     let terrain_mesh = prepared.terrain_mesh.clone();
 
-    // Nearest-neighbor filtering on terrain atlas to prevent cyan water markers
-    // from bleeding into neighboring terrain tiles via bilinear interpolation.
-    terrain_texture.sampler = crate::assets::nearest_sampler();
+    // Terrain filtering from config: nearest (crisp pixels) or linear (smooth)
+    terrain_texture.sampler = if cfg.terrain_filtering == "linear" {
+        crate::assets::repeat_linear_sampler()
+    } else {
+        crate::assets::nearest_sampler()
+    };
     let terrain_tex_handle = images.add(terrain_texture);
 
     // Load water texture (or create a placeholder if missing)
