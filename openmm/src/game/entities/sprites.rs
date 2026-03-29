@@ -97,20 +97,32 @@ pub fn load_entity_sprites(
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
 ) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, f32, f32) {
-    // Load walking first (usually wider) to get target dimensions
-    let (walking, ww, wh) = load_sprite_frames(
+    // Load both at native size first to determine max dimensions
+    let (standing_native, sw, sh) = load_sprite_frames(
+        standing_root, lod_manager, images, materials, cache, variant, 0, 0);
+    let (walking_native, ww, wh) = load_sprite_frames(
         walking_root, lod_manager, images, materials, cache, variant, 0, 0);
 
-    // Load standing, padded to at least walking dimensions
-    let (standing, sw, sh) = load_sprite_frames(
-        standing_root, lod_manager, images, materials, cache, variant,
-        ww as u32, wh as u32);
-    if standing.is_empty() {
+    if standing_native.is_empty() {
         return (Vec::new(), 0.0, 0.0);
     }
 
     let qw = sw.max(ww);
     let qh = sh.max(wh);
+    let target_w = qw as u32;
+    let target_h = qh as u32;
+
+    // Reload with padding to uniform size (skip reload if already at max)
+    let standing = if (sw as u32) < target_w || (sh as u32) < target_h {
+        load_sprite_frames(standing_root, lod_manager, images, materials, cache, variant, target_w, target_h).0
+    } else {
+        standing_native
+    };
+    let walking = if !walking_native.is_empty() && ((ww as u32) < target_w || (wh as u32) < target_h) {
+        load_sprite_frames(walking_root, lod_manager, images, materials, cache, variant, target_w, target_h).0
+    } else {
+        walking_native
+    };
 
     let mut states = vec![standing];
     if !walking.is_empty() {
