@@ -198,14 +198,14 @@ fn spawn_world(
     cfg: Res<crate::config::GameConfig>,
     existing_music: Query<Entity, With<MapMusic>>,
 ) {
-    // Load event data for this map
-    let map_base = format!("out{}{}", save_data.map.map_x, save_data.map.map_y);
-    crate::game::events::load_map_events(&mut commands, &game_assets, &map_base);
-
     let Some(prepared) = prepared else {
-        error!("No PreparedWorld available when entering Game state");
+        // No outdoor PreparedWorld — this is an indoor map, skip outdoor spawning
         return;
     };
+
+    // Load event data for this outdoor map
+    let map_base = format!("out{}{}", save_data.map.map_x, save_data.map.map_y);
+    crate::game::events::load_map_events(&mut commands, &game_assets, &map_base);
 
     let mut terrain_texture = prepared.terrain_texture.clone();
     let terrain_mesh = prepared.terrain_mesh.clone();

@@ -347,7 +347,7 @@ fn indoor_interact_system(
             return;
         };
         if let Some(actions) = evt.events.get(&event_id) {
-            info!("Indoor interact: dispatching {} actions for event_id={}", actions.len(), event_id);
+            info!("Indoor interact: dispatching {} actions for event_id={}: {:?}", actions.len(), event_id, actions);
         } else {
             info!("Indoor interact: no actions found for event_id={}", event_id);
         }
