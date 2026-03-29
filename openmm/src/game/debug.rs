@@ -266,13 +266,14 @@ fn draw_events(
     for (info, _gt) in buildings.iter() {
         let pos = info.position;
         let color = Color::srgb(0.0, 1.0, 1.0);
-        // Diamond + vertical line at the building's event position
+        // Diamond above building roof + vertical line down to position
+        let top = pos + Vec3::Y * 400.0;
         let s = 80.0;
-        gizmos.line(pos + Vec3::X * s, pos + Vec3::Z * s, color);
-        gizmos.line(pos + Vec3::Z * s, pos - Vec3::X * s, color);
-        gizmos.line(pos - Vec3::X * s, pos - Vec3::Z * s, color);
-        gizmos.line(pos - Vec3::Z * s, pos + Vec3::X * s, color);
-        gizmos.line(pos, pos + Vec3::Y * 200.0, color);
+        gizmos.line(top + Vec3::X * s, top + Vec3::Z * s, color);
+        gizmos.line(top + Vec3::Z * s, top - Vec3::X * s, color);
+        gizmos.line(top - Vec3::X * s, top - Vec3::Z * s, color);
+        gizmos.line(top - Vec3::Z * s, top + Vec3::X * s, color);
+        gizmos.line(pos, top, color);
     }
 }
 
