@@ -547,6 +547,7 @@ fn lazy_spawn(
     pending: Option<ResMut<PendingSpawns>>,
     prepared: Option<Res<PreparedWorld>>,
     game_assets: Res<GameAssets>,
+    game_cfg: Res<crate::config::GameConfig>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -610,6 +611,8 @@ fn lazy_spawn(
         spawned += 1;
     }
 
+    let spr_nearest = game_cfg.sprite_filtering == "nearest";
+
     // NPC actors
     while actor_idx < actor_len && spawned < SPAWN_BATCH_MAX && start.elapsed().as_secs_f32() * 1000.0 < SPAWN_TIME_BUDGET_MS {
         let i = p.actor_order[actor_idx];
@@ -634,7 +637,7 @@ fn lazy_spawn(
         let variant = (pal_id - base_pal + 1).min(3) as u8;
         let (s2, w2, h2) = sprites::load_entity_sprites(
             s, w, game_assets.lod_manager(),
-            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant);
+            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant, spr_nearest);
         if s2.is_empty() || s2[0].is_empty() {
             error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, s, w);
             continue;
@@ -678,7 +681,7 @@ fn lazy_spawn(
         for (st, wa) in &sprite_pairs {
             let (s, w, h) = sprites::load_entity_sprites(
                 st, wa, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant);
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant, spr_nearest);
             if !s.is_empty() && !s[0].is_empty() {
                 states = s; sw = w; sh = h; break;
             }

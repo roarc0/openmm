@@ -300,6 +300,7 @@ fn loading_step(
     mut progress: ResMut<LoadingProgress>,
     game_assets: Res<GameAssets>,
     load_request: Res<LoadRequest>,
+    cfg: Res<crate::config::GameConfig>,
     mut game_state: ResMut<NextState<GameState>>,
     mut commands: Commands,
     mut text_query: Query<&mut Text, With<LoadingText>>,
@@ -451,7 +452,7 @@ fn loading_step(
                         let texture = game_assets.lod_manager().bitmap(&dfm.texture_name)
                             .map(|img| {
                                 let mut image = crate::assets::dynamic_to_bevy_image(img);
-                                image.sampler = crate::assets::repeat_sampler();
+                                image.sampler = if cfg.building_filtering == "nearest" { crate::assets::nearest_sampler() } else { crate::assets::repeat_sampler() };
                                 image
                             });
                         PreparedDoorFace {
@@ -513,7 +514,7 @@ fn loading_step(
                         let texture = game_assets.lod_manager().bitmap(&tm.texture_name)
                             .map(|img| {
                                 let mut image = crate::assets::dynamic_to_bevy_image(img);
-                                image.sampler = crate::assets::repeat_sampler();
+                                image.sampler = if cfg.building_filtering == "nearest" { crate::assets::nearest_sampler() } else { crate::assets::repeat_sampler() };
                                 image
                             });
                         PreparedSubMesh {
@@ -613,7 +614,7 @@ fn loading_step(
                                     .bitmap(&tm.texture_name)
                                     .map(|img| {
                                         let mut image = crate::assets::dynamic_to_bevy_image(img);
-                                        image.sampler = crate::assets::repeat_sampler();
+                                        image.sampler = if cfg.building_filtering == "nearest" { crate::assets::nearest_sampler() } else { crate::assets::repeat_sampler() };
                                         image
                                     });
 
