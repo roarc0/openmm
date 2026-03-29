@@ -426,7 +426,7 @@ fn update_hud_text(
     let scale_max = ((chart_max / 20.0).ceil() * 20.0).max(scale_min + 20.0);
 
     let fps_str = if avg > 0.0 {
-        format!("FPS: {avg:.0}  1%low: {low_1:.0}")
+        format!("FPS: {avg:.0} ({low_1:.0} min)")
     } else {
         "FPS: --".into()
     };
