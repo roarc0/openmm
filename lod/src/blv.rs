@@ -745,7 +745,10 @@ impl Blv {
             let tex_h_f = tex_h as f32;
 
             let mm6_normal = face.normal_f32();
-            let normal = [mm6_normal[0], mm6_normal[2], -mm6_normal[1]];
+            let bevy_y = mm6_normal[2];
+            let is_ceiling = bevy_y < -0.5;
+            let sign = if is_ceiling { -1.0 } else { 1.0 };
+            let normal = [mm6_normal[0] * sign, mm6_normal[2] * sign, -mm6_normal[1] * sign];
 
             let door = &doors[door_index];
             // Build map: blv vertex_id -> index in door.vertex_ids
@@ -851,9 +854,13 @@ impl Blv {
             let tex_w_f = tex_w as f32;
             let tex_h_f = tex_h as f32;
 
-            // Convert face normal from MM6 fixed-point (x, y, z) to Bevy float (x, z, -y)
+            // Convert face normal from MM6 fixed-point (x, y, z) to Bevy float (x, z, -y).
+            // Flip ceiling normals so they point into the room (up) for correct lighting.
             let mm6_normal = face.normal_f32();
-            let normal = [mm6_normal[0], mm6_normal[2], -mm6_normal[1]];
+            let bevy_y = mm6_normal[2]; // MM6 Z -> Bevy Y
+            let is_ceiling = bevy_y < -0.5;
+            let sign = if is_ceiling { -1.0 } else { 1.0 };
+            let normal = [mm6_normal[0] * sign, mm6_normal[2] * sign, -mm6_normal[1] * sign];
 
             let mesh = meshes_by_texture
                 .entry(tex_name.clone())
