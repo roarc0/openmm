@@ -13,6 +13,8 @@ Open-source reimplementation of the Might and Magic VI engine in Rust. Targeting
 - Splash screen and menu scaffolding
 - Developer console (Tab key) with commands: load, msaa, fullscreen, borderless, windowed, exit
 - Seamless map boundary transitions between adjacent outdoor zones
+- Indoor map rendering (BLV files) with face-based geometry and collision
+- Indoor door interaction: clickable faces dispatch EVT events, door animation state machine
 
 ## Goal
 
@@ -55,6 +57,7 @@ src/
     world/sun.rs       — Directional light + animated fake sun
     odm.rs             — OdmPlugin (spawns terrain/models, lazy entity spawning)
     player.rs          — PlayerPlugin (Player entity, terrain following, camera, controls)
+    blv.rs             — BlvPlugin (indoor map spawner, door entities, face interaction, door animation)
     collision.rs       — Ground height probing, building colliders
     interaction.rs     — InteractionPlugin (trigger-only: pushes events to queue, exit input, hover hints)
     event_dispatch.rs  — EventDispatchPlugin, EventQueue, process_events system
@@ -128,13 +131,26 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### Event dispatch
 
-- `GameEvent` enum in `lod::evt` (renamed from EventAction): SpeakInHouse, MoveToMap, OpenChest, Hint
+- `GameEvent` enum in `lod::evt` (renamed from EventAction): SpeakInHouse, MoveToMap, OpenChest, Hint, ChangeDoorState
 - `EventQueue` resource — any system can push events, processed one per frame by `process_events`
 - Sub-events use `push_front()` for depth-first processing
 - UI-opening events (SpeakInHouse, OpenChest) block the queue until HudView returns to World
 - MoveToMap uses `LoadRequest` + `GameState::Loading` pipeline (same as boundary crossing and debug map switch)
 - `interaction.rs` is trigger-only — detects player interaction, pushes events to queue
 - `event_dispatch.rs` handles all event logic (image loading, view switching, map transitions)
+- `ChangeDoorState` triggers door open/close/toggle via `BlvDoors` resource
+
+### Indoor maps (BLV) and doors
+
+- Door faces are spawned as individual entities (not batched with static geometry) for animation
+- `DoorFace` component tracks door_index and per-vertex door offset indices
+- `BlvDoors` resource holds runtime state for all doors (direction, speed, offsets, state)
+- `ClickableFaces` resource holds clickable face geometry for ray-plane intersection
+- `indoor_interact_system` casts ray from camera, tests against clickable faces, dispatches EVT events
+- `door_animation_system` advances door timers and updates mesh vertex positions
+- Door states: Open/Closed (terminal), Opening/Closing (animating with proportional time reversal)
+- Door vertex animation: base offset + direction * distance, converted via `mm6_to_bevy()`
+- Pristine DLV files have empty door vertex data — doors spawn as entities but won't animate
 
 ### Player
 
@@ -160,6 +176,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `image.rs` — Sprite/texture image decoding, `tint_variant()` for monster color variants
 - `billboard.rs` — Billboard/decoration sprite manager
 - `ddeclist.rs`, `dsft.rs` — Decoration and sprite frame tables
+- `dlv.rs` — DLV file parser (indoor delta: actors and doors per BLV map)
 - `ddm.rs` — DDM file parser (actors/NPCs per map)
 - `monlist.rs` — Monster list (dmonlist.bin) with sprite name resolution
 - `mapstats.rs` — Map statistics (monster groups per map zone)
