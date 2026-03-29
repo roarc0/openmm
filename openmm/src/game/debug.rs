@@ -469,8 +469,8 @@ fn quicksave(
     current_map: Res<CurrentMapName>,
     mut save_data: ResMut<GameSave>,
 ) {
-    if keys.just_pressed(KeyCode::F3) {
-        if let Ok(transform) = player_query.single() {
+    if keys.just_pressed(KeyCode::F3)
+        && let Ok(transform) = player_query.single() {
             let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
             save_data.player = PlayerState {
                 position: [
@@ -491,7 +491,6 @@ fn quicksave(
                 Err(e) => error!("Failed to quicksave: {}", e),
             }
         }
-    }
 }
 
 fn debug_screenshot(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
