@@ -57,7 +57,7 @@ impl Plugin for BevyConfigPlugin {
 pub fn camera_msaa(cfg: &GameConfig) -> Msaa {
     let wants_msaa = matches!(cfg.antialiasing.as_str(), "msaa2" | "msaa4" | "msaa8");
 
-    let needs_msaa_off = cfg.ssao || cfg.bloom || cfg.depth_of_field;
+    let needs_msaa_off = cfg.ssao || cfg.bloom;
     if needs_msaa_off && wants_msaa {
         warn!(
             "Post-processing (bloom/SSAO/DOF) requires Msaa::Off — disabling MSAA (antialiasing='{}' ignored)",

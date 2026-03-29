@@ -231,10 +231,12 @@ fn spawn_player(
         if let Some(bloom) = crate::bevy_config::camera_bloom(&cfg) {
             cam.insert(bloom);
         }
-        // Depth/normal prepasses — needed by SSAO, DOF, and other post-processing.
-        // Always enabled since they're lightweight and required by many effects.
-        cam.insert(bevy::core_pipeline::prepass::DepthPrepass);
-        cam.insert(bevy::core_pipeline::prepass::NormalPrepass);
+        // Depth/normal prepasses — only when SSAO is active (it requires them).
+        // Note: prepasses break DOF and other effects, so don't enable unconditionally.
+        if cfg.ssao {
+            cam.insert(bevy::core_pipeline::prepass::DepthPrepass);
+            cam.insert(bevy::core_pipeline::prepass::NormalPrepass);
+        }
         if let Some(ssao) = crate::bevy_config::camera_ssao(&cfg) {
             cam.insert(ssao);
         }
