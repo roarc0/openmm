@@ -292,6 +292,43 @@ fn spawn_world(
             }
         }).id();
 
+    // Build outdoor clickable faces from BSP model faces with cog_trigger_id
+    {
+        let mut outdoor_clickable = Vec::new();
+        for model in &prepared.map.bsp_models {
+            for face in &model.faces {
+                if face.cog_trigger_id == 0 || face.vertices_count < 3 || face.is_invisible() {
+                    continue;
+                }
+                let vc = face.vertices_count as usize;
+                let verts: Vec<Vec3> = (0..vc)
+                    .filter_map(|i| {
+                        let idx = face.vertices_ids[i] as usize;
+                        model.vertices.get(idx).map(|v| Vec3::from(*v))
+                    })
+                    .collect();
+                if verts.len() < 3 { continue; }
+                let nx = face.plane.normal[0] as f32 / 65536.0;
+                let ny = face.plane.normal[2] as f32 / 65536.0;
+                let nz = -face.plane.normal[1] as f32 / 65536.0;
+                let normal = Vec3::new(nx, ny, nz);
+                let plane_dist = normal.dot(verts[0]);
+                outdoor_clickable.push(crate::game::blv::ClickableFaceInfo {
+                    face_index: 0,
+                    event_id: face.cog_trigger_id,
+                    normal,
+                    plane_dist,
+                    vertices: verts,
+                });
+            }
+        }
+        if !outdoor_clickable.is_empty() {
+            commands.insert_resource(crate::game::blv::ClickableFaces {
+                faces: outdoor_clickable,
+            });
+        }
+    }
+
     // Resolve monsters from spawn points using current map (not save_data which may lag)
     let resolved_monsters = resolve_monsters(&prepared, &game_assets, &current_map.0);
 
