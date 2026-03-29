@@ -138,7 +138,8 @@ impl Plugin for PlayerPlugin {
                 (toggle_fly_mode, toggle_mouse_look, adjust_sensitivity, player_movement, player_look, cursor_grab, log_gamepads)
                     .chain()
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(crate::game::hud::HudView::World)),
+                    .run_if(resource_equals(crate::game::hud::HudView::World))
+                    .run_if(|console: Res<crate::game::console::ConsoleState>| !console.open),
             );
     }
 }

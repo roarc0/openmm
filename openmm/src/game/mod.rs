@@ -4,6 +4,7 @@ use crate::{despawn_all, GameState};
 
 pub(crate) mod blv;
 pub(crate) mod collision;
+pub(crate) mod console;
 pub(crate) mod debug;
 pub(crate) mod entities;
 pub(crate) mod event_dispatch;
@@ -38,6 +39,7 @@ impl Plugin for InGamePlugin {
             hud::HudPlugin,
             interaction::InteractionPlugin,
             event_dispatch::EventDispatchPlugin,
+            console::ConsolePlugin,
             MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
         .add_systems(
