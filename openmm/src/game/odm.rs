@@ -573,6 +573,9 @@ fn lazy_spawn(
         p.idx += 1;
         let a = &prepared.actors[i];
         if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
+        // Skip placeholder "Peasant" actors from pristine DDM — the real monsters
+        // come from mapstats spawn points resolved by resolve_monsters().
+        if a.name == "Peasant" { continue; }
 
         let Some((s, w, pal_id)) = p.npc_sprite_table.get(&a.monlist_id) else {
             error!("NPC '{}' monster_id={} has no sprite in DSFT table — skipping", a.name, a.monlist_id);
