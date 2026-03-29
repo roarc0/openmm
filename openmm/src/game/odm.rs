@@ -242,6 +242,8 @@ fn spawn_world(
             Name::new("odm"),
             Mesh3d(meshes.add(terrain_mesh)),
             MeshMaterial3d(terrain_mat),
+            Transform::default(),
+            Visibility::default(),
             InGame,
         ))
         .with_children(|parent| {
