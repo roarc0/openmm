@@ -464,9 +464,7 @@ fn loading_step(
                                 alpha_mode: AlphaMode::Opaque,
                                 cull_mode: None,
                                 double_sided: true,
-                                perceptual_roughness: 1.0,
-                                reflectance: 0.0,
-                                metallic: 0.0,
+                                unlit: true,
                                 ..default()
                             },
                             texture,
@@ -524,9 +522,7 @@ fn loading_step(
                                 alpha_mode: AlphaMode::Opaque,
                                 cull_mode: None,
                                 double_sided: true,
-                                perceptual_roughness: 1.0,
-                                reflectance: 0.0,
-                                metallic: 0.0,
+                                unlit: true,
                                 ..default()
                             },
                             texture,
