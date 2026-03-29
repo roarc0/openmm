@@ -94,6 +94,8 @@ pub struct BlvFace {
     pub texture_vs: Vec<i16>,
     /// Event ID from face extras (links to EVT script). Zero = no event.
     pub event_id: u16,
+    /// Cog number from face extras — groups faces for doors and scripted actions.
+    pub cog_number: i16,
 }
 
 impl BlvFace {
@@ -241,6 +243,8 @@ pub struct Blv {
     pub map_outlines: Vec<BlvMapOutline>,
     pub door_count: u32,
     pub doors_data_size: i32,
+    pub face_extras_count: usize,
+    pub face_data_size: i32,
 }
 
 /// Door state in the game engine.
@@ -334,23 +338,23 @@ impl Blv {
         //    sTextureDeltaU at offset 0x14, sTextureDeltaV at offset 0x16, eventId at offset 0x1A.
         let face_extras_count = cursor.read_u32::<LittleEndian>()? as usize;
         let face_extra_size = 36u64;
-        let mut face_extra_data: Vec<(i16, i16, u16)> = Vec::with_capacity(face_extras_count);
+        let mut face_extra_data: Vec<(i16, i16, i16, u16)> = Vec::with_capacity(face_extras_count);
         for _ in 0..face_extras_count {
             let start = cursor.position();
             cursor.seek(std::io::SeekFrom::Current(0x14))?;
             let delta_u = cursor.read_i16::<LittleEndian>()?;
             let delta_v = cursor.read_i16::<LittleEndian>()?;
-            // Skip cogNumber (i16) at 0x18
-            cursor.seek(std::io::SeekFrom::Current(2))?;
+            let cog_number = cursor.read_i16::<LittleEndian>()?;
             let event_id = cursor.read_u16::<LittleEndian>()?;
-            face_extra_data.push((delta_u, delta_v, event_id));
+            face_extra_data.push((delta_u, delta_v, cog_number, event_id));
             cursor.seek(std::io::SeekFrom::Start(start + face_extra_size))?;
         }
-        // Assign deltas and event_id to faces via face_extra_id
+        // Assign deltas, cog_number, and event_id to faces via face_extra_id
         for face in &mut faces {
-            if let Some(&(du, dv, eid)) = face_extra_data.get(face.face_extra_id as usize) {
+            if let Some(&(du, dv, cog, eid)) = face_extra_data.get(face.face_extra_id as usize) {
                 face.texture_delta_u = du;
                 face.texture_delta_v = dv;
+                face.cog_number = cog;
                 face.event_id = eid;
             }
         }
@@ -463,6 +467,8 @@ impl Blv {
             map_outlines,
             door_count,
             doors_data_size: header.doors_data_size,
+            face_extras_count,
+            face_data_size: header.face_data_size,
         })
     }
 
@@ -530,6 +536,7 @@ impl Blv {
             texture_us: Vec::new(),
             texture_vs: Vec::new(),
             event_id: 0,
+            cog_number: 0,
         })
     }
 
@@ -1061,8 +1068,25 @@ mod tests {
             .collect();
         println!("d01.blv clickable faces with events: {}", clickable.len());
         for (i, face) in clickable.iter().take(10) {
-            println!("  face[{}]: event_id={} attrs=0x{:08X}", i, face.event_id, face.attributes);
+            println!("  face[{}]: event_id={} cog={} attrs=0x{:08X}", i, face.event_id, face.cog_number, face.attributes);
         }
         assert!(!clickable.is_empty(), "d01 should have clickable faces with event IDs");
+
+        // Dump door-related faces (moves_by_door flag)
+        let door_faces: Vec<_> = blv.faces.iter().enumerate()
+            .filter(|(_, f)| f.moves_by_door())
+            .collect();
+        println!("\nd01.blv moves_by_door faces: {}", door_faces.len());
+        for (i, face) in door_faces.iter().take(20) {
+            let tex = blv.texture_names.get(*i).map(|s| s.as_str()).unwrap_or("?");
+            println!("  face[{}]: cog={} event_id={} tex={} nverts={} attrs=0x{:08X}",
+                i, face.cog_number, face.event_id, tex, face.num_vertices, face.attributes);
+        }
+
+        // Show unique cog numbers for door faces
+        let mut door_cogs: Vec<i16> = door_faces.iter().map(|(_, f)| f.cog_number).collect();
+        door_cogs.sort();
+        door_cogs.dedup();
+        println!("\nUnique cog numbers on door faces: {:?}", door_cogs);
     }
 }

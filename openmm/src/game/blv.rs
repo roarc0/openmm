@@ -279,7 +279,7 @@ fn point_in_polygon(point: Vec3, vertices: &[Vec3], normal: Vec3) -> bool {
     winding != 0
 }
 
-const INDOOR_INTERACT_RANGE: f32 = 2000.0;
+const INDOOR_INTERACT_RANGE: f32 = 5120.0;
 
 /// Detect indoor face interaction (Enter/click) and dispatch EVT events.
 fn indoor_interact_system(
