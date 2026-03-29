@@ -4,6 +4,7 @@ use bevy::window::PrimaryWindow;
 
 use crate::GameState;
 use crate::assets::{self, GameAssets};
+use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::player::{Player, PlayerCamera};
 use image::GenericImageView;
@@ -56,6 +57,10 @@ struct HudMinimapArrow;
 struct HudCompassClip;
 #[derive(Component)]
 struct HudCompassStrip;
+#[derive(Component)]
+struct HudCamera;
+#[derive(Component)]
+struct HudRoot;
 
 /// Cached minimap direction arrow handles (N, NE, E, SE, S, SW, W, NW).
 #[derive(Resource)]
@@ -107,16 +112,19 @@ fn spawn_hud(
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    // Dedicated UI camera — renders HUD over the full window, independent of the
-    // 3D camera viewport. Order 1 ensures it renders after the 3D camera (order 0).
+    // HUD camera — covers the full window, clears to black (letterbox bar color).
+    // Order 1 ensures it renders after the 3D camera (order 0), which overwrites
+    // its viewport area with the sky. The HUD then draws on top.
     commands.spawn((
         Name::new("hud_camera"),
         Camera2d,
         Camera {
             order: 1,
+            clear_color: ClearColorConfig::Custom(Color::BLACK),
             ..default()
         },
         bevy::ui::IsDefaultUiCamera,
+        HudCamera,
         InGame,
     ));
 
@@ -160,19 +168,20 @@ fn spawn_hud(
         .collect();
     let default_arrow = arrow_handles.first().cloned();
 
-    // Root node covering the full screen
+    // Root node — positioned within the letterboxed area by update_hud_layout
     commands
         .spawn((
             Name::new("hud_root"),
             Node {
+                position_type: PositionType::Absolute,
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
-                position_type: PositionType::Absolute,
                 ..default()
             },
             Pickable::IGNORE,
             InGame,
             HudUI,
+            HudRoot,
         ))
         .with_children(|parent| {
             // border1 — right sidebar (172×339), anchored bottom-right
@@ -433,19 +442,26 @@ fn load_map_overview(
     None
 }
 
-/// Helper: compute common scaled dimensions from window height.
-fn hud_dimensions(window: &Window) -> HudDimensions {
-    let scale = window.height() / REF_H;
+/// Compute the logical letterboxed size (what the HUD camera sees).
+fn logical_size(window: &Window, cfg: &GameConfig) -> (f32, f32) {
+    let sf = window.scale_factor();
+    let (_, _, pw, ph) = letterbox_rect(window, cfg);
+    (pw as f32 / sf, ph as f32 / sf)
+}
+
+/// Helper: compute common scaled dimensions from letterboxed logical size.
+fn hud_dimensions(width: f32, height: f32) -> HudDimensions {
+    let scale = height / REF_H;
     let sidebar_w = BORDER1_W * scale;
     let sidebar_h = BORDER1_H * scale;
     let bar_h = BORDER2_H * scale;
     let divider_h = BORDER3_H * scale;
     let divider_w = BORDER4_W * scale;
     let divider_v_h = BORDER4_H * scale;
-    let viewport_w = window.width() - sidebar_w - divider_w;
+    let viewport_w = width - sidebar_w - divider_w;
     let tap_h = TAP_H * scale;
     let tap_w = TAP_W * scale;
-    let corner_h = window.height() - sidebar_h - tap_h;
+    let corner_h = height - sidebar_h - tap_h;
     HudDimensions {
         scale,
         sidebar_w,
@@ -478,6 +494,7 @@ struct HudDimensions {
 /// Update all HUD element sizes based on window size.
 fn update_hud_layout(
     windows: Query<&Window, With<PrimaryWindow>>,
+    cfg: Res<GameConfig>,
     mut set: ParamSet<(
         Query<&mut Node, With<HudBorder1>>,
         Query<&mut Node, With<HudBorder2>>,
@@ -534,9 +551,41 @@ fn update_hud_layout(
             Without<HudMapback>,
         ),
     >,
+    mut root_q: Query<
+        &mut Node,
+        (
+            With<HudRoot>,
+            Without<HudCompassClip>,
+            Without<HudMinimapArrow>,
+            Without<HudMinimapClip>,
+            Without<HudBorder1>,
+            Without<HudBorder2>,
+            Without<HudBorder3>,
+            Without<HudBorder4>,
+            Without<HudBorder5>,
+            Without<HudBorder6>,
+            Without<HudCorner>,
+            Without<HudMapback>,
+        ),
+    >,
 ) {
     let Ok(window) = windows.single() else { return };
-    let d = hud_dimensions(&window);
+    let sf = window.scale_factor();
+    let (_, _, lpw, lph) = letterbox_rect(&window, &cfg);
+    let lw = lpw as f32 / sf;
+    let lh = lph as f32 / sf;
+    let d = hud_dimensions(lw, lh);
+
+    // Position HUD root within the letterboxed area
+    let bar_x = (window.width() - lw) / 2.0;
+    let bar_y = (window.height() - lh) / 2.0;
+    for mut node in root_q.iter_mut() {
+        node.left = Val::Px(bar_x);
+        node.top = Val::Px(bar_y);
+        node.width = Val::Px(lw);
+        node.height = Val::Px(lh);
+    }
+
     // tap is full sidebar width, so offset is 0
     let tap_offset_x = 0.0_f32;
 
@@ -621,6 +670,7 @@ fn update_hud_layout(
 /// Update minimap image position, arrow direction, and compass strip based on player transform.
 fn update_minimap(
     windows: Query<&Window, With<PrimaryWindow>>,
+    cfg: Res<GameConfig>,
     player_q: Query<&Transform, With<Player>>,
     mut minimap_q: Query<&mut Node, (With<HudMinimapImage>, Without<HudCompassStrip>)>,
     arrows_res: Option<Res<MinimapArrows>>,
@@ -631,7 +681,8 @@ fn update_minimap(
     let Ok(player_tf) = player_q.single() else {
         return;
     };
-    let d = hud_dimensions(&window);
+    let (lw, lh) = logical_size(&window, &cfg);
+    let d = hud_dimensions(lw, lh);
 
     // Map overview is 512×512 pixels covering the 128×128 tile terrain.
     // Terrain world coords are centered: -half..+half on both axes.
@@ -698,26 +749,69 @@ fn update_minimap(
     }
 }
 
-/// Update the 3D camera viewport to fill the space not covered by HUD borders.
+/// Parse aspect ratio string like "4:3" into a float (width/height).
+fn parse_aspect_ratio(s: &str) -> Option<f32> {
+    let parts: Vec<&str> = s.split(':').collect();
+    if parts.len() == 2 {
+        let w: f32 = parts[0].trim().parse().ok()?;
+        let h: f32 = parts[1].trim().parse().ok()?;
+        if h > 0.0 { Some(w / h) } else { None }
+    } else {
+        None
+    }
+}
+
+/// Compute the letterboxed region within the physical window.
+/// Returns (offset_x, offset_y, width, height) in physical pixels.
+fn letterbox_rect(window: &Window, cfg: &GameConfig) -> (u32, u32, u32, u32) {
+    let pw = window.physical_width();
+    let ph = window.physical_height();
+    if let Some(target) = parse_aspect_ratio(&cfg.aspect_ratio) {
+        let current = pw as f32 / ph as f32;
+        if (current - target).abs() < 0.01 {
+            // Close enough — no bars needed
+            (0, 0, pw, ph)
+        } else if current > target {
+            // Too wide — pillarbox
+            let w = (ph as f32 * target) as u32;
+            let ox = (pw - w) / 2;
+            (ox, 0, w, ph)
+        } else {
+            // Too tall — letterbox
+            let h = (pw as f32 / target) as u32;
+            let oy = (ph - h) / 2;
+            (0, oy, pw, h)
+        }
+    } else {
+        (0, 0, pw, ph)
+    }
+}
+
+/// Update the 3D camera viewport to the letterboxed area minus HUD borders.
+/// The HUD camera has no viewport (full window) and clears to black for letterbox bars.
 fn update_viewport(
     windows: Query<&Window, With<PrimaryWindow>>,
-    mut cameras: Query<&mut Camera, With<PlayerCamera>>,
+    cfg: Res<GameConfig>,
+    mut player_cameras: Query<&mut Camera, With<PlayerCamera>>,
 ) {
     let Ok(window) = windows.single() else {
         return;
     };
 
-    let scale = window.height() / REF_H;
+    let (lx, ly, lw, lh) = letterbox_rect(&window, &cfg);
+
+    // 3D camera — letterboxed area minus HUD borders
+    let scale = (lh as f32 / window.scale_factor()) / REF_H;
     let sf = window.scale_factor();
     let sidebar_w = ((BORDER1_W + BORDER4_W) * scale * sf) as u32;
     let bar_h = ((BORDER2_H + BORDER3_H) * scale * sf) as u32;
 
-    let vp_w = window.physical_width().saturating_sub(sidebar_w).max(1);
-    let vp_h = window.physical_height().saturating_sub(bar_h).max(1);
+    let vp_w = lw.saturating_sub(sidebar_w).max(1);
+    let vp_h = lh.saturating_sub(bar_h).max(1);
 
-    for mut camera in cameras.iter_mut() {
+    for mut camera in player_cameras.iter_mut() {
         camera.viewport = Some(Viewport {
-            physical_position: UVec2::ZERO,
+            physical_position: UVec2::new(lx, ly),
             physical_size: UVec2::new(vp_w, vp_h),
             ..default()
         });

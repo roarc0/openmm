@@ -62,7 +62,7 @@ fn debug_setup(
     cfg: Res<GameConfig>,
 ) {
     wireframe_config.global = cfg.wireframe;
-    debug_config.show_play_area = cfg.show_play_area;
+    debug_config.show_play_area = cfg.debug;
 
     let hud_visibility = if cfg.debug {
         Visibility::Inherited

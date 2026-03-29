@@ -6,6 +6,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
+use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::collision::{
     BuildingColliders, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
@@ -36,6 +37,17 @@ impl Default for FlyMode {
     fn default() -> Self {
         Self(false)
     }
+}
+
+/// Runtime toggle for mouse look — initialized from config, toggled by CapsLock.
+#[derive(Resource)]
+pub struct MouseLookEnabled(pub bool);
+
+/// Runtime mouse sensitivity multiplier — adjusted with Home/End keys.
+#[derive(Resource)]
+pub struct MouseSensitivity {
+    pub x: f32,
+    pub y: f32,
 }
 
 #[derive(Resource)]
@@ -108,16 +120,22 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
+        let cfg = app.world().resource::<GameConfig>().clone();
         app.init_resource::<PlayerSettings>()
             .init_resource::<PlayerKeyBindings>()
             .init_resource::<FlyMode>()
+            .insert_resource(MouseLookEnabled(cfg.mouse_look))
+            .insert_resource(MouseSensitivity {
+                x: cfg.mouse_sensitivity_x,
+                y: cfg.mouse_sensitivity_y,
+            })
             .add_systems(
                 OnEnter(GameState::Game),
                 (spawn_player, grab_cursor_on_enter),
             )
             .add_systems(
                 Update,
-                (toggle_fly_mode, player_movement, player_look, cursor_grab, log_gamepads)
+                (toggle_fly_mode, toggle_mouse_look, adjust_sensitivity, player_movement, player_look, cursor_grab, log_gamepads)
                     .chain()
                     .run_if(in_state(crate::game::interaction::InGameState::Playing)),
             );
@@ -254,13 +272,42 @@ fn toggle_fly_mode(
     }
 }
 
+fn toggle_mouse_look(
+    keys: Res<ButtonInput<KeyCode>>,
+    cfg: Res<GameConfig>,
+    mut mouse_look: ResMut<MouseLookEnabled>,
+) {
+    if cfg.capslock_toggle_mouse_look && keys.just_pressed(KeyCode::CapsLock) {
+        mouse_look.0 = !mouse_look.0;
+        info!("Mouse look: {}", if mouse_look.0 { "ON" } else { "OFF" });
+    }
+}
+
+/// Home/End adjust mouse sensitivity at runtime.
+fn adjust_sensitivity(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut sens: ResMut<MouseSensitivity>,
+) {
+    let step = 5.0;
+    if keys.just_pressed(KeyCode::Home) {
+        sens.x = (sens.x + step).min(200.0);
+        sens.y = (sens.y + step).min(200.0);
+        info!("Mouse sensitivity: {:.0}/{:.0}", sens.x, sens.y);
+    }
+    if keys.just_pressed(KeyCode::End) {
+        sens.x = (sens.x - step).max(1.0);
+        sens.y = (sens.y - step).max(1.0);
+        info!("Mouse sensitivity: {:.0}/{:.0}", sens.x, sens.y);
+    }
+}
+
 fn player_movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     settings: Res<PlayerSettings>,
+    cfg: Res<GameConfig>,
     key_bindings: Res<PlayerKeyBindings>,
     fly_mode: Res<FlyMode>,
-    cfg: Res<crate::config::GameConfig>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
     water_map: Option<Res<WaterMap>>,
@@ -287,24 +334,35 @@ fn player_movement(
     let Ok(cursor_options) = cursor_query.single() else {
         return;
     };
-    if !has_gamepad_input && !cfg.auto_move && matches!(cursor_options.grab_mode, CursorGrabMode::None) {
+    if !has_gamepad_input && matches!(cursor_options.grab_mode, CursorGrabMode::None) {
         return;
     }
 
-    let speed = if fly_mode.0 {
+    // always_run: use full speed; walk would be half speed
+    let base_speed = if fly_mode.0 {
         settings.fly_speed
-    } else {
+    } else if cfg.always_run {
         settings.speed
+    } else {
+        settings.speed * 0.5
     };
 
+    // turn_speed from config (degrees/sec → radians/sec)
+    let turn_speed = cfg.turn_speed.to_radians();
+
     for (mut transform, mut physics) in query.iter_mut() {
-        // Rotation (keyboard only — right stick handles look separately)
-        for key in keys.get_pressed() {
-            let key = *key;
-            if key == key_bindings.rotate_left {
-                transform.rotate_y(settings.rotation_speed * time.delta_secs());
-            } else if key == key_bindings.rotate_right {
-                transform.rotate_y(-settings.rotation_speed * time.delta_secs());
+        // Rotation / strafe based on always_strafe config
+        if cfg.always_strafe {
+            // Arrow left/right strafe instead of rotate
+            // (rotation only via mouse look)
+        } else {
+            for key in keys.get_pressed() {
+                let key = *key;
+                if key == key_bindings.rotate_left {
+                    transform.rotate_y(turn_speed * time.delta_secs());
+                } else if key == key_bindings.rotate_right {
+                    transform.rotate_y(-turn_speed * time.delta_secs());
+                }
             }
         }
 
@@ -327,6 +385,15 @@ fn player_movement(
         if keys.pressed(key_bindings.strafe_right) {
             movement += right_flat;
         }
+        // always_strafe: arrow keys also strafe
+        if cfg.always_strafe {
+            if keys.pressed(key_bindings.rotate_left) {
+                movement -= right_flat;
+            }
+            if keys.pressed(key_bindings.rotate_right) {
+                movement += right_flat;
+            }
+        }
 
         // Gamepad left stick: Y forward/back, X strafe
         if gp_left != Vec2::ZERO {
@@ -334,14 +401,8 @@ fn player_movement(
             movement += right_flat * gp_left.x;
         }
 
-        // Auto-move: walk forward and slowly rotate for a patrol pattern
-        if cfg.auto_move && movement == Vec3::ZERO {
-            movement += forward_flat;
-            transform.rotate_y(0.15 * time.delta_secs());
-        }
-
         if movement != Vec3::ZERO {
-            movement = movement.normalize() * speed * time.delta_secs();
+            movement = movement.normalize() * base_speed * time.delta_secs();
 
             if fly_mode.0 {
                 let from = transform.translation;
@@ -426,12 +487,12 @@ fn player_movement(
 
         // Fly vertical with BSP collision
         if fly_mode.0 {
-            let mut dy = 0.0;
+            let mut dy = 0.0_f32;
             if keys.pressed(key_bindings.fly_up) || gp_fly_up {
-                dy += speed * time.delta_secs();
+                dy += base_speed * time.delta_secs();
             }
             if keys.pressed(key_bindings.fly_down) || gp_fly_down {
-                dy -= speed * time.delta_secs();
+                dy -= base_speed * time.delta_secs();
             }
             if dy.abs() > 0.0 {
                 let from = transform.translation;
@@ -453,6 +514,8 @@ fn player_movement(
 
 fn player_look(
     settings: Res<PlayerSettings>,
+    mouse_sens: Res<MouseSensitivity>,
+    mouse_look: Res<MouseLookEnabled>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     accumulated: Res<AccumulatedMouseMotion>,
     primary_window: Query<&Window, With<PrimaryWindow>>,
@@ -473,8 +536,8 @@ fn player_look(
         return;
     };
 
-    // Mouse look (only when cursor is grabbed)
-    let mouse_active = !matches!(cursor_options.grab_mode, CursorGrabMode::None);
+    // Mouse look active when runtime toggle is on AND cursor is grabbed
+    let mouse_active = mouse_look.0 && !matches!(cursor_options.grab_mode, CursorGrabMode::None);
 
     let Ok(window) = primary_window.single() else {
         return;
@@ -483,10 +546,14 @@ fn player_look(
     let window_scale = window.height().min(window.width());
     let delta = accumulated.delta;
 
+    // Per-axis sensitivity from runtime resource (scaled by base sensitivity factor)
+    let sens_x = settings.sensitivity * mouse_sens.x;
+    let sens_y = settings.sensitivity * mouse_sens.y;
+
     for mut transform in player_query.iter_mut() {
         // Mouse yaw
         if mouse_active {
-            let yaw = -(settings.sensitivity * delta.x * window_scale).to_radians();
+            let yaw = -(sens_x * delta.x * window_scale).to_radians();
             transform.rotate_y(yaw);
         }
         // Gamepad yaw (right stick X)
@@ -499,7 +566,7 @@ fn player_look(
         let (_, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
         // Mouse pitch
         if mouse_active {
-            pitch -= (settings.sensitivity * delta.y * window_scale).to_radians();
+            pitch -= (sens_y * delta.y * window_scale).to_radians();
         }
         // Gamepad pitch (right stick Y) — reduced sensitivity, pitch isn't critical
         if gp_look.y.abs() > 0.0 {

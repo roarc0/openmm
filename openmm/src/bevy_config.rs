@@ -1,6 +1,6 @@
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::prelude::*;
-use bevy::window::{PresentMode, Window, WindowMode};
+use bevy::window::{PresentMode, Window, WindowMode, WindowResolution};
 
 use crate::APP_NAME;
 use crate::config::GameConfig;
@@ -11,8 +11,6 @@ impl Plugin for BevyConfigPlugin {
     fn build(&self, app: &mut App) {
         let cfg = app.world().resource::<GameConfig>().clone();
 
-        // fps_cap=0 means unlimited (no vsync), otherwise use vsync.
-        // The vsync config is overridden by fps_cap=0.
         let present_mode = if cfg.fps_cap == 0 {
             PresentMode::Immediate
         } else {
@@ -23,30 +21,31 @@ impl Plugin for BevyConfigPlugin {
             }
         };
 
-        let window_mode = if cfg.fullscreen {
-            WindowMode::BorderlessFullscreen(MonitorSelection::Current)
-        } else {
-            WindowMode::Windowed
+        let window_mode = match cfg.window_mode.as_str() {
+            "borderless" => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+            "fullscreen" => WindowMode::Fullscreen(MonitorSelection::Current, bevy::window::VideoModeSelection::Current),
+            _ => WindowMode::Windowed,
         };
+
+        let resolution = WindowResolution::new(cfg.width, cfg.height);
 
         let default_plugins = DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: APP_NAME.into(),
                 present_mode,
                 mode: window_mode,
+                resolution,
+                resize_constraints: bevy::window::WindowResizeConstraints {
+                    min_width: 640.0,
+                    min_height: 480.0,
+                    ..default()
+                },
                 prevent_default_event_handling: false,
                 ..default()
             }),
             ..default()
         });
 
-        app.add_plugins((default_plugins, FrameTimeDiagnosticsPlugin::default()))
-            .add_systems(Startup, maximize_window);
-    }
-}
-
-fn maximize_window(mut windows: Query<&mut Window>) {
-    for mut window in &mut windows {
-        window.set_maximized(true);
+        app.add_plugins((default_plugins, FrameTimeDiagnosticsPlugin::default()));
     }
 }
