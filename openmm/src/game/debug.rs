@@ -70,12 +70,18 @@ fn debug_setup(
         Visibility::Hidden
     };
 
-    // HUD text
+    // HUD text — positioned inside the game viewport (below border3, right of border4)
     commands
         .spawn((
             Text::new("FPS: --"),
             TextFont { font_size: 22.0, ..default() },
             TextColor(Color::WHITE),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(14.0),
+                top: Val::Px(14.0),
+                ..default()
+            },
             hud_visibility,
             FpsText,
             InGame,
@@ -92,8 +98,8 @@ fn debug_setup(
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
-            left: Val::Px(4.0),
-            top: Val::Px(60.0),
+            left: Val::Px(14.0),
+            top: Val::Px(70.0),
             flex_direction: FlexDirection::Column,
             ..default()
         },

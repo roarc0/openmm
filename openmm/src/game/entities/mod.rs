@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::GameState;
+use crate::game::interaction::InGameState;
 
 pub mod actor;
 pub mod decoration;
@@ -81,7 +81,7 @@ impl Plugin for EntitiesPlugin {
                 billboard_face_camera,
             )
                 .chain()
-                .run_if(in_state(GameState::Game)),
+                .run_if(in_state(InGameState::Playing)),
         );
     }
 }

@@ -7,9 +7,8 @@ use crate::assets::{self, GameAssets};
 use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::player::{Player, PlayerCamera};
-use image::GenericImageView;
-
-use crate::ui_assets::UiAssets;
+use crate::fonts::GameFonts;
+use crate::ui_assets::{UiAssets, make_black_transparent, make_transparent_where};
 
 // MM6 reference height — all HUD dimensions scale relative to this
 const REF_H: f32 = 480.0;
@@ -25,6 +24,7 @@ const TAP_W: f32 = 172.0; // minimap frame width (= sidebar width)
 const TAP_H: f32 = 142.0; // minimap frame height
 const COMPASS_W: f32 = 325.0; // compass strip full width
 const COMPASS_H: f32 = 9.0; // compass strip height
+const FOOTER_H: f32 = 24.0; // footer strip height (reference)
 
 /// Marker for HUD UI entities.
 #[derive(Component)]
@@ -61,6 +61,12 @@ struct HudCompassStrip;
 struct HudCamera;
 #[derive(Component)]
 struct HudRoot;
+#[derive(Component)]
+struct HudBorder4Left;
+#[derive(Component)]
+struct HudFooter;
+#[derive(Component)]
+struct HudFooterText;
 
 /// Cached minimap direction arrow handles (N, NE, E, SE, S, SW, W, NW).
 #[derive(Resource)]
@@ -70,45 +76,106 @@ struct MinimapArrows(Vec<Handle<Image>>);
 #[derive(Resource)]
 struct TapFrames(Vec<Handle<Image>>);
 
+/// Text displayed in the footer bar. Write to this resource from any system
+/// to update the footer message (e.g. building names, hints, status text).
+///
+/// Set `text` to change the message. The HUD will re-render automatically.
+/// Set `text` to an empty string to clear the footer.
+///
+/// # Example
+/// ```ignore
+/// fn my_system(mut footer: ResMut<FooterText>) {
+///     footer.set("The Knife Shoppe");
+/// }
+/// ```
+#[derive(Resource)]
+pub struct FooterText {
+    text: String,
+    color: [u8; 4],
+    font: String,
+    /// Generation counter — bumped on every change so the HUD knows to re-render.
+    generation: u64,
+}
+
+impl Default for FooterText {
+    fn default() -> Self {
+        Self {
+            text: String::new(),
+            color: crate::fonts::WHITE,
+            font: "smallnum".into(),
+            generation: 0,
+        }
+    }
+}
+
+impl FooterText {
+    /// Set footer text with the default font and color.
+    pub fn set(&mut self, text: &str) {
+        if self.text != text {
+            self.text = text.to_string();
+            self.generation += 1;
+        }
+    }
+
+    /// Set footer text with a specific color.
+    pub fn set_colored(&mut self, text: &str, color: [u8; 4]) {
+        let changed = self.text != text || self.color != color;
+        if changed {
+            self.text = text.to_string();
+            self.color = color;
+            self.generation += 1;
+        }
+    }
+
+    /// Set footer text with a specific font and color.
+    pub fn set_styled(&mut self, text: &str, font: &str, color: [u8; 4]) {
+        let changed = self.text != text || self.color != color || self.font != font;
+        if changed {
+            self.text = text.to_string();
+            self.font = font.to_string();
+            self.color = color;
+            self.generation += 1;
+        }
+    }
+
+    /// Clear the footer text.
+    pub fn clear(&mut self) {
+        self.set("");
+    }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+}
+
 pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), spawn_hud)
+        app.init_resource::<FooterText>()
+            .add_systems(OnEnter(GameState::Game), spawn_hud)
             .add_systems(
                 Update,
-                (update_hud_layout, update_minimap, update_viewport)
+                (update_hud_layout, update_minimap, update_footer_text, update_viewport)
                     .chain()
                     .run_if(in_state(GameState::Game)),
             );
     }
 }
 
-/// Make green (tap1/tap3) or red (tap2/tap4) keyed pixels transparent.
-/// Operates on the DynamicImage before Bevy conversion to avoid format issues.
-fn make_key_transparent(img: &mut image::DynamicImage) {
-    let rgba = img.to_rgba8();
-    let mut buf = rgba.into_raw();
-    for chunk in buf.chunks_exact_mut(4) {
-        let r = chunk[0];
-        let g = chunk[1];
-        let b = chunk[2];
+/// Make green or red color-keyed pixels transparent for tap frame overlays.
+fn make_tap_key_transparent(img: &mut image::DynamicImage) {
+    make_transparent_where(img, |r, g, b| {
         let is_green = g > r && g > b && g >= 128 && r < 100 && b < 100;
         let is_red = r > g && r > b && r >= 128 && g < 100 && b < 100;
-        if is_green || is_red {
-            chunk[0] = 0;
-            chunk[1] = 0;
-            chunk[2] = 0;
-            chunk[3] = 0;
-        }
-    }
-    let (w, h) = img.dimensions();
-    *img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_raw(w, h, buf).unwrap());
+        is_green || is_red
+    });
 }
 
 fn spawn_hud(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
+    mut footer_text: ResMut<FooterText>,
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
 ) {
@@ -135,22 +202,21 @@ fn spawn_hud(
     let border4 = ui_assets.get_or_load("border4", &game_assets, &mut images);
     let border5 = ui_assets.get_or_load("border5", &game_assets, &mut images);
     let border6 = ui_assets.get_or_load("border6", &game_assets, &mut images);
+    let footer = ui_assets.get_or_load("footer", &game_assets, &mut images);
 
     // Load tap frames (minimap border with time-of-day sky)
     // tap1=morning, tap2=day, tap3=evening, tap4=night — green/red key made transparent
     let tap_handles: Vec<Handle<Image>> = (1..=4)
         .filter_map(|i| {
-            game_assets
-                .lod_manager()
-                .icon(&format!("tap{}", i))
-                .map(|mut dyn_img| {
-                    make_key_transparent(&mut dyn_img);
-                    // Debug: save processed tap to verify transparency
-                    if i == 1 {
-                        let _ = dyn_img.save("/tmp/tap1_processed.png");
-                    }
-                    images.add(assets::dynamic_to_bevy_image(dyn_img))
-                })
+            let name = format!("tap{}", i);
+            let key = format!("{}_transparent", name);
+            ui_assets.get_or_load_transformed(
+                &name,
+                &key,
+                &game_assets,
+                &mut images,
+                make_tap_key_transparent,
+            )
         })
         .collect();
     let tap_frame = tap_handles.first().cloned();
@@ -163,8 +229,19 @@ fn spawn_hud(
     let compass = ui_assets.get_or_load("compass", &game_assets, &mut images);
 
     // Load minimap direction arrows (mapdir1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW)
+    // Black background is made transparent via the transformed cache
     let arrow_handles: Vec<Handle<Image>> = (1..=8)
-        .filter_map(|i| ui_assets.get_or_load(&format!("mapdir{}", i), &game_assets, &mut images))
+        .filter_map(|i| {
+            let name = format!("mapdir{}", i);
+            let key = format!("{}_transparent", name);
+            ui_assets.get_or_load_transformed(
+                &name,
+                &key,
+                &game_assets,
+                &mut images,
+                make_black_transparent,
+            )
+        })
         .collect();
     let default_arrow = arrow_handles.first().cloned();
 
@@ -198,6 +275,24 @@ fn spawn_hud(
                         ..default()
                     },
                     HudBorder1,
+                    HudUI,
+                ));
+            }
+
+            // footer — thin text strip drawn behind border2 (overlapping top edge)
+            if let Some(handle) = footer {
+                parent.spawn((
+                    Name::new("hud_footer"),
+                    ImageNode::new(handle),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(0.0),
+                        bottom: Val::Px(0.0),
+                        width: Val::Px(0.0),
+                        height: Val::Px(0.0),
+                        ..default()
+                    },
+                    HudFooter,
                     HudUI,
                 ));
             }
@@ -238,14 +333,14 @@ fn spawn_hud(
                 ));
             }
 
-            // border4 — vertical divider strip (8×344), left of right sidebar
+            // border4 — vertical divider strip (8×344), left edge of viewport only
             if let Some(handle) = border4 {
                 parent.spawn((
                     Name::new("hud_border4"),
                     ImageNode::new(handle),
                     Node {
                         position_type: PositionType::Absolute,
-                        right: Val::Px(0.0),
+                        left: Val::Px(0.0),
                         top: Val::Px(0.0),
                         width: Val::Px(0.0),
                         height: Val::Px(0.0),
@@ -414,6 +509,23 @@ fn spawn_hud(
                     HudUI,
                 ));
             }
+
+            // Footer text — spawned last so it renders on top of everything
+            parent.spawn((
+                Name::new("hud_footer_text"),
+                ImageNode::new(Handle::default()),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    bottom: Val::Px(0.0),
+                    width: Val::Auto,
+                    height: Val::Auto,
+                    ..default()
+                },
+                Visibility::Hidden,
+                HudFooterText,
+                HudUI,
+            ));
         });
 
     // Store arrow handles as resource for runtime direction swapping
@@ -424,6 +536,9 @@ fn spawn_hud(
     if !tap_handles.is_empty() {
         commands.insert_resource(TapFrames(tap_handles));
     }
+
+    // Set initial footer message
+    footer_text.set("Welcome to New Sorpigal");
 }
 
 /// Load the map overview image for the minimap.
@@ -558,6 +673,45 @@ fn update_hud_layout(
             Without<HudCompassClip>,
             Without<HudMinimapArrow>,
             Without<HudMinimapClip>,
+            Without<HudFooter>,
+            Without<HudBorder1>,
+            Without<HudBorder2>,
+            Without<HudBorder3>,
+            Without<HudBorder4>,
+            Without<HudBorder5>,
+            Without<HudBorder6>,
+            Without<HudCorner>,
+            Without<HudMapback>,
+        ),
+    >,
+    mut footer_q: Query<
+        &mut Node,
+        (
+            With<HudFooter>,
+            Without<HudFooterText>,
+            Without<HudRoot>,
+            Without<HudCompassClip>,
+            Without<HudMinimapArrow>,
+            Without<HudMinimapClip>,
+            Without<HudBorder1>,
+            Without<HudBorder2>,
+            Without<HudBorder3>,
+            Without<HudBorder4>,
+            Without<HudBorder5>,
+            Without<HudBorder6>,
+            Without<HudCorner>,
+            Without<HudMapback>,
+        ),
+    >,
+    mut footer_text_q: Query<
+        &mut Node,
+        (
+            With<HudFooterText>,
+            Without<HudFooter>,
+            Without<HudRoot>,
+            Without<HudCompassClip>,
+            Without<HudMinimapArrow>,
+            Without<HudMinimapClip>,
             Without<HudBorder1>,
             Without<HudBorder2>,
             Without<HudBorder3>,
@@ -596,36 +750,36 @@ fn update_hud_layout(
         node.width = Val::Px(d.sidebar_w);
         node.height = Val::Px(d.sidebar_h);
     }
-    // border2 — bottom bar
+    // border2 — bottom bar (469×109 reference), scaled to fit left of sidebar
+    let border2_w = 469.0 * d.scale;
     for mut node in set.p1().iter_mut() {
-        node.width = Val::Px(d.viewport_w + d.divider_w);
+        node.width = Val::Px(border2_w);
         node.height = Val::Px(d.bar_h);
     }
-    // border3 — horizontal divider above bottom bar
+    // border3 — horizontal divider strip across the top, extends to sidebar
     for mut node in set.p2().iter_mut() {
-        node.bottom = Val::Px(d.bar_h);
-        node.width = Val::Px(d.viewport_w);
+        node.left = Val::Px(0.0);
+        node.top = Val::Px(0.0);
+        node.bottom = Val::Auto;
+        node.width = Val::Px(border2_w);
         node.height = Val::Px(d.divider_h);
     }
-    // border4 — vertical divider left of sidebar
+    // border4 — vertical divider strip, left edge of viewport, below border3
     for mut node in set.p3().iter_mut() {
-        node.right = Val::Px(d.sidebar_w);
+        node.left = Val::Px(0.0);
+        node.top = Val::Px(d.divider_h);
+        node.right = Val::Auto;
         node.width = Val::Px(d.divider_w);
         node.height = Val::Px(d.divider_v_h);
     }
-    // border5 — corner piece at border3/border4 intersection
+    // border5/border6 — hidden for now (will be corner pieces for columns)
     for mut node in set.p4().iter_mut() {
-        node.right = Val::Px(d.sidebar_w);
-        node.bottom = Val::Px(d.bar_h);
-        node.width = Val::Px(d.divider_w);
-        node.height = Val::Px(20.0 * d.scale);
+        node.width = Val::Px(0.0);
+        node.height = Val::Px(0.0);
     }
-    // border6 — corner piece below border4
     for mut node in set.p5().iter_mut() {
-        node.right = Val::Px(d.sidebar_w);
-        node.bottom = Val::Px(d.bar_h + d.divider_h);
-        node.width = Val::Px(7.0 * d.scale);
-        node.height = Val::Px(21.0 * d.scale);
+        node.width = Val::Px(0.0);
+        node.height = Val::Px(0.0);
     }
     // Corner fill — bottom-right area (below border1+mapback)
     for mut node in set.p6().iter_mut() {
@@ -653,6 +807,24 @@ fn update_hud_layout(
         node.top = Val::Px((d.tap_h - arrow_size) / 2.0);
         node.width = Val::Px(arrow_size);
         node.height = Val::Px(arrow_size);
+    }
+    // Footer — sits directly above border2, overlapping its top by 10px.
+    let footer_h = FOOTER_H * d.scale;
+    let footer_overlap = 10.0 * d.scale;
+    let footer_lift = 5.0 * d.scale;
+    let footer_bottom = d.bar_h - footer_overlap + footer_lift;
+    for mut node in footer_q.iter_mut() {
+        node.bottom = Val::Px(footer_bottom);
+        node.width = Val::Px(border2_w);
+        node.height = Val::Px(footer_h);
+    }
+    // Footer text — scaled to footer height, centered vertically
+    let text_h = footer_h * 0.6;
+    let text_bottom = footer_bottom + (footer_h - text_h) / 2.0;
+    for mut node in footer_text_q.iter_mut() {
+        node.bottom = Val::Px(text_bottom);
+        node.width = Val::Auto;
+        node.height = Val::Px(text_h);
     }
     // Compass clip — floating inside tap frame, in the compass channel (y≈15, 38px wide at x=70..107)
     let compass_h = COMPASS_H * d.scale;
@@ -749,6 +921,55 @@ fn update_minimap(
     }
 }
 
+/// Re-render the footer text image whenever `FooterText` changes.
+fn update_footer_text(
+    footer: Res<FooterText>,
+    mut last_gen: Local<u64>,
+    game_fonts: Res<GameFonts>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    cfg: Res<GameConfig>,
+    mut images: ResMut<Assets<Image>>,
+    mut query: Query<(&mut ImageNode, &mut Visibility, &mut Node), With<HudFooterText>>,
+) {
+    if footer.generation == *last_gen {
+        return;
+    }
+    *last_gen = footer.generation;
+
+    // Compute viewport width for centering
+    let vp_w = windows.single().ok().map(|w| {
+        let (_, _, vp_w, _) = viewport_rect(w, &cfg);
+        vp_w
+    });
+
+    for (mut img_node, mut vis, mut node) in query.iter_mut() {
+        if footer.text.is_empty() {
+            *vis = Visibility::Hidden;
+        } else if let Some(handle) = game_fonts.render(
+            &footer.text,
+            &footer.font,
+            footer.color,
+            &mut images,
+        ) {
+            // Center the text: account for scaling (height constrains the image,
+            // width scales proportionally)
+            let text_px_w = game_fonts.measure(&footer.text, &footer.font) as f32;
+            if let Some(vp_w) = vp_w {
+                if let Some(font) = game_fonts.get(&footer.font) {
+                    let native_h = font.height as f32;
+                    if let Val::Px(display_h) = node.height {
+                        let scale = display_h / native_h;
+                        let display_w = text_px_w * scale;
+                        node.left = Val::Px((vp_w - display_w) / 2.0);
+                    }
+                }
+            }
+            img_node.image = handle;
+            *vis = Visibility::Inherited;
+        }
+    }
+}
+
 /// Parse aspect ratio string like "4:3" into a float (width/height).
 fn parse_aspect_ratio(s: &str) -> Option<f32> {
     let parts: Vec<&str> = s.split(':').collect();
@@ -787,6 +1008,25 @@ fn letterbox_rect(window: &Window, cfg: &GameConfig) -> (u32, u32, u32, u32) {
     }
 }
 
+/// Compute the 3D viewport rect in logical (CSS) pixels: (left, top, width, height).
+/// This is the playable area — letterboxed region minus HUD sidebar and bottom bar.
+pub fn viewport_rect(window: &Window, cfg: &GameConfig) -> (f32, f32, f32, f32) {
+    let sf = window.scale_factor();
+    let (_, _, lpw, lph) = letterbox_rect(window, cfg);
+    let lw = lpw as f32 / sf;
+    let lh = lph as f32 / sf;
+    let d = hud_dimensions(lw, lh);
+    let bar_x = (window.width() - lw) / 2.0;
+    let bar_y = (window.height() - lh) / 2.0;
+    // border3 at top, footer+border2 at bottom
+    let footer_exposed = (FOOTER_H - 10.0 + 5.0) * d.scale;
+    let vp_top = bar_y + d.divider_h; // below border3
+    // No border4 on the right, so viewport extends to the sidebar
+    let vp_w = d.viewport_w + d.divider_w;
+    let vp_h = lh - d.bar_h - d.divider_h - footer_exposed;
+    (bar_x, vp_top, vp_w, vp_h)
+}
+
 /// Update the 3D camera viewport to the letterboxed area minus HUD borders.
 /// The HUD camera has no viewport (full window) and clears to black for letterbox bars.
 fn update_viewport(
@@ -800,18 +1040,22 @@ fn update_viewport(
 
     let (lx, ly, lw, lh) = letterbox_rect(&window, &cfg);
 
-    // 3D camera — letterboxed area minus HUD borders
+    // 3D camera — border3 at top, footer+border2 at bottom, sidebar on right (no border4 on right)
     let scale = (lh as f32 / window.scale_factor()) / REF_H;
     let sf = window.scale_factor();
-    let sidebar_w = ((BORDER1_W + BORDER4_W) * scale * sf) as u32;
-    let bar_h = ((BORDER2_H + BORDER3_H) * scale * sf) as u32;
+    let sidebar_w = (BORDER1_W * scale * sf) as u32;
+    let top_h = (BORDER3_H * scale * sf) as u32;
+    let footer_exposed = ((FOOTER_H - 10.0 + 5.0) * scale * sf) as u32;
+    let bottom_h = (BORDER2_H * scale * sf) as u32 + footer_exposed;
 
+    let vp_x = lx;
+    let vp_y = ly + top_h;
     let vp_w = lw.saturating_sub(sidebar_w).max(1);
-    let vp_h = lh.saturating_sub(bar_h).max(1);
+    let vp_h = lh.saturating_sub(top_h + bottom_h).max(1);
 
     for mut camera in player_cameras.iter_mut() {
         camera.viewport = Some(Viewport {
-            physical_position: UVec2::new(lx, ly),
+            physical_position: UVec2::new(vp_x, vp_y),
             physical_size: UVec2::new(vp_w, vp_h),
             ..default()
         });

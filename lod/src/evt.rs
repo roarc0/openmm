@@ -32,8 +32,8 @@ pub enum EventAction {
     },
     /// Open a chest.
     OpenChest { id: u8 },
-    /// Show hint text (tooltip on mouseover).
-    Hint { str_id: u8 },
+    /// Show hint text (tooltip on mouseover). `text` is resolved from the .str table.
+    Hint { str_id: u8, text: String },
 }
 
 /// Parsed events from a .evt file, keyed by event_id.
@@ -42,9 +42,32 @@ pub struct EvtFile {
     pub events: HashMap<u16, Vec<EventAction>>,
 }
 
+/// Parse a .str string table: null-separated strings indexed from 0.
+fn parse_str_table(lod: &LodManager, map_base: &str) -> Vec<String> {
+    let path = format!("icons/{}.str", map_base);
+    let raw = lod.try_get_bytes(&path)
+        .or_else(|_| lod.try_get_bytes(&format!("games/{}.str", map_base)))
+        .or_else(|_| lod.try_get_bytes(&format!("new/{}.str", map_base)));
+    let Ok(raw) = raw else { return Vec::new() };
+
+    let data = match crate::lod_data::LodData::try_from(raw) {
+        Ok(d) => d.data,
+        Err(_) => raw.to_vec(),
+    };
+
+    data.split(|&b| b == 0)
+        .filter_map(|s| std::str::from_utf8(s).ok())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
 impl EvtFile {
     /// Parse an .evt file from raw (possibly compressed) LOD data.
+    /// Also loads the corresponding .str file for hint text resolution.
     pub fn parse(lod: &LodManager, map_base: &str) -> Result<Self, Box<dyn Error>> {
+        let str_table = parse_str_table(lod, map_base);
+
         // Try multiple archive locations
         let path = format!("icons/{}.evt", map_base);
         let raw = lod.try_get_bytes(&path)
@@ -88,10 +111,13 @@ impl EvtFile {
                     }
                 }
                 0x04 => {
-                    // Hint
-                    Some(EventAction::Hint {
-                        str_id: params.first().copied().unwrap_or(0),
-                    })
+                    // Hint — resolve text from .str table
+                    let str_id = params.first().copied().unwrap_or(0);
+                    let text = str_table
+                        .get(str_id as usize)
+                        .cloned()
+                        .unwrap_or_default();
+                    Some(EventAction::Hint { str_id, text })
                 }
                 0x06 => {
                     // MoveToMap

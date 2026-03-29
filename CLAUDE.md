@@ -66,6 +66,27 @@ src/
     terrain_material/  — Custom terrain shader with water extension
 ```
 
+## Useful Resources
+
+
+### Rules
+
+## Keeping Documentation Updated
+
+> **⚠️ CRITICAL: This section is mandatory, not aspirational.** Stale docs are worse than no docs — they actively mislead developers and AI agents into building on false assumptions. A recent audit found that 4 out of 6 feature docs had drifted so far from reality that they required complete rewrites. This happens when documentation updates are treated as optional. **They are not optional.**
+
+### Rule 1: Every Behaviour Change Includes a Doc Update
+
+Every code change that alters behaviour must include a documentation update in the same commit or PR. This is not optional. A PR that changes behaviour without updating docs is incomplete and should not be merged.
+
+### Rule 2: Keep This Index in Sync
+
+When any doc is added, renamed, or removed in `docs/`, update the Documentation Index section in this file in the same commit. A doc that exists but isn't indexed here is invisible to Claude Code.
+
+### Rule 3: Use best practices for game development
+
+When implementing a feature, always separate concerns and organize logic into well-defined, modular components, functions, and services. Write clean, maintainable code with clear naming, minimal duplication, and low coupling. Prefer simplicity, readability, and extensibility over quick but messy solutions
+
 ### Coordinate conversion
 
 MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6.

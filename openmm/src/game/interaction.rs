@@ -3,8 +3,10 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::assets::GameAssets;
+use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::events::MapEvents;
+use crate::game::hud::{self, FooterText};
 use crate::game::player::{Player, PlayerCamera};
 
 // --- Components & Resources ---
@@ -48,7 +50,9 @@ impl Plugin for InteractionPlugin {
         app.add_sub_state::<InGameState>()
             .add_systems(
                 Update,
-                interact_system.run_if(in_state(InGameState::Playing)),
+                (hover_hint_system, interact_system)
+                    .chain()
+                    .run_if(in_state(InGameState::Playing)),
             )
             .add_systems(OnEnter(InGameState::Interacting), show_interaction_image)
             .add_systems(
@@ -242,14 +246,25 @@ fn show_interaction_image(
     mut commands: Commands,
     interaction: Option<Res<ActiveInteraction>>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    cfg: Res<GameConfig>,
 ) {
     let Some(interaction) = interaction else { return };
     grab_cursor(&mut cursor_query, false);
 
+    // Position the interaction UI over just the 3D viewport area (not the HUD)
+    let (vp_left, vp_top, vp_w, vp_h) = windows
+        .single()
+        .map(|w| hud::viewport_rect(w, &cfg))
+        .unwrap_or((0.0, 0.0, 640.0, 480.0));
+
     commands.spawn((
         Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
+            position_type: PositionType::Absolute,
+            left: Val::Px(vp_left),
+            top: Val::Px(vp_top),
+            width: Val::Px(vp_w),
+            height: Val::Px(vp_h),
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             ..default()
@@ -289,4 +304,62 @@ fn hide_interaction_image(
         commands.entity(entity).despawn();
     }
     grab_cursor(&mut cursor_query, true);
+}
+
+/// Resolve a human-readable name for a building from its event data.
+fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>>) -> Option<String> {
+    let me = map_events.as_ref()?;
+    let evt = me.evt.as_ref()?;
+
+    for &eid in &info.event_ids {
+        if let Some(actions) = evt.events.get(&eid) {
+            for action in actions {
+                match action {
+                    lod::evt::EventAction::OpenChest { id } => {
+                        return Some(format!("Chest #{}", id));
+                    }
+                    lod::evt::EventAction::SpeakInHouse { house_id } => {
+                        if let Some(houses) = me.houses.as_ref() {
+                            if let Some(entry) = houses.houses.get(house_id) {
+                                return Some(entry.name.clone());
+                            }
+                        }
+                        return Some(format!("Building #{}", house_id));
+                    }
+                    lod::evt::EventAction::Hint { text, .. } => {
+                        if !text.is_empty() {
+                            return Some(text.clone());
+                        }
+                    }
+                    lod::evt::EventAction::MoveToMap { map_name, .. } => {
+                        return Some(format!("Enter {}", map_name));
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Show the name of the nearest interactive building in the footer bar.
+fn hover_hint_system(
+    player_query: Query<&Transform, With<Player>>,
+    camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
+    buildings: Query<(&BuildingInfo, &GlobalTransform)>,
+    map_events: Option<Res<MapEvents>>,
+    mut footer: ResMut<FooterText>,
+) {
+    let Ok(player_tf) = player_query.single() else { return };
+    let Ok(cam_global) = camera_query.single() else { return };
+
+    // Check both proximity and raycast for hover
+    if let Some(info) = find_nearest_building(player_tf.translation, &cam_global, &buildings, true) {
+        if let Some(name) = resolve_building_name(info, &map_events) {
+            footer.set(&name);
+            return;
+        }
+    }
+
+    // Nothing nearby — clear footer
+    footer.clear();
 }

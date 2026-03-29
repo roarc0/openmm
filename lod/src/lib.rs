@@ -22,6 +22,7 @@ pub mod twodevents;
 pub mod billboard;
 pub mod ddeclist;
 pub mod dsft;
+pub mod font;
 pub mod image;
 
 mod lod;
@@ -154,6 +155,29 @@ impl LodManager {
         sprite.to_image_buffer().ok()
     }
 
+    /// Load a .fnt bitmap font from the icons archive.
+    pub fn font(&self, name: &str) -> Option<font::Font> {
+        let raw = self.try_get_bytes(format!("icons/{}", name.to_lowercase())).ok()?;
+        let data = match crate::lod_data::LodData::try_from(raw) {
+            Ok(d) => d.data,
+            Err(_) => raw.to_vec(),
+        };
+        font::Font::parse(&data).ok()
+    }
+
+    /// List all .fnt font names available in the icons archive.
+    pub fn font_names(&self) -> Vec<String> {
+        self.files_in("icons")
+            .map(|files| {
+                files
+                    .into_iter()
+                    .filter(|f| f.ends_with(".fnt"))
+                    .map(|f| f.strip_suffix(".fnt").unwrap_or(f).to_string())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub fn bitmap(&self, name: &str) -> Option<DynamicImage> {
         let bitmap = self.try_get_bytes(format!("bitmaps/{}", name.to_lowercase())).ok()?;
         let bitmap = crate::image::Image::try_from(bitmap).ok()?;
@@ -266,6 +290,28 @@ mod tests {
         let lod_manager = LodManager::new(lod_path).unwrap();
         let grastyl = lod_manager.try_get_bytes("bitmaps/grastyl");
         assert_eq!(17676, grastyl.unwrap().len());
+    }
+
+    #[test]
+    fn font_loading_works() {
+        let lod_path = get_lod_path();
+        let lod_manager = LodManager::new(lod_path).unwrap();
+
+        let names = lod_manager.font_names();
+        assert!(!names.is_empty(), "should find .fnt files");
+
+        let font = lod_manager.font("arrus.fnt").expect("arrus.fnt should load");
+        assert_eq!(font.height, 19);
+        assert!(font.has_glyph(b'A'));
+        assert!(font.glyph_pixels(b'A').is_some());
+
+        // Measure and render
+        let width = font.measure("Hello");
+        assert!(width > 0);
+        let (w, h, buf) = font.render_text("Hi", [255, 255, 255, 255]);
+        assert_eq!(h, 19);
+        assert!(w > 0);
+        assert_eq!(buf.len(), (w * h * 4) as usize);
     }
 
     #[test]

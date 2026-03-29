@@ -12,6 +12,7 @@ use states::{loading::LoadingPlugin, menu::MenuPlugin, splash::SplashPlugin};
 pub(crate) mod assets;
 pub(crate) mod bevy_config;
 pub mod config;
+pub(crate) mod fonts;
 pub(crate) mod game;
 pub(crate) mod save;
 pub(crate) mod states;
@@ -35,10 +36,12 @@ impl Plugin for GamePlugin {
         let cfg = GameConfig::load();
         let game_assets = GameAssets::new(lod::get_lod_path().into())
             .expect("unable to load game data files");
+        let game_fonts = fonts::GameFonts::load(&game_assets);
         let save_data = GameSave::load_or_default();
 
         app.insert_resource(cfg)
             .insert_resource(game_assets)
+            .insert_resource(game_fonts)
             .insert_resource(save_data)
             .init_resource::<ui_assets::UiAssets>()
             .add_plugins((
