@@ -100,6 +100,19 @@ impl Ddm {
         Ok(Ddm { actors })
     }
 
+    /// Parse actors starting at a known byte offset (for DLV sequential parsing).
+    pub fn parse_actors_at(data: &[u8], offset: usize, count: usize) -> Vec<DdmActor> {
+        let mut actors = Vec::with_capacity(count);
+        for i in 0..count {
+            let start = offset + i * ACTOR_SIZE_MM6;
+            if start + ACTOR_SIZE_MM6 > data.len() { break; }
+            if let Some(actor) = Self::read_actor(&data[start..start + ACTOR_SIZE_MM6]) {
+                actors.push(actor);
+            }
+        }
+        actors
+    }
+
     fn find_actors(data: &[u8]) -> Result<usize, Box<dyn Error>> {
         for offset in (0..data.len().saturating_sub(40)).step_by(2) {
             let val = u32::from_le_bytes([

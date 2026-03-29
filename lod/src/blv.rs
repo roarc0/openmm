@@ -35,7 +35,7 @@ struct BlvHeader {
     face_data_size: i32,
     sector_data_size: i32,
     sector_light_data_size: i32,
-    _doors_data_size: i32,
+    doors_data_size: i32,
 }
 
 /// A vertex in MM6 coordinates.
@@ -222,6 +222,48 @@ pub struct Blv {
     pub spawn_points: Vec<BlvSpawnPoint>,
     pub map_outlines: Vec<BlvMapOutline>,
     pub door_count: u32,
+    pub doors_data_size: i32,
+}
+
+/// Door state in the game engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DoorState {
+    Open = 0,
+    Closing = 1,
+    Closed = 2,
+    Opening = 3,
+}
+
+/// A door in a BLV indoor map.
+/// Parsed from the DLV file; metadata (door_count, doors_data_size) comes from BLV.
+#[derive(Debug)]
+pub struct BlvDoor {
+    pub attributes: u32,
+    pub door_id: u32,
+    /// Direction vector (float, MM6 coordinates). Vertices slide along this.
+    pub direction: [f32; 3],
+    /// Total slide distance in map units.
+    pub move_length: i32,
+    /// Speed when opening (map units per real-time second).
+    pub open_speed: i32,
+    /// Speed when closing (map units per real-time second).
+    pub close_speed: i32,
+    /// Vertex indices into blv.vertices.
+    pub vertex_ids: Vec<u16>,
+    /// Face indices into blv.faces.
+    pub face_ids: Vec<u16>,
+    /// Base X positions per vertex (the "open" position).
+    pub x_offsets: Vec<i16>,
+    /// Base Y positions per vertex.
+    pub y_offsets: Vec<i16>,
+    /// Base Z positions per vertex.
+    pub z_offsets: Vec<i16>,
+    /// Initial texture U deltas per face.
+    pub delta_us: Vec<i16>,
+    /// Initial texture V deltas per face.
+    pub delta_vs: Vec<i16>,
+    /// Current door state.
+    pub state: DoorState,
 }
 
 impl Blv {
@@ -402,6 +444,7 @@ impl Blv {
             spawn_points,
             map_outlines,
             door_count,
+            doors_data_size: header.doors_data_size,
         })
     }
 
@@ -416,7 +459,7 @@ impl Blv {
             face_data_size,
             sector_data_size,
             sector_light_data_size,
-            _doors_data_size: doors_data_size,
+            doors_data_size,
         })
     }
 
