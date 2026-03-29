@@ -155,7 +155,7 @@ pub fn camera_motion_blur(cfg: &GameConfig) -> Option<bevy::post_process::motion
 pub fn camera_dof(cfg: &GameConfig) -> Option<bevy::post_process::dof::DepthOfField> {
     if cfg.depth_of_field {
         Some(bevy::post_process::dof::DepthOfField {
-            focal_distance: 30.0,
+            focal_distance: cfg.depth_of_field_distance,
             ..default()
         })
     } else {

@@ -18,7 +18,7 @@ pub struct BuildingInfo {
 }
 
 
-const INTERACT_RANGE: f32 = 400.0;
+const INTERACT_RANGE: f32 = 250.0;
 const RAYCAST_RANGE: f32 = 2000.0;
 
 // --- Plugin ---

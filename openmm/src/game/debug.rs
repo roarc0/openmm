@@ -17,8 +17,8 @@ use crate::game::player::Player;
 use crate::save::{GameSave, MapState, PlayerState};
 
 #[derive(Resource)]
-struct DebugConfig {
-    show_play_area: bool,
+pub struct DebugConfig {
+    pub show_play_area: bool,
 }
 
 impl Default for DebugConfig {
@@ -63,6 +63,7 @@ fn debug_setup(
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
     wireframe_config.global = cfg.wireframe;
+    wireframe_config.default_color = Color::srgba(0.8, 0.2, 0.6, 0.35);
     debug_config.show_play_area = cfg.debug;
 
     // Compute play area offset so debug UI sits inside the 3D viewport
@@ -186,22 +187,11 @@ fn debug_input(
     key_bindings: Res<DebugKeyBindings>,
     mut dev_config: ResMut<DebugConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
-    mut hud_query: Query<&mut Visibility, With<DebugHud>>,
 ) {
     if keys.just_pressed(key_bindings.toggle_wireframe) {
         wireframe_config.global = !wireframe_config.global;
     } else if keys.just_pressed(key_bindings.toggle_play_area) {
         dev_config.show_play_area = !dev_config.show_play_area;
-    }
-    if keys.just_pressed(KeyCode::F11) {
-        // Toggle HUD and debug lines together
-        dev_config.show_play_area = !dev_config.show_play_area;
-        for mut vis in hud_query.iter_mut() {
-            *vis = match *vis {
-                Visibility::Hidden => Visibility::Inherited,
-                _ => Visibility::Hidden,
-            };
-        }
     }
 }
 

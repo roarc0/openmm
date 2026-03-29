@@ -5,7 +5,7 @@ use bevy::prelude::Resource;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
-const CONFIG_PATH: &str = "target/openmm.toml";
+const CONFIG_PATH: &str = "openmm.toml";
 
 /// Command-line arguments — override config file values.
 #[derive(Parser, Debug)]
@@ -22,6 +22,10 @@ struct Cli {
     /// Enable debug HUD and tools
     #[arg(long)]
     debug: Option<bool>,
+
+    /// Enable developer console (Tab key)
+    #[arg(long)]
+    console: Option<bool>,
 
     /// Enable wireframe rendering
     #[arg(long)]
@@ -148,8 +152,9 @@ struct Cli {
     exposure: Option<f32>,
 
     /// Path to config file
-    #[arg(long, default_value = CONFIG_PATH)]
-    config: PathBuf,
+    /// Path to config file (default: ./openmm.toml, fallback: target/openmm.toml)
+    #[arg(long)]
+    config: Option<PathBuf>,
 }
 
 /// Deserialized from openmm.toml.
@@ -158,6 +163,7 @@ struct ConfigFile {
     map: Option<String>,
     skip_intro: Option<bool>,
     debug: Option<bool>,
+    console: Option<bool>,
     wireframe: Option<bool>,
     width: Option<u32>,
     height: Option<u32>,
@@ -194,9 +200,14 @@ struct ConfigFile {
 /// Resolved game configuration — available as a Bevy resource.
 #[derive(Resource, Debug, Clone, Serialize)]
 pub struct GameConfig {
+    /// Path to the config file (not serialized).
+    #[serde(skip)]
+    pub config_path: PathBuf,
     pub map: Option<String>,
     pub skip_intro: bool,
     pub debug: bool,
+    /// Enable developer console (Tab key)
+    pub console: bool,
     pub wireframe: bool,
     /// Window width (MM6: width)
     pub width: u32,
@@ -248,6 +259,8 @@ pub struct GameConfig {
     pub shadows: bool,
     /// Depth of field blur
     pub depth_of_field: bool,
+    /// Depth of field focal distance
+    pub depth_of_field_distance: f32,
     /// Motion blur
     pub motion_blur: bool,
     /// Exposure compensation
@@ -257,13 +270,15 @@ pub struct GameConfig {
 impl Default for GameConfig {
     fn default() -> Self {
         Self {
+            config_path: PathBuf::from(CONFIG_PATH),
             map: None,
             skip_intro: false,
-            debug: true,
+            debug: false,
+            console: true,
             wireframe: false,
             width: 2880,
             height: 2160,
-            aspect_ratio: "4:3".into(),
+            aspect_ratio: "".into(),
             window_mode: "windowed".into(),
             vsync: "auto".into(),
             fps_cap: 60,
@@ -289,6 +304,7 @@ impl Default for GameConfig {
             tonemapping: "agx".into(),
             shadows: true,
             depth_of_field: false,
+            depth_of_field_distance: 30.0,
             motion_blur: false,
             exposure: 0.0,
         }
@@ -304,30 +320,35 @@ macro_rules! resolve {
 impl GameConfig {
     /// Load config from file, then apply CLI overrides.
     /// If the config file doesn't exist, writes a default one.
+    fn resolve_config_path(explicit: Option<PathBuf>) -> PathBuf {
+        explicit.unwrap_or_else(|| PathBuf::from(CONFIG_PATH))
+    }
+
     pub fn load() -> Self {
         let cli = Cli::parse();
+        let config_path = Self::resolve_config_path(cli.config);
 
-        if !cli.config.exists() {
+        if !config_path.exists() {
             let defaults = GameConfig::default();
             match toml::to_string_pretty(&defaults) {
                 Ok(contents) => {
-                    if let Some(parent) = cli.config.parent() {
+                    if let Some(parent) = config_path.parent() {
                         let _ = std::fs::create_dir_all(parent);
                     }
-                    match std::fs::write(&cli.config, &contents) {
-                        Ok(()) => eprintln!("info: wrote default config to {}", cli.config.display()),
-                        Err(e) => eprintln!("warning: failed to write default config to {}: {e}", cli.config.display()),
+                    match std::fs::write(&config_path, &contents) {
+                        Ok(()) => eprintln!("info: wrote default config to {}", config_path.display()),
+                        Err(e) => eprintln!("warning: failed to write default config to {}: {e}", config_path.display()),
                     }
                 }
                 Err(e) => eprintln!("warning: failed to serialize default config: {e}"),
             }
         }
 
-        let file_cfg = std::fs::read_to_string(&cli.config)
+        let file_cfg = std::fs::read_to_string(&config_path)
             .ok()
             .and_then(|contents| {
                 toml::from_str::<ConfigFile>(&contents)
-                    .inspect_err(|e| eprintln!("warning: failed to parse {}: {e}", cli.config.display()))
+                    .inspect_err(|e| eprintln!("warning: failed to parse {}: {e}", config_path.display()))
                     .ok()
             })
             .unwrap_or_default();
@@ -335,9 +356,11 @@ impl GameConfig {
         let d = GameConfig::default();
 
         let resolved = GameConfig {
+            config_path: config_path.clone(),
             map: cli.map.or(file_cfg.map).or(d.map),
             skip_intro: resolve!(cli.skip_intro, file_cfg.skip_intro, d.skip_intro),
             debug: resolve!(cli.debug, file_cfg.debug, d.debug),
+            console: resolve!(cli.console, file_cfg.console, d.console),
             wireframe: resolve!(cli.wireframe, file_cfg.wireframe, d.wireframe),
             width: resolve!(cli.width, file_cfg.width, d.width),
             height: resolve!(cli.height, file_cfg.height, d.height),
@@ -367,11 +390,23 @@ impl GameConfig {
             tonemapping: resolve!(cli.tonemapping, file_cfg.tonemapping, d.tonemapping),
             shadows: resolve!(cli.shadows, file_cfg.shadows, d.shadows),
             depth_of_field: resolve!(cli.depth_of_field, file_cfg.depth_of_field, d.depth_of_field),
+            depth_of_field_distance: d.depth_of_field_distance,
             motion_blur: resolve!(cli.motion_blur, file_cfg.motion_blur, d.motion_blur),
             exposure: resolve!(cli.exposure, file_cfg.exposure, d.exposure),
         };
         resolved.validate();
         resolved
+    }
+
+    /// Save current config to disk.
+    pub fn save(&self) -> Result<(), String> {
+        let contents = toml::to_string_pretty(self)
+            .map_err(|e| format!("Failed to serialize config: {e}"))?;
+        if let Some(parent) = self.config_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::write(&self.config_path, contents)
+            .map_err(|e| format!("Failed to write {}: {e}", self.config_path.display()))
     }
 }
 

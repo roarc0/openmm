@@ -3,7 +3,7 @@ mod footer;
 mod minimap;
 mod overlay;
 
-pub use borders::viewport_rect;
+pub use borders::{parse_aspect_ratio, viewport_rect};
 pub use footer::FooterText;
 pub use overlay::{OverlayImage, viewport_inner_rect};
 

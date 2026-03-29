@@ -133,7 +133,7 @@ impl Plugin for OdmPlugin {
 /// Half-size of the playable area in world units.
 const PLAY_BOUNDARY: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32 / 2.0;
 /// Full playable area width (used to translate player position to new map).
-const PLAY_WIDTH: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32;
+pub const PLAY_WIDTH: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32;
 
 /// Detect when the player crosses the play area boundary and load the adjacent map.
 fn check_map_boundary(

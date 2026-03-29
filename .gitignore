@@ -9,3 +9,4 @@ assets/
 *.bin
 *.txt
 /target
+openmm.toml

@@ -124,7 +124,7 @@ pub(super) fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimen
 }
 
 /// Parse aspect ratio string like "4:3" into a float (width/height).
-pub(super) fn parse_aspect_ratio(s: &str) -> Option<f32> {
+pub fn parse_aspect_ratio(s: &str) -> Option<f32> {
     let parts: Vec<&str> = s.split(':').collect();
     if parts.len() == 2 {
         let w: f32 = parts[0].trim().parse().ok()?;
