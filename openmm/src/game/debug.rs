@@ -242,41 +242,52 @@ fn draw_events(
         return;
     }
 
-    // Indoor: draw clickable face outlines
+    // Indoor: draw clickable face outlines (bright green, thicker cross)
     if let Some(ref faces) = clickable_faces {
         for face in &faces.faces {
             if face.vertices.len() < 2 {
                 continue;
             }
-            // Color by event type: yellow for generic, cyan for doors
-            let color = Color::srgba(1.0, 1.0, 0.0, 0.6);
-            // Draw face outline
+            let color = Color::srgb(0.0, 1.0, 0.0);
             for i in 0..face.vertices.len() {
                 let a = face.vertices[i];
                 let b = face.vertices[(i + 1) % face.vertices.len()];
                 gizmos.line(a, b, color);
             }
-            // Draw event_id label at face center
             let center: Vec3 = face.vertices.iter().copied().sum::<Vec3>() / face.vertices.len() as f32;
-            // Small cross at center
-            let s = 5.0;
+            let s = 15.0;
             gizmos.line(center - Vec3::X * s, center + Vec3::X * s, color);
             gizmos.line(center - Vec3::Y * s, center + Vec3::Y * s, color);
+            gizmos.line(center - Vec3::Z * s, center + Vec3::Z * s, color);
         }
     }
 
-    // Outdoor: draw building interaction zones
-    for (info, _gt) in buildings.iter() {
-        let pos = info.position;
-        let color = Color::srgba(0.0, 1.0, 1.0, 0.6);
-        // Draw a diamond at the interaction point
-        let s = 50.0;
+    // Outdoor: draw building interaction zones at the BSP model's actual transform
+    for (info, gt) in buildings.iter() {
+        let pos = gt.translation();
+        let color = Color::srgb(0.0, 1.0, 1.0);
+        // Large diamond + tall vertical pillar
+        let s = 120.0;
+        let h = 300.0;
         gizmos.line(pos + Vec3::X * s, pos + Vec3::Z * s, color);
         gizmos.line(pos + Vec3::Z * s, pos - Vec3::X * s, color);
         gizmos.line(pos - Vec3::X * s, pos - Vec3::Z * s, color);
         gizmos.line(pos - Vec3::Z * s, pos + Vec3::X * s, color);
-        // Vertical line to make it visible
-        gizmos.line(pos, pos + Vec3::Y * 100.0, color);
+        // Second diamond at half height
+        let mid = pos + Vec3::Y * h * 0.5;
+        gizmos.line(mid + Vec3::X * s * 0.5, mid + Vec3::Z * s * 0.5, color);
+        gizmos.line(mid + Vec3::Z * s * 0.5, mid - Vec3::X * s * 0.5, color);
+        gizmos.line(mid - Vec3::X * s * 0.5, mid - Vec3::Z * s * 0.5, color);
+        gizmos.line(mid - Vec3::Z * s * 0.5, mid + Vec3::X * s * 0.5, color);
+        // Vertical pillar
+        gizmos.line(pos, pos + Vec3::Y * h, color);
+        // Also draw at the stored info.position if different (shows the offset)
+        if info.position.distance(pos) > 10.0 {
+            let ip = info.position;
+            let color2 = Color::srgb(1.0, 0.5, 0.0); // orange for info.position
+            gizmos.line(ip, ip + Vec3::Y * h, color2);
+            gizmos.line(ip, pos, color2); // line connecting the two
+        }
     }
 }
 
