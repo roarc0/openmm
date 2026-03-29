@@ -52,13 +52,23 @@ impl Plugin for BevyConfigPlugin {
 
 /// Returns the MSAA component to add to the 3D camera based on config.
 pub fn camera_msaa(cfg: &GameConfig) -> Msaa {
+    let wants_msaa = matches!(cfg.antialiasing.as_str(), "msaa2" | "msaa4" | "msaa8");
+
+    if cfg.ssao && wants_msaa {
+        warn!("SSAO requires Msaa::Off — disabling MSAA (antialiasing='{}' ignored, using SMAA fallback)", cfg.antialiasing);
+        return Msaa::Off;
+    }
+    if cfg.ssao && !matches!(cfg.antialiasing.as_str(), "fxaa" | "smaa" | "taa" | "off") {
+        warn!("SSAO requires Msaa::Off — forcing Msaa::Off (set antialiasing to fxaa/smaa/taa for AA with SSAO)");
+        return Msaa::Off;
+    }
+
     match cfg.antialiasing.as_str() {
         "msaa2" => Msaa::Sample2,
         "msaa4" => Msaa::Sample4,
         "msaa8" => Msaa::Sample8,
         "off" => Msaa::Off,
-        // FXAA/SMAA are post-process, disable MSAA for them
-        "fxaa" | "smaa" => Msaa::Off,
+        "fxaa" | "smaa" | "taa" => Msaa::Off,
         _ => Msaa::Sample4,
     }
 }

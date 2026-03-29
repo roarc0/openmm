@@ -240,8 +240,10 @@ fn spawn_player(
         if let Some(dof) = crate::bevy_config::camera_dof(&cfg) {
             cam.insert(dof);
         }
-        cam.insert(crate::bevy_config::camera_tonemapping(&cfg));
-        cam.insert(crate::bevy_config::camera_exposure(&cfg));
+        if cfg.tonemapping != "none" {
+            cam.insert(crate::bevy_config::camera_tonemapping(&cfg));
+            cam.insert(crate::bevy_config::camera_exposure(&cfg));
+        }
         // Outdoor: distance fog for horizon blending. Indoor: no fog.
         if !is_indoor {
             cam.insert(DistanceFog {
