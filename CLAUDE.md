@@ -56,8 +56,15 @@ src/
     odm.rs             — OdmPlugin (spawns terrain/models, lazy entity spawning)
     player.rs          — PlayerPlugin (Player entity, terrain following, camera, controls)
     collision.rs       — Ground height probing, building colliders
+    interaction.rs     — InteractionPlugin (building/chest interactions via HudView)
     dev.rs             — DevPlugin (wireframe, FPS/position HUD, debug map switching)
     utils.rs           — Helpers (random_color)
+    hud/
+      mod.rs           — HudPlugin, HudView resource, freeze system
+      borders.rs       — Border layout, HudDimensions, letterbox, viewport_rect
+      minimap.rs       — Minimap, compass strip, tap frames
+      footer.rs        — FooterText resource + rendering
+      overlay.rs       — OverlayImage, viewport_inner_rect, overlay spawn/despawn
     entities/
       mod.rs           — EntitiesPlugin, shared components (WorldEntity, EntityKind, Billboard, AnimationState)
       actor.rs         — Actor component, NPC_SPRITES constant
@@ -106,6 +113,15 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `Splash` -> `Menu` -> `Loading` -> `Game`
 - Loading state runs a step-based pipeline: ParseMap -> BuildTerrain -> BuildAtlas -> BuildModels -> BuildBillboards -> PreloadSprites -> Done
 - Map switching (dev H/J/K/L or boundary crossing) transitions Game -> Loading -> Game
+
+### HUD views
+
+- `HudView` resource controls the active view: `World`, `Building`, `Chest`, `Inventory`, `Stats`, `Rest`
+- When `HudView` is not `World`: game time freezes (`Time<Virtual>` paused), player input disabled
+- Gate gameplay systems with `.run_if(resource_equals(HudView::World))`
+- Use `OverlayImage` resource to display a background image in the viewport inner area
+- `viewport_inner_rect()` returns the area inside all four HUD borders (for overlay positioning)
+- `viewport_rect()` returns the 3D camera viewport area (extends behind border4 on the left)
 
 ### Player
 
