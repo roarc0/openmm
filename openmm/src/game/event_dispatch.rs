@@ -208,7 +208,7 @@ fn process_events(
                 save_data.map.map_y = odm.y;
             }
 
-            info!("MoveToMap: {} -> pos={:?} yaw={:.1}deg", map_name, pos, yaw.to_degrees());
+            info!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg", map_name, x, y, z, direction, pos, yaw.to_degrees());
             commands.insert_resource(LoadRequest {
                 map_name: target,
             });
