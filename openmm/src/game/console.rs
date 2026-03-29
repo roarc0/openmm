@@ -31,15 +31,10 @@ const CONSOLE_HEIGHT_FRACTION: f32 = 0.4;
 pub struct ConsoleState {
     pub open: bool,
     pub input: String,
-    /// History of executed commands (most recent last).
     history: Vec<String>,
-    /// Index into history for up/down navigation.
     history_index: Option<usize>,
-    /// Saved current input when browsing history.
     saved_input: String,
-    /// Lines of output (command results, errors).
     output: Vec<String>,
-    /// Generation counter for re-rendering.
     generation: u64,
 }
 
@@ -53,15 +48,12 @@ impl ConsoleState {
     }
 }
 
-/// Marker for the console UI root node.
 #[derive(Component)]
 struct ConsoleUI;
 
-/// Marker for the output text area.
 #[derive(Component)]
 struct ConsoleOutput;
 
-/// Marker for the prompt text.
 #[derive(Component)]
 struct ConsolePrompt;
 
@@ -121,31 +113,18 @@ fn toggle_console(
                 InGame,
             ))
             .with_children(|parent| {
-                // Scrollable output area
                 parent.spawn((
                     Name::new("console_output"),
                     Text::new(""),
-                    TextFont {
-                        font_size: FONT_SIZE,
-                        ..default()
-                    },
+                    TextFont { font_size: FONT_SIZE, ..default() },
                     TextColor(Color::srgba(0.7, 0.9, 0.7, 0.9)),
-                    Node {
-                        flex_grow: 1.0,
-                        overflow: Overflow::clip_y(),
-                        ..default()
-                    },
+                    Node { flex_grow: 1.0, overflow: Overflow::clip_y(), ..default() },
                     ConsoleOutput,
                 ));
-
-                // Prompt line
                 parent.spawn((
                     Name::new("console_prompt"),
                     Text::new("> _"),
-                    TextFont {
-                        font_size: FONT_SIZE,
-                        ..default()
-                    },
+                    TextFont { font_size: FONT_SIZE, ..default() },
                     TextColor(Color::WHITE),
                     ConsolePrompt,
                 ));
@@ -194,19 +173,11 @@ fn console_input(
                         .single()
                         .map(|t| t.translation)
                         .unwrap_or_default();
+                    #[allow(clippy::too_many_arguments)]
                     execute_command(
-                        &cmd,
-                        &mut state,
-                        &mut exit,
-                        &mut current_map,
-                        player_pos,
-                        &mut save_data,
-                        &mut commands,
-                        &mut game_state,
-                        &mut cfg,
-                        &mut fly_mode,
-                        &mut wireframe_config,
-                        &mut debug_config,
+                        &cmd, &mut state, &mut exit, &mut current_map, player_pos,
+                        &mut save_data, &mut commands, &mut game_state, &mut cfg,
+                        &mut fly_mode, &mut wireframe_config, &mut debug_config,
                     );
                     state.input.clear();
                 }
@@ -242,9 +213,7 @@ fn console_input(
                     state.generation += 1;
                 }
             }
-            KeyCode::Tab => {
-                // Consumed by toggle, ignore
-            }
+            KeyCode::Tab => {}
             _ => {
                 if let Some(ref text) = event.text {
                     let s = text.as_str();
@@ -258,6 +227,7 @@ fn console_input(
     }
 }
 
+/// All mutable game state needed by console commands.
 #[allow(clippy::too_many_arguments)]
 fn execute_command(
     cmd: &str,
@@ -284,89 +254,72 @@ fn execute_command(
         "load" | "map" => {
             if arg.is_empty() {
                 state.push_output("Usage: load <map|north|south|east|west> [x,z]".to_string());
-            } else {
-                let resolved = match arg {
-                    "north" | "n" => resolve_direction(current_map, player_pos, OdmName::go_north, 0.0, PLAY_WIDTH),
-                    "south" | "s" => resolve_direction(current_map, player_pos, OdmName::go_south, 0.0, -PLAY_WIDTH),
-                    "east" | "e" => resolve_direction(current_map, player_pos, OdmName::go_east, -PLAY_WIDTH, 0.0),
-                    "west" | "w" => resolve_direction(current_map, player_pos, OdmName::go_west, PLAY_WIDTH, 0.0),
-                    name => {
-                        match MapName::try_from(name) {
-                            Ok(target) => {
-                                let pos = parts.get(2).and_then(|c| parse_coords(c));
-                                Ok((target, pos.unwrap_or([0.0, player_pos.y, 0.0])))
-                            }
-                            Err(e) => Err(format!("Invalid map name '{}': {}", name, e)),
-                        }
+                return;
+            }
+            let resolved = match arg {
+                "north" | "n" => resolve_direction(current_map, player_pos, OdmName::go_north, 0.0, PLAY_WIDTH),
+                "south" | "s" => resolve_direction(current_map, player_pos, OdmName::go_south, 0.0, -PLAY_WIDTH),
+                "east" | "e" => resolve_direction(current_map, player_pos, OdmName::go_east, -PLAY_WIDTH, 0.0),
+                "west" | "w" => resolve_direction(current_map, player_pos, OdmName::go_west, PLAY_WIDTH, 0.0),
+                name => match MapName::try_from(name) {
+                    Ok(target) => {
+                        let pos = parts.get(2).and_then(|c| parse_coords(c));
+                        Ok((target, pos.unwrap_or([0.0, player_pos.y, 0.0])))
                     }
-                };
-
-                match resolved {
-                    Ok((target, pos)) => {
-                        state.push_output(format!("Loading map: {} at ({:.0}, {:.0})", target, pos[0], pos[2]));
-                        state.open = false;
-
-                        save_data.player.position = pos;
-                        if let MapName::Outdoor(ref odm) = target {
-                            save_data.map.map_x = odm.x;
-                            save_data.map.map_y = odm.y;
-                        }
-
-                        commands.insert_resource(LoadRequest { map_name: target.clone() });
-                        current_map.0 = target;
-                        game_state.set(GameState::Loading);
+                    Err(e) => Err(format!("Invalid map name '{}': {}", name, e)),
+                },
+            };
+            match resolved {
+                Ok((target, pos)) => {
+                    state.push_output(format!("Loading map: {} at ({:.0}, {:.0})", target, pos[0], pos[2]));
+                    state.open = false;
+                    save_data.player.position = pos;
+                    if let MapName::Outdoor(ref odm) = target {
+                        save_data.map.map_x = odm.x;
+                        save_data.map.map_y = odm.y;
                     }
-                    Err(msg) => state.push_output(msg),
+                    commands.insert_resource(LoadRequest { map_name: target.clone() });
+                    current_map.0 = target;
+                    game_state.set(GameState::Loading);
                 }
+                Err(msg) => state.push_output(msg),
             }
         }
 
         // --- Graphics ---
-        "msaa" | "aa" => {
-            match arg {
-                "msaa2" | "msaa4" | "msaa8" | "fxaa" | "smaa" | "taa" | "off" => {
-                    cfg.antialiasing = arg.to_string();
-                    state.push_output(format!("Antialiasing: {} (applies on map reload)", arg));
-                }
-                _ => {
-                    state.push_output(format!("Current: {}", cfg.antialiasing));
-                    state.push_output("Usage: aa <msaa2|msaa4|msaa8|fxaa|smaa|taa|off>".to_string());
-                }
+        "msaa" | "aa" => match arg {
+            "msaa2" | "msaa4" | "msaa8" | "fxaa" | "smaa" | "taa" | "off" => {
+                cfg.antialiasing = arg.to_string();
+                state.push_output(format!("Antialiasing: {} *reload", arg));
             }
-        }
-
-        "tonemapping" | "tonemap" => {
-            match arg {
-                "none" | "reinhard" | "aces" | "agx" | "blender_filmic" => {
-                    cfg.tonemapping = arg.to_string();
-                    state.push_output(format!("Tonemapping: {} *reload", arg));
-                }
-                _ => {
-                    state.push_output(format!("Current: {}", cfg.tonemapping));
-                    state.push_output("Usage: tonemap <none|reinhard|aces|agx|blender_filmic>".to_string());
-                }
+            _ => {
+                state.push_output(format!("Current: {}", cfg.antialiasing));
+                state.push_output("Usage: aa <msaa2|msaa4|msaa8|fxaa|smaa|taa|off>".to_string());
             }
-        }
-
+        },
+        "tonemapping" | "tonemap" => match arg {
+            "none" | "reinhard" | "aces" | "agx" | "blender_filmic" => {
+                cfg.tonemapping = arg.to_string();
+                state.push_output(format!("Tonemapping: {} *reload", arg));
+            }
+            _ => {
+                state.push_output(format!("Current: {}", cfg.tonemapping));
+                state.push_output("Usage: tonemap <none|reinhard|aces|agx|blender_filmic>".to_string());
+            }
+        },
         "wireframe" | "wf" => {
             wireframe_config.global = !wireframe_config.global;
             state.push_output(format!("Wireframe: {}", if wireframe_config.global { "on" } else { "off" }));
         }
-
         "shadows" => {
-            cfg.shadows = match arg {
-                "on" | "1" => true,
-                "off" | "0" => false,
-                _ => !cfg.shadows,
-            };
+            cfg.shadows = parse_toggle(arg, cfg.shadows);
             state.push_output(format!("Shadows: {}", if cfg.shadows { "on" } else { "off" }));
         }
-
         "bloom" => {
             match arg {
                 "on" | "1" => cfg.bloom = true,
                 "off" | "0" => cfg.bloom = false,
-                _ if arg.is_empty() => cfg.bloom = !cfg.bloom,
+                "" => cfg.bloom = !cfg.bloom,
                 intensity => {
                     if let Ok(v) = intensity.parse::<f32>() {
                         cfg.bloom = true;
@@ -377,22 +330,17 @@ fn execute_command(
                     }
                 }
             }
-            state.push_output(format!("Bloom: {} (intensity: {:.2}) *reload", if cfg.bloom { "on" } else { "off" }, cfg.bloom_intensity));
+            state.push_output(format!("Bloom: {} (intensity: {:.2}) *reload",
+                if cfg.bloom { "on" } else { "off" }, cfg.bloom_intensity));
         }
-
         "ssao" => {
-            cfg.ssao = match arg {
-                "on" | "1" => true,
-                "off" | "0" => false,
-                _ => !cfg.ssao,
-            };
+            cfg.ssao = parse_toggle(arg, cfg.ssao);
             state.push_output(format!("SSAO: {} *reload", if cfg.ssao { "on" } else { "off" }));
         }
-
         "fog" => {
             if arg.is_empty() {
                 state.push_output(format!("Fog start: {:.0}, end: {:.0}", cfg.fog_start, cfg.fog_end));
-            } else if let Some((start, end)) = parse_fog_range(arg, parts.get(2).copied()) {
+            } else if let (Ok(start), Some(Ok(end))) = (arg.parse::<f32>(), parts.get(2).map(|s| s.parse::<f32>())) {
                 cfg.fog_start = start;
                 cfg.fog_end = end;
                 state.push_output(format!("Fog: {:.0} - {:.0}", start, end));
@@ -400,7 +348,6 @@ fn execute_command(
                 state.push_output("Usage: fog <start> <end>".to_string());
             }
         }
-
         "draw_distance" | "dd" => {
             if arg.is_empty() {
                 state.push_output(format!("Draw distance: {:.0}", cfg.draw_distance));
@@ -411,7 +358,6 @@ fn execute_command(
                 state.push_output("Usage: dd <distance>".to_string());
             }
         }
-
         "exposure" => {
             if arg.is_empty() {
                 state.push_output(format!("Exposure: {:.2}", cfg.exposure));
@@ -422,47 +368,38 @@ fn execute_command(
                 state.push_output("Usage: exposure <-4.0 to 4.0>".to_string());
             }
         }
-
-        "dof" | "depth_of_field" => {
-            match arg {
-                "off" | "0" => {
-                    cfg.depth_of_field = false;
-                    state.push_output("Depth of field: off".to_string());
-                }
-                "on" | "1" => {
+        "dof" | "depth_of_field" => match arg {
+            "off" | "0" => {
+                cfg.depth_of_field = false;
+                state.push_output("Depth of field: off".to_string());
+            }
+            "on" | "1" => {
+                cfg.depth_of_field = true;
+                state.push_output(format!("Depth of field: on (distance: {:.1})", cfg.depth_of_field_distance));
+            }
+            "" => {
+                state.push_output(format!("Depth of field: {} (distance: {:.1})",
+                    if cfg.depth_of_field { "on" } else { "off" }, cfg.depth_of_field_distance));
+            }
+            dist => {
+                if let Ok(v) = dist.parse::<f32>() {
                     cfg.depth_of_field = true;
+                    cfg.depth_of_field_distance = v.max(0.1);
                     state.push_output(format!("Depth of field: on (distance: {:.1})", cfg.depth_of_field_distance));
-                }
-                "" => {
-                    state.push_output(format!("Depth of field: {} (distance: {:.1})",
-                        if cfg.depth_of_field { "on" } else { "off" }, cfg.depth_of_field_distance));
-                }
-                dist => {
-                    if let Ok(v) = dist.parse::<f32>() {
-                        cfg.depth_of_field = true;
-                        cfg.depth_of_field_distance = v.max(0.1);
-                        state.push_output(format!("Depth of field: on (distance: {:.1})", cfg.depth_of_field_distance));
-                    } else {
-                        state.push_output("Usage: dof [on|off|<distance>]".to_string());
-                    }
+                } else {
+                    state.push_output("Usage: dof [on|off|<distance>]".to_string());
                 }
             }
-        }
+        },
 
         // --- Gameplay ---
         "fly" => {
-            fly_mode.0 = match arg {
-                "on" | "1" => true,
-                "off" | "0" => false,
-                _ => !fly_mode.0,
-            };
+            fly_mode.0 = parse_toggle(arg, fly_mode.0);
             state.push_output(format!("Fly mode: {}", if fly_mode.0 { "on" } else { "off" }));
         }
-
         "speed" => {
             if arg.is_empty() {
-                state.push_output(format!("Turn speed: {:.0}, sensitivity: {:.2}x {:.2}y",
-                    cfg.turn_speed, cfg.mouse_sensitivity_x, cfg.mouse_sensitivity_y));
+                state.push_output(format!("Turn speed: {:.0}", cfg.turn_speed));
             } else if let Ok(v) = arg.parse::<f32>() {
                 cfg.turn_speed = v;
                 state.push_output(format!("Turn speed: {:.0}", v));
@@ -470,7 +407,6 @@ fn execute_command(
                 state.push_output("Usage: speed <turn_speed>".to_string());
             }
         }
-
         "sensitivity" | "sens" => {
             if arg.is_empty() {
                 state.push_output(format!("Mouse sensitivity: {:.2}x {:.2}y",
@@ -483,29 +419,15 @@ fn execute_command(
                 state.push_output("Usage: sens <value>".to_string());
             }
         }
-
         "pos" => {
-            state.push_output(format!("Position: ({:.0}, {:.1}, {:.0})",
-                player_pos.x, player_pos.y, player_pos.z));
+            state.push_output(format!("Position: ({:.0}, {:.1}, {:.0})", player_pos.x, player_pos.y, player_pos.z));
             state.push_output(format!("Map: {}", current_map.0));
         }
 
         // --- Window ---
-        "fullscreen" | "fs" => {
-            cfg.window_mode = "fullscreen".into();
-            state.push_output("Fullscreen enabled".to_string());
-        }
-
-        "borderless" => {
-            cfg.window_mode = "borderless".into();
-            state.push_output("Borderless fullscreen enabled".to_string());
-        }
-
-        "windowed" | "window" => {
-            cfg.window_mode = "windowed".into();
-            state.push_output("Windowed mode enabled".to_string());
-        }
-
+        "fullscreen" | "fs" => { cfg.window_mode = "fullscreen".into(); state.push_output("Fullscreen".to_string()); }
+        "borderless" => { cfg.window_mode = "borderless".into(); state.push_output("Borderless fullscreen".to_string()); }
+        "windowed" | "window" => { cfg.window_mode = "windowed".into(); state.push_output("Windowed mode".to_string()); }
         "aspect" | "aspect_ratio" | "ar" => {
             if arg.is_empty() {
                 let display = if cfg.aspect_ratio.is_empty() { "auto" } else { &cfg.aspect_ratio };
@@ -520,7 +442,6 @@ fn execute_command(
                 state.push_output("Usage: aspect <auto|4:3|16:9|21:9>".to_string());
             }
         }
-
         "vsync" => {
             match arg {
                 "on" | "auto" => cfg.vsync = "auto".into(),
@@ -534,7 +455,6 @@ fn execute_command(
             }
             state.push_output(format!("VSync: {}", cfg.vsync));
         }
-
         "fps_cap" => {
             if arg.is_empty() {
                 let cap = if cfg.fps_cap == 0 { "unlimited".to_string() } else { format!("{}", cfg.fps_cap) };
@@ -548,77 +468,76 @@ fn execute_command(
             }
         }
 
-        // --- Debug ---
+        // --- System ---
         "debug" => {
-            cfg.debug = match arg {
-                "on" | "1" => true,
-                "off" | "0" => false,
-                _ => !cfg.debug,
-            };
+            cfg.debug = parse_toggle(arg, cfg.debug);
             debug_config.show_play_area = cfg.debug;
             state.push_output(format!("Debug HUD: {}", if cfg.debug { "on" } else { "off" }));
         }
-
-        // --- System ---
-        "exit" | "quit" | "q" => {
-            exit.write(AppExit::from_code(0));
-        }
-
-        "clear" | "cls" => {
-            state.output.clear();
-            state.generation += 1;
-        }
-
+        "exit" | "quit" | "q" => { exit.write(AppExit::from_code(0)); }
+        "clear" | "cls" => { state.output.clear(); state.generation += 1; }
         "save_cfg" => {
             match cfg.save() {
                 Ok(()) => state.push_output(format!("Config saved to {}", cfg.config_path.display())),
                 Err(e) => state.push_output(e),
             }
         }
-
         "help" | "?" => {
-            state.push_output("Map:".to_string());
-            state.push_output("  load <map> [x,z] - Load map (e.g. load oute3, load d01 100,200)".to_string());
-            state.push_output("  load n/s/e/w     - Adjacent map (keeps position)".to_string());
-            state.push_output("  pos              - Show current position and map".to_string());
-            state.push_output("Graphics:".to_string());
-            state.push_output("  aa <mode>        - Set AA (msaa2/4/8|fxaa|smaa|taa|off) *reload".to_string());
-            state.push_output("  tonemap <mode>   - Tonemapping *reload".to_string());
-            state.push_output("  wireframe        - Toggle wireframe".to_string());
-            state.push_output("  shadows [on|off] - Toggle shadows".to_string());
-            state.push_output("  bloom [on|off|N] - Bloom / intensity *reload".to_string());
-            state.push_output("  ssao [on|off]    - Ambient occlusion *reload".to_string());
-            state.push_output("  fog <start> <end> - Set fog range".to_string());
-            state.push_output("  dd <distance>    - Set draw distance".to_string());
-            state.push_output("  exposure <N>     - Set exposure (-4 to 4)".to_string());
-            state.push_output("  dof [on|off|N]   - Depth of field / focal distance".to_string());
-            state.push_output("  (* = applies on map reload)".to_string());
-            state.push_output("Gameplay:".to_string());
-            state.push_output("  fly [on|off]     - Toggle fly mode".to_string());
-            state.push_output("  speed <N>        - Set turn speed".to_string());
-            state.push_output("  sens <N>         - Set mouse sensitivity".to_string());
-            state.push_output("Window:".to_string());
-            state.push_output("  fullscreen       - Fullscreen mode".to_string());
-            state.push_output("  borderless       - Borderless fullscreen".to_string());
-            state.push_output("  windowed         - Windowed mode".to_string());
-            state.push_output("  aspect <auto|4:3|16:9> - Set aspect ratio".to_string());
-            state.push_output("  vsync <auto|fast|off> - Set vsync".to_string());
-            state.push_output("  fps_cap <N>      - Set FPS cap (0=unlimited)".to_string());
-            state.push_output("System:".to_string());
-            state.push_output("  debug [on|off]   - Toggle debug HUD".to_string());
-            state.push_output("  save_cfg         - Save config to disk".to_string());
-            state.push_output("  clear            - Clear console".to_string());
-            state.push_output("  quit             - Exit game".to_string());
+            for line in HELP_TEXT {
+                state.push_output(line.to_string());
+            }
         }
-
-        _ => {
-            state.push_output(format!("Unknown command: '{}'. Type 'help'.", command));
-        }
+        _ => { state.push_output(format!("Unknown command: '{}'. Type 'help'.", command)); }
     }
 }
 
-/// Resolve a directional load — returns the target map and the player's position
-/// offset into the new map's coordinate space (same logic as boundary crossing).
+// --- Command handlers ---
+
+fn parse_toggle(arg: &str, current: bool) -> bool {
+    match arg {
+        "on" | "1" => true,
+        "off" | "0" => false,
+        _ => !current,
+    }
+}
+
+const HELP_TEXT: &[&str] = &[
+    "Map:",
+    "  load <map> [x,z] - Load map (e.g. load oute3, load d01 100,200)",
+    "  load n/s/e/w     - Adjacent map (keeps position)",
+    "  pos              - Show current position and map",
+    "Graphics:",
+    "  aa <mode>        - Set AA (msaa2/4/8|fxaa|smaa|taa|off) *reload",
+    "  tonemap <mode>   - Tonemapping *reload",
+    "  wireframe        - Toggle wireframe",
+    "  shadows [on|off] - Toggle shadows",
+    "  bloom [on|off|N] - Bloom / intensity *reload",
+    "  ssao [on|off]    - Ambient occlusion *reload",
+    "  fog <start> <end> - Set fog range",
+    "  dd <distance>    - Set draw distance",
+    "  exposure <N>     - Set exposure (-4 to 4)",
+    "  dof [on|off|N]   - Depth of field / focal distance",
+    "  (* = applies on map reload)",
+    "Gameplay:",
+    "  fly [on|off]     - Toggle fly mode",
+    "  speed <N>        - Set turn speed",
+    "  sens <N>         - Set mouse sensitivity",
+    "Window:",
+    "  fullscreen       - Fullscreen mode",
+    "  borderless       - Borderless fullscreen",
+    "  windowed         - Windowed mode",
+    "  aspect <auto|4:3|16:9> - Set aspect ratio",
+    "  vsync <auto|fast|off> - Set vsync",
+    "  fps_cap <N>      - Set FPS cap (0=unlimited)",
+    "System:",
+    "  debug [on|off]   - Toggle debug HUD",
+    "  save_cfg         - Save config to disk",
+    "  clear            - Clear console",
+    "  quit             - Exit game",
+];
+
+// --- Helpers ---
+
 fn resolve_direction(
     current_map: &CurrentMapName,
     player_pos: Vec3,
@@ -628,17 +547,13 @@ fn resolve_direction(
 ) -> Result<(MapName, [f32; 3]), String> {
     match &current_map.0 {
         MapName::Outdoor(odm) => match dir_fn(odm) {
-            Some(next) => {
-                let pos = [player_pos.x + x_offset, player_pos.y, player_pos.z + z_offset];
-                Ok((MapName::Outdoor(next), pos))
-            }
+            Some(next) => Ok((MapName::Outdoor(next), [player_pos.x + x_offset, player_pos.y, player_pos.z + z_offset])),
             None => Err("No map in that direction.".to_string()),
         },
         MapName::Indoor(_) => Err("Directional navigation only works on outdoor maps.".to_string()),
     }
 }
 
-/// Parse "x,z" coordinate string into Bevy [x, y, z] position.
 fn parse_coords(s: &str) -> Option<[f32; 3]> {
     let mut parts = s.split(',');
     let x: f32 = parts.next()?.trim().parse().ok()?;
@@ -646,14 +561,8 @@ fn parse_coords(s: &str) -> Option<[f32; 3]> {
     Some([x, 0.0, z])
 }
 
-/// Parse fog range from one or two args: "start end" or "start" "end".
-fn parse_fog_range(first: &str, second: Option<&str>) -> Option<(f32, f32)> {
-    let start: f32 = first.parse().ok()?;
-    let end: f32 = second?.parse().ok()?;
-    Some((start, end))
-}
+// --- UI update ---
 
-/// Update console text when state changes.
 fn update_console_ui(
     state: Res<ConsoleState>,
     mut last_gen: Local<u64>,
@@ -668,7 +577,6 @@ fn update_console_ui(
         return;
     }
 
-    // Update console position on resize
     if let Ok(window) = windows.single() {
         let (left, top, vp_w, vp_h) = viewport_inner_rect(&window, &cfg, &ui_assets);
         let console_h = vp_h * CONSOLE_HEIGHT_FRACTION;
@@ -685,36 +593,34 @@ fn update_console_ui(
     }
     *last_gen = state.generation;
 
-    // Update output text
     if let Ok(mut text) = output_q.single_mut() {
         **text = state.output.join("\n");
     }
-
-    // Update prompt
     if let Ok(mut text) = prompt_q.single_mut() {
         **text = format!("> {}_", state.input);
     }
 }
 
-/// Hide the debug HUD (FPS counter etc.) while the console is open.
+/// Hide debug HUD while console is open. Only runs when console or config state changes.
 fn toggle_debug_hud(
     state: Res<ConsoleState>,
     cfg: Res<GameConfig>,
     mut debug_q: Query<&mut Visibility, With<DebugHud>>,
 ) {
-    let vis = if state.open {
+    if !state.is_changed() && !cfg.is_changed() {
+        return;
+    }
+    let vis = if state.open || !cfg.debug {
         Visibility::Hidden
-    } else if cfg.debug {
-        Visibility::Inherited
     } else {
-        Visibility::Hidden
+        Visibility::Inherited
     };
     for mut v in debug_q.iter_mut() {
         *v = vis;
     }
 }
 
-/// Sync GameConfig values to live scene components so console changes take effect immediately.
+/// Sync GameConfig to live scene components. Only runs when config changes.
 fn sync_config_to_scene(
     cfg: Res<GameConfig>,
     mut commands: Commands,
@@ -724,12 +630,14 @@ fn sync_config_to_scene(
     camera_q: Query<(Entity, Option<&bevy::post_process::dof::DepthOfField>), With<Camera3d>>,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
-    // Shadows
+    if !cfg.is_changed() {
+        return;
+    }
+
     for mut light in sun_q.iter_mut() {
         light.shadows_enabled = cfg.shadows;
     }
 
-    // Fog distances
     for mut fog in fog_q.iter_mut() {
         fog.falloff = FogFalloff::Linear {
             start: cfg.fog_start,
@@ -737,27 +645,22 @@ fn sync_config_to_scene(
         };
     }
 
-    // Exposure
     for mut exp in exposure_q.iter_mut() {
         exp.ev100 = 9.7 + cfg.exposure;
     }
 
-    // Depth of field
     for (entity, existing_dof) in camera_q.iter() {
         if cfg.depth_of_field {
-            let dof = bevy::post_process::dof::DepthOfField {
+            commands.entity(entity).insert(bevy::post_process::dof::DepthOfField {
                 focal_distance: cfg.depth_of_field_distance,
                 ..default()
-            };
-            commands.entity(entity).insert(dof);
+            });
         } else if existing_dof.is_some() {
             commands.entity(entity).remove::<bevy::post_process::dof::DepthOfField>();
         }
     }
 
-    // Window mode, VSync, FPS cap
     if let Ok(mut window) = windows.single_mut() {
-        // Window mode
         let target_mode = match cfg.window_mode.as_str() {
             "fullscreen" => WindowMode::Fullscreen(
                 bevy::window::MonitorSelection::Current,
@@ -772,7 +675,6 @@ fn sync_config_to_scene(
             window.mode = target_mode;
         }
 
-        // VSync / FPS cap → present mode
         let present_mode = if cfg.fps_cap == 0 {
             bevy::window::PresentMode::Immediate
         } else {

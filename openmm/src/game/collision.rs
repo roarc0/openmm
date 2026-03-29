@@ -255,23 +255,6 @@ pub fn sample_terrain_height(height_map: &[u8], world_x: f32, world_z: f32) -> f
     h_top + (h_bot - h_top) * frac_row
 }
 
-/// Get the effective ground height considering both terrain and BSP floors.
-pub fn ground_height_at(
-    height_map: &[u8],
-    colliders: Option<&BuildingColliders>,
-    x: f32,
-    z: f32,
-    feet_y: f32,
-) -> f32 {
-    let terrain_h = sample_terrain_height(height_map, x, z);
-    if let Some(colliders) = colliders {
-        if let Some(bsp_h) = colliders.floor_height_at(x, z, feet_y) {
-            return terrain_h.max(bsp_h);
-        }
-    }
-    terrain_h
-}
-
 /// Probe for the ground height at a world position from above.
 pub fn probe_ground_height(
     height_map: &[u8],
