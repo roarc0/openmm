@@ -263,14 +263,14 @@ impl Blv {
             texture_names.push(read_string_lossy(&mut cursor, 10)?);
         }
 
-        // 6. Face extras: u32 count, then count x 36 bytes (MM7 size)
-        //    sTextureDeltaU at offset 0x16, sTextureDeltaV at offset 0x18.
+        // 6. Face extras: u32 count, then count x 36 bytes
+        //    sTextureDeltaU at offset 0x14, sTextureDeltaV at offset 0x16.
         let face_extras_count = cursor.read_u32::<LittleEndian>()? as usize;
         let face_extra_size = 36;
         let mut face_extra_deltas: Vec<(i16, i16)> = Vec::with_capacity(face_extras_count);
         for _ in 0..face_extras_count {
             let start = cursor.position();
-            cursor.seek(std::io::SeekFrom::Current(0x16))?;
+            cursor.seek(std::io::SeekFrom::Current(0x14))?;
             let delta_u = cursor.read_i16::<LittleEndian>()?;
             let delta_v = cursor.read_i16::<LittleEndian>()?;
             face_extra_deltas.push((delta_u, delta_v));
@@ -461,13 +461,15 @@ impl Blv {
     }
 
     /// Unpack the face data blob into per-face vertex IDs and UV coordinates.
-    /// For each face, 6 sub-arrays of (num_vertices + 1) i16 values:
+    ///
+    /// Each face has 6 sub-arrays of (num_vertices + 1) i16 values:
     /// [vertexIds, xDisp, yDisp, zDisp, textureUs, textureVs].
+    /// The +1 is a closing vertex duplicated from the source data (skipped when reading).
     fn unpack_face_data(faces: &mut [BlvFace], blob: &[i16]) {
         let mut offset = 0;
         for face in faces.iter_mut() {
             let n = face.num_vertices as usize;
-            let stride = n + 1;
+            let stride = n + 1; // +1 closing vertex per sub-array
             let total = 6 * stride;
             if offset + total > blob.len() {
                 break;

@@ -76,6 +76,8 @@ src/
 
 ## Useful Resources
 
+- Reference OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats but be careful because mm7 might be different. You should find a copy of that codebase in the target folder
+- Reference MMExtension from grayface that is a modding engine for mm6 so more reilable but different codebase. You should find a copy too in that folder
 
 ### Rules
 
@@ -173,7 +175,6 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - Use `assets::dynamic_to_bevy_image()` and sampler helpers instead of inline `Image::from_dynamic()` / `ImageSamplerDescriptor` blocks
 - Keep this CLAUDE.md up to date when dependency versions, architecture, or conventions change
 - Document notable engine findings in `docs/` — see `docs/actors-and-sprites.md` for the actor/sprite system, but create more sections based on the topic.
-- Reference OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats
 - Use gpg no sign when you commit
 
 ## Future Ideas

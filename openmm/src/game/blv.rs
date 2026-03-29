@@ -42,10 +42,18 @@ fn spawn_indoor_world(
         }
     }
 
-    // Indoor ambient lighting: central point light for fill
+    // Indoor ambient lighting
+    commands.spawn((
+        AmbientLight {
+            color: Color::srgb(0.9, 0.85, 0.75),
+            brightness: 800.0,
+            ..default()
+        },
+        InGame,
+    ));
     commands.spawn((
         PointLight {
-            intensity: 1_000_000.0,
+            intensity: 2_000_000.0,
             range: 50_000.0,
             shadows_enabled: false,
             ..default()
