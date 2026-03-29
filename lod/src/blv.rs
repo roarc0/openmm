@@ -745,8 +745,7 @@ impl Blv {
             let tex_h_f = tex_h as f32;
 
             let mm6_normal = face.normal_f32();
-            let bevy_y = mm6_normal[2];
-            let is_ceiling = bevy_y < -0.5;
+            let is_ceiling = face.polygon_type == 5 || face.polygon_type == 6;
             let sign = if is_ceiling { -1.0 } else { 1.0 };
             let normal = [mm6_normal[0] * sign, mm6_normal[2] * sign, -mm6_normal[1] * sign];
 
@@ -855,10 +854,11 @@ impl Blv {
             let tex_h_f = tex_h as f32;
 
             // Convert face normal from MM6 fixed-point (x, y, z) to Bevy float (x, z, -y).
-            // Flip ceiling normals so they point into the room (up) for correct lighting.
+            // Flip ceiling normals (polygon_type 5 or 6) so they point into the room
+            // for correct PBR lighting. MM6's original normals point outward (geometrically
+            // correct but wrong for lighting ceilings from below).
             let mm6_normal = face.normal_f32();
-            let bevy_y = mm6_normal[2]; // MM6 Z -> Bevy Y
-            let is_ceiling = bevy_y < -0.5;
+            let is_ceiling = face.polygon_type == 5 || face.polygon_type == 6;
             let sign = if is_ceiling { -1.0 } else { 1.0 };
             let normal = [mm6_normal[0] * sign, mm6_normal[2] * sign, -mm6_normal[1] * sign];
 
