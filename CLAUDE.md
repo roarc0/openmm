@@ -147,6 +147,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - Keep this CLAUDE.md up to date when dependency versions, architecture, or conventions change
 - Document notable engine findings in `docs/` — see `docs/actors-and-sprites.md` for the actor/sprite system, but create more sections based on the topic.
 - Reference OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats
+- Use gpg no sign when you commit
 
 ## Future Ideas
 

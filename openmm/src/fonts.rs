@@ -87,7 +87,7 @@ impl GameFonts {
         if w == 0 || h == 0 {
             return None;
         }
-        let image = Image::new(
+        let mut image = Image::new(
             Extent3d {
                 width: w,
                 height: h,
@@ -98,6 +98,8 @@ impl GameFonts {
             TextureFormat::Rgba8UnormSrgb,
             bevy::asset::RenderAssetUsages::RENDER_WORLD,
         );
+        // Font text uses nearest filtering (always crisp, not affected by hud_filtering)
+        image.sampler = bevy::image::ImageSampler::nearest();
         Some(images.add(image))
     }
 

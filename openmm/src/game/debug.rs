@@ -1,6 +1,6 @@
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
-    input::{common_conditions::input_toggle_active, ButtonInput},
+    input::{ButtonInput, common_conditions::input_toggle_active},
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
 };
@@ -14,7 +14,7 @@ use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::map_name::MapName;
 use crate::game::player::Player;
-use crate::save::{GameSave, PlayerState, MapState};
+use crate::save::{GameSave, MapState, PlayerState};
 use crate::states::loading::LoadRequest;
 
 #[derive(Resource)]
@@ -60,9 +60,23 @@ fn debug_setup(
     mut wireframe_config: ResMut<WireframeConfig>,
     mut debug_config: ResMut<DebugConfig>,
     cfg: Res<GameConfig>,
+    ui_assets: Res<crate::ui_assets::UiAssets>,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
     wireframe_config.global = cfg.wireframe;
     debug_config.show_play_area = cfg.debug;
+
+    // Compute play area offset so debug UI sits inside the 3D viewport
+    let (vp_left, vp_top) = windows
+        .single()
+        .ok()
+        .map(|w| {
+            let (l, t, _, _) = crate::game::hud::viewport_rect(w, &cfg, &ui_assets);
+            (l, t)
+        })
+        .unwrap_or((0.0, 0.0));
+    let dbg_left = vp_left + 20.0;
+    let dbg_top = vp_top + 10.0;
 
     let hud_visibility = if cfg.debug {
         Visibility::Inherited
@@ -74,12 +88,15 @@ fn debug_setup(
     commands
         .spawn((
             Text::new("FPS: --"),
-            TextFont { font_size: 22.0, ..default() },
+            TextFont {
+                font_size: 22.0,
+                ..default()
+            },
             TextColor(Color::WHITE),
             Node {
                 position_type: PositionType::Absolute,
-                left: Val::Px(14.0),
-                top: Val::Px(14.0),
+                left: Val::Px(dbg_left + 35.0),
+                top: Val::Px(dbg_top),
                 ..default()
             },
             hud_visibility,
@@ -89,63 +106,76 @@ fn debug_setup(
         ))
         .with_child((
             TextSpan::new("\nPOS: --"),
-            TextFont { font_size: 22.0, ..default() },
+            TextFont {
+                font_size: 22.0,
+                ..default()
+            },
             TextColor(Color::WHITE),
             PosSpan,
         ));
 
     // FPS chart — bars with min/max labels
-    commands.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(14.0),
-            top: Val::Px(70.0),
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-        hud_visibility,
-        InGame,
-        DebugHud,
-        FpsChart,
-    )).with_children(|parent| {
-        // Max label at top
-        parent.spawn((
-            Text::new(""),
-            TextFont { font_size: 12.0, ..default() },
-            TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-            ChartMaxLabel,
-        ));
-        // Bar container
-        parent.spawn((
+    commands
+        .spawn((
             Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::FlexEnd,
-                height: Val::Px(FPS_CHART_HEIGHT),
-                column_gap: Val::Px(1.0),
+                position_type: PositionType::Absolute,
+                left: Val::Px(dbg_left + 35.0),
+                top: Val::Px(dbg_top + 60.0),
+                flex_direction: FlexDirection::Column,
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
-        )).with_children(|bars| {
-            for i in 0..FPS_CHART_WIDTH {
-                bars.spawn((
+            hud_visibility,
+            InGame,
+            DebugHud,
+            FpsChart,
+        ))
+        .with_children(|parent| {
+            // Max label at top
+            parent.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)),
+                ChartMaxLabel,
+            ));
+            // Bar container
+            parent
+                .spawn((
                     Node {
-                        width: Val::Px(FPS_CHART_BAR_W),
-                        height: Val::Px(0.0),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::FlexEnd,
+                        height: Val::Px(FPS_CHART_HEIGHT),
+                        column_gap: Val::Px(1.0),
                         ..default()
                     },
-                    BackgroundColor(Color::srgb(0.2, 1.0, 0.2)),
-                    FpsChartBar(i),
-                ));
-            }
+                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.3)),
+                ))
+                .with_children(|bars| {
+                    for i in 0..FPS_CHART_WIDTH {
+                        bars.spawn((
+                            Node {
+                                width: Val::Px(FPS_CHART_BAR_W),
+                                height: Val::Px(0.0),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(0.2, 1.0, 0.2)),
+                            FpsChartBar(i),
+                        ));
+                    }
+                });
+            // Min label at bottom
+            parent.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)),
+                ChartMinLabel,
+            ));
         });
-        // Min label at bottom
-        parent.spawn((
-            Text::new(""),
-            TextFont { font_size: 12.0, ..default() },
-            TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-            ChartMinLabel,
-        ));
-    });
 }
 
 /// Marker for the debug HUD container.
@@ -185,13 +215,29 @@ fn draw_play_area(config: Res<DebugConfig>, mut gizmos: Gizmos) {
     let y = 120.0;
 
     // North edge (positive Z in MM6 → negative Z in Bevy): red
-    gizmos.line(Vec3::new(-half, y, -half), Vec3::new(half, y, -half), Color::srgb(1.0, 0.0, 0.0));
+    gizmos.line(
+        Vec3::new(-half, y, -half),
+        Vec3::new(half, y, -half),
+        Color::srgb(1.0, 0.0, 0.0),
+    );
     // South edge: green
-    gizmos.line(Vec3::new(-half, y, half), Vec3::new(half, y, half), Color::srgb(0.0, 1.0, 0.0));
+    gizmos.line(
+        Vec3::new(-half, y, half),
+        Vec3::new(half, y, half),
+        Color::srgb(0.0, 1.0, 0.0),
+    );
     // East edge: blue
-    gizmos.line(Vec3::new(half, y, -half), Vec3::new(half, y, half), Color::srgb(0.0, 0.0, 1.0));
+    gizmos.line(
+        Vec3::new(half, y, -half),
+        Vec3::new(half, y, half),
+        Color::srgb(0.0, 0.0, 1.0),
+    );
     // West edge: magenta
-    gizmos.line(Vec3::new(-half, y, -half), Vec3::new(-half, y, half), Color::srgb(1.0, 0.0, 1.0));
+    gizmos.line(
+        Vec3::new(-half, y, -half),
+        Vec3::new(-half, y, half),
+        Color::srgb(1.0, 0.0, 1.0),
+    );
 }
 
 /// Debug map switching with H/J/K/L keys.
@@ -201,7 +247,9 @@ fn debug_change_map(
     mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
 ) {
-    let MapName::Outdoor(ref odm) = current_map.0 else { return };
+    let MapName::Outdoor(ref odm) = current_map.0 else {
+        return;
+    };
 
     let new_odm = if keys.just_pressed(KeyCode::KeyJ) {
         odm.go_north()
@@ -274,12 +322,16 @@ impl FpsHistory {
 
     fn averaged(&self) -> f64 {
         let n = self.samples.len().min(FPS_AVG_WINDOW);
-        if n == 0 { return 0.0; }
+        if n == 0 {
+            return 0.0;
+        }
         self.samples[self.samples.len() - n..].iter().sum::<f64>() / n as f64
     }
 
     fn percentile_low(&self, pct: f32) -> f64 {
-        if self.samples.is_empty() { return 0.0; }
+        if self.samples.is_empty() {
+            return 0.0;
+        }
         let mut sorted = self.samples.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let count = ((sorted.len() as f32 * pct / 100.0).ceil() as usize).max(1);
@@ -289,7 +341,9 @@ impl FpsHistory {
     /// Min/max of the visible chart window.
     fn chart_min_max(&self) -> (f64, f64) {
         let width = FPS_CHART_WIDTH.min(self.samples.len());
-        if width == 0 { return (0.0, 60.0); }
+        if width == 0 {
+            return (0.0, 60.0);
+        }
         let start = self.samples.len() - width;
         let slice = &self.samples[start..];
         let min = slice.iter().copied().fold(f64::MAX, f64::min);
@@ -300,9 +354,13 @@ impl FpsHistory {
 
 /// Color for an FPS value: green > 55, yellow > 30, red below.
 fn fps_color(fps: f64) -> Color {
-    if fps >= 55.0 { Color::srgb(0.2, 1.0, 0.2) }
-    else if fps >= 30.0 { Color::srgb(1.0, 0.9, 0.1) }
-    else { Color::srgb(1.0, 0.2, 0.2) }
+    if fps >= 55.0 {
+        Color::srgb(0.2, 1.0, 0.2)
+    } else if fps >= 30.0 {
+        Color::srgb(1.0, 0.9, 0.1)
+    } else {
+        Color::srgb(1.0, 0.2, 0.2)
+    }
 }
 
 #[derive(Component)]
@@ -335,7 +393,14 @@ fn update_hud_text(
     mut pos_query: Query<(&mut TextSpan, &mut TextColor), (With<PosSpan>, Without<FpsText>)>,
     mut bar_query: Query<(&FpsChartBar, &mut Node, &mut BackgroundColor)>,
     mut max_label: Query<&mut Text, (With<ChartMaxLabel>, Without<FpsText>)>,
-    mut min_label: Query<&mut Text, (With<ChartMinLabel>, Without<FpsText>, Without<ChartMaxLabel>)>,
+    mut min_label: Query<
+        &mut Text,
+        (
+            With<ChartMinLabel>,
+            Without<FpsText>,
+            Without<ChartMaxLabel>,
+        ),
+    >,
 ) {
     let fps_val = diagnostics
         .get(&FrameTimeDiagnosticsPlugin::FPS)
@@ -359,19 +424,29 @@ fn update_hud_text(
         "FPS: --".into()
     };
 
-    let color = if avg > 0.0 { fps_color(avg) } else { Color::WHITE };
+    let color = if avg > 0.0 {
+        fps_color(avg)
+    } else {
+        Color::WHITE
+    };
 
     let pos_str = if let Ok(transform) = player_query.single() {
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-        let spawn_str = if cfg.debug && spawn_progress.total > 0 && spawn_progress.done < spawn_progress.total {
+        let spawn_str = if cfg.debug
+            && spawn_progress.total > 0
+            && spawn_progress.done < spawn_progress.total
+        {
             format!("  SPAWN: {}/{}", spawn_progress.done, spawn_progress.total)
         } else {
             String::new()
         };
         format!(
             "\nX:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
-            transform.translation.x, transform.translation.y,
-            transform.translation.z, yaw.to_degrees(), spawn_str,
+            transform.translation.x,
+            transform.translation.y,
+            transform.translation.z,
+            yaw.to_degrees(),
+            spawn_str,
         )
     } else {
         "\nPOS: --".into()
@@ -464,19 +539,19 @@ fn quicksave(
     }
 }
 
-fn debug_screenshot(
-    mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
-) {
-    use bevy::render::view::screenshot::{save_to_disk, Screenshot};
+fn debug_screenshot(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
+    use bevy::render::view::screenshot::{Screenshot, save_to_disk};
     if keys.just_pressed(KeyCode::F12) {
-        let path = format!("target/screenshot_{}.png",
+        let path = format!(
+            "target/screenshot_{}.png",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_millis());
+                .as_millis()
+        );
         info!("Saving screenshot to {}", path);
-        commands.spawn(Screenshot::primary_window())
+        commands
+            .spawn(Screenshot::primary_window())
             .observe(save_to_disk(path));
     }
 }
@@ -496,7 +571,15 @@ impl Plugin for DebugPlugin {
             ))
             .add_systems(
                 Update,
-                (debug_input, update_hud_text, debug_change_map, debug_log, quicksave, draw_play_area, debug_screenshot)
+                (
+                    debug_input,
+                    update_hud_text,
+                    debug_change_map,
+                    debug_log,
+                    quicksave,
+                    draw_play_area,
+                    debug_screenshot,
+                )
                     .run_if(in_state(GameState::Game)),
             )
             .add_systems(OnEnter(GameState::Game), debug_setup);

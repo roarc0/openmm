@@ -13,17 +13,7 @@ use crate::ui_assets::{UiAssets, make_black_transparent, make_transparent_where}
 // MM6 reference height — all HUD dimensions scale relative to this
 const REF_H: f32 = 480.0;
 
-// Border dimensions in reference pixels
-const BORDER1_W: f32 = 172.0; // right sidebar width
-const BORDER1_H: f32 = 339.0; // right sidebar height
-const BORDER2_H: f32 = 109.0; // bottom bar height
-const BORDER3_H: f32 = 8.0; // horizontal divider height
-const BORDER4_W: f32 = 8.0; // vertical divider width
-const BORDER4_H: f32 = 344.0; // vertical divider height
-const TAP_W: f32 = 172.0; // minimap frame width (= sidebar width)
-const TAP_H: f32 = 142.0; // minimap frame height
-const COMPASS_W: f32 = 325.0; // compass strip full width
-const COMPASS_H: f32 = 9.0; // compass strip height
+// Legacy constants kept for inline scale_h/scale_w calls that don't use a _REF tuple
 const FOOTER_H: f32 = 24.0; // footer strip height (reference)
 
 /// Marker for HUD UI entities.
@@ -175,6 +165,7 @@ fn make_tap_key_transparent(img: &mut image::DynamicImage) {
 fn spawn_hud(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
+    cfg: Res<GameConfig>,
     mut footer_text: ResMut<FooterText>,
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
@@ -196,13 +187,13 @@ fn spawn_hud(
     ));
 
     // Load border assets
-    let border1 = ui_assets.get_or_load("border1.pcx", &game_assets, &mut images);
-    let border2 = ui_assets.get_or_load("border2.pcx", &game_assets, &mut images);
-    let border3 = ui_assets.get_or_load("border3", &game_assets, &mut images);
-    let border4 = ui_assets.get_or_load("border4", &game_assets, &mut images);
-    let border5 = ui_assets.get_or_load("border5", &game_assets, &mut images);
-    let border6 = ui_assets.get_or_load("border6", &game_assets, &mut images);
-    let footer = ui_assets.get_or_load("footer", &game_assets, &mut images);
+    let border1 = ui_assets.get_or_load("border1.pcx", &game_assets, &mut images, &cfg);
+    let border2 = ui_assets.get_or_load("border2.pcx", &game_assets, &mut images, &cfg);
+    let border3 = ui_assets.get_or_load("border3", &game_assets, &mut images, &cfg);
+    let border4 = ui_assets.get_or_load("border4", &game_assets, &mut images, &cfg);
+    let border5 = ui_assets.get_or_load("border5", &game_assets, &mut images, &cfg);
+    let border6 = ui_assets.get_or_load("border6", &game_assets, &mut images, &cfg);
+    let footer = ui_assets.get_or_load("footer", &game_assets, &mut images, &cfg);
 
     // Load tap frames (minimap border with time-of-day sky)
     // tap1=morning, tap2=day, tap3=evening, tap4=night — green/red key made transparent
@@ -215,6 +206,7 @@ fn spawn_hud(
                 &key,
                 &game_assets,
                 &mut images,
+                &cfg,
                 make_tap_key_transparent,
             )
         })
@@ -223,10 +215,10 @@ fn spawn_hud(
 
     // Load current map overview image for minimap
     // Map overview images are stored as icons (e.g., "oute3" -> 512x512)
-    let map_overview = load_map_overview(&game_assets, &mut images);
+    let map_overview = load_map_overview(&game_assets, &mut images, &cfg);
 
     // Load compass strip
-    let compass = ui_assets.get_or_load("compass", &game_assets, &mut images);
+    let compass = ui_assets.get_or_load("compass", &game_assets, &mut images, &cfg);
 
     // Load minimap direction arrows (mapdir1=N, 2=NE, 3=E, 4=SE, 5=S, 6=SW, 7=W, 8=NW)
     // Black background is made transparent via the transformed cache
@@ -239,6 +231,7 @@ fn spawn_hud(
                 &key,
                 &game_assets,
                 &mut images,
+                &cfg,
                 make_black_transparent,
             )
         })
@@ -261,29 +254,11 @@ fn spawn_hud(
             HudRoot,
         ))
         .with_children(|parent| {
-            // border1 — right sidebar (172×339), anchored bottom-right
-            if let Some(handle) = border1 {
-                parent.spawn((
-                    Name::new("hud_border1"),
-                    ImageNode::new(handle),
-                    Node {
-                        position_type: PositionType::Absolute,
-                        right: Val::Px(0.0),
-                        bottom: Val::Px(0.0),
-                        width: Val::Px(0.0),
-                        height: Val::Px(0.0),
-                        ..default()
-                    },
-                    HudBorder1,
-                    HudUI,
-                ));
-            }
-
-            // footer — thin text strip drawn behind border2 (overlapping top edge)
-            if let Some(handle) = footer {
+            // footer — text strip, drawn first so border1/border2 render on top
+            if let Some(ref handle) = footer {
                 parent.spawn((
                     Name::new("hud_footer"),
-                    ImageNode::new(handle),
+                    ImageNode::new(handle.clone()),
                     Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(0.0),
@@ -297,7 +272,7 @@ fn spawn_hud(
                 ));
             }
 
-            // border2 — bottom bar (469×109), anchored bottom-left
+            // border2 — bottom bar (469×109), anchored bottom-left (spawned before border1 so border1 is on top)
             if let Some(handle) = border2 {
                 parent.spawn((
                     Name::new("hud_border2"),
@@ -311,6 +286,24 @@ fn spawn_hud(
                         ..default()
                     },
                     HudBorder2,
+                    HudUI,
+                ));
+            }
+
+            // border1 — right sidebar (172×339), anchored bottom-right (on top of border2)
+            if let Some(handle) = border1 {
+                parent.spawn((
+                    Name::new("hud_border1"),
+                    ImageNode::new(handle),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        right: Val::Px(0.0),
+                        bottom: Val::Px(0.0),
+                        width: Val::Px(0.0),
+                        height: Val::Px(0.0),
+                        ..default()
+                    },
+                    HudBorder1,
                     HudUI,
                 ));
             }
@@ -545,13 +538,16 @@ fn spawn_hud(
 fn load_map_overview(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
+    cfg: &GameConfig,
 ) -> Option<Handle<Image>> {
     // Try loading the current map's overview (e.g., "oute3")
     // For now, try common map names
     let map_names = ["oute3", "oute2", "oute1", "outa1"];
     for name in map_names {
         if let Some(img) = game_assets.lod_manager().icon(name) {
-            return Some(images.add(assets::dynamic_to_bevy_image(img)));
+            let mut bevy_img = assets::dynamic_to_bevy_image(img);
+            bevy_img.sampler = crate::ui_assets::hud_sampler(cfg);
+            return Some(images.add(bevy_img));
         }
     }
     None
@@ -564,52 +560,88 @@ fn logical_size(window: &Window, cfg: &GameConfig) -> (f32, f32) {
     (pw as f32 / sf, ph as f32 / sf)
 }
 
-/// Helper: compute common scaled dimensions from letterboxed logical size.
-fn hud_dimensions(width: f32, height: f32) -> HudDimensions {
-    let scale = height / REF_H;
-    let sidebar_w = BORDER1_W * scale;
-    let sidebar_h = BORDER1_H * scale;
-    let bar_h = BORDER2_H * scale;
-    let divider_h = BORDER3_H * scale;
-    let divider_w = BORDER4_W * scale;
-    let divider_v_h = BORDER4_H * scale;
-    let viewport_w = width - sidebar_w - divider_w;
-    let tap_h = TAP_H * scale;
-    let tap_w = TAP_W * scale;
-    let corner_h = height - sidebar_h - tap_h;
+const REF_W: f32 = 640.0;
+
+/// Compute all HUD dimensions from letterboxed logical size and actual asset dimensions.
+/// Widths scale by `scale_x` (width / 640), heights by `scale_y` (height / 480).
+/// Asset sizes are read dynamically from `UiAssets` — no hardcoded pixel values.
+fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimensions {
+    let scale_x = width / REF_W;
+    let scale_y = height / REF_H;
+
+    // Read true pixel dimensions from loaded assets (fallback to 0 if not loaded yet)
+    let dim = |name: &str| -> (f32, f32) {
+        ui.dimensions(name)
+            .map(|(w, h)| (w as f32, h as f32))
+            .unwrap_or((0.0, 0.0))
+    };
+
+    let border1 = dim("border1.pcx");
+    let border2 = dim("border2.pcx");
+    let border3 = dim("border3");
+    let border4 = dim("border4");
+    let tap1 = dim("tap1");
+    let footer = dim("footer");
+    let compass = dim("compass");
+
     HudDimensions {
-        scale,
-        sidebar_w,
-        sidebar_h,
-        bar_h,
-        divider_h,
-        divider_w,
-        divider_v_h,
-        viewport_w,
-        corner_h,
-        tap_h,
-        tap_w,
+        scale_x,
+        scale_y,
+        border1_w: border1.0 * scale_x,
+        border1_h: border1.1 * scale_y,
+        border2_w: border2.0 * scale_x,
+        border2_h: border2.1 * scale_y,
+        border3_w: border3.0 * scale_x,
+        border3_h: border3.1 * scale_y,
+        border4_w: border4.0 * scale_x,
+        border4_h: border4.1 * scale_y,
+        tap_w: tap1.0 * scale_x,
+        tap_h: tap1.1 * scale_y,
+        footer_w: footer.0 * scale_x,
+        footer_h: footer.1 * scale_y,
+        compass_w: compass.0 * scale_x,
+        compass_h: compass.1 * scale_y,
+        corner_h: height - border1.1 * scale_y - tap1.1 * scale_y,
     }
 }
 
 struct HudDimensions {
-    scale: f32,
-    sidebar_w: f32,
-    sidebar_h: f32,
-    bar_h: f32,
-    divider_h: f32,
-    divider_w: f32,
-    divider_v_h: f32,
-    viewport_w: f32,
-    corner_h: f32,
-    tap_h: f32,
+    scale_x: f32,
+    scale_y: f32,
+    border1_w: f32,
+    border1_h: f32,
+    border2_w: f32,
+    border2_h: f32,
+    border3_w: f32,
+    border3_h: f32,
+    border4_w: f32,
+    border4_h: f32,
     tap_w: f32,
+    tap_h: f32,
+    footer_w: f32,
+    footer_h: f32,
+    compass_w: f32,
+    compass_h: f32,
+    corner_h: f32,
+}
+
+impl HudDimensions {
+    /// Scale a reference Y value (height or vertical position).
+    fn scale_h(&self, ref_px: f32) -> f32 {
+        ref_px * self.scale_y
+    }
+
+    /// Scale a reference X value (width or horizontal position).
+    fn scale_w(&self, ref_px: f32) -> f32 {
+        ref_px * self.scale_x
+    }
 }
 
 /// Update all HUD element sizes based on window size.
 fn update_hud_layout(
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
+    ui_assets: Res<UiAssets>,
     mut set: ParamSet<(
         Query<&mut Node, With<HudBorder1>>,
         Query<&mut Node, With<HudBorder2>>,
@@ -728,7 +760,7 @@ fn update_hud_layout(
     let (_, _, lpw, lph) = letterbox_rect(&window, &cfg);
     let lw = lpw as f32 / sf;
     let lh = lph as f32 / sf;
-    let d = hud_dimensions(lw, lh);
+    let d = hud_dimensions(lw, lh, &ui_assets);
 
     // Position HUD root within the letterboxed area
     let bar_x = (window.width() - lw) / 2.0;
@@ -743,34 +775,33 @@ fn update_hud_layout(
     // tap is full sidebar width, so offset is 0
     let tap_offset_x = 0.0_f32;
 
-    // border1 — right sidebar, starts below tap
+    // border1 — right sidebar (172×339 ref), true scaled size
     for mut node in set.p0().iter_mut() {
         node.top = Val::Px(d.tap_h);
         node.bottom = Val::Auto;
-        node.width = Val::Px(d.sidebar_w);
-        node.height = Val::Px(d.sidebar_h);
+        node.width = Val::Px(d.border1_w);
+        node.height = Val::Px(d.border1_h);
     }
-    // border2 — bottom bar (469×109 reference), scaled to fit left of sidebar
-    let border2_w = 469.0 * d.scale;
+    // border2 — bottom bar (469×109 ref), true scaled size
     for mut node in set.p1().iter_mut() {
-        node.width = Val::Px(border2_w);
-        node.height = Val::Px(d.bar_h);
+        node.width = Val::Px(d.border2_w);
+        node.height = Val::Px(d.border2_h);
     }
-    // border3 — horizontal divider strip across the top, extends to sidebar
+    // border3 — horizontal strip (468×8 ref) across the top, true scaled size
     for mut node in set.p2().iter_mut() {
         node.left = Val::Px(0.0);
         node.top = Val::Px(0.0);
         node.bottom = Val::Auto;
-        node.width = Val::Px(border2_w);
-        node.height = Val::Px(d.divider_h);
+        node.width = Val::Px(d.border3_w);
+        node.height = Val::Px(d.border3_h);
     }
     // border4 — vertical divider strip, left edge of viewport, below border3
     for mut node in set.p3().iter_mut() {
         node.left = Val::Px(0.0);
-        node.top = Val::Px(d.divider_h);
+        node.top = Val::Px(d.border3_h);
         node.right = Val::Auto;
-        node.width = Val::Px(d.divider_w);
-        node.height = Val::Px(d.divider_v_h);
+        node.width = Val::Px(d.border4_w);
+        node.height = Val::Px(d.border4_h);
     }
     // border5/border6 — hidden for now (will be corner pieces for columns)
     for mut node in set.p4().iter_mut() {
@@ -783,7 +814,7 @@ fn update_hud_layout(
     }
     // Corner fill — bottom-right area (below border1+mapback)
     for mut node in set.p6().iter_mut() {
-        node.width = Val::Px(d.sidebar_w);
+        node.width = Val::Px(d.border1_w);
         node.height = Val::Px(d.corner_h);
     }
     // Tap frame — at the very top
@@ -801,46 +832,45 @@ fn update_hud_layout(
         node.height = Val::Px(d.tap_h);
     }
     // Minimap arrow — centered in tap area
-    let arrow_size = 7.0 * d.scale;
+    let arrow_size = d.scale_w(7.0);
     for mut node in arrow_q.iter_mut() {
         node.right = Val::Px(tap_offset_x + (d.tap_w - arrow_size) / 2.0);
         node.top = Val::Px((d.tap_h - arrow_size) / 2.0);
         node.width = Val::Px(arrow_size);
         node.height = Val::Px(arrow_size);
     }
-    // Footer — sits directly above border2, overlapping its top by 10px.
-    let footer_h = FOOTER_H * d.scale;
-    let footer_overlap = 10.0 * d.scale;
-    let footer_lift = 5.0 * d.scale;
-    let footer_bottom = d.bar_h - footer_overlap + footer_lift;
+    // Footer (483×24 ref) — sits directly above border2, overlapping its top by 10px.
+    let footer_overlap = d.scale_h(10.0);
+    let footer_lift = d.scale_h(5.0);
+    let footer_bottom = d.border2_h - footer_overlap + footer_lift;
     for mut node in footer_q.iter_mut() {
         node.bottom = Val::Px(footer_bottom);
-        node.width = Val::Px(border2_w);
-        node.height = Val::Px(footer_h);
+        node.width = Val::Px(d.footer_w);
+        node.height = Val::Px(d.footer_h);
     }
     // Footer text — scaled to footer height, centered vertically
-    let text_h = footer_h * 0.6;
-    let text_bottom = footer_bottom + (footer_h - text_h) / 2.0;
+    let text_h = d.footer_h * 0.6;
+    let text_bottom = footer_bottom + (d.footer_h - text_h) / 2.0;
     for mut node in footer_text_q.iter_mut() {
         node.bottom = Val::Px(text_bottom);
         node.width = Val::Auto;
         node.height = Val::Px(text_h);
     }
-    // Compass clip — floating inside tap frame, in the compass channel (y≈15, 38px wide at x=70..107)
-    let compass_h = COMPASS_H * d.scale;
-    let compass_clip_w = 38.0 * d.scale;
-    let compass_y = 10.0 * d.scale;
-    let compass_right = tap_offset_x + (172.0 - 107.0) * d.scale; // right edge at x=107
+    // Compass clip — floating inside tap frame, in the compass channel
+    let compass_clip_w = d.scale_w(38.0);
+    let compass_y = d.scale_h(10.0);
+    let compass_right = tap_offset_x + d.scale_w(172.0 - 107.0); // right edge at x=107
     for mut node in compass_clip_q.iter_mut() {
         node.right = Val::Px(compass_right);
         node.top = Val::Px(compass_y);
         node.width = Val::Px(compass_clip_w);
-        node.height = Val::Px(compass_h);
+        node.height = Val::Px(d.compass_h);
     }
 }
 
 /// Update minimap image position, arrow direction, and compass strip based on player transform.
 fn update_minimap(
+    ui_assets: Res<UiAssets>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
     player_q: Query<&Transform, With<Player>>,
@@ -854,7 +884,7 @@ fn update_minimap(
         return;
     };
     let (lw, lh) = logical_size(&window, &cfg);
-    let d = hud_dimensions(lw, lh);
+    let d = hud_dimensions(lw, lh, &ui_assets);
 
     // Map overview is 512×512 pixels covering the 128×128 tile terrain.
     // Terrain world coords are centered: -half..+half on both axes.
@@ -906,11 +936,11 @@ fn update_minimap(
     // Strip layout: E(9) · SE(36) · S(68) · SW(98) · W(130) · NW(157) · N(190) · NE(216) · E(249) · SE(276)
     // First E at pixel ~14 (tweaked), second E at ~254 → cycle = 240px = 360°
     // angle_from_east wraps via rem_euclid so pixel_pos stays in [14, 254] — within the 325px strip
-    let compass_full_w = COMPASS_W * d.scale;
-    let compass_strip_h = COMPASS_H * d.scale;
-    let compass_clip_w = 38.0 * d.scale;
-    let e_start = 28.0 * d.scale;
-    let cycle_w = 240.0 * d.scale;
+    let compass_full_w = d.compass_w;
+    let compass_strip_h = d.compass_h;
+    let compass_clip_w = d.scale_w(38.0);
+    let e_start = d.scale_w(28.0);
+    let cycle_w = d.scale_w(240.0);
     let angle_from_east = (cw_angle - std::f32::consts::FRAC_PI_2)
         .rem_euclid(std::f32::consts::TAU);
     let pixel_pos = e_start + (angle_from_east / std::f32::consts::TAU) * cycle_w;
@@ -926,6 +956,7 @@ fn update_footer_text(
     footer: Res<FooterText>,
     mut last_gen: Local<u64>,
     game_fonts: Res<GameFonts>,
+    ui_assets: Res<UiAssets>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
     mut images: ResMut<Assets<Image>>,
@@ -938,7 +969,7 @@ fn update_footer_text(
 
     // Compute viewport width for centering
     let vp_w = windows.single().ok().map(|w| {
-        let (_, _, vp_w, _) = viewport_rect(w, &cfg);
+        let (_, _, vp_w, _) = viewport_rect(w, &cfg, &ui_assets);
         vp_w
     });
 
@@ -1010,20 +1041,18 @@ fn letterbox_rect(window: &Window, cfg: &GameConfig) -> (u32, u32, u32, u32) {
 
 /// Compute the 3D viewport rect in logical (CSS) pixels: (left, top, width, height).
 /// This is the playable area — letterboxed region minus HUD sidebar and bottom bar.
-pub fn viewport_rect(window: &Window, cfg: &GameConfig) -> (f32, f32, f32, f32) {
+pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, f32, f32, f32) {
     let sf = window.scale_factor();
     let (_, _, lpw, lph) = letterbox_rect(window, cfg);
     let lw = lpw as f32 / sf;
     let lh = lph as f32 / sf;
-    let d = hud_dimensions(lw, lh);
+    let d = hud_dimensions(lw, lh, ui);
     let bar_x = (window.width() - lw) / 2.0;
     let bar_y = (window.height() - lh) / 2.0;
-    // border3 at top, footer+border2 at bottom
-    let footer_exposed = (FOOTER_H - 10.0 + 5.0) * d.scale;
-    let vp_top = bar_y + d.divider_h; // below border3
-    // No border4 on the right, so viewport extends to the sidebar
-    let vp_w = d.viewport_w + d.divider_w;
-    let vp_h = lh - d.bar_h - d.divider_h - footer_exposed;
+    let footer_exposed = d.scale_h(FOOTER_H - 10.0 + 5.0);
+    let vp_top = bar_y + d.border3_h;
+    let vp_w = d.border2_w;
+    let vp_h = lh - d.border2_h - d.border3_h - footer_exposed;
     (bar_x, vp_top, vp_w, vp_h)
 }
 
@@ -1032,6 +1061,7 @@ pub fn viewport_rect(window: &Window, cfg: &GameConfig) -> (f32, f32, f32, f32) 
 fn update_viewport(
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
+    ui_assets: Res<UiAssets>,
     mut player_cameras: Query<&mut Camera, With<PlayerCamera>>,
 ) {
     let Ok(window) = windows.single() else {
@@ -1039,14 +1069,15 @@ fn update_viewport(
     };
 
     let (lx, ly, lw, lh) = letterbox_rect(&window, &cfg);
-
-    // 3D camera — border3 at top, footer+border2 at bottom, sidebar on right (no border4 on right)
-    let scale = (lh as f32 / window.scale_factor()) / REF_H;
     let sf = window.scale_factor();
-    let sidebar_w = (BORDER1_W * scale * sf) as u32;
-    let top_h = (BORDER3_H * scale * sf) as u32;
-    let footer_exposed = ((FOOTER_H - 10.0 + 5.0) * scale * sf) as u32;
-    let bottom_h = (BORDER2_H * scale * sf) as u32 + footer_exposed;
+    let lw_logical = lw as f32 / sf;
+    let lh_logical = lh as f32 / sf;
+    let d = hud_dimensions(lw_logical, lh_logical, &ui_assets);
+
+    let sidebar_w = (d.border1_w * sf) as u32;
+    let top_h = (d.border3_h * sf) as u32;
+    let footer_exposed = (d.scale_h(FOOTER_H - 10.0 + 5.0) * sf) as u32;
+    let bottom_h = (d.border2_h * sf) as u32 + footer_exposed;
 
     let vp_x = lx;
     let vp_y = ly + top_h;

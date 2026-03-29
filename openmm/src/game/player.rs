@@ -210,6 +210,7 @@ fn spawn_player(
             Name::new("player_camera"),
             PlayerCamera,
             Camera3d::default(),
+            crate::bevy_config::camera_msaa(&cfg),
             Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
             Projection::Perspective(PerspectiveProjection {
                 fov: 50.0_f32.to_radians(),
@@ -218,6 +219,15 @@ fn spawn_player(
                 ..Default::default()
             }),
         ));
+        if let Some(fxaa) = crate::bevy_config::camera_fxaa(&cfg) {
+            cam.insert(fxaa);
+        }
+        if let Some(smaa) = crate::bevy_config::camera_smaa(&cfg) {
+            cam.insert(smaa);
+        }
+        if let Some(taa) = crate::bevy_config::camera_taa(&cfg) {
+            cam.insert(taa);
+        }
         // Outdoor: distance fog for horizon blending. Indoor: no fog.
         if !is_indoor {
             cam.insert(DistanceFog {

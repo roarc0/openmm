@@ -106,6 +106,14 @@ struct Cli {
     #[arg(long)]
     capslock_toggle_mouse_look: Option<bool>,
 
+    /// HUD texture filtering: "nearest" (crisp pixels) or "linear" (smooth)
+    #[arg(long)]
+    hud_filtering: Option<String>,
+
+    /// Anti-aliasing mode: "msaa4" (default), "msaa2", "msaa8", "taa", "fxaa", "off"
+    #[arg(long)]
+    antialiasing: Option<String>,
+
     /// Path to config file
     #[arg(long, default_value = CONFIG_PATH)]
     config: PathBuf,
@@ -138,6 +146,8 @@ struct ConfigFile {
     mouse_look_fly: Option<bool>,
     mouse_wheel_fly: Option<bool>,
     capslock_toggle_mouse_look: Option<bool>,
+    hud_filtering: Option<String>,
+    antialiasing: Option<String>,
 }
 
 /// Resolved game configuration — available as a Bevy resource.
@@ -181,6 +191,10 @@ pub struct GameConfig {
     pub mouse_wheel_fly: bool,
     /// CapsLock toggles mouse look on/off (MM6: CapsLockToggleMouseLook)
     pub capslock_toggle_mouse_look: bool,
+    /// HUD texture filtering mode: "nearest" (crisp pixels) or "linear" (smooth)
+    pub hud_filtering: String,
+    /// Anti-aliasing: "msaa4" (default), "msaa2", "msaa8", "taa", "fxaa", "off"
+    pub antialiasing: String,
 }
 
 impl Default for GameConfig {
@@ -210,6 +224,8 @@ impl Default for GameConfig {
             mouse_look_fly: true,
             mouse_wheel_fly: true,
             capslock_toggle_mouse_look: true,
+            hud_filtering: "nearest".into(),
+            antialiasing: "taa".into(),
         }
     }
 }
@@ -278,6 +294,8 @@ impl GameConfig {
             mouse_look_fly: resolve!(cli.mouse_look_fly, file_cfg.mouse_look_fly, d.mouse_look_fly),
             mouse_wheel_fly: resolve!(cli.mouse_wheel_fly, file_cfg.mouse_wheel_fly, d.mouse_wheel_fly),
             capslock_toggle_mouse_look: resolve!(cli.capslock_toggle_mouse_look, file_cfg.capslock_toggle_mouse_look, d.capslock_toggle_mouse_look),
+            hud_filtering: resolve!(cli.hud_filtering, file_cfg.hud_filtering, d.hud_filtering),
+            antialiasing: resolve!(cli.antialiasing, file_cfg.antialiasing, d.antialiasing),
         }
     }
 }

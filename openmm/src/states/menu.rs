@@ -1,6 +1,7 @@
 use bevy::{app::AppExit, ecs::message::MessageWriter, prelude::*};
 
 use crate::assets::GameAssets;
+use crate::config::GameConfig;
 use crate::ui_assets::{UiAssets, make_black_transparent};
 use crate::{despawn_all, GameState};
 
@@ -63,21 +64,22 @@ fn title_setup(
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     mut ui: ResMut<UiAssets>,
+    game_cfg: Res<GameConfig>,
 ) {
     commands.spawn((Camera2d, OnScreen));
     // Use title.pcx (with buttons baked in) as background
-    let bg = ui.get_or_load("title.pcx", &game_assets, &mut images)
-        .or_else(|| ui.get_or_load("mm6title.pcx", &game_assets, &mut images));
+    let bg = ui.get_or_load("title.pcx", &game_assets, &mut images, &game_cfg)
+        .or_else(|| ui.get_or_load("mm6title.pcx", &game_assets, &mut images, &game_cfg));
 
     commands.spawn((
         fullscreen_bg(bg),
         OnScreen,
     )).with_children(|p| {
         // Hover button images (mmnew1=NEW, mmloa1=LOAD, mmcre1=CREDITS, mmesc1=EXIT)
-        let hover_new = ui.get_or_load_transformed("mmnew1", "mmnew1_t", &game_assets, &mut images, make_black_transparent);
-        let hover_load = ui.get_or_load_transformed("mmloa1", "mmloa1_t", &game_assets, &mut images, make_black_transparent);
-        let hover_credits = ui.get_or_load_transformed("mmcre1", "mmcre1_t", &game_assets, &mut images, make_black_transparent);
-        let hover_exit = ui.get_or_load_transformed("mmesc1", "mmesc1_t", &game_assets, &mut images, make_black_transparent);
+        let hover_new = ui.get_or_load_transformed("mmnew1", "mmnew1_t", &game_assets, &mut images, &game_cfg, make_black_transparent);
+        let hover_load = ui.get_or_load_transformed("mmloa1", "mmloa1_t", &game_assets, &mut images, &game_cfg, make_black_transparent);
+        let hover_credits = ui.get_or_load_transformed("mmcre1", "mmcre1_t", &game_assets, &mut images, &game_cfg, make_black_transparent);
+        let hover_exit = ui.get_or_load_transformed("mmesc1", "mmesc1_t", &game_assets, &mut images, &game_cfg, make_black_transparent);
 
         // Button positions matched to hover images (135×45px, x=482, y step=62)
         title_btn(p, 482.0,   9.0, 135.0, 45.0, MenuAction::NewGame, hover_new);
@@ -95,9 +97,10 @@ fn segue_setup(
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     mut ui: ResMut<UiAssets>,
+    game_cfg: Res<GameConfig>,
 ) {
     commands.spawn((Camera2d, OnScreen));
-    let bg = ui.get_or_load("segue_bg.pcx", &game_assets, &mut images);
+    let bg = ui.get_or_load("segue_bg.pcx", &game_assets, &mut images, &game_cfg);
 
     commands.spawn((
         fullscreen_bg(bg),
@@ -115,9 +118,10 @@ fn party_setup(
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     mut ui: ResMut<UiAssets>,
+    game_cfg: Res<GameConfig>,
 ) {
     commands.spawn((Camera2d, OnScreen));
-    let bg = ui.get_or_load("makeme.pcx", &game_assets, &mut images);
+    let bg = ui.get_or_load("makeme.pcx", &game_assets, &mut images, &game_cfg);
 
     commands.spawn((
         fullscreen_bg(bg),
@@ -135,9 +139,10 @@ fn load_game_setup(
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     mut ui: ResMut<UiAssets>,
+    game_cfg: Res<GameConfig>,
 ) {
     commands.spawn((Camera2d, OnScreen));
-    let bg = ui.get_or_load("lsave640.pcx", &game_assets, &mut images);
+    let bg = ui.get_or_load("lsave640.pcx", &game_assets, &mut images, &game_cfg);
 
     commands.spawn((
         fullscreen_bg(bg),
@@ -157,9 +162,10 @@ fn credits_setup(
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     mut ui: ResMut<UiAssets>,
+    game_cfg: Res<GameConfig>,
 ) {
     commands.spawn((Camera2d, OnScreen));
-    let bg = ui.get_or_load("mm6title.pcx", &game_assets, &mut images);
+    let bg = ui.get_or_load("mm6title.pcx", &game_assets, &mut images, &game_cfg);
 
     commands.spawn((
         fullscreen_bg(bg),

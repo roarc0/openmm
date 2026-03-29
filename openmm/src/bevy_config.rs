@@ -49,3 +49,43 @@ impl Plugin for BevyConfigPlugin {
         app.add_plugins((default_plugins, FrameTimeDiagnosticsPlugin::default()));
     }
 }
+
+/// Returns the MSAA component to add to the 3D camera based on config.
+pub fn camera_msaa(cfg: &GameConfig) -> Msaa {
+    match cfg.antialiasing.as_str() {
+        "msaa2" => Msaa::Sample2,
+        "msaa4" => Msaa::Sample4,
+        "msaa8" => Msaa::Sample8,
+        "off" => Msaa::Off,
+        // FXAA/SMAA are post-process, disable MSAA for them
+        "fxaa" | "smaa" => Msaa::Off,
+        _ => Msaa::Sample4,
+    }
+}
+
+/// Returns an optional FXAA component for the 3D camera.
+pub fn camera_fxaa(cfg: &GameConfig) -> Option<bevy::anti_alias::fxaa::Fxaa> {
+    if cfg.antialiasing == "fxaa" {
+        Some(bevy::anti_alias::fxaa::Fxaa::default())
+    } else {
+        None
+    }
+}
+
+/// Returns an optional SMAA component for the 3D camera.
+pub fn camera_smaa(cfg: &GameConfig) -> Option<bevy::anti_alias::smaa::Smaa> {
+    if cfg.antialiasing == "smaa" {
+        Some(bevy::anti_alias::smaa::Smaa::default())
+    } else {
+        None
+    }
+}
+
+/// Returns an optional TAA component for the 3D camera.
+pub fn camera_taa(cfg: &GameConfig) -> Option<bevy::anti_alias::taa::TemporalAntiAliasing> {
+    if cfg.antialiasing == "taa" {
+        Some(bevy::anti_alias::taa::TemporalAntiAliasing::default())
+    } else {
+        None
+    }
+}

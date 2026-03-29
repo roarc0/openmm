@@ -227,7 +227,7 @@ fn loading_setup(
     // Spawn loading screen with loading.pcx background from LOD
     commands.spawn((Camera2d, InLoading));
 
-    let loading_bg = ui_assets.get_or_load("loading.pcx", &game_assets, &mut images);
+    let loading_bg = ui_assets.get_or_load("loading.pcx", &game_assets, &mut images, &cfg);
 
     commands
         .spawn((

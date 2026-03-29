@@ -148,7 +148,9 @@ fn resolve_image(
                 match action {
                     lod::evt::EventAction::OpenChest { .. } => {
                         let img = game_assets.lod_manager().icon("chest01")?;
-                        return Some(images.add(crate::assets::dynamic_to_bevy_image(img)));
+                        let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
+                        bevy_img.sampler = bevy::image::ImageSampler::nearest();
+                        return Some(images.add(bevy_img));
                     }
                     lod::evt::EventAction::SpeakInHouse { house_id } => {
                         // Look up building type to determine background image
@@ -162,12 +164,16 @@ fn resolve_image(
                             "evt02"
                         };
                         let img = game_assets.lod_manager().icon(bg_name)?;
-                        return Some(images.add(crate::assets::dynamic_to_bevy_image(img)));
+                        let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
+                        bevy_img.sampler = bevy::image::ImageSampler::nearest();
+                        return Some(images.add(bevy_img));
                     }
                     lod::evt::EventAction::MoveToMap { .. } => {
                         // Dungeon/map transition — use dialogue background
                         let img = game_assets.lod_manager().icon("evt02")?;
-                        return Some(images.add(crate::assets::dynamic_to_bevy_image(img)));
+                        let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
+                        bevy_img.sampler = bevy::image::ImageSampler::nearest();
+                        return Some(images.add(bevy_img));
                     }
                     _ => {}
                 }
@@ -248,6 +254,7 @@ fn show_interaction_image(
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
+    ui_assets: Res<crate::ui_assets::UiAssets>,
 ) {
     let Some(interaction) = interaction else { return };
     grab_cursor(&mut cursor_query, false);
@@ -255,7 +262,7 @@ fn show_interaction_image(
     // Position the interaction UI over just the 3D viewport area (not the HUD)
     let (vp_left, vp_top, vp_w, vp_h) = windows
         .single()
-        .map(|w| hud::viewport_rect(w, &cfg))
+        .map(|w| hud::viewport_rect(w, &cfg, &ui_assets))
         .unwrap_or((0.0, 0.0, 640.0, 480.0));
 
     commands.spawn((
