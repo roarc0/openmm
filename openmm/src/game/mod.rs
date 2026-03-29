@@ -40,7 +40,9 @@ impl Plugin for InGamePlugin {
         ))
         .add_systems(
             Update,
-            terrain_material::update_terrain_time.run_if(in_state(interaction::InGameState::Playing)),
+            terrain_material::update_terrain_time
+                .run_if(in_state(GameState::Game))
+                .run_if(resource_equals(hud::HudView::World)),
         )
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
     }

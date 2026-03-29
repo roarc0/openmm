@@ -124,7 +124,8 @@ impl Plugin for OdmPlugin {
             .add_systems(
                 Update,
                 (lazy_spawn, check_map_boundary)
-                    .run_if(in_state(crate::game::interaction::InGameState::Playing)),
+                    .run_if(in_state(GameState::Game))
+                    .run_if(resource_equals(crate::game::hud::HudView::World)),
             );
     }
 }

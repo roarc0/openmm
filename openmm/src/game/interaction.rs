@@ -3,10 +3,8 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::assets::GameAssets;
-use crate::config::GameConfig;
-use crate::game::InGame;
 use crate::game::events::MapEvents;
-use crate::game::hud::{self, FooterText};
+use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::player::{Player, PlayerCamera};
 
 // --- Components & Resources ---
@@ -19,24 +17,6 @@ pub struct BuildingInfo {
     pub event_ids: Vec<u16>,
 }
 
-/// The active interaction — just the background image to display.
-#[derive(Resource)]
-pub struct ActiveInteraction {
-    pub image: Handle<Image>,
-}
-
-/// Sub-state of GameState::Game.
-#[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, SubStates)]
-#[source(GameState = GameState::Game)]
-pub(crate) enum InGameState {
-    #[default]
-    Playing,
-    Interacting,
-}
-
-/// Marker for interaction UI overlay entities.
-#[derive(Component)]
-struct InteractionUI;
 
 const INTERACT_RANGE: f32 = 400.0;
 const RAYCAST_RANGE: f32 = 2000.0;
@@ -47,19 +27,19 @@ pub struct InteractionPlugin;
 
 impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_sub_state::<InGameState>()
-            .add_systems(
-                Update,
-                (hover_hint_system, interact_system)
-                    .chain()
-                    .run_if(in_state(InGameState::Playing)),
-            )
-            .add_systems(OnEnter(InGameState::Interacting), show_interaction_image)
-            .add_systems(
-                Update,
-                interaction_input.run_if(in_state(InGameState::Interacting)),
-            )
-            .add_systems(OnExit(InGameState::Interacting), hide_interaction_image);
+        app.add_systems(
+            Update,
+            (hover_hint_system, interact_system)
+                .chain()
+                .run_if(in_state(GameState::Game))
+                .run_if(resource_equals(HudView::World)),
+        )
+        .add_systems(
+            Update,
+            interaction_input
+                .run_if(in_state(GameState::Game))
+                .run_if(resource_equals(HudView::Building)),
+        );
     }
 }
 
@@ -208,8 +188,8 @@ fn interact_system(
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     mut commands: Commands,
-    mut game_state: ResMut<NextState<InGameState>>,
-    cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
+    mut view: ResMut<HudView>,
+    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     let Ok(player_tf) = player_query.single() else { return };
     let Ok((cam_global, _)) = camera_query.single() else { return };
@@ -229,8 +209,9 @@ fn interact_system(
     match resolve_image(info, &map_events, &game_assets, &mut images) {
         Some(image) => {
             info!("Opening interaction for '{}' event_ids={:?}", info.model_name, info.event_ids);
-            commands.insert_resource(ActiveInteraction { image });
-            game_state.set(InGameState::Interacting);
+            commands.insert_resource(OverlayImage { image });
+            *view = HudView::Building;
+            grab_cursor(&mut cursor_query, false);
         }
         None => {
             info!("No image found for '{}' event_ids={:?}", info.model_name, info.event_ids);
@@ -238,69 +219,18 @@ fn interact_system(
     }
 }
 
-fn show_interaction_image(
-    mut commands: Commands,
-    interaction: Option<Res<ActiveInteraction>>,
-    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    cfg: Res<GameConfig>,
-    ui_assets: Res<crate::ui_assets::UiAssets>,
-) {
-    let Some(interaction) = interaction else { return };
-    grab_cursor(&mut cursor_query, false);
-
-    // Position the interaction UI over just the 3D viewport area (not the HUD)
-    let (vp_left, vp_top, vp_w, vp_h) = windows
-        .single()
-        .map(|w| hud::viewport_rect(w, &cfg, &ui_assets))
-        .unwrap_or((0.0, 0.0, 640.0, 480.0));
-
-    commands.spawn((
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(vp_left),
-            top: Val::Px(vp_top),
-            width: Val::Px(vp_w),
-            height: Val::Px(vp_h),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        InteractionUI,
-        InGame,
-    )).with_children(|parent| {
-        parent.spawn((
-            ImageNode::new(interaction.image.clone()),
-            Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                ..default()
-            },
-        ));
-    });
-}
-
 fn interaction_input(
     keys: Res<ButtonInput<KeyCode>>,
     gamepads: Query<&Gamepad>,
-    mut game_state: ResMut<NextState<InGameState>>,
+    mut view: ResMut<HudView>,
     mut commands: Commands,
-) {
-    if check_exit_input(&keys, &gamepads) {
-        commands.remove_resource::<ActiveInteraction>();
-        game_state.set(InGameState::Playing);
-    }
-}
-
-fn hide_interaction_image(
-    mut commands: Commands,
-    ui_query: Query<Entity, With<InteractionUI>>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    for entity in ui_query.iter() {
-        commands.entity(entity).despawn();
+    if check_exit_input(&keys, &gamepads) {
+        commands.remove_resource::<OverlayImage>();
+        *view = HudView::World;
+        grab_cursor(&mut cursor_query, true);
     }
-    grab_cursor(&mut cursor_query, true);
 }
 
 /// Resolve a human-readable name for a building from its event data.
