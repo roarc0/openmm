@@ -7,10 +7,6 @@ use crate::assets::GameAssets;
 use crate::game::entities::{actor, sprites};
 use crate::game::terrain_material::{TerrainMaterial, WaterExtension};
 
-/// Marker for the map music entity, so we can despawn it on map change.
-#[derive(Component)]
-struct MapMusic;
-
 /// Spawn progress visible to the debug HUD.
 #[derive(Resource, Default)]
 pub struct SpawnProgress {
@@ -204,13 +200,12 @@ fn spawn_world(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
-    mut audio_sources: ResMut<Assets<AudioSource>>,
     prepared: Option<Res<PreparedWorld>>,
     game_assets: Res<GameAssets>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
     world_state: Res<crate::game::world_state::WorldState>,
-    existing_music: Query<Entity, With<MapMusic>>,
+    mut music_events: bevy::ecs::message::MessageWriter<crate::game::sound::music::PlayMusicEvent>,
 ) {
     let Some(prepared) = prepared else {
         // No outdoor PreparedWorld — this is an indoor map, skip outdoor spawning
@@ -370,33 +365,11 @@ fn spawn_world(
         |m| m.position[0] as f32, |m| m.position[1] as f32);
 
     let total = bb_order.len() + actor_order.len() + monster_order.len();
-    // Stop any existing music from previous map
-    for entity in existing_music.iter() {
-        commands.entity(entity).despawn();
-    }
-
     // Play map music
-    if cfg.music_volume > 0.0 && prepared.music_track > 0 {
-        let data_path = lod::get_data_path();
-        let music_path = std::path::Path::new(&data_path).join(format!("Music/{}.mp3", prepared.music_track));
-        if let Ok(bytes) = std::fs::read(&music_path) {
-            let source = AudioSource { bytes: bytes.into() };
-            let handle = audio_sources.add(source);
-            commands.spawn((
-                AudioPlayer(handle),
-                PlaybackSettings {
-                    mode: bevy::audio::PlaybackMode::Loop,
-                    volume: bevy::audio::Volume::Linear(cfg.music_volume),
-                    ..default()
-                },
-                MapMusic,
-                InGame,
-            ));
-            info!("Playing music track {} (vol={:.1})", prepared.music_track, cfg.music_volume);
-        } else {
-            warn!("Music file not found: {:?}", music_path);
-        }
-    }
+    music_events.write(crate::game::sound::music::PlayMusicEvent {
+        track: prepared.music_track,
+        volume: cfg.music_volume,
+    });
 
     commands.insert_resource(SpawnProgress { total, done: 0 });
     commands.insert_resource(PendingSpawns {
