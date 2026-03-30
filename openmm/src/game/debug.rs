@@ -391,6 +391,7 @@ fn update_hud_text(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<&Transform, With<Player>>,
     cfg: Res<GameConfig>,
+    fly_mode: Res<crate::game::player::FlyMode>,
     current_map: Res<CurrentMapName>,
     spawn_progress: Res<crate::game::odm::SpawnProgress>,
     mut fps_history: ResMut<FpsHistory>,
@@ -446,9 +447,11 @@ fn update_hud_text(
         } else {
             String::new()
         };
+        let mode_str = if fly_mode.0 { "FLY" } else { "WALK" };
         format!(
-            "\n{}  X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
+            "\n{}  {}  X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
             map_name,
+            mode_str,
             transform.translation.x,
             transform.translation.y,
             transform.translation.z,

@@ -181,11 +181,11 @@ fn console_input(
                             (t.translation, yaw)
                         })
                         .unwrap_or_default();
-                    #[allow(clippy::too_many_arguments)]
                     execute_command(
-                        &cmd, &mut state, &mut exit, &mut current_map, player_pos, player_yaw,
-                        &mut save_data, &mut commands, &mut game_state, &mut cfg,
-                        &mut fly_mode, &mut wireframe_config, &mut debug_config,
+                        &cmd, &mut state, &mut exit, &mut current_map,
+                        player_pos, player_yaw, &mut save_data, &mut commands,
+                        &mut game_state, &mut cfg, &mut fly_mode,
+                        &mut wireframe_config, &mut debug_config,
                     );
                     state.input.clear();
                 }
@@ -259,347 +259,346 @@ fn console_input(
     }
 }
 
-/// All mutable game state needed by console commands.
 #[allow(clippy::too_many_arguments)]
 fn execute_command(
     cmd: &str,
-    state: &mut ConsoleState,
-    exit: &mut MessageWriter<AppExit>,
-    current_map: &mut CurrentMapName,
-    player_pos: Vec3,
-    player_yaw: f32,
-    save_data: &mut GameSave,
-    commands: &mut Commands,
-    game_state: &mut NextState<GameState>,
-    cfg: &mut GameConfig,
-    fly_mode: &mut FlyMode,
-    wireframe_config: &mut WireframeConfig,
-    debug_config: &mut DebugConfig,
+    ctx_state: &mut ConsoleState,
+    ctx_exit: &mut MessageWriter<AppExit>,
+    ctx_current_map: &mut CurrentMapName,
+    ctx_player_pos: Vec3,
+    ctx_player_yaw: f32,
+    ctx_save_data: &mut GameSave,
+    ctx_commands: &mut Commands,
+    ctx_game_state: &mut NextState<GameState>,
+    ctx_cfg: &mut GameConfig,
+    ctx_fly_mode: &mut FlyMode,
+    ctx_wireframe_config: &mut WireframeConfig,
+    ctx_debug_config: &mut DebugConfig,
 ) {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some(&command) = parts.first() else { return };
     let arg = parts.get(1).copied().unwrap_or("");
 
-    state.push_output(format!("> {}", cmd));
+    ctx_state.push_output(format!("> {}", cmd));
 
     match command {
         // --- Map loading ---
         "reload" => {
-            let target = current_map.0.clone();
+            let target = ctx_current_map.0.clone();
             // Preserve current position and rotation
-            save_data.player.position = [player_pos.x, player_pos.y, player_pos.z];
-            save_data.player.yaw = player_yaw;
-            state.push_output(format!("Reloading map: {}", target));
-            state.open = false;
-            commands.insert_resource(LoadRequest { map_name: target });
-            game_state.set(GameState::Loading);
+            ctx_save_data.player.position = [ctx_player_pos.x, ctx_player_pos.y, ctx_player_pos.z];
+            ctx_save_data.player.yaw = ctx_player_yaw;
+            ctx_state.push_output(format!("Reloading map: {}", target));
+            ctx_state.open = false;
+            ctx_commands.insert_resource(LoadRequest { map_name: target });
+            ctx_game_state.set(GameState::Loading);
         }
         "load" | "map" => {
             if arg.is_empty() {
-                state.push_output("Usage: load <map|north|south|east|west> [x,z]".to_string());
+                ctx_state.push_output("Usage: load <map|north|south|east|west> [x,z]".to_string());
                 return;
             }
             let resolved = match arg {
-                "north" | "n" => resolve_direction(current_map, player_pos, OdmName::go_north, 0.0, PLAY_WIDTH),
-                "south" | "s" => resolve_direction(current_map, player_pos, OdmName::go_south, 0.0, -PLAY_WIDTH),
-                "east" | "e" => resolve_direction(current_map, player_pos, OdmName::go_east, -PLAY_WIDTH, 0.0),
-                "west" | "w" => resolve_direction(current_map, player_pos, OdmName::go_west, PLAY_WIDTH, 0.0),
+                "north" | "n" => resolve_direction(ctx_current_map, ctx_player_pos, OdmName::go_north, 0.0, PLAY_WIDTH),
+                "south" | "s" => resolve_direction(ctx_current_map, ctx_player_pos, OdmName::go_south, 0.0, -PLAY_WIDTH),
+                "east" | "e" => resolve_direction(ctx_current_map, ctx_player_pos, OdmName::go_east, -PLAY_WIDTH, 0.0),
+                "west" | "w" => resolve_direction(ctx_current_map, ctx_player_pos, OdmName::go_west, PLAY_WIDTH, 0.0),
                 name => match MapName::try_from(name) {
                     Ok(target) => {
                         let pos = parts.get(2).and_then(|c| parse_coords(c));
-                        Ok((target, pos.unwrap_or([0.0, player_pos.y, 0.0])))
+                        Ok((target, pos.unwrap_or([0.0, ctx_player_pos.y, 0.0])))
                     }
                     Err(e) => Err(format!("Invalid map name '{}': {}", name, e)),
                 },
             };
             match resolved {
                 Ok((target, pos)) => {
-                    state.push_output(format!("Loading map: {} at ({:.0}, {:.0})", target, pos[0], pos[2]));
-                    state.open = false;
-                    save_data.player.position = pos;
+                    ctx_state.push_output(format!("Loading map: {} at ({:.0}, {:.0})", target, pos[0], pos[2]));
+                    ctx_state.open = false;
+                    ctx_save_data.player.position = pos;
                     if let MapName::Outdoor(ref odm) = target {
-                        save_data.map.map_x = odm.x;
-                        save_data.map.map_y = odm.y;
+                        ctx_save_data.map.map_x = odm.x;
+                        ctx_save_data.map.map_y = odm.y;
                     }
-                    commands.insert_resource(LoadRequest { map_name: target.clone() });
-                    current_map.0 = target;
-                    game_state.set(GameState::Loading);
+                    ctx_commands.insert_resource(LoadRequest { map_name: target.clone() });
+                    ctx_current_map.0 = target;
+                    ctx_game_state.set(GameState::Loading);
                 }
-                Err(msg) => state.push_output(msg),
+                Err(msg) => ctx_state.push_output(msg),
             }
         }
 
         // --- Graphics ---
         "msaa" | "aa" => match arg {
             "msaa2" | "msaa4" | "msaa8" | "fxaa" | "smaa" | "taa" | "off" => {
-                cfg.antialiasing = arg.to_string();
-                state.push_output(format!("Antialiasing: {} {NEEDS_RELOAD}", arg));
+                ctx_cfg.antialiasing = arg.to_string();
+                ctx_state.push_output(format!("Antialiasing: {} {NEEDS_RELOAD}", arg));
             }
             _ => {
-                state.push_output(format!("Current: {}", cfg.antialiasing));
-                state.push_output("Usage: aa <msaa2|msaa4|msaa8|fxaa|smaa|taa|off>".to_string());
+                ctx_state.push_output(format!("Current: {}", ctx_cfg.antialiasing));
+                ctx_state.push_output("Usage: aa <msaa2|msaa4|msaa8|fxaa|smaa|taa|off>".to_string());
             }
         },
         "tonemapping" | "tonemap" => match arg {
             "none" | "reinhard" | "aces" | "agx" | "blender_filmic" => {
-                cfg.tonemapping = arg.to_string();
-                state.push_output(format!("Tonemapping: {} {NEEDS_RELOAD}", arg));
+                ctx_cfg.tonemapping = arg.to_string();
+                ctx_state.push_output(format!("Tonemapping: {} {NEEDS_RELOAD}", arg));
             }
             _ => {
-                state.push_output(format!("Current: {}", cfg.tonemapping));
-                state.push_output("Usage: tonemap <none|reinhard|aces|agx|blender_filmic>".to_string());
+                ctx_state.push_output(format!("Current: {}", ctx_cfg.tonemapping));
+                ctx_state.push_output("Usage: tonemap <none|reinhard|aces|agx|blender_filmic>".to_string());
             }
         },
         "wireframe" | "wf" => {
-            wireframe_config.global = !wireframe_config.global;
-            state.push_output(format!("Wireframe: {}", if wireframe_config.global { "on" } else { "off" }));
+            ctx_wireframe_config.global = !ctx_wireframe_config.global;
+            ctx_state.push_output(format!("Wireframe: {}", if ctx_wireframe_config.global { "on" } else { "off" }));
         }
         "shadows" => {
-            cfg.shadows = parse_toggle(arg, cfg.shadows);
-            state.push_output(format!("Shadows: {}", if cfg.shadows { "on" } else { "off" }));
+            ctx_cfg.shadows = parse_toggle(arg, ctx_cfg.shadows);
+            ctx_state.push_output(format!("Shadows: {}", if ctx_cfg.shadows { "on" } else { "off" }));
         }
         "bloom" => {
             match arg {
-                "on" | "1" => cfg.bloom = true,
-                "off" | "0" => cfg.bloom = false,
-                "" => cfg.bloom = !cfg.bloom,
+                "on" | "1" => ctx_cfg.bloom = true,
+                "off" | "0" => ctx_cfg.bloom = false,
+                "" => ctx_cfg.bloom = !ctx_cfg.bloom,
                 intensity => {
                     if let Ok(v) = intensity.parse::<f32>() {
-                        cfg.bloom = true;
-                        cfg.bloom_intensity = v.clamp(0.0, 1.0);
+                        ctx_cfg.bloom = true;
+                        ctx_cfg.bloom_intensity = v.clamp(0.0, 1.0);
                     } else {
-                        state.push_output("Usage: bloom [on|off|0.0-1.0]".to_string());
+                        ctx_state.push_output("Usage: bloom [on|off|0.0-1.0]".to_string());
                         return;
                     }
                 }
             }
-            state.push_output(format!("Bloom: {} (intensity: {:.2}) {NEEDS_RELOAD}",
-                if cfg.bloom { "on" } else { "off" }, cfg.bloom_intensity));
+            ctx_state.push_output(format!("Bloom: {} (intensity: {:.2}) {NEEDS_RELOAD}",
+                if ctx_cfg.bloom { "on" } else { "off" }, ctx_cfg.bloom_intensity));
         }
         "ssao" => {
-            cfg.ssao = parse_toggle(arg, cfg.ssao);
-            state.push_output(format!("SSAO: {} {NEEDS_RELOAD}", if cfg.ssao { "on" } else { "off" }));
+            ctx_cfg.ssao = parse_toggle(arg, ctx_cfg.ssao);
+            ctx_state.push_output(format!("SSAO: {} {NEEDS_RELOAD}", if ctx_cfg.ssao { "on" } else { "off" }));
         }
         "fog" => {
             if arg.is_empty() {
-                state.push_output(format!("Fog start: {:.0}, end: {:.0}", cfg.fog_start, cfg.fog_end));
+                ctx_state.push_output(format!("Fog start: {:.0}, end: {:.0}", ctx_cfg.fog_start, ctx_cfg.fog_end));
             } else if let (Ok(start), Some(Ok(end))) = (arg.parse::<f32>(), parts.get(2).map(|s| s.parse::<f32>())) {
-                cfg.fog_start = start;
-                cfg.fog_end = end;
-                state.push_output(format!("Fog: {:.0} - {:.0}", start, end));
+                ctx_cfg.fog_start = start;
+                ctx_cfg.fog_end = end;
+                ctx_state.push_output(format!("Fog: {:.0} - {:.0}", start, end));
             } else {
-                state.push_output("Usage: fog <start> <end>".to_string());
+                ctx_state.push_output("Usage: fog <start> <end>".to_string());
             }
         }
         "draw_distance" | "dd" => {
             if arg.is_empty() {
-                state.push_output(format!("Draw distance: {:.0}", cfg.draw_distance));
+                ctx_state.push_output(format!("Draw distance: {:.0}", ctx_cfg.draw_distance));
             } else if let Ok(v) = arg.parse::<f32>() {
-                cfg.draw_distance = v;
-                state.push_output(format!("Draw distance: {:.0}", v));
+                ctx_cfg.draw_distance = v;
+                ctx_state.push_output(format!("Draw distance: {:.0}", v));
             } else {
-                state.push_output("Usage: dd <distance>".to_string());
+                ctx_state.push_output("Usage: dd <distance>".to_string());
             }
         }
         "exposure" => {
             if arg.is_empty() {
-                state.push_output(format!("Exposure: {:.2}", cfg.exposure));
+                ctx_state.push_output(format!("Exposure: {:.2}", ctx_cfg.exposure));
             } else if let Ok(v) = arg.parse::<f32>() {
-                cfg.exposure = v.clamp(-4.0, 4.0);
-                state.push_output(format!("Exposure: {:.2}", cfg.exposure));
+                ctx_cfg.exposure = v.clamp(-4.0, 4.0);
+                ctx_state.push_output(format!("Exposure: {:.2}", ctx_cfg.exposure));
             } else {
-                state.push_output("Usage: exposure <-4.0 to 4.0>".to_string());
+                ctx_state.push_output("Usage: exposure <-4.0 to 4.0>".to_string());
             }
         }
         "dof" | "depth_of_field" => match arg {
             "off" | "0" => {
-                cfg.depth_of_field = false;
-                state.push_output("Depth of field: off".to_string());
+                ctx_cfg.depth_of_field = false;
+                ctx_state.push_output("Depth of field: off".to_string());
             }
             "on" | "1" => {
-                cfg.depth_of_field = true;
-                state.push_output(format!("Depth of field: on (distance: {:.1})", cfg.depth_of_field_distance));
+                ctx_cfg.depth_of_field = true;
+                ctx_state.push_output(format!("Depth of field: on (distance: {:.1})", ctx_cfg.depth_of_field_distance));
             }
             "" => {
-                state.push_output(format!("Depth of field: {} (distance: {:.1})",
-                    if cfg.depth_of_field { "on" } else { "off" }, cfg.depth_of_field_distance));
+                ctx_state.push_output(format!("Depth of field: {} (distance: {:.1})",
+                    if ctx_cfg.depth_of_field { "on" } else { "off" }, ctx_cfg.depth_of_field_distance));
             }
             dist => {
                 if let Ok(v) = dist.parse::<f32>() {
-                    cfg.depth_of_field = true;
-                    cfg.depth_of_field_distance = v.max(0.1);
-                    state.push_output(format!("Depth of field: on (distance: {:.1})", cfg.depth_of_field_distance));
+                    ctx_cfg.depth_of_field = true;
+                    ctx_cfg.depth_of_field_distance = v.max(0.1);
+                    ctx_state.push_output(format!("Depth of field: on (distance: {:.1})", ctx_cfg.depth_of_field_distance));
                 } else {
-                    state.push_output("Usage: dof [on|off|<distance>]".to_string());
+                    ctx_state.push_output("Usage: dof [on|off|<distance>]".to_string());
                 }
             }
         },
 
         // --- Gameplay ---
         "fly" => {
-            fly_mode.0 = parse_toggle(arg, fly_mode.0);
-            state.push_output(format!("Fly mode: {}", if fly_mode.0 { "on" } else { "off" }));
+            ctx_fly_mode.0 = parse_toggle(arg, ctx_fly_mode.0);
+            ctx_state.push_output(format!("Fly mode: {}", if ctx_fly_mode.0 { "on" } else { "off" }));
         }
         "speed" => {
             if arg.is_empty() {
-                state.push_output(format!("Turn speed: {:.0}", cfg.turn_speed));
+                ctx_state.push_output(format!("Turn speed: {:.0}", ctx_cfg.turn_speed));
             } else if let Ok(v) = arg.parse::<f32>() {
-                cfg.turn_speed = v;
-                state.push_output(format!("Turn speed: {:.0}", v));
+                ctx_cfg.turn_speed = v;
+                ctx_state.push_output(format!("Turn speed: {:.0}", v));
             } else {
-                state.push_output("Usage: speed <turn_speed>".to_string());
+                ctx_state.push_output("Usage: speed <turn_speed>".to_string());
             }
         }
         "sensitivity" | "sens" => {
             if arg.is_empty() {
-                state.push_output(format!("Mouse sensitivity: {:.2}x {:.2}y",
-                    cfg.mouse_sensitivity_x, cfg.mouse_sensitivity_y));
+                ctx_state.push_output(format!("Mouse sensitivity: {:.2}x {:.2}y",
+                    ctx_cfg.mouse_sensitivity_x, ctx_cfg.mouse_sensitivity_y));
             } else if let Ok(v) = arg.parse::<f32>() {
-                cfg.mouse_sensitivity_x = v;
-                cfg.mouse_sensitivity_y = v;
-                state.push_output(format!("Mouse sensitivity: {:.2}", v));
+                ctx_cfg.mouse_sensitivity_x = v;
+                ctx_cfg.mouse_sensitivity_y = v;
+                ctx_state.push_output(format!("Mouse sensitivity: {:.2}", v));
             } else {
-                state.push_output("Usage: sens <value>".to_string());
+                ctx_state.push_output("Usage: sens <value>".to_string());
             }
         }
         "pos" => {
-            state.push_output(format!("Position: ({:.0}, {:.1}, {:.0})", player_pos.x, player_pos.y, player_pos.z));
-            state.push_output(format!("Map: {}", current_map.0));
+            ctx_state.push_output(format!("Position: ({:.0}, {:.1}, {:.0})", ctx_player_pos.x, ctx_player_pos.y, ctx_player_pos.z));
+            ctx_state.push_output(format!("Map: {}", ctx_current_map.0));
         }
 
         // --- Window ---
-        "fullscreen" | "fs" => { cfg.window_mode = "fullscreen".into(); state.push_output("Fullscreen".to_string()); }
-        "borderless" => { cfg.window_mode = "borderless".into(); state.push_output("Borderless fullscreen".to_string()); }
-        "windowed" | "window" => { cfg.window_mode = "windowed".into(); state.push_output("Windowed mode".to_string()); }
+        "fullscreen" | "fs" => { ctx_cfg.window_mode = "fullscreen".into(); ctx_state.push_output("Fullscreen".to_string()); }
+        "borderless" => { ctx_cfg.window_mode = "borderless".into(); ctx_state.push_output("Borderless fullscreen".to_string()); }
+        "windowed" | "window" => { ctx_cfg.window_mode = "windowed".into(); ctx_state.push_output("Windowed mode".to_string()); }
         "aspect" | "aspect_ratio" | "ar" => {
             if arg.is_empty() {
-                let display = if cfg.aspect_ratio.is_empty() { "auto" } else { &cfg.aspect_ratio };
-                state.push_output(format!("Aspect ratio: {}", display));
+                let display = if ctx_cfg.aspect_ratio.is_empty() { "auto" } else { &ctx_cfg.aspect_ratio };
+                ctx_state.push_output(format!("Aspect ratio: {}", display));
             } else if arg == "auto" {
-                cfg.aspect_ratio = "".into();
-                state.push_output("Aspect ratio: auto (uses window size)".to_string());
+                ctx_cfg.aspect_ratio = "".into();
+                ctx_state.push_output("Aspect ratio: auto (uses window size)".to_string());
             } else if arg.contains(':') && crate::game::hud::parse_aspect_ratio(arg).is_some() {
-                cfg.aspect_ratio = arg.to_string();
-                state.push_output(format!("Aspect ratio: {}", arg));
+                ctx_cfg.aspect_ratio = arg.to_string();
+                ctx_state.push_output(format!("Aspect ratio: {}", arg));
             } else {
-                state.push_output("Usage: aspect <auto|4:3|16:9|21:9>".to_string());
+                ctx_state.push_output("Usage: aspect <auto|4:3|16:9|21:9>".to_string());
             }
         }
         "vsync" => {
             match arg {
-                "on" | "auto" => cfg.vsync = "auto".into(),
-                "fast" => cfg.vsync = "fast".into(),
-                "off" | "0" => cfg.vsync = "off".into(),
+                "on" | "auto" => ctx_cfg.vsync = "auto".into(),
+                "fast" => ctx_cfg.vsync = "fast".into(),
+                "off" | "0" => ctx_cfg.vsync = "off".into(),
                 _ => {
-                    state.push_output(format!("Current: {}", cfg.vsync));
-                    state.push_output("Usage: vsync <auto|fast|off>".to_string());
+                    ctx_state.push_output(format!("Current: {}", ctx_cfg.vsync));
+                    ctx_state.push_output("Usage: vsync <auto|fast|off>".to_string());
                     return;
                 }
             }
-            state.push_output(format!("VSync: {}", cfg.vsync));
+            ctx_state.push_output(format!("VSync: {}", ctx_cfg.vsync));
         }
         "fps_cap" => {
             if arg.is_empty() {
-                let cap = if cfg.fps_cap == 0 { "unlimited".to_string() } else { format!("{}", cfg.fps_cap) };
-                state.push_output(format!("FPS cap: {}", cap));
+                let cap = if ctx_cfg.fps_cap == 0 { "unlimited".to_string() } else { format!("{}", ctx_cfg.fps_cap) };
+                ctx_state.push_output(format!("FPS cap: {}", cap));
             } else if let Ok(v) = arg.parse::<u32>() {
-                cfg.fps_cap = v;
+                ctx_cfg.fps_cap = v;
                 let cap = if v == 0 { "unlimited".to_string() } else { format!("{}", v) };
-                state.push_output(format!("FPS cap: {}", cap));
+                ctx_state.push_output(format!("FPS cap: {}", cap));
             } else {
-                state.push_output("Usage: fps_cap <0=unlimited|30|60|120|...>".to_string());
+                ctx_state.push_output("Usage: fps_cap <0=unlimited|30|60|120|...>".to_string());
             }
         }
 
         // --- System ---
         "debug" => {
-            cfg.debug = parse_toggle(arg, cfg.debug);
-            debug_config.debug_play_area = cfg.debug;
-            debug_config.debug_events = cfg.debug;
-            state.push_output(format!("Debug HUD: {}", if cfg.debug { "on" } else { "off" }));
+            ctx_cfg.debug = parse_toggle(arg, ctx_cfg.debug);
+            ctx_debug_config.debug_play_area = ctx_cfg.debug;
+            ctx_debug_config.debug_events = ctx_cfg.debug;
+            ctx_state.push_output(format!("Debug HUD: {}", if ctx_cfg.debug { "on" } else { "off" }));
         }
         "lighting" => {
             if arg.is_empty() {
-                state.push_output(format!("Lighting: {}", cfg.lighting));
+                ctx_state.push_output(format!("Lighting: {}", ctx_cfg.lighting));
             } else {
                 match arg {
                     "classic" | "enhanced" => {
-                        cfg.lighting = arg.to_string();
-                        state.push_output(format!("Lighting: {}", cfg.lighting));
+                        ctx_cfg.lighting = arg.to_string();
+                        ctx_state.push_output(format!("Lighting: {}", ctx_cfg.lighting));
                     }
-                    _ => state.push_output("Usage: lighting [classic|enhanced]".to_string()),
+                    _ => ctx_state.push_output("Usage: lighting [classic|enhanced]".to_string()),
                 }
             }
         }
         "filtering" => {
             if arg.is_empty() {
-                state.push_output(format!("terrain={} models={} hud={}",
-                    cfg.terrain_filtering, cfg.models_filtering, cfg.hud_filtering));
+                ctx_state.push_output(format!("terrain={} models={} hud={}",
+                    ctx_cfg.terrain_filtering, ctx_cfg.models_filtering, ctx_cfg.hud_filtering));
             } else {
                 match arg {
                     "nearest" | "linear" => {
-                        cfg.terrain_filtering = arg.to_string();
-                        cfg.models_filtering = arg.to_string();
-                        cfg.hud_filtering = arg.to_string();
-                        state.push_output(format!("All filtering: {} {NEEDS_RELOAD}", arg));
+                        ctx_cfg.terrain_filtering = arg.to_string();
+                        ctx_cfg.models_filtering = arg.to_string();
+                        ctx_cfg.hud_filtering = arg.to_string();
+                        ctx_state.push_output(format!("All filtering: {} {NEEDS_RELOAD}", arg));
                     }
-                    _ => state.push_output("Usage: filtering [nearest|linear]".to_string()),
+                    _ => ctx_state.push_output("Usage: filtering [nearest|linear]".to_string()),
                 }
             }
         }
         "terrain_filtering" | "tf" => {
             if arg.is_empty() {
-                state.push_output(format!("Terrain filtering: {}", cfg.terrain_filtering));
+                ctx_state.push_output(format!("Terrain filtering: {}", ctx_cfg.terrain_filtering));
             } else {
                 match arg {
                     "nearest" | "linear" => {
-                        cfg.terrain_filtering = arg.to_string();
-                        state.push_output(format!("Terrain filtering: {} {NEEDS_RELOAD}", arg));
+                        ctx_cfg.terrain_filtering = arg.to_string();
+                        ctx_state.push_output(format!("Terrain filtering: {} {NEEDS_RELOAD}", arg));
                     }
-                    _ => state.push_output("Usage: tf [nearest|linear]".to_string()),
+                    _ => ctx_state.push_output("Usage: tf [nearest|linear]".to_string()),
                 }
             }
         }
         "models_filtering" | "mf" => {
             if arg.is_empty() {
-                state.push_output(format!("Models filtering: {}", cfg.models_filtering));
+                ctx_state.push_output(format!("Models filtering: {}", ctx_cfg.models_filtering));
             } else {
                 match arg {
                     "nearest" | "linear" => {
-                        cfg.models_filtering = arg.to_string();
-                        state.push_output(format!("Models filtering: {} {NEEDS_RELOAD}", arg));
+                        ctx_cfg.models_filtering = arg.to_string();
+                        ctx_state.push_output(format!("Models filtering: {} {NEEDS_RELOAD}", arg));
                     }
-                    _ => state.push_output("Usage: mf [nearest|linear]".to_string()),
+                    _ => ctx_state.push_output("Usage: mf [nearest|linear]".to_string()),
                 }
             }
         }
         "hud_filtering" | "hf" => {
             if arg.is_empty() {
-                state.push_output(format!("HUD filtering: {}", cfg.hud_filtering));
+                ctx_state.push_output(format!("HUD filtering: {}", ctx_cfg.hud_filtering));
             } else {
                 match arg {
                     "nearest" | "linear" => {
-                        cfg.hud_filtering = arg.to_string();
-                        state.push_output(format!("HUD filtering: {} {NEEDS_RELOAD}", arg));
+                        ctx_cfg.hud_filtering = arg.to_string();
+                        ctx_state.push_output(format!("HUD filtering: {} {NEEDS_RELOAD}", arg));
                     }
-                    _ => state.push_output("Usage: hf [nearest|linear]".to_string()),
+                    _ => ctx_state.push_output("Usage: hf [nearest|linear]".to_string()),
                 }
             }
         }
-        "exit" | "quit" | "q" => { exit.write(AppExit::from_code(0)); }
-        "clear" | "cls" => { state.output.clear(); state.generation += 1; }
+        "exit" | "quit" | "q" => { ctx_exit.write(AppExit::from_code(0)); }
+        "clear" | "cls" => { ctx_state.output.clear(); ctx_state.generation += 1; }
         "save_cfg" => {
-            match cfg.save() {
-                Ok(()) => state.push_output(format!("Config saved to {}", cfg.config_path.display())),
-                Err(e) => state.push_output(e),
+            match ctx_cfg.save() {
+                Ok(()) => ctx_state.push_output(format!("Config saved to {}", ctx_cfg.config_path.display())),
+                Err(e) => ctx_state.push_output(e),
             }
         }
         "help" | "?" => {
             for line in HELP_TEXT {
-                state.push_output(line.to_string());
+                ctx_state.push_output(line.to_string());
             }
         }
-        _ => { state.push_output(format!("Unknown command: '{}'. Type 'help'.", command)); }
+        _ => { ctx_state.push_output(format!("Unknown command: '{}'. Type 'help'.", command)); }
     }
 }
 
