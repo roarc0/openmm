@@ -42,6 +42,7 @@ fn footstep_system(
     prepared: Option<Res<PreparedWorld>>,
     player_query: Query<&Transform, With<Player>>,
     cfg: Res<crate::config::GameConfig>,
+    world_state: Res<crate::game::world_state::WorldState>,
     mut state: Local<FootstepState>,
 ) {
     let Some(ref mut sound_manager) = sound_manager else { return };
@@ -59,7 +60,7 @@ fn footstep_system(
     let moving = delta.length_squared() > 1.0;
     state.last_position = pos;
 
-    if !moving || cfg.sfx_volume <= 0.0 {
+    if !moving || cfg.sfx_volume <= 0.0 || world_state.player.fly_mode {
         if let Some(entity) = state.sound_entity.take() {
             commands.entity(entity).despawn();
             state.current_tileset = None;
