@@ -89,7 +89,7 @@ fn footstep_system(
         .spawn((
             AudioPlayer(handle),
             PlaybackSettings::LOOP
-                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 5.0)),
+                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 3.0)),
             InGame,
         ))
         .id();
