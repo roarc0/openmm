@@ -197,7 +197,7 @@ fn sync_lighting_mode(
         if unlit {
             mat.base.base_color = Color::srgb(0.69, 0.69, 0.69);
         } else {
-            mat.base.base_color = Color::WHITE;
+            mat.base.base_color = Color::srgb(1.2, 1.2, 1.2);
         }
     }
 

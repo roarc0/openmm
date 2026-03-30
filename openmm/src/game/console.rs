@@ -24,6 +24,7 @@ use crate::ui_assets::UiAssets;
 
 const FONT_SIZE: f32 = 16.0;
 const MAX_OUTPUT_LINES: usize = 50;
+const NEEDS_RELOAD: &str = "(run 'reload' to apply)";
 const CONSOLE_HEIGHT_FRACTION: f32 = 0.4;
 
 /// Console state resource.
@@ -173,13 +174,16 @@ fn console_input(
                     }
                     state.history_index = None;
                     state.saved_input.clear();
-                    let player_pos = player_query
+                    let (player_pos, player_yaw) = player_query
                         .single()
-                        .map(|t| t.translation)
+                        .map(|t| {
+                            let (yaw, _, _) = t.rotation.to_euler(EulerRot::YXZ);
+                            (t.translation, yaw)
+                        })
                         .unwrap_or_default();
                     #[allow(clippy::too_many_arguments)]
                     execute_command(
-                        &cmd, &mut state, &mut exit, &mut current_map, player_pos,
+                        &cmd, &mut state, &mut exit, &mut current_map, player_pos, player_yaw,
                         &mut save_data, &mut commands, &mut game_state, &mut cfg,
                         &mut fly_mode, &mut wireframe_config, &mut debug_config,
                     );
@@ -263,6 +267,7 @@ fn execute_command(
     exit: &mut MessageWriter<AppExit>,
     current_map: &mut CurrentMapName,
     player_pos: Vec3,
+    player_yaw: f32,
     save_data: &mut GameSave,
     commands: &mut Commands,
     game_state: &mut NextState<GameState>,
@@ -281,6 +286,9 @@ fn execute_command(
         // --- Map loading ---
         "reload" => {
             let target = current_map.0.clone();
+            // Preserve current position and rotation
+            save_data.player.position = [player_pos.x, player_pos.y, player_pos.z];
+            save_data.player.yaw = player_yaw;
             state.push_output(format!("Reloading map: {}", target));
             state.open = false;
             commands.insert_resource(LoadRequest { map_name: target });
@@ -325,7 +333,7 @@ fn execute_command(
         "msaa" | "aa" => match arg {
             "msaa2" | "msaa4" | "msaa8" | "fxaa" | "smaa" | "taa" | "off" => {
                 cfg.antialiasing = arg.to_string();
-                state.push_output(format!("Antialiasing: {} *reload", arg));
+                state.push_output(format!("Antialiasing: {} {NEEDS_RELOAD}", arg));
             }
             _ => {
                 state.push_output(format!("Current: {}", cfg.antialiasing));
@@ -335,7 +343,7 @@ fn execute_command(
         "tonemapping" | "tonemap" => match arg {
             "none" | "reinhard" | "aces" | "agx" | "blender_filmic" => {
                 cfg.tonemapping = arg.to_string();
-                state.push_output(format!("Tonemapping: {} *reload", arg));
+                state.push_output(format!("Tonemapping: {} {NEEDS_RELOAD}", arg));
             }
             _ => {
                 state.push_output(format!("Current: {}", cfg.tonemapping));
@@ -365,12 +373,12 @@ fn execute_command(
                     }
                 }
             }
-            state.push_output(format!("Bloom: {} (intensity: {:.2}) *reload",
+            state.push_output(format!("Bloom: {} (intensity: {:.2}) {NEEDS_RELOAD}",
                 if cfg.bloom { "on" } else { "off" }, cfg.bloom_intensity));
         }
         "ssao" => {
             cfg.ssao = parse_toggle(arg, cfg.ssao);
-            state.push_output(format!("SSAO: {} *reload", if cfg.ssao { "on" } else { "off" }));
+            state.push_output(format!("SSAO: {} {NEEDS_RELOAD}", if cfg.ssao { "on" } else { "off" }));
         }
         "fog" => {
             if arg.is_empty() {
@@ -533,7 +541,7 @@ fn execute_command(
                         cfg.terrain_filtering = arg.to_string();
                         cfg.models_filtering = arg.to_string();
                         cfg.hud_filtering = arg.to_string();
-                        state.push_output(format!("All filtering: {} *reload", arg));
+                        state.push_output(format!("All filtering: {} {NEEDS_RELOAD}", arg));
                     }
                     _ => state.push_output("Usage: filtering [nearest|linear]".to_string()),
                 }
@@ -546,7 +554,7 @@ fn execute_command(
                 match arg {
                     "nearest" | "linear" => {
                         cfg.terrain_filtering = arg.to_string();
-                        state.push_output(format!("Terrain filtering: {} *reload", arg));
+                        state.push_output(format!("Terrain filtering: {} {NEEDS_RELOAD}", arg));
                     }
                     _ => state.push_output("Usage: tf [nearest|linear]".to_string()),
                 }
@@ -559,7 +567,7 @@ fn execute_command(
                 match arg {
                     "nearest" | "linear" => {
                         cfg.models_filtering = arg.to_string();
-                        state.push_output(format!("Models filtering: {} *reload", arg));
+                        state.push_output(format!("Models filtering: {} {NEEDS_RELOAD}", arg));
                     }
                     _ => state.push_output("Usage: mf [nearest|linear]".to_string()),
                 }
@@ -572,7 +580,7 @@ fn execute_command(
                 match arg {
                     "nearest" | "linear" => {
                         cfg.hud_filtering = arg.to_string();
-                        state.push_output(format!("HUD filtering: {} *reload", arg));
+                        state.push_output(format!("HUD filtering: {} {NEEDS_RELOAD}", arg));
                     }
                     _ => state.push_output("Usage: hf [nearest|linear]".to_string()),
                 }
@@ -612,20 +620,20 @@ const HELP_TEXT: &[&str] = &[
     "  reload           - Reload current map",
     "  pos              - Show current position and map",
     "Graphics:",
-    "  aa <mode>        - Set AA (msaa2/4/8|fxaa|smaa|taa|off) *reload",
-    "  tonemap <mode>   - Tonemapping *reload",
+    "  aa <mode>        - Set AA (msaa2/4/8|fxaa|smaa|taa|off) *",
+    "  tonemap <mode>   - Tonemapping *",
     "  wireframe        - Toggle wireframe",
     "  shadows [on|off] - Toggle shadows",
-    "  bloom [on|off|N] - Bloom / intensity *reload",
-    "  ssao [on|off]    - Ambient occlusion *reload",
+    "  bloom [on|off|N] - Bloom / intensity *",
+    "  ssao [on|off]    - Ambient occlusion *",
     "  fog <start> <end> - Set fog range",
     "  dd <distance>    - Set draw distance",
     "  lighting <mode>  - classic or enhanced",
-    "  filtering <mode> - nearest or linear (all) *reload",
-    "  tf/mf/hf <mode>  - terrain/models/hud filter *reload",
+    "  filtering <mode> - nearest or linear (all) *",
+    "  tf/mf/hf <mode>  - terrain/models/hud filter *",
     "  exposure <N>     - Set exposure (-4 to 4)",
     "  dof [on|off|N]   - Depth of field / focal distance",
-    "  (* = applies on map reload)",
+    "  (* = run 'reload' to apply)",
     "Gameplay:",
     "  fly [on|off]     - Toggle fly mode",
     "  speed <N>        - Set turn speed",
@@ -794,4 +802,5 @@ fn sync_config_to_scene(
         };
         window.present_mode = present_mode;
     }
+
 }

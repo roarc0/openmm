@@ -496,6 +496,7 @@ fn update_hud_text(
 fn debug_log(
     time: Res<Time>,
     mut timer: Local<Option<Timer>>,
+    mut last_pos: Local<Option<(f32, f32, f32, f32, f32)>>,
     player_query: Query<&Transform, With<Player>>,
 ) {
     let timer = timer.get_or_insert_with(|| Timer::from_seconds(3.0, TimerMode::Repeating));
@@ -503,6 +504,17 @@ fn debug_log(
     if timer.just_finished() {
         if let Ok(transform) = player_query.single() {
             let (yaw, pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
+            let cur = (
+                (transform.translation.x * 0.1).round(),
+                (transform.translation.y * 0.1).round(),
+                (transform.translation.z * 0.1).round(),
+                (yaw.to_degrees() * 10.0).round(),
+                (pitch.to_degrees() * 10.0).round(),
+            );
+            if last_pos.as_ref() == Some(&cur) {
+                return;
+            }
+            *last_pos = Some(cur);
             info!(
                 "pos=({:.0}, {:.0}, {:.0}) yaw={:.1}deg pitch={:.1}deg",
                 transform.translation.x,
