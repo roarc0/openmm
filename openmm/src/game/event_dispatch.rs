@@ -251,6 +251,13 @@ fn process_events(
             info!("StatusText: '{}'", text);
             footer.set_status(&text, 2.0, time.elapsed_secs_f64());
         }
+        GameEvent::LocationName { text, .. } => {
+            footer.set_status(&text, 2.0, time.elapsed_secs_f64());
+        }
+        GameEvent::ShowMessage { text, .. } => {
+            info!("ShowMessage: '{}'", text);
+            footer.set_status(&text, 4.0, time.elapsed_secs_f64());
+        }
         GameEvent::Exit => {
             // Stop processing remaining events in this sequence
             event_queue.clear();

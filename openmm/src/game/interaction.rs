@@ -201,6 +201,12 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
                             return Some(text.clone());
                         }
                     }
+                    lod::evt::GameEvent::LocationName { text, .. } => {
+                        if !text.is_empty() {
+                            return Some(text.clone());
+                        }
+                    }
+                    lod::evt::GameEvent::ShowMessage { .. } => {}
                     lod::evt::GameEvent::Exit => {}
                 }
             }

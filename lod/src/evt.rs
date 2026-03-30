@@ -17,6 +17,18 @@ use std::io::Read;
 
 use crate::LodManager;
 
+// EVT opcodes (from OpenEnroth EvtEnums.h)
+const OP_EXIT: u8 = 0x01;
+const OP_SPEAK_IN_HOUSE: u8 = 0x02;
+const OP_PLAY_SOUND: u8 = 0x03;
+const OP_HINT: u8 = 0x04;
+const OP_LOCATION_NAME: u8 = 0x05;
+const OP_MOVE_TO_MAP: u8 = 0x06;
+const OP_OPEN_CHEST: u8 = 0x07;
+const OP_CHANGE_DOOR_STATE: u8 = 0x0F;
+const OP_STATUS_TEXT: u8 = 0x1D;
+const OP_SHOW_MESSAGE: u8 = 0x1E;
+
 /// A parsed game event — the simplified result of executing an event script.
 #[derive(Debug, Clone)]
 pub enum GameEvent {
@@ -42,6 +54,10 @@ pub enum GameEvent {
     PlaySound { sound_id: u32 },
     /// Show status bar text. Uses same .str table as Hint.
     StatusText { str_id: u8, text: String },
+    /// Show a location name on the screen.
+    LocationName { str_id: u8, text: String },
+    /// Show a message box with text.
+    ShowMessage { str_id: u8, text: String },
     /// Exit/stop processing this event sequence.
     Exit,
 }
@@ -104,12 +120,8 @@ impl EvtFile {
             let params = &data[pos + 5..pos + total];
 
             let action = match opcode {
-                0x01 => {
-                    // Exit — stop processing this event sequence
-                    Some(GameEvent::Exit)
-                }
-                0x02 => {
-                    // SpeakInHouse
+                OP_EXIT => Some(GameEvent::Exit),
+                OP_SPEAK_IN_HOUSE => {
                     if params.len() >= 4 {
                         Some(GameEvent::SpeakInHouse {
                             house_id: u32::from_le_bytes([params[0], params[1], params[2], params[3]]),
@@ -118,8 +130,7 @@ impl EvtFile {
                         None
                     }
                 }
-                0x03 => {
-                    // PlaySound
+                OP_PLAY_SOUND => {
                     if params.len() >= 4 {
                         Some(GameEvent::PlaySound {
                             sound_id: u32::from_le_bytes([params[0], params[1], params[2], params[3]]),
@@ -128,8 +139,7 @@ impl EvtFile {
                         None
                     }
                 }
-                0x04 => {
-                    // Hint — resolve text from .str table
+                OP_HINT => {
                     let str_id = params.first().copied().unwrap_or(0);
                     let text = str_table
                         .get(str_id as usize)
@@ -137,8 +147,12 @@ impl EvtFile {
                         .unwrap_or_default();
                     Some(GameEvent::Hint { str_id, text })
                 }
-                0x06 => {
-                    // MoveToMap
+                OP_LOCATION_NAME => {
+                    let str_id = params.first().copied().unwrap_or(0);
+                    let text = str_table.get(str_id as usize).cloned().unwrap_or_default();
+                    Some(GameEvent::LocationName { str_id, text })
+                }
+                OP_MOVE_TO_MAP => {
                     if params.len() >= 26 {
                         let x = i32::from_le_bytes([params[0], params[1], params[2], params[3]]);
                         let y = i32::from_le_bytes([params[4], params[5], params[6], params[7]]);
@@ -153,13 +167,17 @@ impl EvtFile {
                         None
                     }
                 }
-                0x07 => {
-                    // OpenChest
+                OP_OPEN_CHEST => {
                     Some(GameEvent::OpenChest {
                         id: params.first().copied().unwrap_or(0),
                     })
                 }
-                0x1D => {
+                OP_SHOW_MESSAGE => {
+                    let str_id = params.first().copied().unwrap_or(0);
+                    let text = str_table.get(str_id as usize).cloned().unwrap_or_default();
+                    Some(GameEvent::ShowMessage { str_id, text })
+                }
+                OP_STATUS_TEXT => {
                     // StatusText — show text in status bar
                     let str_id = params.first().copied().unwrap_or(0);
                     let text = str_table
@@ -168,8 +186,7 @@ impl EvtFile {
                         .unwrap_or_default();
                     Some(GameEvent::StatusText { str_id, text })
                 }
-                0x0F => {
-                    // ChangeDoorState: door_id (u8), action (u8)
+                OP_CHANGE_DOOR_STATE => {
                     if params.len() >= 2 {
                         Some(GameEvent::ChangeDoorState {
                             door_id: params[0],
