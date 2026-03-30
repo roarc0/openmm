@@ -314,7 +314,7 @@ impl Default for GameConfig {
             draw_distance: 16000.0,
             fog_start: 12000.0,
             fog_end: 28000.0,
-            music_volume: 1.0,
+            music_volume: 0.5,
             sfx_volume: 1.0,
             always_run: true,
             mouse_look: true,

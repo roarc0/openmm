@@ -493,6 +493,53 @@ fn execute_command(
             }
         }
 
+        // --- Audio ---
+        "mute" => {
+            ctx_cfg.music_volume = 0.0;
+            ctx_cfg.sfx_volume = 0.0;
+            ctx_state.push_output("All audio muted".to_string());
+        }
+        "unmute" => {
+            if ctx_cfg.music_volume == 0.0 { ctx_cfg.music_volume = 0.5; }
+            if ctx_cfg.sfx_volume == 0.0 { ctx_cfg.sfx_volume = 1.0; }
+            ctx_state.push_output(format!("Audio unmuted (music: {:.0}%, sfx: {:.0}%)",
+                ctx_cfg.music_volume * 100.0, ctx_cfg.sfx_volume * 100.0));
+        }
+        "music" => {
+            if arg.is_empty() {
+                ctx_state.push_output(format!("Music volume: {:.0}%", ctx_cfg.music_volume * 100.0));
+            } else if let Ok(v) = arg.parse::<f32>() {
+                // Accept both 0-1 range and 0-100 range
+                ctx_cfg.music_volume = if v > 1.0 { (v / 100.0).clamp(0.0, 1.0) } else { v.clamp(0.0, 1.0) };
+                ctx_state.push_output(format!("Music volume: {:.0}%", ctx_cfg.music_volume * 100.0));
+            } else {
+                ctx_state.push_output("Usage: music <0-100>".to_string());
+            }
+        }
+        "sfx" => {
+            if arg.is_empty() {
+                ctx_state.push_output(format!("SFX volume: {:.0}%", ctx_cfg.sfx_volume * 100.0));
+            } else if let Ok(v) = arg.parse::<f32>() {
+                ctx_cfg.sfx_volume = if v > 1.0 { (v / 100.0).clamp(0.0, 1.0) } else { v.clamp(0.0, 1.0) };
+                ctx_state.push_output(format!("SFX volume: {:.0}%", ctx_cfg.sfx_volume * 100.0));
+            } else {
+                ctx_state.push_output("Usage: sfx <0-100>".to_string());
+            }
+        }
+        "volume" | "vol" => {
+            if arg.is_empty() {
+                ctx_state.push_output(format!("Music: {:.0}%, SFX: {:.0}%",
+                    ctx_cfg.music_volume * 100.0, ctx_cfg.sfx_volume * 100.0));
+            } else if let Ok(v) = arg.parse::<f32>() {
+                let vol = if v > 1.0 { (v / 100.0).clamp(0.0, 1.0) } else { v.clamp(0.0, 1.0) };
+                ctx_cfg.music_volume = vol;
+                ctx_cfg.sfx_volume = vol;
+                ctx_state.push_output(format!("All volume: {:.0}%", vol * 100.0));
+            } else {
+                ctx_state.push_output("Usage: volume <0-100>".to_string());
+            }
+        }
+
         // --- System ---
         "debug" => {
             ctx_cfg.debug = parse_toggle(arg, ctx_cfg.debug);
@@ -604,6 +651,12 @@ const HELP_TEXT: &[&str] = &[
     "  fly [on|off]     - Toggle fly mode",
     "  speed <N>        - Set turn speed",
     "  sens <N>         - Set mouse sensitivity",
+    "Audio:",
+    "  music <0-100>    - Set music volume",
+    "  sfx <0-100>      - Set sound effects volume",
+    "  volume <0-100>   - Set all audio volume",
+    "  mute             - Mute all audio",
+    "  unmute           - Restore audio volume",
     "Window:",
     "  fullscreen       - Fullscreen mode",
     "  borderless       - Borderless fullscreen",
