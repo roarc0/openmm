@@ -60,8 +60,6 @@ fn handle_play_music(
             std::path::Path::new(&data_path).join(format!("Music/{}.mp3", ev.track));
 
         if let Ok(bytes) = std::fs::read(&music_path) {
-            // Strip ID3v2 tag — symphonia struggles with large ID3 headers
-            let bytes = strip_id3v2(bytes);
             let source = AudioSource {
                 bytes: bytes.into(),
             };
