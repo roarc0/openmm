@@ -38,9 +38,22 @@ fn handle_play_sound(
         return;
     };
 
-    // TODO: sound effects disabled to isolate crash
     for ev in events.read() {
-        warn!("Sound effect {} skipped (effects disabled for debugging)", ev.sound_id);
+        let Some(handle) = sound_manager.load_sound(ev.sound_id, &mut audio_sources) else {
+            debug!("Sound id {} not found or failed to load", ev.sound_id);
+            continue;
+        };
+
+        commands.spawn((
+            AudioPlayer(handle),
+            PlaybackSettings {
+                mode: bevy::audio::PlaybackMode::Despawn,
+                spatial: true,
+                ..default()
+            },
+            Transform::from_translation(ev.position),
+            InGame,
+        ));
     }
 }
 
