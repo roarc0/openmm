@@ -31,6 +31,9 @@ pub struct FooterText {
     font: String,
     /// Generation counter -- bumped on every change so the HUD knows to re-render.
     pub(super) generation: u64,
+    /// If set, this text is "locked" until the timer expires.
+    /// Hover hints won't overwrite locked text.
+    lock_until: Option<f64>,
 }
 
 impl Default for FooterText {
@@ -40,16 +43,40 @@ impl Default for FooterText {
             color: crate::fonts::WHITE,
             font: "smallnum".into(),
             generation: 0,
+            lock_until: None,
         }
     }
 }
 
 impl FooterText {
     /// Set footer text with the default font and color.
+    /// This is a "soft" set — won't overwrite locked (status) text.
     pub fn set(&mut self, text: &str) {
+        if self.lock_until.is_some() {
+            return; // locked by status text, ignore hover hints
+        }
         if self.text != text {
             self.text = text.to_string();
             self.generation += 1;
+        }
+    }
+
+    /// Set footer text that persists for `duration` seconds.
+    /// Cannot be overwritten by hover hints until it expires.
+    pub fn set_status(&mut self, text: &str, duration: f64, now: f64) {
+        self.text = text.to_string();
+        self.lock_until = Some(now + duration);
+        self.generation += 1;
+    }
+
+    /// Call every frame to expire locked text.
+    pub fn tick(&mut self, now: f64) {
+        if let Some(until) = self.lock_until {
+            if now >= until {
+                self.lock_until = None;
+                self.text.clear();
+                self.generation += 1;
+            }
         }
     }
 

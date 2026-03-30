@@ -152,7 +152,10 @@ fn process_events(
     mut blv_doors: Option<ResMut<crate::game::blv::BlvDoors>>,
     mut sound_events: bevy::ecs::message::MessageWriter<PlayUiSoundEvent>,
     mut world_state: ResMut<crate::game::world_state::WorldState>,
+    time: Res<Time>,
 ) {
+    // Tick footer timer every frame
+    footer.tick(time.elapsed_secs_f64());
     // Don't process events while a UI overlay is blocking
     if !matches!(*hud_view, HudView::World) {
         return;
@@ -166,6 +169,7 @@ fn process_events(
 
     match event {
         GameEvent::Hint { text, .. } => {
+            debug!("Hint: '{}'", text);
             footer.set(&text);
         }
         GameEvent::SpeakInHouse { house_id } => {
@@ -244,7 +248,8 @@ fn process_events(
             sound_events.write(PlayUiSoundEvent { sound_id });
         }
         GameEvent::StatusText { text, .. } => {
-            footer.set(&text);
+            info!("StatusText: '{}'", text);
+            footer.set_status(&text, 3.0, time.elapsed_secs_f64());
         }
         GameEvent::Exit => {
             // Stop processing remaining events in this sequence
