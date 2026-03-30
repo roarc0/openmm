@@ -18,7 +18,7 @@ pub struct MusicPlugin;
 impl Plugin for MusicPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<PlayMusicEvent>()
-            .add_systems(Update, handle_play_music);
+            .add_systems(Update, (handle_play_music, sync_music_volume));
     }
 }
 
@@ -60,5 +60,18 @@ fn handle_play_music(
         } else {
             warn!("Music file not found: {:?}", music_path);
         }
+    }
+}
+
+/// Sync music volume with config changes (from console commands).
+fn sync_music_volume(
+    cfg: Res<crate::config::GameConfig>,
+    mut music_sinks: Query<&mut AudioSink, With<MapMusic>>,
+) {
+    if !cfg.is_changed() {
+        return;
+    }
+    for mut sink in music_sinks.iter_mut() {
+        sink.set_volume(bevy::audio::Volume::Linear(cfg.music_volume));
     }
 }

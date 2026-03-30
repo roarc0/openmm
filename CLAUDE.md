@@ -108,7 +108,11 @@ Every code change that alters behaviour must include a documentation update in t
 
 When any doc is added, renamed, or removed in `docs/`, update the Documentation Index section in this file in the same commit. A doc that exists but isn't indexed here is invisible to Claude Code.
 
-### Rule 3: Use best practices for game development
+### Rule 3: No hardcoded magic numbers or inline data tables
+
+Never hardcode format-specific constants, range boundaries, enum mappings, or data tables inline in game code. All format knowledge belongs in the `lod` crate as proper parsing functions that expose clean APIs. Game code should call a function (e.g., `dtile.tileset_for_tile(id)`) — never re-derive format logic with raw ranges or magic numbers. If the data comes from a binary file, the parser owns the logic.
+
+### Rule 4: Use best practices for game development
 
 When implementing a feature, always separate concerns and organize logic into well-defined, modular components, functions, and services. Write clean, maintainable code with clear naming, minimal duplication, and low coupling. Prefer simplicity, readability, and extensibility over quick but messy solutions
 

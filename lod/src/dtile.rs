@@ -1,4 +1,35 @@
 use crate::{image::get_atlas, lod_data::LodData, utils::try_read_name, LodManager};
+
+/// Terrain tileset types from MM6.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(i16)]
+pub enum Tileset {
+    Grass = 1,
+    Snow = 2,
+    Desert = 3,
+    Dirt = 4,
+    Water = 5,
+    Badlands = 6,
+    Swamp = 7,
+    Road = 8,
+}
+
+impl Tileset {
+    pub fn from_raw(v: i16) -> Option<Self> {
+        match v {
+            0 => Some(Self::Dirt),      // 0 = base/dirt (default terrain)
+            1 => Some(Self::Grass),
+            2 => Some(Self::Snow),
+            3 => Some(Self::Desert),
+            4 => Some(Self::Dirt),
+            5 => Some(Self::Water),
+            6 => Some(Self::Badlands),
+            7 => Some(Self::Swamp),
+            8..=255 => Some(Self::Road), // road variants (8, 22, etc.)
+            _ => None,
+        }
+    }
+}
 use byteorder::{LittleEndian, ReadBytesExt};
 use image::DynamicImage;
 use std::{
@@ -101,10 +132,32 @@ impl Dtile {
         Ok(Self { tiles })
     }
 
-    /// Get the tile_set value for a tile index.
+    /// Get the tile_set value for a raw tile_map index (0-255).
+    /// Requires the per-map `tile_data` offsets to remap indices correctly.
     /// Returns the tileset enum: 0=invalid, 1=grass, 2=snow, 3=desert, 4=dirt, 5=water, 6=badlands, 7=swamp, 8=road
     pub fn tile_set(&self, tile_index: u8) -> i16 {
         self.tiles.get(tile_index as usize).map(|t| t.tile_set).unwrap_or(0)
+    }
+
+    /// Build a tileset lookup table for tile_map values 0-255 using the per-map tile_data offsets.
+    /// This applies the same remapping as `table()` to resolve the actual dtile entry.
+    pub fn tileset_lookup(&self, tile_data: [u16; 8]) -> Vec<i16> {
+        (0..=255u16)
+            .map(|i| {
+                let index = if (90..125).contains(&i) {
+                    i - 90 + tile_data[1] // primary terrain
+                } else if (126..161).contains(&i) {
+                    i // water (no remap)
+                } else if (162..197).contains(&i) {
+                    i - 162 + tile_data[5] // secondary terrain
+                } else if i >= 198 {
+                    i - 198 + tile_data[7] // roads
+                } else {
+                    i // dirt/base
+                };
+                self.tiles.get(index as usize).map(|t| t.tile_set).unwrap_or(0)
+            })
+            .collect()
     }
 
     /// Check if a tile index is pure water (blocks movement).

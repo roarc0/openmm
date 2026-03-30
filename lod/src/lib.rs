@@ -25,6 +25,7 @@ pub mod dsft;
 pub mod dsounds;
 pub mod font;
 pub mod snd;
+pub mod terrain;
 pub mod image;
 
 mod lod;
