@@ -59,6 +59,7 @@ struct LoadingProgress {
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>>,
     water_cells: Option<Vec<bool>>,
+    tileset_lookup: Option<Vec<i16>>,
     music_track: u8,
     blv: Option<Blv>,
     /// Queued sprite preload work, processed in batches across frames.
@@ -223,8 +224,23 @@ pub struct PreparedWorld {
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     pub water_cells: Vec<bool>,
+    /// Tileset lookup: tile_id (0-255) → tile_set value from dtile.bin.
+    pub tileset_lookup: Vec<i16>,
     /// Music track ID from mapstats.txt (maps to Music/{track}.mp3). 0 = no music.
     pub music_track: u8,
+}
+
+impl PreparedWorld {
+    /// Get the terrain tileset at a Bevy world position.
+    /// Returns the tile_set enum value (1=Grass, 2=Snow, 3=Desert, 4=Dirt, 5=Water, 6=Badlands, 7=Swamp, 8=Road).
+    pub fn terrain_at(&self, x: f32, z: f32) -> Option<crate::game::sound::footsteps::Tileset> {
+        crate::game::sound::footsteps::tileset_at_position(
+            &self.map.tile_map,
+            &self.tileset_lookup,
+            x,
+            z,
+        )
+    }
 }
 
 #[derive(Component)]
@@ -276,6 +292,7 @@ fn loading_setup(
         sprite_cache: None,
         billboard_cache: None,
         water_cells: None,
+            tileset_lookup: None,
         music_track: 0,
         blv: None,
         preload_queue: None,
@@ -361,6 +378,10 @@ fn loading_step(
                                     .map(|&idx| dtile.is_deep_water_tile(idx))
                                     .collect();
                                 progress.water_cells = Some(water_cells);
+                                // Build tileset lookup for terrain type queries
+                                progress.tileset_lookup = Some(
+                                    (0..=255u8).map(|id| dtile.tile_set(id)).collect()
+                                );
                             }
                             // Load actors from DDM
                             let actors = Ddm::new(game_assets.lod_manager(), &map_name)
@@ -897,6 +918,7 @@ fn loading_step(
                     start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
                     billboard_cache: progress.billboard_cache.take().unwrap_or_default(),
+                    tileset_lookup: progress.tileset_lookup.take().unwrap_or_default(),
                     music_track: progress.music_track,
                 });
                 commands.remove_resource::<LoadingProgress>();

@@ -101,6 +101,12 @@ impl Dtile {
         Ok(Self { tiles })
     }
 
+    /// Get the tile_set value for a tile index.
+    /// Returns the tileset enum: 0=invalid, 1=grass, 2=snow, 3=desert, 4=dirt, 5=water, 6=badlands, 7=swamp, 8=road
+    pub fn tile_set(&self, tile_index: u8) -> i16 {
+        self.tiles.get(tile_index as usize).map(|t| t.tile_set).unwrap_or(0)
+    }
+
     /// Check if a tile index is pure water (blocks movement).
     /// Returns false for water transition tiles (shore) which are passable.
     pub fn is_deep_water_tile(&self, tile_index: u8) -> bool {
