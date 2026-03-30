@@ -74,6 +74,18 @@ impl SndArchive {
         Some(wav)
     }
 
+    /// Extract a sound with optional audio enhancement.
+    /// Applies DSP processing to the PCM samples before returning WAV bytes.
+    pub fn get_enhanced(&self, name: &str, opts: &AudioEnhance) -> Option<Vec<u8>> {
+        let wav = self.get(name)?;
+        if opts.is_none() {
+            return Some(wav);
+        }
+        let (mut samples, channels, sample_rate) = pcm_samples_from_wav(&wav)?;
+        opts.apply(&mut samples, sample_rate);
+        Some(build_pcm_wav(&samples, channels, sample_rate))
+    }
+
     pub fn list(&self) -> Vec<&str> {
         self.entries.keys().map(|s| s.as_str()).collect()
     }
@@ -219,35 +231,295 @@ fn ima_adpcm_to_pcm(wav: &[u8]) -> Option<Vec<u8>> {
     // Trim to exact sample count (last block may be partial)
     pcm_samples.truncate(total_samples);
 
-    // Build PCM WAV
-    let pcm_data_size = (pcm_samples.len() * 2) as u32;
-    let channels_u16 = channels as u16;
+    Some(build_pcm_wav(&pcm_samples, channels as u16, sample_rate))
+}
+
+// ── Audio enhancement ───────────────────────────────────────
+
+/// Optional audio enhancements applied to PCM samples after extraction.
+/// All fields default to `false` / off.
+#[derive(Debug, Clone, Default)]
+pub struct AudioEnhance {
+    /// Gentle low-pass filter to tame crunchy/fizzy highs.
+    /// Cutoff is relative to Nyquist (0.0–1.0). Typical: 0.8 = keep 80% of spectrum.
+    pub low_pass: Option<f32>,
+    /// Light denoise via noise gate. Threshold in sample amplitude (0–32767).
+    /// Samples below threshold are faded toward silence. Typical: 200–600.
+    pub denoise_threshold: Option<i16>,
+    /// High-shelf EQ cut to reduce harsh upper mids. Gain in dB (negative = cut).
+    /// Applied above ~4kHz at 22050Hz sample rate. Typical: -3.0 to -6.0.
+    pub high_shelf_db: Option<f32>,
+    /// Declip: repair samples at or near max amplitude by interpolation.
+    /// Threshold as fraction of max (0.0–1.0). Typical: 0.95.
+    pub declip_threshold: Option<f32>,
+    /// De-ess: attenuate sibilant frequencies (4–8kHz range).
+    /// Amount is reduction in dB when sibilance detected. Typical: -4.0 to -8.0.
+    pub deess_db: Option<f32>,
+}
+
+impl AudioEnhance {
+    /// Returns true if no enhancements are enabled.
+    pub fn is_none(&self) -> bool {
+        self.low_pass.is_none()
+            && self.denoise_threshold.is_none()
+            && self.high_shelf_db.is_none()
+            && self.declip_threshold.is_none()
+            && self.deess_db.is_none()
+    }
+
+    /// Preset: gentle cleanup suitable for old game sound effects.
+    pub fn gentle() -> Self {
+        Self {
+            low_pass: Some(0.85),
+            denoise_threshold: Some(300),
+            high_shelf_db: Some(-3.0),
+            declip_threshold: Some(0.95),
+            deess_db: None,
+        }
+    }
+
+    /// Preset: voice cleanup with de-essing.
+    pub fn voice() -> Self {
+        Self {
+            low_pass: Some(0.9),
+            denoise_threshold: Some(400),
+            high_shelf_db: Some(-2.0),
+            declip_threshold: Some(0.95),
+            deess_db: Some(-6.0),
+        }
+    }
+
+    /// Apply all enabled enhancements to PCM samples in order.
+    pub fn apply(&self, samples: &mut [i16], sample_rate: u32) {
+        if let Some(threshold) = self.declip_threshold {
+            dsp_declip(samples, threshold);
+        }
+        if let Some(threshold) = self.denoise_threshold {
+            dsp_denoise(samples, threshold);
+        }
+        if let Some(cutoff) = self.low_pass {
+            dsp_low_pass(samples, cutoff);
+        }
+        if let Some(db) = self.high_shelf_db {
+            dsp_high_shelf(samples, sample_rate, db);
+        }
+        if let Some(db) = self.deess_db {
+            dsp_deess(samples, sample_rate, db);
+        }
+    }
+}
+
+/// Extract raw i16 samples from a PCM WAV. Returns (samples, channels, sample_rate).
+fn pcm_samples_from_wav(wav: &[u8]) -> Option<(Vec<i16>, u16, u32)> {
+    let fmt_offset = find_chunk(wav, b"fmt ")?;
+    let fmt = &wav[fmt_offset + 8..];
+    let channels = u16::from_le_bytes([fmt[2], fmt[3]]);
+    let sample_rate = u32::from_le_bytes([fmt[4], fmt[5], fmt[6], fmt[7]]);
+
+    let data_offset = find_chunk(wav, b"data")?;
+    let data_size = u32::from_le_bytes([
+        wav[data_offset + 4], wav[data_offset + 5],
+        wav[data_offset + 6], wav[data_offset + 7],
+    ]) as usize;
+    let pcm_data = &wav[data_offset + 8..data_offset + 8 + data_size];
+
+    let samples: Vec<i16> = pcm_data
+        .chunks_exact(2)
+        .map(|c| i16::from_le_bytes([c[0], c[1]]))
+        .collect();
+
+    Some((samples, channels, sample_rate))
+}
+
+/// Build a PCM WAV file from raw i16 samples.
+fn build_pcm_wav(samples: &[i16], channels: u16, sample_rate: u32) -> Vec<u8> {
+    let pcm_data_size = (samples.len() * 2) as u32;
     let byte_rate = sample_rate * channels as u32 * 2;
-    let block_align_pcm = channels_u16 * 2;
+    let block_align = channels * 2;
     let file_size = 36 + pcm_data_size;
 
     let mut out = Vec::with_capacity(44 + pcm_data_size as usize);
-    // RIFF header
     out.extend_from_slice(b"RIFF");
     out.extend_from_slice(&file_size.to_le_bytes());
     out.extend_from_slice(b"WAVE");
-    // fmt chunk
     out.extend_from_slice(b"fmt ");
-    out.extend_from_slice(&16u32.to_le_bytes()); // chunk size
-    out.extend_from_slice(&1u16.to_le_bytes()); // PCM format
-    out.extend_from_slice(&channels_u16.to_le_bytes());
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&channels.to_le_bytes());
     out.extend_from_slice(&sample_rate.to_le_bytes());
     out.extend_from_slice(&byte_rate.to_le_bytes());
-    out.extend_from_slice(&block_align_pcm.to_le_bytes());
-    out.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
-    // data chunk
+    out.extend_from_slice(&block_align.to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
     out.extend_from_slice(b"data");
     out.extend_from_slice(&pcm_data_size.to_le_bytes());
-    for sample in &pcm_samples {
-        out.extend_from_slice(&sample.to_le_bytes());
+    for s in samples {
+        out.extend_from_slice(&s.to_le_bytes());
+    }
+    out
+}
+
+// ── DSP functions ───────────────────────────────────────────
+
+/// Single-pole low-pass filter. `cutoff` is 0.0–1.0 relative to Nyquist.
+fn dsp_low_pass(samples: &mut [i16], cutoff: f32) {
+    let cutoff = cutoff.clamp(0.01, 1.0);
+    // RC filter coefficient: higher cutoff = less filtering
+    let rc = 1.0 / (cutoff * std::f32::consts::PI);
+    // dt = 1.0 (normalized)
+    let alpha = 1.0 / (1.0 + rc);
+
+    let mut prev = samples.first().copied().unwrap_or(0) as f32;
+    for s in samples.iter_mut() {
+        let x = *s as f32;
+        prev += alpha * (x - prev);
+        *s = prev.round().clamp(-32768.0, 32767.0) as i16;
+    }
+}
+
+/// Noise gate with soft knee. Samples below threshold fade toward zero.
+fn dsp_denoise(samples: &mut [i16], threshold: i16) {
+    let thresh = threshold.unsigned_abs() as f32;
+    // Soft knee: full gate below thresh/2, linear ramp to thresh
+    let knee_low = thresh * 0.5;
+
+    for s in samples.iter_mut() {
+        let abs = (*s as f32).abs();
+        if abs < knee_low {
+            *s = 0;
+        } else if abs < thresh {
+            let gain = (abs - knee_low) / (thresh - knee_low);
+            *s = (*s as f32 * gain).round() as i16;
+        }
+    }
+}
+
+/// High-shelf filter: attenuate frequencies above ~4kHz.
+/// Uses a first-order shelf approximation.
+fn dsp_high_shelf(samples: &mut [i16], sample_rate: u32, gain_db: f32) {
+    // Shelf frequency at ~4kHz
+    let freq = 4000.0;
+    let w0 = 2.0 * std::f32::consts::PI * freq / sample_rate as f32;
+    let gain = 10.0_f32.powf(gain_db / 20.0);
+
+    // First-order shelf coefficients
+    let tan_w = (w0 / 2.0).tan();
+    let a = (tan_w + gain) / (tan_w + 1.0);
+    let b = (tan_w - gain) / (tan_w + 1.0);
+    let c = (tan_w - 1.0) / (tan_w + 1.0);
+
+    let mut x_prev = 0.0_f32;
+    let mut y_prev = 0.0_f32;
+
+    for s in samples.iter_mut() {
+        let x = *s as f32;
+        let y = a * x + b * x_prev - c * y_prev;
+        x_prev = x;
+        y_prev = y;
+        *s = y.round().clamp(-32768.0, 32767.0) as i16;
+    }
+}
+
+/// Declip: detect clipped samples and interpolate from neighbors.
+fn dsp_declip(samples: &mut [i16], threshold: f32) {
+    let clip_level = (32767.0 * threshold.clamp(0.5, 1.0)) as i16;
+    let len = samples.len();
+    if len < 3 {
+        return;
     }
 
-    Some(out)
+    // Mark clipped regions
+    let clipped: Vec<bool> = samples.iter().map(|&s| s.abs() >= clip_level).collect();
+
+    // Interpolate clipped samples from nearest unclipped neighbors
+    let mut i = 0;
+    while i < len {
+        if clipped[i] {
+            // Find the clipped run
+            let start = i;
+            while i < len && clipped[i] {
+                i += 1;
+            }
+            let end = i;
+
+            // Get boundary values
+            let left = if start > 0 { samples[start - 1] as f32 } else { 0.0 };
+            let right = if end < len { samples[end] as f32 } else { 0.0 };
+            let run_len = (end - start) as f32 + 1.0;
+
+            for (j, sample) in samples[start..end].iter_mut().enumerate() {
+                let t = (j + 1) as f32 / run_len;
+                *sample = (left + t * (right - left)).round().clamp(-32768.0, 32767.0) as i16;
+            }
+        } else {
+            i += 1;
+        }
+    }
+}
+
+/// De-esser: detect sibilant energy (4–8kHz) and attenuate when it spikes.
+/// Uses a bandpass detector and gain reduction.
+fn dsp_deess(samples: &mut [i16], sample_rate: u32, reduction_db: f32) {
+    let reduction = 10.0_f32.powf(reduction_db / 20.0);
+
+    // Bandpass filter coefficients for sibilant detection (~6kHz center)
+    let center_freq = 6000.0_f32.min(sample_rate as f32 * 0.45);
+    let w0 = 2.0 * std::f32::consts::PI * center_freq / sample_rate as f32;
+    let q = 1.0; // moderate Q
+    let alpha = w0.sin() / (2.0 * q);
+
+    let b0 = alpha;
+    let b1 = 0.0;
+    let b2 = -alpha;
+    let a0 = 1.0 + alpha;
+    let a1 = -2.0 * w0.cos();
+    let a2 = 1.0 - alpha;
+
+    // Normalize
+    let b0 = b0 / a0;
+    let b1 = b1 / a0;
+    let b2 = b2 / a0;
+    let a1 = a1 / a0;
+    let a2 = a2 / a0;
+
+    // Envelope follower parameters
+    let attack = (-1.0 / (sample_rate as f32 * 0.001)).exp(); // 1ms attack
+    let release = (-1.0 / (sample_rate as f32 * 0.050)).exp(); // 50ms release
+
+    let mut x1 = 0.0_f32;
+    let mut x2 = 0.0_f32;
+    let mut y1 = 0.0_f32;
+    let mut y2 = 0.0_f32;
+    let mut envelope = 0.0_f32;
+
+    // Compute RMS of the full signal for threshold
+    let rms: f32 = (samples.iter().map(|&s| (s as f32).powi(2)).sum::<f32>()
+        / samples.len().max(1) as f32)
+        .sqrt();
+    let threshold = rms * 1.5; // trigger when sibilant band exceeds 1.5x RMS
+
+    for s in samples.iter_mut() {
+        let x = *s as f32;
+
+        // Bandpass filter for sibilant detection
+        let bp = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1;
+        x1 = x;
+        y2 = y1;
+        y1 = bp;
+
+        // Envelope follower
+        let abs_bp = bp.abs();
+        let coeff = if abs_bp > envelope { attack } else { release };
+        envelope = coeff * envelope + (1.0 - coeff) * abs_bp;
+
+        // Apply gain reduction when sibilant energy exceeds threshold
+        if envelope > threshold {
+            let excess = (envelope - threshold) / threshold;
+            let gain = 1.0 + excess * (reduction - 1.0); // blend toward reduction
+            let gain = gain.clamp(reduction, 1.0);
+            *s = (x * gain).round().clamp(-32768.0, 32767.0) as i16;
+        }
+    }
 }
 
 #[cfg(test)]
