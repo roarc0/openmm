@@ -55,6 +55,10 @@ fn handle_play_music(
             continue;
         }
 
+        // TODO: MP3 playback disabled — symphonia panics on these files
+        warn!("Music track {} skipped (MP3 playback disabled)", ev.track);
+        continue;
+
         let data_path = lod::get_data_path();
         let music_path =
             std::path::Path::new(&data_path).join(format!("Music/{}.mp3", ev.track));
