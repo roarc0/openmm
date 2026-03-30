@@ -1,4 +1,4 @@
-.PHONY: build run release check clippy fmt test lint clean dump_assets
+.PHONY: build run release check clippy fmt test lint clean dump_assets dump_sounds
 
 # --- Build ---
 
@@ -42,6 +42,9 @@ lint: fmt-check clippy
 
 dump_assets:
 	cargo run --release -p lod --bin dump_assets
+
+dump_sounds:
+	cargo run --release -p lod --bin dump_sounds
 
 clean:
 	cargo clean
