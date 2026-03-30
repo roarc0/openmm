@@ -17,6 +17,7 @@ pub(crate) mod physics;
 pub(crate) mod player;
 pub(crate) mod lighting;
 pub(crate) mod sky;
+pub(crate) mod sound;
 pub(crate) mod terrain_material;
 pub(crate) mod utils;
 pub(crate) mod world_state;
@@ -44,6 +45,7 @@ impl Plugin for InGamePlugin {
             event_dispatch::EventDispatchPlugin,
             console::ConsolePlugin,
             world_state::WorldStatePlugin,
+            sound::SoundPlugin,
             MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
