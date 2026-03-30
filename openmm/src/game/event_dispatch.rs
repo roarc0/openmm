@@ -249,7 +249,7 @@ fn process_events(
         }
         GameEvent::StatusText { text, .. } => {
             info!("StatusText: '{}'", text);
-            footer.set_status(&text, 3.0, time.elapsed_secs_f64());
+            footer.set_status(&text, 2.0, time.elapsed_secs_f64());
         }
         GameEvent::Exit => {
             // Stop processing remaining events in this sequence
