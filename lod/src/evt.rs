@@ -60,6 +60,65 @@ pub enum GameEvent {
     ShowMessage { str_id: u8, text: String },
     /// Exit/stop processing this event sequence.
     Exit,
+    /// Unhandled opcode — parsed but not yet implemented.
+    Unhandled { opcode: u8, opcode_name: &'static str, params: Vec<u8> },
+}
+
+/// Get a human-readable name for an EVT opcode.
+fn opcode_name(op: u8) -> &'static str {
+    match op {
+        0x00 => "Invalid",
+        0x01 => "Exit",
+        0x02 => "SpeakInHouse",
+        0x03 => "PlaySound",
+        0x04 => "Hint",
+        0x05 => "LocationName",
+        0x06 => "MoveToMap",
+        0x07 => "OpenChest",
+        0x08 => "ShowFace",
+        0x09 => "ReceiveDamage",
+        0x0A => "SetSnow",
+        0x0B => "SetTexture",
+        0x0C => "ShowMovie",
+        0x0D => "SetSprite",
+        0x0E => "Compare",
+        0x0F => "ChangeDoorState",
+        0x10 => "Add",
+        0x11 => "Subtract",
+        0x12 => "Set",
+        0x13 => "SummonMonsters",
+        0x15 => "CastSpell",
+        0x16 => "SpeakNPC",
+        0x17 => "SetFacesBit",
+        0x18 => "ToggleActorFlag",
+        0x19 => "RandomGoTo",
+        0x1A => "InputString",
+        0x1D => "StatusText",
+        0x1E => "ShowMessage",
+        0x1F => "OnTimer",
+        0x20 => "ToggleIndoorLight",
+        0x21 => "PressAnyKey",
+        0x22 => "SummonItem",
+        0x23 => "ForPartyMember",
+        0x24 => "Jmp",
+        0x25 => "OnMapReload",
+        0x26 => "OnLongTimer",
+        0x27 => "SetNPCTopic",
+        0x28 => "MoveNPC",
+        0x29 => "GiveItem",
+        0x2A => "ChangeEvent",
+        0x2B => "CheckSkill",
+        0x2C => "OnCanShowDialogItemCmp",
+        0x2D => "EndCanShowDialogItem",
+        0x2E => "SetCanShowDialogItem",
+        0x2F => "SetNPCGroupNews",
+        0x30 => "SetActorGroup",
+        0x31 => "NPCSetItem",
+        0x32 => "SetNPCGreeting",
+        0x33 => "IsActorKilled",
+        0x34 => "CanShowTopic_IsActorKilled",
+        _ => "Unknown",
+    }
 }
 
 /// Parsed events from a .evt file, keyed by event_id.
@@ -196,7 +255,11 @@ impl EvtFile {
                         None
                     }
                 }
-                _ => None,
+                _ => Some(GameEvent::Unhandled {
+                    opcode,
+                    opcode_name: opcode_name(opcode),
+                    params: params.to_vec(),
+                }),
             };
 
             if let Some(action) = action {

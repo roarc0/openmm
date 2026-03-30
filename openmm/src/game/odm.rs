@@ -581,7 +581,10 @@ fn lazy_spawn(
             };
             let sprite = match bb_mgr.get(game_assets.lod_manager(), key, bb.declist_id) {
                 Some(s) => s,
-                None => continue,
+                None => {
+                    warn!("Billboard '{}' (declist={}) sprite not found, skipping", key, bb.declist_id);
+                    continue;
+                }
             };
             let (w, h) = sprite.dimensions();
             let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);

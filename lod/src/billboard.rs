@@ -142,22 +142,25 @@ impl BillboardManager {
         let declist_item = self.d_declist.items.get(declist_id as usize)?;
         let sft_frame = self.d_sft.frames.get(declist_item.sft_index() as usize)?;
 
-        let image = if let Some(image) = lod_manager.sprite(&declist_item.name()?) {
-            image
-        } else if let Some(image) = lod_manager.sprite(&sft_frame.sprite_name()?) {
-            image
-        } else if let Some(image) = lod_manager.sprite(name) {
-            image
-        } else {
-            dbg!(format!(
-                "failed to read entity: id:{}|name:{:?}|game_name:{:?}, sft group_name:{:?}|sprite_name:{:?}",
-                declist_item.sft_index(),
-                declist_item.name(),
-                declist_item.game_name(),
-                sft_frame.group_name(),
-                sft_frame.sprite_name()
-            ));
-            lod_manager.sprite("pending").unwrap()
+        let dec_name = declist_item.name().unwrap_or_default();
+        let sft_name = sft_frame.sprite_name().unwrap_or_default();
+        let image = lod_manager.sprite(&dec_name)
+            .or_else(|| lod_manager.sprite(&sft_name))
+            .or_else(|| lod_manager.sprite(name))
+            // Directional sprites use frame suffixes (e.g. shp0, shp1). Try frame 0.
+            .or_else(|| lod_manager.sprite(&format!("{}0", dec_name)))
+            .or_else(|| lod_manager.sprite(&format!("{}0", sft_name)))
+            .or_else(|| lod_manager.sprite(&format!("{}0", name)));
+
+        let image = match image {
+            Some(img) => img,
+            None => {
+                eprintln!(
+                    "WARN: billboard sprite not found: declist[{}] name='{}' sft='{}'",
+                    declist_id, dec_name, sft_name
+                );
+                lod_manager.sprite("pending").unwrap()
+            }
         };
 
         Some(BillboardSprite {

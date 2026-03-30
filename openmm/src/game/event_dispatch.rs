@@ -165,7 +165,7 @@ fn process_events(
         return;
     };
 
-    debug!("EventDispatch: {:?}", event);
+    info!("EventDispatch: {:?}", event);
 
     match event {
         GameEvent::Hint { text, .. } => {
@@ -261,6 +261,9 @@ fn process_events(
         GameEvent::Exit => {
             // Stop processing remaining events in this sequence
             event_queue.clear();
+        }
+        GameEvent::Unhandled { opcode, opcode_name, params } => {
+            warn!("Unhandled event: 0x{:02x} ({}) params={:02x?}", opcode, opcode_name, params);
         }
     }
 }
