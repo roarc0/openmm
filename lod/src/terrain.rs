@@ -1,30 +1,41 @@
 //! Terrain type queries for outdoor maps.
 
-use crate::dtile::Tileset;
+use crate::dtile::{Dtile, Tileset};
 use crate::odm::{Odm, ODM_SIZE, ODM_TILE_SCALE};
 
-/// Get the terrain tileset at a Bevy world position.
-/// Uses tile_data even indices (tileset IDs) and tile_map value ranges.
-pub fn tileset_at(odm: &Odm, x: f32, z: f32) -> Option<Tileset> {
-    let col = (x / ODM_TILE_SCALE) as i32;
-    let row = (-z / ODM_TILE_SCALE) as i32;
+/// Precomputed terrain lookup for a specific map.
+/// Built once from Dtile + Odm tile_data, maps tile_map values (0-255) to Tileset.
+pub struct TerrainLookup {
+    tilesets: Vec<i16>, // 256 entries: tile_map value -> tile_set
+}
 
-    if col < 0 || row < 0 || col >= ODM_SIZE as i32 || row >= ODM_SIZE as i32 {
-        return None;
+impl TerrainLookup {
+    /// Empty lookup (all dirt). Used as fallback.
+    pub fn empty() -> Self {
+        Self { tilesets: vec![4; 256] }
     }
 
-    let idx = row as usize * ODM_SIZE + col as usize;
-    let tile_id = *odm.tile_map.get(idx)? as u16;
+    /// Build from dtile and the per-map tile_data offsets.
+    pub fn new(dtile: &Dtile, tile_data: [u16; 8]) -> Self {
+        Self {
+            tilesets: dtile.tileset_lookup(tile_data),
+        }
+    }
 
-    // tile_data layout: [dirt_tileset, dirt_start, water_tileset, water_start,
-    //                    secondary_tileset, secondary_start, road_tileset, road_start]
-    // tile_map ranges: 0-89=dirt, 90-125=primary(=dirt), 126-161=water, 162-197=secondary, 198+=roads
-    let tileset_id = match tile_id {
-        0..=125 => odm.tile_data[0],    // dirt and primary terrain
-        126..=161 => odm.tile_data[2],  // water
-        162..=197 => odm.tile_data[4],  // secondary terrain
-        198.. => odm.tile_data[6],      // roads
-    };
+    /// Get the terrain tileset at a Bevy world position.
+    /// The terrain grid is centered: world origin is at grid center (64, 64).
+    pub fn tileset_at(&self, odm: &Odm, x: f32, z: f32) -> Option<Tileset> {
+        let half = ODM_SIZE as f32 / 2.0;
+        let col = (x / ODM_TILE_SCALE + half) as i32;
+        let row = (z / ODM_TILE_SCALE + half) as i32;
 
-    Tileset::from_raw(tileset_id as i16)
+        if col < 0 || row < 0 || col >= ODM_SIZE as i32 || row >= ODM_SIZE as i32 {
+            return None;
+        }
+
+        let idx = row as usize * ODM_SIZE + col as usize;
+        let tile_id = *odm.tile_map.get(idx)? as usize;
+        let tile_set = *self.tilesets.get(tile_id)?;
+        Tileset::from_raw(tile_set)
+    }
 }

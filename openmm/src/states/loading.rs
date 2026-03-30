@@ -59,6 +59,7 @@ struct LoadingProgress {
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>>,
     water_cells: Option<Vec<bool>>,
+    terrain_lookup: Option<lod::terrain::TerrainLookup>,
     music_track: u8,
     blv: Option<Blv>,
     /// Queued sprite preload work, processed in batches across frames.
@@ -223,6 +224,7 @@ pub struct PreparedWorld {
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     pub water_cells: Vec<bool>,
+    pub terrain_lookup: lod::terrain::TerrainLookup,
     /// Music track ID from mapstats.txt (maps to Music/{track}.mp3). 0 = no music.
     pub music_track: u8,
 }
@@ -230,7 +232,7 @@ pub struct PreparedWorld {
 impl PreparedWorld {
     /// Get the terrain tileset at a Bevy world position.
     pub fn terrain_at(&self, x: f32, z: f32) -> Option<lod::dtile::Tileset> {
-        lod::terrain::tileset_at(&self.map, x, z)
+        self.terrain_lookup.tileset_at(&self.map, x, z)
     }
 }
 
@@ -283,6 +285,7 @@ fn loading_setup(
         sprite_cache: None,
         billboard_cache: None,
         water_cells: None,
+            terrain_lookup: None,
         music_track: 0,
         blv: None,
         preload_queue: None,
@@ -368,6 +371,9 @@ fn loading_step(
                                     .map(|&idx| dtile.is_deep_water_tile(idx))
                                     .collect();
                                 progress.water_cells = Some(water_cells);
+                                progress.terrain_lookup = Some(
+                                    lod::terrain::TerrainLookup::new(&dtile, odm.tile_data)
+                                );
                             }
                             // Load actors from DDM
                             let actors = Ddm::new(game_assets.lod_manager(), &map_name)
@@ -904,6 +910,8 @@ fn loading_step(
                     start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
                     billboard_cache: progress.billboard_cache.take().unwrap_or_default(),
+                    terrain_lookup: progress.terrain_lookup.take()
+                        .unwrap_or_else(|| lod::terrain::TerrainLookup::empty()),
                     music_track: progress.music_track,
                 });
                 commands.remove_resource::<LoadingProgress>();

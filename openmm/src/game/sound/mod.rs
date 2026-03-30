@@ -49,7 +49,7 @@ impl SoundManager {
             }
         }
 
-        info!("Loaded sound '{}' (id={}): {} bytes", name, sound_id, wav_bytes.len());
+        debug!("Loaded sound '{}' (id={}): {} bytes", name, sound_id, wav_bytes.len());
 
         let source = AudioSource {
             bytes: wav_bytes.into(),

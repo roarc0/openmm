@@ -67,11 +67,10 @@ fn footstep_system(
         return;
     }
 
-    let tileset = lod::terrain::tileset_at(&prepared.map, pos.x, pos.z)
-        .unwrap_or(Tileset::Dirt);
+    let tileset = prepared.terrain_at(pos.x, pos.z).unwrap_or(Tileset::Dirt);
 
     if state.current_tileset != Some(tileset) {
-        info!("Terrain: {:?}", tileset);
+        debug!("Terrain: {:?}", tileset);
     }
 
     if state.current_tileset == Some(tileset) && state.sound_entity.is_some() {

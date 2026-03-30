@@ -53,7 +53,7 @@ fn handle_play_sound(
             AudioPlayer(handle),
             PlaybackSettings::LOOP
                 .with_spatial(true)
-                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume)),
+                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 3.0)),
             Transform::from_translation(ev.position),
             InGame,
         ));
