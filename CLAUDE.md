@@ -23,10 +23,18 @@ Reach a playable state: character movement on terrain, NPCs, monsters, combat, i
 ## Build
 
 ```
-cargo build
+make build        # debug build
+make run          # run (or: make run map=oute3)
+make release      # optimized build
+make lint         # fmt check + clippy
+make clippy       # clippy warnings
+make fmt          # auto-format
+make test         # run tests
 ```
 
 Requires MM6 game data files. Set `OPENMM_6_PATH` env var to the game data directory (defaults to `./target/mm6/data` for LOD files).
+
+Uses mold linker for fast linking (`.cargo/config.toml`). Install: `pacman -S mold` or `apt install mold`.
 
 ## Architecture
 

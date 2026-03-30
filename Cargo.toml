@@ -9,3 +9,13 @@ members = ["lod", "openmm"]
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+needless_pass_by_value = "allow"      # Bevy systems take Res/Query by value
+too_many_arguments = "allow"           # Bevy systems often need many params
+type_complexity = "allow"              # Bevy query types get complex
+
+[workspace.lints.rust]
+dead_code = "warn"
+unused_imports = "warn"
