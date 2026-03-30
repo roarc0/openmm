@@ -22,6 +22,7 @@ pub mod twodevents;
 pub mod billboard;
 pub mod ddeclist;
 pub mod dsft;
+pub mod dsounds;
 pub mod font;
 pub mod image;
 
