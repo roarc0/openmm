@@ -15,20 +15,7 @@ use crate::game::InGame;
 use crate::game::player::Player;
 use crate::save::GameSave;
 
-#[derive(Resource)]
-pub struct DebugConfig {
-    pub debug_play_area: bool,
-    pub debug_events: bool,
-}
-
-impl Default for DebugConfig {
-    fn default() -> Self {
-        Self {
-            debug_play_area: true,
-            debug_events: true,
-        }
-    }
-}
+// DebugConfig moved to WorldState.debug
 
 #[derive(Resource)]
 pub struct DebugKeyBindings {
@@ -50,15 +37,15 @@ impl Default for DebugKeyBindings {
 fn debug_setup(
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
-    mut debug_config: ResMut<DebugConfig>,
+    mut world_state: ResMut<crate::game::world_state::WorldState>,
     cfg: Res<GameConfig>,
     ui_assets: Res<crate::ui_assets::UiAssets>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
     wireframe_config.global = cfg.wireframe;
     wireframe_config.default_color = Color::srgba(0.8, 0.2, 0.6, 0.35);
-    debug_config.debug_play_area = cfg.debug;
-    debug_config.debug_events = cfg.debug;
+    world_state.debug.show_play_area = cfg.debug;
+    world_state.debug.show_events = cfg.debug;
 
     // Compute play area offset so debug UI sits inside the 3D viewport
     let (vp_left, vp_top) = windows
@@ -179,19 +166,19 @@ pub struct DebugHud;
 fn debug_input(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<DebugKeyBindings>,
-    mut dev_config: ResMut<DebugConfig>,
+    mut world_state: ResMut<crate::game::world_state::WorldState>,
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
     if keys.just_pressed(key_bindings.toggle_wireframe) {
         wireframe_config.global = !wireframe_config.global;
     } else if keys.just_pressed(key_bindings.toggle_play_area) {
-        dev_config.debug_play_area = !dev_config.debug_play_area;
+        world_state.debug.show_play_area = !world_state.debug.show_play_area;
     }
 }
 
 /// Draw play area boundary lines: North=red, South=green, East=blue, West=magenta.
-fn draw_play_area(config: Res<DebugConfig>, mut gizmos: Gizmos) {
-    if !config.debug_play_area {
+fn draw_play_area(world_state: Res<crate::game::world_state::WorldState>, mut gizmos: Gizmos) {
+    if !world_state.debug.show_play_area {
         return;
     }
     let half = ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0;
@@ -225,12 +212,12 @@ fn draw_play_area(config: Res<DebugConfig>, mut gizmos: Gizmos) {
 
 /// Draw wireframe outlines for clickable/interactive faces and buildings.
 fn draw_events(
-    config: Res<DebugConfig>,
+    world_state: Res<crate::game::world_state::WorldState>,
     mut gizmos: Gizmos,
     clickable_faces: Option<Res<crate::game::blv::ClickableFaces>>,
     buildings: Query<(&crate::game::interaction::BuildingInfo, &GlobalTransform)>,
 ) {
-    if !config.debug_events {
+    if !world_state.debug.show_events {
         return;
     }
 
@@ -555,7 +542,6 @@ pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugKeyBindings>()
-            .init_resource::<DebugConfig>()
             .init_resource::<FpsHistory>()
             .add_plugins((
                 WireframePlugin::default(),

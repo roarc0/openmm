@@ -13,7 +13,7 @@ use bevy::window::{PrimaryWindow, WindowMode};
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::debug::{DebugConfig, DebugHud};
+use crate::game::debug::DebugHud;
 use crate::game::map_name::MapName;
 use crate::game::odm::{OdmName, PLAY_WIDTH};
 use crate::game::world_state::WorldState;
@@ -151,7 +151,6 @@ fn console_input(
     mut game_state: ResMut<NextState<GameState>>,
     mut cfg: ResMut<GameConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
-    mut debug_config: ResMut<DebugConfig>,
 ) {
     if !state.open {
         return;
@@ -175,7 +174,7 @@ fn console_input(
                     execute_command(
                         &cmd, &mut state, &mut exit, &mut world_state,
                         &mut save_data, &mut commands, &mut game_state,
-                        &mut cfg, &mut wireframe_config, &mut debug_config,
+                        &mut cfg, &mut wireframe_config,
                     );
                     state.input.clear();
                 }
@@ -260,7 +259,6 @@ fn execute_command(
     ctx_game_state: &mut NextState<GameState>,
     ctx_cfg: &mut GameConfig,
     ctx_wireframe_config: &mut WireframeConfig,
-    ctx_debug_config: &mut DebugConfig,
 ) {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some(&command) = parts.first() else { return };
@@ -498,8 +496,8 @@ fn execute_command(
         // --- System ---
         "debug" => {
             ctx_cfg.debug = parse_toggle(arg, ctx_cfg.debug);
-            ctx_debug_config.debug_play_area = ctx_cfg.debug;
-            ctx_debug_config.debug_events = ctx_cfg.debug;
+            ctx_world.debug.show_play_area = ctx_cfg.debug;
+            ctx_world.debug.show_events = ctx_cfg.debug;
             ctx_state.push_output(format!("Debug HUD: {}", if ctx_cfg.debug { "on" } else { "off" }));
         }
         "lighting" => {

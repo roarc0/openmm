@@ -13,6 +13,7 @@ use crate::save::GameSave;
 pub struct WorldState {
     pub player: PlayerRuntimeState,
     pub map: MapRuntimeState,
+    pub debug: DebugRuntimeState,
 }
 
 pub struct PlayerRuntimeState {
@@ -38,6 +39,20 @@ pub struct MapRuntimeState {
     pub map_y: char,
 }
 
+pub struct DebugRuntimeState {
+    pub show_play_area: bool,
+    pub show_events: bool,
+}
+
+impl Default for DebugRuntimeState {
+    fn default() -> Self {
+        Self {
+            show_play_area: true,
+            show_events: true,
+        }
+    }
+}
+
 impl Default for MapRuntimeState {
     fn default() -> Self {
         Self {
@@ -53,6 +68,7 @@ impl Default for WorldState {
         Self {
             player: PlayerRuntimeState::default(),
             map: MapRuntimeState::default(),
+            debug: DebugRuntimeState::default(),
         }
     }
 }
