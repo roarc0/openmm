@@ -151,6 +151,7 @@ fn process_events(
     mut game_state: ResMut<NextState<GameState>>,
     mut blv_doors: Option<ResMut<crate::game::blv::BlvDoors>>,
     mut sound_events: bevy::ecs::message::MessageWriter<PlayUiSoundEvent>,
+    mut world_state: ResMut<crate::game::world_state::WorldState>,
 ) {
     // Don't process events while a UI overlay is blocking
     if !matches!(*hud_view, HudView::World) {
@@ -207,11 +208,14 @@ fn process_events(
 
             debug!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg", map_name, x, y, z, direction, pos, yaw.to_degrees());
 
-            // Update map coordinates for outdoor maps
+            // Update map state
             if let MapName::Outdoor(ref odm) = target {
                 save_data.map.map_x = odm.x;
                 save_data.map.map_y = odm.y;
+                world_state.map.map_x = odm.x;
+                world_state.map.map_y = odm.y;
             }
+            world_state.map.name = target.clone();
 
             // Store spawn position in save data ONLY — don't move the player entity
             // on the current map, or the boundary crossing system will trigger before
