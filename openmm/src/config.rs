@@ -119,6 +119,18 @@ struct Cli {
     #[arg(long)]
     hud_filtering: Option<String>,
 
+    /// Terrain/water texture filtering: "nearest" or "linear"
+    #[arg(long)]
+    terrain_filtering: Option<String>,
+
+    /// Building/model texture filtering: "nearest" or "linear"
+    #[arg(long)]
+    models_filtering: Option<String>,
+
+    /// Lighting mode: "classic" (MM6 flat) or "enhanced" (dynamic sun/shadows)
+    #[arg(long)]
+    lighting: Option<String>,
+
     /// Anti-aliasing mode: "msaa4" (default), "msaa2", "msaa8", "taa", "fxaa", "smaa", "off"
     #[arg(long)]
     antialiasing: Option<String>,
@@ -191,6 +203,9 @@ struct ConfigFile {
     mouse_wheel_fly: Option<bool>,
     capslock_toggle_mouse_look: Option<bool>,
     hud_filtering: Option<String>,
+    terrain_filtering: Option<String>,
+    models_filtering: Option<String>,
+    lighting: Option<String>,
     antialiasing: Option<String>,
     bloom: Option<bool>,
     bloom_intensity: Option<f32>,
@@ -252,6 +267,14 @@ pub struct GameConfig {
     pub capslock_toggle_mouse_look: bool,
     /// HUD texture filtering mode: "nearest" (crisp pixels) or "linear" (smooth)
     pub hud_filtering: String,
+    /// Terrain/water texture filtering: "nearest" or "linear"
+    pub terrain_filtering: String,
+    /// Building/model texture filtering: "nearest" or "linear"
+    pub models_filtering: String,
+    /// Sun/directional light intensity multiplier (0.0 = flat, 1.0 = default, 2.0+ = dramatic)
+    /// Enhanced lighting: stronger directional sun with balanced ambient fill
+    /// Lighting mode: "classic" (MM6 flat) or "enhanced" (dynamic sun/shadows)
+    pub lighting: String,
     /// Anti-aliasing: "msaa4", "msaa2", "msaa8", "taa" (default), "fxaa", "smaa", "off"
     pub antialiasing: String,
     /// Bloom glow on bright pixels
@@ -305,6 +328,9 @@ impl Default for GameConfig {
             mouse_wheel_fly: true,
             capslock_toggle_mouse_look: true,
             hud_filtering: "nearest".into(),
+            terrain_filtering: "linear".into(),
+            models_filtering: "linear".into(),
+            lighting: "enhanced".into(),
             antialiasing: "msaa4".into(),
             bloom: false,
             bloom_intensity: 0.1,
@@ -392,6 +418,9 @@ impl GameConfig {
             mouse_wheel_fly: resolve!(cli.mouse_wheel_fly, file_cfg.mouse_wheel_fly, d.mouse_wheel_fly),
             capslock_toggle_mouse_look: resolve!(cli.capslock_toggle_mouse_look, file_cfg.capslock_toggle_mouse_look, d.capslock_toggle_mouse_look),
             hud_filtering: resolve!(cli.hud_filtering, file_cfg.hud_filtering, d.hud_filtering),
+            terrain_filtering: resolve!(cli.terrain_filtering, file_cfg.terrain_filtering, d.terrain_filtering),
+            models_filtering: resolve!(cli.models_filtering, file_cfg.models_filtering, d.models_filtering),
+            lighting: resolve!(cli.lighting, file_cfg.lighting, d.lighting),
             antialiasing: resolve!(cli.antialiasing, file_cfg.antialiasing, d.antialiasing),
             bloom: resolve!(cli.bloom, file_cfg.bloom, d.bloom),
             bloom_intensity: resolve!(cli.bloom_intensity, file_cfg.bloom_intensity, d.bloom_intensity),
@@ -430,6 +459,15 @@ impl GameConfig {
         }
         if !matches!(self.hud_filtering.as_str(), "nearest" | "linear") {
             warn!("Unknown hud_filtering '{}' — using 'nearest'", self.hud_filtering);
+        }
+        if !matches!(self.terrain_filtering.as_str(), "nearest" | "linear") {
+            warn!("Unknown terrain_filtering '{}' — using 'linear'", self.terrain_filtering);
+        }
+        if !matches!(self.models_filtering.as_str(), "nearest" | "linear") {
+            warn!("Unknown models_filtering '{}' — using 'linear'", self.models_filtering);
+        }
+        if !matches!(self.lighting.as_str(), "classic" | "enhanced") {
+            warn!("Unknown lighting '{}' — using 'classic'", self.lighting);
         }
         if !matches!(self.antialiasing.as_str(), "msaa2" | "msaa4" | "msaa8" | "fxaa" | "smaa" | "taa" | "off") {
             warn!("Unknown antialiasing '{}' — using 'msaa4'", self.antialiasing);

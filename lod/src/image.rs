@@ -313,6 +313,36 @@ pub fn get_atlas(
     Ok(join_images_in_grid(&images, row_size, 128, 128))
 }
 
+/// Extract a water mask from a terrain atlas and clean the cyan markers.
+///
+/// Scans the atlas for cyan marker pixels (R<26, G>230, B>230) and produces:
+/// - A grayscale mask image (same dimensions) where white=water, black=terrain
+/// - The atlas is modified in-place: cyan pixels are replaced with a dark
+///   water-like color so they don't bleed when the atlas uses linear filtering.
+pub fn extract_water_mask(atlas: &mut DynamicImage) -> DynamicImage {
+    let (w, h) = atlas.dimensions();
+    let rgba = atlas.as_mut_rgba8().expect("atlas must be RGBA8");
+    let mut mask = ImageBuffer::new(w, h);
+
+    for y in 0..h {
+        for x in 0..w {
+            let p = rgba.get_pixel(x, y);
+            let is_cyan = p[0] < 26 && p[1] > 230 && p[2] > 230;
+            if is_cyan {
+                // Mark as water in the mask
+                mask.put_pixel(x, y, image::Luma([255u8]));
+                // Replace cyan with a dark blue-green so linear filtering
+                // doesn't bleed bright cyan into neighboring terrain.
+                rgba.put_pixel(x, y, Rgba([15, 40, 50, 255]));
+            } else {
+                mask.put_pixel(x, y, image::Luma([0u8]));
+            }
+        }
+    }
+
+    DynamicImage::ImageLuma8(mask)
+}
+
 /// Tint an RGBA image for monster difficulty variants.
 ///
 /// MM6 monsters come in A/B/C variants with different color tints.

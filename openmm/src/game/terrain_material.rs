@@ -15,6 +15,11 @@ pub struct WaterExtension {
     #[texture(100)]
     #[sampler(101)]
     pub water_texture: Handle<Image>,
+    /// R8 mask: white = water pixel, black = terrain. Uses nearest filtering
+    /// so water boundaries stay sharp even when the terrain atlas is linear-filtered.
+    #[texture(102)]
+    #[sampler(103)]
+    pub water_mask: Handle<Image>,
 }
 
 impl MaterialExtension for WaterExtension {

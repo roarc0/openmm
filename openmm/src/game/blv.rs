@@ -97,6 +97,7 @@ fn spawn_indoor_world(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     game_assets: Res<crate::assets::GameAssets>,
+    cfg: Res<crate::config::GameConfig>,
 ) {
     let Some(prepared) = prepared else { return };
 
@@ -104,11 +105,18 @@ fn spawn_indoor_world(
     crate::game::events::load_map_events(&mut commands, &game_assets, &prepared.map_base, true);
 
     // Spawn all static face meshes (grouped by texture)
+    let model_sampler = if cfg.models_filtering == "nearest" {
+        crate::assets::nearest_sampler()
+    } else {
+        crate::assets::repeat_linear_sampler()
+    };
     for model in &prepared.models {
         for sub in &model.sub_meshes {
             let mut mat = sub.material.clone();
             if let Some(ref tex) = sub.texture {
-                let tex_handle = images.add(tex.clone());
+                let mut img = tex.clone();
+                img.sampler = model_sampler.clone();
+                let tex_handle = images.add(img);
                 mat.base_color_texture = Some(tex_handle);
             }
             commands.spawn((

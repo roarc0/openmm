@@ -141,6 +141,7 @@ fn toggle_console(
 /// Handle keyboard input when console is open.
 fn console_input(
     mut state: ResMut<ConsoleState>,
+    keys: Res<ButtonInput<KeyCode>>,
     mut keyboard_events: MessageReader<KeyboardInput>,
     mut exit: MessageWriter<AppExit>,
     mut current_map: ResMut<CurrentMapName>,
@@ -167,6 +168,9 @@ fn console_input(
                 let cmd = state.input.trim().to_string();
                 if !cmd.is_empty() {
                     state.history.push(cmd.clone());
+                    if state.history.len() > 100 {
+                        state.history.remove(0);
+                    }
                     state.history_index = None;
                     state.saved_input.clear();
                     let player_pos = player_query
@@ -214,6 +218,30 @@ fn console_input(
                 }
             }
             KeyCode::Tab => {}
+            // Readline-style shortcuts
+            k if (keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight)) => {
+                let changed = match k {
+                    // Ctrl+U: kill line (clear all)
+                    KeyCode::KeyU => { state.input.clear(); true }
+                    // Ctrl+W: kill word (delete last word)
+                    KeyCode::KeyW => {
+                        let trimmed = state.input.trim_end().len();
+                        state.input.truncate(trimmed);
+                        if let Some(pos) = state.input.rfind(' ') {
+                            state.input.truncate(pos + 1);
+                        } else {
+                            state.input.clear();
+                        }
+                        true
+                    }
+                    // Ctrl+A: move to start (clear — no cursor in this console)
+                    KeyCode::KeyA => { state.input.clear(); true }
+                    // Ctrl+K: kill to end (same as clear since no cursor)
+                    KeyCode::KeyK => { state.input.clear(); true }
+                    _ => false,
+                };
+                if changed { state.generation += 1; }
+            }
             _ => {
                 if let Some(ref text) = event.text {
                     let s = text.as_str();
@@ -251,6 +279,13 @@ fn execute_command(
 
     match command {
         // --- Map loading ---
+        "reload" => {
+            let target = current_map.0.clone();
+            state.push_output(format!("Reloading map: {}", target));
+            state.open = false;
+            commands.insert_resource(LoadRequest { map_name: target });
+            game_state.set(GameState::Loading);
+        }
         "load" | "map" => {
             if arg.is_empty() {
                 state.push_output("Usage: load <map|north|south|east|west> [x,z]".to_string());
@@ -475,6 +510,74 @@ fn execute_command(
             debug_config.debug_events = cfg.debug;
             state.push_output(format!("Debug HUD: {}", if cfg.debug { "on" } else { "off" }));
         }
+        "lighting" => {
+            if arg.is_empty() {
+                state.push_output(format!("Lighting: {}", cfg.lighting));
+            } else {
+                match arg {
+                    "classic" | "enhanced" => {
+                        cfg.lighting = arg.to_string();
+                        state.push_output(format!("Lighting: {}", cfg.lighting));
+                    }
+                    _ => state.push_output("Usage: lighting [classic|enhanced]".to_string()),
+                }
+            }
+        }
+        "filtering" => {
+            if arg.is_empty() {
+                state.push_output(format!("terrain={} models={} hud={}",
+                    cfg.terrain_filtering, cfg.models_filtering, cfg.hud_filtering));
+            } else {
+                match arg {
+                    "nearest" | "linear" => {
+                        cfg.terrain_filtering = arg.to_string();
+                        cfg.models_filtering = arg.to_string();
+                        cfg.hud_filtering = arg.to_string();
+                        state.push_output(format!("All filtering: {} *reload", arg));
+                    }
+                    _ => state.push_output("Usage: filtering [nearest|linear]".to_string()),
+                }
+            }
+        }
+        "terrain_filtering" | "tf" => {
+            if arg.is_empty() {
+                state.push_output(format!("Terrain filtering: {}", cfg.terrain_filtering));
+            } else {
+                match arg {
+                    "nearest" | "linear" => {
+                        cfg.terrain_filtering = arg.to_string();
+                        state.push_output(format!("Terrain filtering: {} *reload", arg));
+                    }
+                    _ => state.push_output("Usage: tf [nearest|linear]".to_string()),
+                }
+            }
+        }
+        "models_filtering" | "mf" => {
+            if arg.is_empty() {
+                state.push_output(format!("Models filtering: {}", cfg.models_filtering));
+            } else {
+                match arg {
+                    "nearest" | "linear" => {
+                        cfg.models_filtering = arg.to_string();
+                        state.push_output(format!("Models filtering: {} *reload", arg));
+                    }
+                    _ => state.push_output("Usage: mf [nearest|linear]".to_string()),
+                }
+            }
+        }
+        "hud_filtering" | "hf" => {
+            if arg.is_empty() {
+                state.push_output(format!("HUD filtering: {}", cfg.hud_filtering));
+            } else {
+                match arg {
+                    "nearest" | "linear" => {
+                        cfg.hud_filtering = arg.to_string();
+                        state.push_output(format!("HUD filtering: {} *reload", arg));
+                    }
+                    _ => state.push_output("Usage: hf [nearest|linear]".to_string()),
+                }
+            }
+        }
         "exit" | "quit" | "q" => { exit.write(AppExit::from_code(0)); }
         "clear" | "cls" => { state.output.clear(); state.generation += 1; }
         "save_cfg" => {
@@ -506,6 +609,7 @@ const HELP_TEXT: &[&str] = &[
     "Map:",
     "  load <map> [x,z] - Load map (e.g. load oute3, load d01 100,200)",
     "  load n/s/e/w     - Adjacent map (keeps position)",
+    "  reload           - Reload current map",
     "  pos              - Show current position and map",
     "Graphics:",
     "  aa <mode>        - Set AA (msaa2/4/8|fxaa|smaa|taa|off) *reload",
@@ -516,6 +620,9 @@ const HELP_TEXT: &[&str] = &[
     "  ssao [on|off]    - Ambient occlusion *reload",
     "  fog <start> <end> - Set fog range",
     "  dd <distance>    - Set draw distance",
+    "  lighting <mode>  - classic or enhanced",
+    "  filtering <mode> - nearest or linear (all) *reload",
+    "  tf/mf/hf <mode>  - terrain/models/hud filter *reload",
     "  exposure <N>     - Set exposure (-4 to 4)",
     "  dof [on|off|N]   - Depth of field / focal distance",
     "  (* = applies on map reload)",

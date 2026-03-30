@@ -227,15 +227,34 @@ fn spawn_world(
     let mut terrain_texture = prepared.terrain_texture.clone();
     let terrain_mesh = prepared.terrain_mesh.clone();
 
-    // Nearest-neighbor filtering on terrain atlas to prevent cyan water markers
-    // from bleeding into neighboring terrain tiles via bilinear interpolation.
-    terrain_texture.sampler = crate::assets::nearest_sampler();
+    // Cyan markers have been replaced with neutral color by extract_water_mask(),
+    // so the atlas can safely use linear filtering without cyan bleed.
+    let terrain_sampler = if cfg.terrain_filtering == "nearest" {
+        crate::assets::nearest_sampler()
+    } else {
+        crate::assets::repeat_linear_sampler()
+    };
+    terrain_texture.sampler = terrain_sampler;
     let terrain_tex_handle = images.add(terrain_texture);
 
-    // Load water texture (or create a placeholder if missing)
+    // Water mask: R8 texture with nearest filtering for sharp water boundaries
+    let water_mask_handle = if let Some(ref mask) = prepared.water_mask {
+        let mut m = mask.clone();
+        m.sampler = crate::assets::nearest_sampler();
+        images.add(m)
+    } else {
+        images.add(Image::default())
+    };
+
+    // Water texture uses same filtering as terrain for visual consistency
+    let water_sampler = if cfg.terrain_filtering == "nearest" {
+        crate::assets::repeat_sampler()
+    } else {
+        crate::assets::repeat_linear_sampler()
+    };
     let water_tex_handle = if let Some(ref water_tex) = prepared.water_texture {
         let mut water = water_tex.clone();
-        water.sampler = crate::assets::repeat_linear_sampler();
+        water.sampler = water_sampler;
         images.add(water)
     } else {
         images.add(Image::default())
@@ -252,6 +271,7 @@ fn spawn_world(
         },
         extension: WaterExtension {
             water_texture: water_tex_handle,
+            water_mask: water_mask_handle,
         },
     });
 
@@ -280,11 +300,18 @@ fn spawn_world(
                     );
                 }
 
+                let model_sampler = if cfg.models_filtering == "nearest" {
+                    crate::assets::nearest_sampler()
+                } else {
+                    crate::assets::repeat_linear_sampler()
+                };
                 model_entity.with_children(|model_parent| {
                     for sub in &model.sub_meshes {
                         let mut mat = sub.material.clone();
                         if let Some(ref tex) = sub.texture {
-                            let tex_handle = images.add(tex.clone());
+                            let mut img = tex.clone();
+                            img.sampler = model_sampler.clone();
+                            let tex_handle = images.add(img);
                             mat.base_color_texture = Some(tex_handle);
                         }
                         model_parent.spawn((

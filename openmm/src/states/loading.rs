@@ -49,6 +49,7 @@ struct LoadingProgress {
     odm_data: Option<OdmData>,
     terrain_mesh: Option<Mesh>,
     terrain_texture: Option<Image>,
+    water_mask: Option<Image>,
     water_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
     billboards: Option<Vec<PreparedBillboard>>,
@@ -210,6 +211,7 @@ pub struct PreparedWorld {
     pub map: Odm,
     pub terrain_mesh: Mesh,
     pub terrain_texture: Image,
+    pub water_mask: Option<Image>,
     pub water_texture: Option<Image>,
     pub models: Vec<PreparedModel>,
     pub billboards: Vec<PreparedBillboard>,
@@ -262,6 +264,7 @@ fn loading_setup(
         odm_data: None,
         terrain_mesh: None,
         terrain_texture: None,
+        water_mask: None,
         water_texture: None,
         models: None,
         billboards: None,
@@ -404,8 +407,10 @@ fn loading_step(
         LoadingStep::BuildAtlas => {
             if let Some(tile_table) = &progress.tile_table {
                 match tile_table.atlas_image(game_assets.lod_manager()) {
-                    Ok(atlas) => {
+                    Ok(mut atlas) => {
+                        let mask = lod::image::extract_water_mask(&mut atlas);
                         progress.terrain_texture = Some(crate::assets::dynamic_to_bevy_image(atlas));
+                        progress.water_mask = Some(crate::assets::dynamic_to_bevy_image(mask));
 
                         // Load water texture
                         progress.water_texture = game_assets
@@ -874,6 +879,7 @@ fn loading_step(
                     map,
                     terrain_mesh: mesh,
                     terrain_texture: texture,
+                    water_mask: progress.water_mask.take(),
                     water_texture,
                     water_cells,
                     models,

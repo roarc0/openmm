@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
+use crate::game::terrain_material::TerrainMaterial;
 
 /// Full day/night cycle duration in seconds.
 const DAY_CYCLE_SECS: f32 = 1800.0; // 30 minutes
@@ -11,8 +12,9 @@ pub struct SunPlugin;
 
 impl Plugin for SunPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), sun_setup)
-            .add_systems(Update, animate_day_cycle.run_if(in_state(GameState::Game)));
+        app.init_resource::<LightingState>()
+            .add_systems(OnEnter(GameState::Game), sun_setup)
+            .add_systems(Update, (animate_day_cycle, sync_lighting_mode).run_if(in_state(GameState::Game)));
     }
 }
 
@@ -29,8 +31,8 @@ struct AmbientMarker;
 fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>) {
     commands.spawn((
         AmbientLight {
-            color: Color::srgb(0.75, 0.75, 0.82),
-            brightness: 500.0,
+            color: Color::srgb(0.85, 0.85, 0.95),
+            brightness: 2500.0,
             ..default()
         },
         AmbientMarker,
@@ -108,13 +110,14 @@ fn ambient_from_time(tod: f32) -> (Color, f32) {
     let g = 0.15 + 0.60 * day_amount + 0.1 * dawn_dusk;
     let b = 0.25 + 0.55 * day_amount - 0.1 * dawn_dusk;
 
-    let brightness = 80.0 + 420.0 * day_amount;
+    let brightness = 1500.0 + 2500.0 * day_amount;
 
     (Color::srgb(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)), brightness)
 }
 
 fn animate_day_cycle(
     time: Res<Time>,
+    cfg: Res<GameConfig>,
     mut sun_query: Query<(&mut Transform, &mut DayClock, &mut DirectionalLight)>,
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
 ) {
@@ -127,13 +130,76 @@ fn animate_day_cycle(
         let (new_transform, color, illuminance) = sun_from_time(clock.time_of_day);
         *transform = new_transform;
         light.color = color;
-        light.illuminance = illuminance;
-
-        // Update ambient
-        let (ambient_color, ambient_brightness) = ambient_from_time(clock.time_of_day);
-        for mut ambient in ambient_query.iter_mut() {
-            ambient.color = ambient_color;
-            ambient.brightness = ambient_brightness;
+        if cfg.lighting == "enhanced" {
+            // Enhanced: visible sun/shadow contrast with enough ambient
+            // to keep shaded faces readable
+            light.illuminance = illuminance * 1.06;
+            let (ambient_color, ambient_brightness) = ambient_from_time(clock.time_of_day);
+            for mut ambient in ambient_query.iter_mut() {
+                ambient.color = ambient_color;
+                ambient.brightness = ambient_brightness * 3.3;
+            }
+        } else {
+            // MM6-faithful: no directional lighting, pure ambient.
+            // Everything displays at its natural texture brightness.
+            light.illuminance = 0.0;
+            for mut ambient in ambient_query.iter_mut() {
+                ambient.color = Color::WHITE;
+                ambient.brightness = 3000.0;
+            }
         }
     }
+}
+
+/// Tracks the last applied lighting mode to detect changes.
+#[derive(Resource, Default)]
+struct LightingState {
+    last_mode: String,
+}
+
+/// Toggle `unlit` on terrain and building materials when the lighting mode changes.
+/// Sprites and billboards are always unlit (they're 2D and have no meaningful light response).
+/// Classic: terrain/buildings unlit (flat MM6 look). Enhanced: PBR lighting on terrain/buildings.
+fn sync_lighting_mode(
+    cfg: Res<GameConfig>,
+    mut state: ResMut<LightingState>,
+    mut std_materials: ResMut<Assets<StandardMaterial>>,
+    mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
+    // Query building/model meshes (have MeshMaterial3d but no Billboard)
+    model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<crate::game::entities::Billboard>>,
+) {
+    if cfg.lighting == state.last_mode {
+        return;
+    }
+    state.last_mode = cfg.lighting.clone();
+    let unlit = cfg.lighting != "enhanced";
+
+    // Toggle only building/model materials (not sprites/billboards which are always unlit)
+    // Also adjust base_color: buildings use 1.4x overbright for PBR compensation,
+    // but should be 1.0 when unlit to avoid blown-out textures.
+    let mut toggled = std::collections::HashSet::new();
+    for mat_handle in model_query.iter() {
+        if toggled.insert(mat_handle.id()) {
+            if let Some(mat) = std_materials.get_mut(mat_handle.id()) {
+                mat.unlit = unlit;
+                if unlit {
+                    mat.base_color = Color::srgb(0.69, 0.69, 0.69);
+                } else {
+                    mat.base_color = Color::srgb(1.4, 1.4, 1.4);
+                }
+            }
+        }
+    }
+
+    // Toggle terrain material base
+    for (_, mat) in terrain_materials.iter_mut() {
+        mat.base.unlit = unlit;
+        if unlit {
+            mat.base.base_color = Color::srgb(0.69, 0.69, 0.69);
+        } else {
+            mat.base.base_color = Color::WHITE;
+        }
+    }
+
+    info!("Lighting mode: {}", cfg.lighting);
 }
