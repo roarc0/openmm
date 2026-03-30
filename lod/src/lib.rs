@@ -24,13 +24,14 @@ pub mod ddeclist;
 pub mod dsft;
 pub mod dsounds;
 pub mod font;
+pub mod snd;
 pub mod image;
 
 mod lod;
 pub mod lod_data;
 pub mod palette;
 mod utils;
-mod zlib;
+pub(crate) mod zlib;
 
 pub const ENV_OPENMM_6_PATH: &str = "OPENMM_6_PATH";
 
