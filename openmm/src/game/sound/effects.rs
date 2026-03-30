@@ -31,12 +31,17 @@ fn handle_play_sound(
     mut sound_manager: Option<ResMut<SoundManager>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut events: MessageReader<PlaySoundEvent>,
+    cfg: Res<crate::config::GameConfig>,
 ) {
     let Some(ref mut sound_manager) = sound_manager else {
-        // Drain events when no sound manager is available
         for _ in events.read() {}
         return;
     };
+
+    if cfg.sfx_volume <= 0.0 {
+        for _ in events.read() {}
+        return;
+    }
 
     for ev in events.read() {
         let Some(handle) = sound_manager.load_sound(ev.sound_id, &mut audio_sources) else {
@@ -46,11 +51,9 @@ fn handle_play_sound(
 
         commands.spawn((
             AudioPlayer(handle),
-            PlaybackSettings {
-                mode: bevy::audio::PlaybackMode::Despawn,
-                spatial: true,
-                ..default()
-            },
+            PlaybackSettings::LOOP
+                .with_spatial(true)
+                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume)),
             Transform::from_translation(ev.position),
             InGame,
         ));
@@ -64,7 +67,6 @@ fn handle_play_ui_sound(
     mut events: MessageReader<PlayUiSoundEvent>,
 ) {
     let Some(ref mut sound_manager) = sound_manager else {
-        // Drain events when no sound manager is available
         for _ in events.read() {}
         return;
     };

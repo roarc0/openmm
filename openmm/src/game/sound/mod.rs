@@ -32,54 +32,23 @@ impl SoundManager {
         let name = info.name()?;
         let wav_bytes = self.snd_archive.get(&name)?;
 
-        // Validate WAV header
-        if wav_bytes.len() < 44 {
-            warn!("Sound '{}' (id={}) too short: {} bytes", name, sound_id, wav_bytes.len());
+        // Validate WAV: RIFF header + PCM format
+        if wav_bytes.len() < 44
+            || &wav_bytes[0..4] != b"RIFF"
+            || &wav_bytes[8..12] != b"WAVE"
+        {
+            warn!("Sound '{}' (id={}) is not a valid WAV", name, sound_id);
             return None;
         }
-        if &wav_bytes[0..4] != b"RIFF" || &wav_bytes[8..12] != b"WAVE" {
-            warn!("Sound '{}' (id={}) not a valid WAV (header: {:?})", name, sound_id, &wav_bytes[0..12]);
-            return None;
-        }
-
-        // Check fmt chunk
-        let fmt_pos = match wav_bytes.windows(4).position(|w| w == b"fmt ") {
-            Some(p) => p,
-            None => {
-                warn!("Sound '{}' (id={}) missing fmt chunk", name, sound_id);
+        if let Some(fmt_pos) = wav_bytes.windows(4).position(|w| w == b"fmt ") {
+            let audio_fmt = u16::from_le_bytes([wav_bytes[fmt_pos + 8], wav_bytes[fmt_pos + 9]]);
+            if audio_fmt != 1 {
+                warn!("Sound '{}' (id={}) unsupported format {}", name, sound_id, audio_fmt);
                 return None;
             }
-        };
-        let audio_fmt = u16::from_le_bytes([wav_bytes[fmt_pos + 8], wav_bytes[fmt_pos + 9]]);
-        let channels = u16::from_le_bytes([wav_bytes[fmt_pos + 10], wav_bytes[fmt_pos + 11]]);
-        let sample_rate = u32::from_le_bytes([wav_bytes[fmt_pos + 12], wav_bytes[fmt_pos + 13], wav_bytes[fmt_pos + 14], wav_bytes[fmt_pos + 15]]);
-        let bits = u16::from_le_bytes([wav_bytes[fmt_pos + 22], wav_bytes[fmt_pos + 23]]);
-
-        if audio_fmt != 1 {
-            warn!("Sound '{}' (id={}) unsupported format {} (expected PCM=1)", name, sound_id, audio_fmt);
-            return None;
-        }
-        if channels == 0 || sample_rate == 0 || bits == 0 {
-            warn!("Sound '{}' (id={}) invalid params: {}ch {}Hz {}bit", name, sound_id, channels, sample_rate, bits);
-            return None;
         }
 
-        // Check data chunk exists and has content
-        let data_pos = match wav_bytes.windows(4).position(|w| w == b"data") {
-            Some(p) => p,
-            None => {
-                warn!("Sound '{}' (id={}) missing data chunk", name, sound_id);
-                return None;
-            }
-        };
-        let data_size = u32::from_le_bytes([wav_bytes[data_pos + 4], wav_bytes[data_pos + 5], wav_bytes[data_pos + 6], wav_bytes[data_pos + 7]]);
-        if data_size == 0 {
-            warn!("Sound '{}' (id={}) has empty data chunk", name, sound_id);
-            return None;
-        }
-
-        info!("Loading sound '{}' (id={}): PCM {}ch {}Hz {}bit, {} data bytes, {} total",
-            name, sound_id, channels, sample_rate, bits, data_size, wav_bytes.len());
+        debug!("Loaded sound '{}' (id={}): {} bytes", name, sound_id, wav_bytes.len());
 
         let source = AudioSource {
             bytes: wav_bytes.into(),
@@ -94,7 +63,11 @@ pub struct SoundPlugin;
 
 impl Plugin for SoundPlugin {
     fn build(&self, app: &mut App) {
+        // MM6 world units are large (512 per tile). Scale so ~2 tiles = normal attenuation distance.
         app.add_plugins((music::MusicPlugin, effects::EffectsPlugin))
+            .insert_resource(bevy::audio::DefaultSpatialScale(
+                bevy::audio::SpatialScale::new(1.0 / 1024.0),
+            ))
             .add_systems(Startup, init_sound_manager);
     }
 }
@@ -110,8 +83,6 @@ fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
 
     let data_path = lod::get_data_path();
     let base = Path::new(&data_path);
-    // Audio.snd is at the MM6 root/Sounds/Audio.snd
-    // data_path might be mm6/data or mm6, try both
     let snd_path = [
         base.join("../Sounds/Audio.snd"),
         base.join("Sounds/Audio.snd"),
