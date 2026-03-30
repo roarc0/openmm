@@ -25,6 +25,7 @@ struct PendingSpawns {
     actor_order: Vec<usize>,
     monster_order: Vec<usize>,
     idx: usize,
+    frames_elapsed: u32,
     sprite_cache: sprites::SpriteCache,
     /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
     billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
@@ -114,6 +115,9 @@ impl OdmName {
 const SPAWN_TIME_BUDGET_MS: f32 = 4.0;
 /// Hard cap on entities per frame even if time budget allows.
 const SPAWN_BATCH_MAX: usize = 12;
+/// On the first frame, spawn all entities with no budget limit.
+/// The loading-to-game transition masks this single long frame.
+const EAGER_SPAWN_FRAMES: u32 = 1;
 
 pub struct OdmPlugin;
 
@@ -386,6 +390,7 @@ fn spawn_world(
         actor_order,
         monster_order,
         idx: 0,
+        frames_elapsed: 0,
         sprite_cache: prepared.sprite_cache.clone(),
         billboard_cache: prepared.billboard_cache.clone(),
         resolved_monsters,
@@ -556,6 +561,14 @@ fn lazy_spawn(
     let terrain_entity = p.terrain_entity;
     let mut spawned = 0;
     let start = std::time::Instant::now();
+
+    // On the first frame, spawn all entities with no budget — the loading-to-game
+    // transition masks this single long frame. After that, use the normal budget.
+    let eager = p.frames_elapsed < EAGER_SPAWN_FRAMES;
+    let time_budget = if eager { f32::MAX } else { SPAWN_TIME_BUDGET_MS };
+    let batch_max = if eager { usize::MAX } else { SPAWN_BATCH_MAX };
+    p.frames_elapsed += 1;
+
     let bb_len = p.billboard_order.len();
     let actor_len = p.actor_order.len();
     let monster_len = p.resolved_monsters.len();
@@ -564,7 +577,7 @@ fn lazy_spawn(
     let mut monster_idx = p.idx.saturating_sub(bb_len + actor_len).min(monster_len);
 
     // Billboards
-    while bb_idx < bb_len && spawned < SPAWN_BATCH_MAX && start.elapsed().as_secs_f32() * 1000.0 < SPAWN_TIME_BUDGET_MS {
+    while bb_idx < bb_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
         let idx = p.billboard_order[bb_idx];
         bb_idx += 1;
         p.idx += 1;
@@ -608,7 +621,7 @@ fn lazy_spawn(
     }
 
     // NPC actors
-    while actor_idx < actor_len && spawned < SPAWN_BATCH_MAX && start.elapsed().as_secs_f32() * 1000.0 < SPAWN_TIME_BUDGET_MS {
+    while actor_idx < actor_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
         let i = p.actor_order[actor_idx];
         actor_idx += 1;
         p.idx += 1;
@@ -659,25 +672,17 @@ fn lazy_spawn(
     }
 
     // Monsters
-    while monster_idx < monster_len && spawned < SPAWN_BATCH_MAX && start.elapsed().as_secs_f32() * 1000.0 < SPAWN_TIME_BUDGET_MS {
+    while monster_idx < monster_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
         let m = &p.resolved_monsters[p.monster_order[monster_idx]];
         monster_idx += 1;
         p.idx += 1;
-        let mut sprite_pairs: Vec<(&str, &str)> = vec![
-            (m.standing_sprite.as_str(), m.walking_sprite.as_str()),
-        ];
-        sprite_pairs.extend_from_slice(actor::NPC_SPRITES);
-        let mut states = Vec::new();
-        let mut sw = 0.0f32; let mut sh = 0.0f32;
-        for (st, wa) in &sprite_pairs {
-            let (s, w, h) = sprites::load_entity_sprites(
-                st, wa, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant);
-            if !s.is_empty() && !s[0].is_empty() {
-                states = s; sw = w; sh = h; break;
-            }
+        let (states, sw, sh) = sprites::load_entity_sprites(
+            &m.standing_sprite, &m.walking_sprite, game_assets.lod_manager(),
+            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant);
+        if states.is_empty() || states[0].is_empty() {
+            error!("Monster sprite '{}'/'{}'  failed to load — skipping", m.standing_sprite, m.walking_sprite);
+            continue;
         }
-        if states.is_empty() { continue; }
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
         let wx = m.position[0] as f32;

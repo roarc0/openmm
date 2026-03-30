@@ -17,11 +17,3 @@ pub struct Actor {
     pub facing_yaw: f32,
     pub hostile: bool,
 }
-
-/// Peasant sprite prefixes (standing, walking) — alternated for NPC variety.
-/// Used by odm.rs (lazy_spawn) and loading.rs (preload).
-pub const NPC_SPRITES: &[(&str, &str)] = &[
-    ("pfemst", "pfemwa"),
-    ("pmanst", "pmanwa"),
-    ("pmn2st", "pmn2wa"),
-];

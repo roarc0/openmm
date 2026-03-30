@@ -71,7 +71,7 @@ src/
       overlay.rs       — OverlayImage, viewport_inner_rect, overlay spawn/despawn
     entities/
       mod.rs           — EntitiesPlugin, shared components (WorldEntity, EntityKind, Billboard, AnimationState)
-      actor.rs         — Actor component, NPC_SPRITES constant
+      actor.rs         — Actor component (unified NPC/monster)
       sprites.rs       — SpriteCache, SpriteSheet, directional sprite loading and animation
       decoration.rs    — Decoration-related types
     terrain_material/  — Custom terrain shader with water extension
@@ -163,7 +163,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### Sprites and actors
 
-- `NPC_SPRITES` constant in `actor.rs` — the single source of truth for peasant sprite prefixes (standing/walking pairs). Used by odm.rs (lazy_spawn fallback) and loading.rs (preloading).
+- NPC sprites are resolved from the DSFT table at runtime (no hardcoded sprite list). Preloaded during loading screen via `build_npc_sprite_table()`.
 - Sprite variant system: monsters have difficulty variants (1=A base, 2=B blue tint, 3=C red tint). The `tint_variant()` function in `lod::image` applies color shifts.
 - Cache key format: `"root"`, `"root@v2"`, `"root@64x128"`, or `"root@64x128@v2"` — encodes sprite root, optional minimum dimensions, and optional variant.
 - Entity spawning is lazy: `spawn_world` creates terrain/models immediately, then `lazy_spawn` spawns billboards, NPCs, and monsters in batches per frame (time-budgeted) sorted by distance from player.

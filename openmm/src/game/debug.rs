@@ -18,15 +18,15 @@ use crate::save::{GameSave, MapState, PlayerState};
 
 #[derive(Resource)]
 pub struct DebugConfig {
-    pub show_play_area: bool,
-    pub show_events: bool,
+    pub debug_play_area: bool,
+    pub debug_events: bool,
 }
 
 impl Default for DebugConfig {
     fn default() -> Self {
         Self {
-            show_play_area: true,
-            show_events: true,
+            debug_play_area: true,
+            debug_events: true,
         }
     }
 }
@@ -66,7 +66,8 @@ fn debug_setup(
 ) {
     wireframe_config.global = cfg.wireframe;
     wireframe_config.default_color = Color::srgba(0.8, 0.2, 0.6, 0.35);
-    debug_config.show_play_area = cfg.debug;
+    debug_config.debug_play_area = cfg.debug;
+    debug_config.debug_events = cfg.debug;
 
     // Compute play area offset so debug UI sits inside the 3D viewport
     let (vp_left, vp_top) = windows
@@ -193,13 +194,13 @@ fn debug_input(
     if keys.just_pressed(key_bindings.toggle_wireframe) {
         wireframe_config.global = !wireframe_config.global;
     } else if keys.just_pressed(key_bindings.toggle_play_area) {
-        dev_config.show_play_area = !dev_config.show_play_area;
+        dev_config.debug_play_area = !dev_config.debug_play_area;
     }
 }
 
 /// Draw play area boundary lines: North=red, South=green, East=blue, West=magenta.
 fn draw_play_area(config: Res<DebugConfig>, mut gizmos: Gizmos) {
-    if !config.show_play_area {
+    if !config.debug_play_area {
         return;
     }
     let half = ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0;
@@ -238,7 +239,7 @@ fn draw_events(
     clickable_faces: Option<Res<crate::game::blv::ClickableFaces>>,
     buildings: Query<(&crate::game::interaction::BuildingInfo, &GlobalTransform)>,
 ) {
-    if !config.show_events {
+    if !config.debug_events {
         return;
     }
 

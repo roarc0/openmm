@@ -60,6 +60,20 @@ struct LoadingProgress {
     water_cells: Option<Vec<bool>>,
     music_track: u8,
     blv: Option<Blv>,
+    /// Queued sprite preload work, processed in batches across frames.
+    preload_queue: Option<PreloadQueue>,
+}
+
+/// Queued sprite preload work items, processed across multiple frames.
+struct PreloadQueue {
+    /// (sprite_root, variant) pairs to preload into SpriteCache.
+    sprite_roots: Vec<(String, u8)>,
+    /// Billboard entries to preload (index into progress.billboards).
+    billboard_idx: usize,
+    /// Current position in sprite_roots.
+    sprite_idx: usize,
+    /// Whether music track has been resolved.
+    music_resolved: bool,
 }
 
 /// Resource for indoor (BLV) maps — the indoor equivalent of PreparedWorld.
@@ -259,6 +273,7 @@ fn loading_setup(
         water_cells: None,
         music_track: 0,
         blv: None,
+        preload_queue: None,
     });
 
     // Keep the load request around as context
@@ -712,83 +727,134 @@ fn loading_step(
             }
         }
         LoadingStep::PreloadSprites => {
-            // Pre-decode ALL sprite textures during loading screen so that
-            // lazy_spawn only does cheap cache lookups during gameplay.
-            let mut cache = progress.sprite_cache.take().unwrap_or_default();
+            // Time-budgeted sprite preloading: process a batch each frame so
+            // the window event loop keeps running and GNOME doesn't flag us.
+            const PRELOAD_BUDGET_MS: f32 = 8.0;
+            let frame_start = std::time::Instant::now();
 
-            // NPC sprite roots (standing + walking)
-            let npc_roots: Vec<(&str, u8)> = crate::game::entities::actor::NPC_SPRITES
-                .iter()
-                .flat_map(|&(st, wa)| [(st, 0u8), (wa, 0u8)])
-                .collect();
-            cache.preload(&npc_roots, game_assets.lod_manager(), &mut images, &mut materials);
+            // First frame: build the preload queue from map-specific data
+            if progress.preload_queue.is_none() {
+                let mut sprite_roots: Vec<(String, u8)> = Vec::new();
+                let mut seen = std::collections::HashSet::new();
 
-            // Resolve music track from mapstats
-            if let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) {
-                if let Some(cfg) = mapstats.get(&load_request.map_name.to_string()) {
-                    progress.music_track = cfg.music_track;
+                // NPC sprites: only for actors actually on this map
+                let npc_table = crate::game::odm::build_npc_sprite_table(&game_assets);
+                if let Some(actors) = &progress.actors {
+                    for a in actors {
+                        if a.hp <= 0 { continue; }
+                        if let Some((st, wa, _pal)) = npc_table.get(&a.monlist_id) {
+                            for root in [st.clone(), wa.clone()] {
+                                if seen.insert(root.clone()) {
+                                    sprite_roots.push((root, 0));
+                                }
+                            }
+                        }
+                    }
                 }
-            }
 
-            // Resolve and preload monster sprites for this map
-            if let (Ok(mapstats), Ok(monlist)) = (
-                lod::mapstats::MapStats::new(game_assets.lod_manager()),
-                lod::monlist::MonsterList::new(game_assets.lod_manager()),
-            ) {
-                let map_cfg = mapstats.get(&load_request.map_name.to_string());
-                if let Some(cfg) = map_cfg {
-                    // Collect unique (sprite_root, variant) pairs
-                    let mut monster_roots: Vec<(String, u8)> = Vec::new();
-                    let mut seen = std::collections::HashSet::new();
-                    if let Some(odm) = &progress.odm {
-                        for sp in &odm.spawn_points {
-                            let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) as u32;
-                            if let Some((mon_name, variant)) = cfg.monster_for_index(sp.monster_index, seed) {
-                                if let Some(desc) = monlist.find_by_name(mon_name, variant) {
-                                    for name in &desc.sprite_names[..2] {
-                                        let key = format!("{}@v{}", name, variant);
-                                        if seen.insert(key) {
-                                            monster_roots.push((name.clone(), variant));
+                // Monster sprites for this map's spawn points
+                if let (Ok(mapstats), Ok(monlist)) = (
+                    lod::mapstats::MapStats::new(game_assets.lod_manager()),
+                    lod::monlist::MonsterList::new(game_assets.lod_manager()),
+                ) {
+                    if let Some(cfg) = mapstats.get(&load_request.map_name.to_string()) {
+                        if let Some(odm) = &progress.odm {
+                            for sp in &odm.spawn_points {
+                                let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) as u32;
+                                if let Some((mon_name, variant)) = cfg.monster_for_index(sp.monster_index, seed) {
+                                    if let Some(desc) = monlist.find_by_name(mon_name, variant) {
+                                        for name in &desc.sprite_names[..2] {
+                                            let key = format!("{}@v{}", name, variant);
+                                            if seen.insert(key) {
+                                                sprite_roots.push((name.clone(), variant));
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    let refs: Vec<(&str, u8)> = monster_roots.iter()
-                        .map(|(s, v)| (s.as_str(), *v)).collect();
-                    cache.preload(&refs, game_assets.lod_manager(), &mut images, &mut materials);
                 }
+
+                progress.preload_queue = Some(PreloadQueue {
+                    sprite_roots,
+                    billboard_idx: 0,
+                    sprite_idx: 0,
+                    music_resolved: false,
+                });
             }
 
-            // Pre-decode billboard/decoration sprites
-            let mut bb_cache = progress.billboard_cache.take().unwrap_or_default();
-            if let Some(billboards) = &progress.billboards {
-                let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
-                if let Some(ref mgr) = bb_mgr {
-                    for bb in billboards {
-                        if bb_cache.contains_key(&bb.declist_name) { continue; }
-                        if let Some(sprite) = mgr.get(game_assets.lod_manager(), &bb.declist_name, bb.declist_id) {
-                            let (w, h) = sprite.dimensions();
-                            let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
-                            let tex = images.add(bevy_img);
-                            let m = materials.add(StandardMaterial {
-                                base_color_texture: Some(tex),
-                                alpha_mode: AlphaMode::Mask(0.5),
-                                unlit: true,
-                                cull_mode: None, double_sided: true,
-                                perceptual_roughness: 1.0, reflectance: 0.0, ..default()
-                            });
-                            let q = meshes.add(Rectangle::new(w, h));
-                            bb_cache.insert(bb.declist_name.clone(), (m, q, h));
+            // Resolve music track (cheap, do once)
+            {
+                let queue = progress.preload_queue.as_mut().unwrap();
+                if !queue.music_resolved {
+                    queue.music_resolved = true;
+                    if let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) {
+                        if let Some(cfg) = mapstats.get(&load_request.map_name.to_string()) {
+                            progress.music_track = cfg.music_track;
                         }
                     }
                 }
             }
 
-            progress.sprite_cache = Some(cache);
-            progress.billboard_cache = Some(bb_cache);
-            progress.step = progress.step.next();
+            // Preload sprite textures in batches
+            {
+                let mut cache = progress.sprite_cache.take().unwrap_or_default();
+                let queue = progress.preload_queue.as_mut().unwrap();
+                while queue.sprite_idx < queue.sprite_roots.len() {
+                    if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS { break; }
+                    let (root, variant) = &queue.sprite_roots[queue.sprite_idx];
+                    cache.preload(&[(root.as_str(), *variant)], game_assets.lod_manager(), &mut images, &mut materials);
+                    queue.sprite_idx += 1;
+                }
+                progress.sprite_cache = Some(cache);
+            }
+
+            // Preload billboard/decoration sprites in batches
+            {
+                let sprites_done = progress.preload_queue.as_ref().unwrap().sprite_idx
+                    >= progress.preload_queue.as_ref().unwrap().sprite_roots.len();
+                if sprites_done {
+                    let mut bb_cache = progress.billboard_cache.take().unwrap_or_default();
+                    let billboards = progress.billboards.take();
+                    let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+                    if let Some(ref bbs) = billboards {
+                        let queue = progress.preload_queue.as_mut().unwrap();
+                        if let Some(ref mgr) = bb_mgr {
+                            while queue.billboard_idx < bbs.len() {
+                                if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS { break; }
+                                let bb = &bbs[queue.billboard_idx];
+                                queue.billboard_idx += 1;
+                                if bb_cache.contains_key(&bb.declist_name) { continue; }
+                                if let Some(sprite) = mgr.get(game_assets.lod_manager(), &bb.declist_name, bb.declist_id) {
+                                    let (w, h) = sprite.dimensions();
+                                    let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
+                                    let tex = images.add(bevy_img);
+                                    let m = materials.add(StandardMaterial {
+                                        base_color_texture: Some(tex),
+                                        alpha_mode: AlphaMode::Mask(0.5),
+                                        unlit: true,
+                                        cull_mode: None, double_sided: true,
+                                        perceptual_roughness: 1.0, reflectance: 0.0, ..default()
+                                    });
+                                    let q = meshes.add(Rectangle::new(w, h));
+                                    bb_cache.insert(bb.declist_name.clone(), (m, q, h));
+                                }
+                            }
+                        }
+                    }
+                    progress.billboards = billboards;
+                    progress.billboard_cache = Some(bb_cache);
+                }
+            }
+
+            // Check if all preloading is done
+            let queue = progress.preload_queue.as_ref().unwrap();
+            let bb_len = progress.billboards.as_ref().map_or(0, |b| b.len());
+            if queue.sprite_idx >= queue.sprite_roots.len() && queue.billboard_idx >= bb_len {
+                progress.preload_queue = None;
+                progress.step = progress.step.next();
+            }
         }
         LoadingStep::Done => {
             // Move all prepared data into PreparedWorld resource

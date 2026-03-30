@@ -471,7 +471,8 @@ fn execute_command(
         // --- System ---
         "debug" => {
             cfg.debug = parse_toggle(arg, cfg.debug);
-            debug_config.show_play_area = cfg.debug;
+            debug_config.debug_play_area = cfg.debug;
+            debug_config.debug_events = cfg.debug;
             state.push_output(format!("Debug HUD: {}", if cfg.debug { "on" } else { "off" }));
         }
         "exit" | "quit" | "q" => { exit.write(AppExit::from_code(0)); }

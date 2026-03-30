@@ -290,7 +290,7 @@ impl Default for GameConfig {
             window_mode: "windowed".into(),
             vsync: "auto".into(),
             fps_cap: 60,
-            draw_distance: 10000.0,
+            draw_distance: 16000.0,
             fog_start: 12000.0,
             fog_end: 28000.0,
             music_volume: 1.0,
