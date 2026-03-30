@@ -82,6 +82,10 @@ src/
       actor.rs         — Actor component (unified NPC/monster)
       sprites.rs       — SpriteCache, SpriteSheet, directional sprite loading and animation
       decoration.rs    — Decoration-related types
+    sound/
+      mod.rs             — SoundPlugin, SoundManager resource (DSounds + SndArchive + cache)
+      music.rs           — MusicPlugin, PlayMusicEvent, map music playback
+      effects.rs         — EffectsPlugin, PlaySoundEvent, PlayUiSoundEvent, spatial audio
     terrain_material/  — Custom terrain shader with water extension
 ```
 
@@ -109,6 +113,11 @@ When any doc is added, renamed, or removed in `docs/`, update the Documentation 
 When implementing a feature, always separate concerns and organize logic into well-defined, modular components, functions, and services. Write clean, maintainable code with clear naming, minimal duplication, and low coupling. Prefer simplicity, readability, and extensibility over quick but messy solutions
 
 ### Rule 4: It's ok to log debug noisy stuff and, or info,warn,error. The logger level can be adjusted and it will help debugging.
+
+### Rule 5: Document and keep updated all the relevant findings about the original engine. 
+
+Document what each file,format does how it is structured in terms of lod raw data and what each field is for. 
+Add the complete details in the docs folder.
 
 ### Coordinate conversion
 
@@ -162,6 +171,16 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - Door vertex animation: base offset + direction * distance, converted via `mm6_to_bevy()`
 - Pristine DLV files have empty door vertex data — doors spawn as entities but won't animate
 
+### Sound system
+
+- `SoundManager` resource holds DSounds table + SndArchive + cached Bevy audio handles
+- `PlayMusicEvent` — any system can request map music (track number + volume)
+- `PlaySoundEvent` — plays a sound at a 3D world position (spatial audio via SpatialListener on player camera)
+- `PlayUiSoundEvent` — plays a non-positional UI sound
+- Sound files are WAV stored in `Sounds/Audio.snd` (zlib-compressed), resolved by name from dsounds.bin
+- Sounds are loaded on-demand and cached by sound_id
+- Decorations with `sound_id > 0` trigger PlaySoundEvent on spawn
+
 ### Player
 
 - Player entity with Transform, terrain-following movement (bilinear heightmap interpolation)
@@ -190,6 +209,8 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `ddm.rs` — DDM file parser (actors/NPCs per map)
 - `monlist.rs` — Monster list (dmonlist.bin) with sprite name resolution
 - `mapstats.rs` — Map statistics (monster groups per map zone)
+- `dsounds.rs` — Sound descriptor table (dsounds.bin): sound ID -> filename mapping
+- `snd.rs` — Audio.snd container reader: extracts/decompresses WAV files
 
 ## Conventions
 
