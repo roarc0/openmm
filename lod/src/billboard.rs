@@ -38,20 +38,20 @@ impl BillboardData {
         (self.attributes & 0x0004) != 0
     }
 
-    pub fn shown_on_map(&self) -> bool {
-        (self.attributes & 0x0010) != 0
+    pub fn is_visible_on_map(&self) -> bool {
+        (self.attributes & 0x0008) != 0
     }
 
     pub fn is_chest(&self) -> bool {
-        (self.attributes & 0x0020) != 0
+        (self.attributes & 0x0010) != 0
     }
 
     pub fn is_invisible(&self) -> bool {
-        (self.attributes & 0x0040) != 0
+        (self.attributes & 0x0020) != 0
     }
 
-    pub fn is_ship(&self) -> bool {
-        (self.attributes & 0x0080) != 0
+    pub fn is_obelisk_chest(&self) -> bool {
+        (self.attributes & 0x0040) != 0
     }
 }
 
