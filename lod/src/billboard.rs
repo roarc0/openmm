@@ -107,16 +107,17 @@ pub struct BillboardSprite {
 
 impl BillboardSprite {
     pub fn dimensions(&self) -> (f32, f32) {
-        let dimensions = self.image.dimensions();
+        let (px_w, px_h) = self.image.dimensions();
+        let mut height = px_h as f32;
+        let mut width = height * (px_w as f32 / px_h as f32);
 
-        let height = dimensions.1 as f32;
-        // if sprite.d_declist_item.height != 0 {
-        //     size[0]
-        //     sprite.d_declist_item.height as f32 * size[0] / 30.0
-        // } else {
-        //     size[0]
-        // };
-        let width = height * (dimensions.0 as f32 / dimensions.1 as f32);
+        // Apply dsft scale (fixed-point 16.16: divide by 65536)
+        if self.d_sft_frame.scale > 0 {
+            let scale = self.d_sft_frame.scale as f32 / 65536.0;
+            width *= scale;
+            height *= scale;
+        }
+
         (width, height)
     }
 }
