@@ -540,6 +540,7 @@ fn lazy_spawn(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut progress: ResMut<SpawnProgress>,
+    mut sound_events: bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlaySoundEvent>,
 ) {
     let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
         return;
@@ -605,6 +606,13 @@ fn lazy_spawn(
             crate::game::entities::Billboard,
         ));
         spawned += 1;
+
+        if bb.sound_id > 0 {
+            sound_events.write(crate::game::sound::effects::PlaySoundEvent {
+                sound_id: bb.sound_id as u32,
+                position: bb.position,
+            });
+        }
     }
 
     // NPC actors

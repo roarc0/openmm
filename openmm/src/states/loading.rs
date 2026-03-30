@@ -158,6 +158,8 @@ pub struct PreparedBillboard {
     pub declist_name: String,
     /// Declist ID for BillboardManager lookup.
     pub declist_id: u16,
+    /// Sound ID from ddeclist (0 = no sound).
+    pub sound_id: u16,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -645,7 +647,7 @@ fn loading_step(
                                     });
 
                                 let material = StandardMaterial {
-                                    base_color: Color::srgb(1.4, 1.4, 1.4),
+                                    base_color: Color::srgb(1.8, 1.8, 1.8),
                                     alpha_mode: AlphaMode::Opaque,
                                     cull_mode: None,
                                     double_sided: true,
@@ -719,10 +721,16 @@ fn loading_step(
                         continue; // Don't render markers
                     }
 
+                    let sound_id = bb_mgr.as_ref()
+                        .and_then(|mgr| mgr.get_declist_item(bb.data.declist_id))
+                        .map(|item| item.sound_id)
+                        .unwrap_or(0);
+
                     billboards.push(PreparedBillboard {
                         position: pos,
                         declist_name: bb.declist_name.clone(),
                         declist_id: bb.data.declist_id,
+                        sound_id,
                     });
                 }
 
