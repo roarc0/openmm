@@ -21,7 +21,7 @@ impl Plugin for LightingPlugin {
 #[derive(Component)]
 struct AmbientMarker;
 
-fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>) {
+fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, world_state: Res<crate::game::world_state::WorldState>) {
     commands.spawn((
         AmbientLight {
             color: Color::srgb(0.85, 0.85, 0.95),
@@ -32,7 +32,7 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>) {
         InGame,
     ));
 
-    let tod = 0.375; // 9am
+    let tod = world_state.time_of_day;
     let (dir_transform, color, illuminance) = sun_from_time(tod);
 
     commands.spawn((

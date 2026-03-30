@@ -177,8 +177,9 @@ fn wander_system(
 }
 
 /// Rotate visible billboard entities to face the camera (Y-axis only, stays upright).
+/// Rotate visible billboard entities to face the camera (Y-axis only, stays upright).
+/// Only processes visible entities — distance_culling already hides far ones.
 fn billboard_face_camera(
-    cfg: Res<crate::config::GameConfig>,
     camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
     mut billboard_query: Query<(&mut Transform, &GlobalTransform, &Visibility), With<Billboard>>,
 ) {
@@ -186,20 +187,14 @@ fn billboard_face_camera(
         return;
     };
     let cam_pos = camera_gt.translation();
-    let draw_dist_sq = cfg.draw_distance * cfg.draw_distance;
 
     for (mut transform, global_transform, vis) in billboard_query.iter_mut() {
         if *vis == Visibility::Hidden {
             continue;
         }
-        let bb_pos = global_transform.translation();
-        if cam_pos.distance_squared(bb_pos) > draw_dist_sq {
-            continue;
-        }
-        let dir = cam_pos - bb_pos;
+        let dir = cam_pos - global_transform.translation();
         if dir.x.abs() > 0.01 || dir.z.abs() > 0.01 {
-            let angle = dir.x.atan2(dir.z);
-            transform.rotation = Quat::from_rotation_y(angle);
+            transform.rotation = Quat::from_rotation_y(dir.x.atan2(dir.z));
         }
     }
 }

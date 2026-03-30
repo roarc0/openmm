@@ -27,11 +27,3 @@ impl MaterialExtension for WaterExtension {
         "shaders/terrain_water.wgsl".into()
     }
 }
-
-/// Update terrain material is a no-op — water animation uses globals.time
-/// directly in the shader.
-pub fn update_terrain_time(
-    _time: Res<Time>,
-    _materials: ResMut<Assets<TerrainMaterial>>,
-) {
-}

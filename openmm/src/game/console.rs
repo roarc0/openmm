@@ -530,43 +530,13 @@ fn execute_command(
             }
         }
         "terrain_filtering" | "tf" => {
-            if arg.is_empty() {
-                ctx_state.push_output(format!("Terrain filtering: {}", ctx_cfg.terrain_filtering));
-            } else {
-                match arg {
-                    "nearest" | "linear" => {
-                        ctx_cfg.terrain_filtering = arg.to_string();
-                        ctx_state.push_output(format!("Terrain filtering: {} {NEEDS_RELOAD}", arg));
-                    }
-                    _ => ctx_state.push_output("Usage: tf [nearest|linear]".to_string()),
-                }
-            }
+            set_filtering(ctx_state, &mut ctx_cfg.terrain_filtering, "Terrain", arg);
         }
         "models_filtering" | "mf" => {
-            if arg.is_empty() {
-                ctx_state.push_output(format!("Models filtering: {}", ctx_cfg.models_filtering));
-            } else {
-                match arg {
-                    "nearest" | "linear" => {
-                        ctx_cfg.models_filtering = arg.to_string();
-                        ctx_state.push_output(format!("Models filtering: {} {NEEDS_RELOAD}", arg));
-                    }
-                    _ => ctx_state.push_output("Usage: mf [nearest|linear]".to_string()),
-                }
-            }
+            set_filtering(ctx_state, &mut ctx_cfg.models_filtering, "Models", arg);
         }
         "hud_filtering" | "hf" => {
-            if arg.is_empty() {
-                ctx_state.push_output(format!("HUD filtering: {}", ctx_cfg.hud_filtering));
-            } else {
-                match arg {
-                    "nearest" | "linear" => {
-                        ctx_cfg.hud_filtering = arg.to_string();
-                        ctx_state.push_output(format!("HUD filtering: {} {NEEDS_RELOAD}", arg));
-                    }
-                    _ => ctx_state.push_output("Usage: hf [nearest|linear]".to_string()),
-                }
-            }
+            set_filtering(ctx_state, &mut ctx_cfg.hud_filtering, "HUD", arg);
         }
         "exit" | "quit" | "q" => { ctx_exit.write(AppExit::from_code(0)); }
         "clear" | "cls" => { ctx_state.output.clear(); ctx_state.generation += 1; }
@@ -586,6 +556,20 @@ fn execute_command(
 }
 
 // --- Command handlers ---
+
+fn set_filtering(state: &mut ConsoleState, field: &mut String, label: &str, arg: &str) {
+    if arg.is_empty() {
+        state.push_output(format!("{} filtering: {}", label, field));
+    } else {
+        match arg {
+            "nearest" | "linear" => {
+                *field = arg.to_string();
+                state.push_output(format!("{} filtering: {} {NEEDS_RELOAD}", label, arg));
+            }
+            _ => state.push_output(format!("Usage: {} [nearest|linear]", label.to_lowercase())),
+        }
+    }
+}
 
 fn parse_toggle(arg: &str, current: bool) -> bool {
     match arg {

@@ -229,12 +229,7 @@ fn spawn_world(
 
     // Cyan markers have been replaced with neutral color by extract_water_mask(),
     // so the atlas can safely use linear filtering without cyan bleed.
-    let terrain_sampler = if cfg.terrain_filtering == "nearest" {
-        crate::assets::nearest_sampler()
-    } else {
-        crate::assets::repeat_linear_sampler()
-    };
-    terrain_texture.sampler = terrain_sampler;
+    terrain_texture.sampler = crate::assets::sampler_for_filtering(&cfg.terrain_filtering);
     let terrain_tex_handle = images.add(terrain_texture);
 
     // Water mask: R8 texture with nearest filtering for sharp water boundaries
@@ -247,11 +242,7 @@ fn spawn_world(
     };
 
     // Water texture uses same filtering as terrain for visual consistency
-    let water_sampler = if cfg.terrain_filtering == "nearest" {
-        crate::assets::repeat_sampler()
-    } else {
-        crate::assets::repeat_linear_sampler()
-    };
+    let water_sampler = crate::assets::sampler_for_filtering(&cfg.terrain_filtering);
     let water_tex_handle = if let Some(ref water_tex) = prepared.water_texture {
         let mut water = water_tex.clone();
         water.sampler = water_sampler;
@@ -285,6 +276,7 @@ fn spawn_world(
             InGame,
         ))
         .with_children(|parent| {
+            let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
             // BSP models (buildings, structures)
             for model in &prepared.models {
                 let is_building = !model.event_ids.is_empty();
@@ -300,11 +292,6 @@ fn spawn_world(
                     );
                 }
 
-                let model_sampler = if cfg.models_filtering == "nearest" {
-                    crate::assets::nearest_sampler()
-                } else {
-                    crate::assets::repeat_linear_sampler()
-                };
                 model_entity.with_children(|model_parent| {
                     for sub in &model.sub_meshes {
                         let mut mat = sub.material.clone();

@@ -46,12 +46,6 @@ impl Plugin for InGamePlugin {
             world_state::WorldStatePlugin,
             MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
-        .add_systems(
-            Update,
-            terrain_material::update_terrain_time
-                .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(hud::HudView::World)),
-        )
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
     }
 }

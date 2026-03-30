@@ -105,11 +105,7 @@ fn spawn_indoor_world(
     crate::game::events::load_map_events(&mut commands, &game_assets, &prepared.map_base, true);
 
     // Spawn all static face meshes (grouped by texture)
-    let model_sampler = if cfg.models_filtering == "nearest" {
-        crate::assets::nearest_sampler()
-    } else {
-        crate::assets::repeat_linear_sampler()
-    };
+    let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
     for model in &prepared.models {
         for sub in &model.sub_meshes {
             let mut mat = sub.material.clone();

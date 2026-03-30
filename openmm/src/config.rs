@@ -271,9 +271,7 @@ pub struct GameConfig {
     pub terrain_filtering: String,
     /// Building/model texture filtering: "nearest" or "linear"
     pub models_filtering: String,
-    /// Sun/directional light intensity multiplier (0.0 = flat, 1.0 = default, 2.0+ = dramatic)
-    /// Enhanced lighting: stronger directional sun with balanced ambient fill
-    /// Lighting mode: "classic" (MM6 flat) or "enhanced" (dynamic sun/shadows)
+    /// Lighting mode: "classic" (flat, MM6-faithful) or "enhanced" (dynamic sun/shadows)
     pub lighting: String,
     /// Anti-aliasing: "msaa4", "msaa2", "msaa8", "taa" (default), "fxaa", "smaa", "off"
     pub antialiasing: String,

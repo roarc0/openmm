@@ -30,8 +30,6 @@ pub struct PlayerPhysics {
 
 // --- Resources ---
 
-// FlyMode moved to WorldState — use world_state.player.fly_mode
-
 /// Runtime toggle for mouse look — initialized from config, toggled by CapsLock.
 #[derive(Resource)]
 pub struct MouseLookEnabled(pub bool);

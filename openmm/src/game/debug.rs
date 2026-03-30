@@ -15,8 +15,6 @@ use crate::game::InGame;
 use crate::game::player::Player;
 use crate::save::GameSave;
 
-// DebugConfig moved to WorldState.debug
-
 #[derive(Resource)]
 pub struct DebugKeyBindings {
     pub toggle_wireframe: KeyCode,
@@ -32,7 +30,6 @@ impl Default for DebugKeyBindings {
     }
 }
 
-// CurrentMapName moved to WorldState — use world_state.map.name
 
 fn debug_setup(
     mut commands: Commands,
