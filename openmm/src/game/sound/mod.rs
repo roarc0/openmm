@@ -32,6 +32,23 @@ impl SoundManager {
         let name = info.name()?;
         let wav_bytes = self.snd_archive.get(&name)?;
 
+        // Validate WAV: must be RIFF/WAVE with PCM format (1)
+        if wav_bytes.len() < 44
+            || &wav_bytes[0..4] != b"RIFF"
+            || &wav_bytes[8..12] != b"WAVE"
+        {
+            warn!("Sound '{}' (id={}) is not a valid WAV", name, sound_id);
+            return None;
+        }
+        // Check audio format is PCM (1) — our ADPCM decoder converts to PCM
+        if let Some(fmt_pos) = wav_bytes.windows(4).position(|w| w == b"fmt ") {
+            let audio_fmt = u16::from_le_bytes([wav_bytes[fmt_pos + 8], wav_bytes[fmt_pos + 9]]);
+            if audio_fmt != 1 {
+                warn!("Sound '{}' (id={}) has unsupported format {}", name, sound_id, audio_fmt);
+                return None;
+            }
+        }
+
         let source = AudioSource {
             bytes: wav_bytes.into(),
         };
