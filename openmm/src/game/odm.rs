@@ -142,7 +142,7 @@ pub const PLAY_WIDTH: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE a
 /// Detect when the player crosses the play area boundary and load the adjacent map.
 fn check_map_boundary(
     mut commands: Commands,
-    mut current_map: ResMut<crate::game::debug::CurrentMapName>,
+    mut world_state: ResMut<crate::game::world_state::WorldState>,
     mut save_data: ResMut<crate::save::GameSave>,
     mut game_state: ResMut<NextState<GameState>>,
     player_query: Query<&Transform, With<crate::game::player::Player>>,
@@ -154,8 +154,8 @@ fn check_map_boundary(
         return;
     }
     let Ok(transform) = player_query.single() else { return };
-    let crate::game::map_name::MapName::Outdoor(ref odm) = current_map.0 else {
-        debug!("check_map_boundary: skipped (not outdoor map: {:?})", current_map.0);
+    let crate::game::map_name::MapName::Outdoor(ref odm) = world_state.map.name else {
+        debug!("check_map_boundary: skipped (not outdoor map: {:?})", world_state.map.name);
         return;
     };
     let pos = transform.translation;
@@ -182,19 +182,19 @@ fn check_map_boundary(
         return; // No adjacent map (edge of the world grid)
     };
 
-    info!("Map transition: {} → {}", current_map.0, new_odm);
+    info!("Map transition: {} → {}", world_state.map.name, new_odm);
 
-    // Save player position translated to the new map's coordinate space
-    save_data.player.position = [new_x, pos.y, new_z];
-    save_data.player.yaw = yaw;
-    save_data.map.map_x = new_odm.x;
-    save_data.map.map_y = new_odm.y;
+    // Update world state and save data for the new map
+    world_state.map.name = crate::game::map_name::MapName::Outdoor(new_odm.clone());
+    world_state.map.map_x = new_odm.x;
+    world_state.map.map_y = new_odm.y;
+    world_state.player.position = Vec3::new(new_x, pos.y, new_z);
+    world_state.player.yaw = yaw;
+    world_state.write_to_save(&mut save_data);
 
-    let new_map = crate::game::map_name::MapName::Outdoor(new_odm);
     commands.insert_resource(crate::states::loading::LoadRequest {
-        map_name: new_map.clone(),
+        map_name: world_state.map.name.clone(),
     });
-    current_map.0 = new_map;
     game_state.set(GameState::Loading);
 }
 
@@ -209,7 +209,7 @@ fn spawn_world(
     game_assets: Res<GameAssets>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
-    current_map: Res<crate::game::debug::CurrentMapName>,
+    world_state: Res<crate::game::world_state::WorldState>,
     existing_music: Query<Entity, With<MapMusic>>,
 ) {
     let Some(prepared) = prepared else {
@@ -218,7 +218,7 @@ fn spawn_world(
     };
 
     // Load event data for this outdoor map (use current_map, not save_data which may be stale)
-    let map_base = match &current_map.0 {
+    let map_base = match &world_state.map.name {
         crate::game::map_name::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
         _ => return, // shouldn't happen — we checked PreparedWorld exists
     };
@@ -361,7 +361,7 @@ fn spawn_world(
     }
 
     // Resolve monsters from spawn points using current map (not save_data which may lag)
-    let resolved_monsters = resolve_monsters(&prepared, &game_assets, &current_map.0);
+    let resolved_monsters = resolve_monsters(&prepared, &game_assets, &world_state.map.name);
 
     // Build NPC sprite lookup from monlist — each DDM actor has a monlist_id
     // that maps to a monlist entry with specific sprite names.

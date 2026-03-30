@@ -13,10 +13,10 @@ use bevy::window::{PrimaryWindow, WindowMode};
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::debug::{CurrentMapName, DebugConfig, DebugHud};
+use crate::game::debug::{DebugConfig, DebugHud};
 use crate::game::map_name::MapName;
 use crate::game::odm::{OdmName, PLAY_WIDTH};
-use crate::game::player::{FlyMode, Player};
+use crate::game::world_state::WorldState;
 use crate::game::hud::viewport_inner_rect;
 use crate::save::GameSave;
 use crate::states::loading::LoadRequest;
@@ -145,13 +145,11 @@ fn console_input(
     keys: Res<ButtonInput<KeyCode>>,
     mut keyboard_events: MessageReader<KeyboardInput>,
     mut exit: MessageWriter<AppExit>,
-    mut current_map: ResMut<CurrentMapName>,
-    player_query: Query<&Transform, With<Player>>,
+    mut world_state: ResMut<WorldState>,
     mut save_data: ResMut<GameSave>,
     mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
     mut cfg: ResMut<GameConfig>,
-    mut fly_mode: ResMut<FlyMode>,
     mut wireframe_config: ResMut<WireframeConfig>,
     mut debug_config: ResMut<DebugConfig>,
 ) {
@@ -174,18 +172,10 @@ fn console_input(
                     }
                     state.history_index = None;
                     state.saved_input.clear();
-                    let (player_pos, player_yaw) = player_query
-                        .single()
-                        .map(|t| {
-                            let (yaw, _, _) = t.rotation.to_euler(EulerRot::YXZ);
-                            (t.translation, yaw)
-                        })
-                        .unwrap_or_default();
                     execute_command(
-                        &cmd, &mut state, &mut exit, &mut current_map,
-                        player_pos, player_yaw, &mut save_data, &mut commands,
-                        &mut game_state, &mut cfg, &mut fly_mode,
-                        &mut wireframe_config, &mut debug_config,
+                        &cmd, &mut state, &mut exit, &mut world_state,
+                        &mut save_data, &mut commands, &mut game_state,
+                        &mut cfg, &mut wireframe_config, &mut debug_config,
                     );
                     state.input.clear();
                 }
@@ -264,14 +254,11 @@ fn execute_command(
     cmd: &str,
     ctx_state: &mut ConsoleState,
     ctx_exit: &mut MessageWriter<AppExit>,
-    ctx_current_map: &mut CurrentMapName,
-    ctx_player_pos: Vec3,
-    ctx_player_yaw: f32,
+    ctx_world: &mut WorldState,
     ctx_save_data: &mut GameSave,
     ctx_commands: &mut Commands,
     ctx_game_state: &mut NextState<GameState>,
     ctx_cfg: &mut GameConfig,
-    ctx_fly_mode: &mut FlyMode,
     ctx_wireframe_config: &mut WireframeConfig,
     ctx_debug_config: &mut DebugConfig,
 ) {
@@ -284,10 +271,8 @@ fn execute_command(
     match command {
         // --- Map loading ---
         "reload" => {
-            let target = ctx_current_map.0.clone();
-            // Preserve current position and rotation
-            ctx_save_data.player.position = [ctx_player_pos.x, ctx_player_pos.y, ctx_player_pos.z];
-            ctx_save_data.player.yaw = ctx_player_yaw;
+            let target = ctx_world.map.name.clone();
+            ctx_world.write_to_save(ctx_save_data);
             ctx_state.push_output(format!("Reloading map: {}", target));
             ctx_state.open = false;
             ctx_commands.insert_resource(LoadRequest { map_name: target });
@@ -299,14 +284,14 @@ fn execute_command(
                 return;
             }
             let resolved = match arg {
-                "north" | "n" => resolve_direction(ctx_current_map, ctx_player_pos, OdmName::go_north, 0.0, PLAY_WIDTH),
-                "south" | "s" => resolve_direction(ctx_current_map, ctx_player_pos, OdmName::go_south, 0.0, -PLAY_WIDTH),
-                "east" | "e" => resolve_direction(ctx_current_map, ctx_player_pos, OdmName::go_east, -PLAY_WIDTH, 0.0),
-                "west" | "w" => resolve_direction(ctx_current_map, ctx_player_pos, OdmName::go_west, PLAY_WIDTH, 0.0),
+                "north" | "n" => resolve_direction(&ctx_world.map.name, ctx_world.player.position, OdmName::go_north, 0.0, PLAY_WIDTH),
+                "south" | "s" => resolve_direction(&ctx_world.map.name, ctx_world.player.position, OdmName::go_south, 0.0, -PLAY_WIDTH),
+                "east" | "e" => resolve_direction(&ctx_world.map.name, ctx_world.player.position, OdmName::go_east, -PLAY_WIDTH, 0.0),
+                "west" | "w" => resolve_direction(&ctx_world.map.name, ctx_world.player.position, OdmName::go_west, PLAY_WIDTH, 0.0),
                 name => match MapName::try_from(name) {
                     Ok(target) => {
                         let pos = parts.get(2).and_then(|c| parse_coords(c));
-                        Ok((target, pos.unwrap_or([0.0, ctx_player_pos.y, 0.0])))
+                        Ok((target, pos.unwrap_or([0.0, ctx_world.player.position.y, 0.0])))
                     }
                     Err(e) => Err(format!("Invalid map name '{}': {}", name, e)),
                 },
@@ -321,7 +306,7 @@ fn execute_command(
                         ctx_save_data.map.map_y = odm.y;
                     }
                     ctx_commands.insert_resource(LoadRequest { map_name: target.clone() });
-                    ctx_current_map.0 = target;
+                    ctx_world.map.name = target;
                     ctx_game_state.set(GameState::Loading);
                 }
                 Err(msg) => ctx_state.push_output(msg),
@@ -436,8 +421,8 @@ fn execute_command(
 
         // --- Gameplay ---
         "fly" => {
-            ctx_fly_mode.0 = parse_toggle(arg, ctx_fly_mode.0);
-            ctx_state.push_output(format!("Fly mode: {}", if ctx_fly_mode.0 { "on" } else { "off" }));
+            ctx_world.player.fly_mode = parse_toggle(arg, ctx_world.player.fly_mode);
+            ctx_state.push_output(format!("Fly mode: {}", if ctx_world.player.fly_mode { "on" } else { "off" }));
         }
         "speed" => {
             if arg.is_empty() {
@@ -462,8 +447,8 @@ fn execute_command(
             }
         }
         "pos" => {
-            ctx_state.push_output(format!("Position: ({:.0}, {:.1}, {:.0})", ctx_player_pos.x, ctx_player_pos.y, ctx_player_pos.z));
-            ctx_state.push_output(format!("Map: {}", ctx_current_map.0));
+            ctx_state.push_output(format!("Position: ({:.0}, {:.1}, {:.0})", ctx_world.player.position.x, ctx_world.player.position.y, ctx_world.player.position.z));
+            ctx_state.push_output(format!("Map: {}", ctx_world.map.name));
         }
 
         // --- Window ---
@@ -654,13 +639,13 @@ const HELP_TEXT: &[&str] = &[
 // --- Helpers ---
 
 fn resolve_direction(
-    current_map: &CurrentMapName,
+    current_map: &MapName,
     player_pos: Vec3,
     dir_fn: fn(&OdmName) -> Option<OdmName>,
     x_offset: f32,
     z_offset: f32,
 ) -> Result<(MapName, [f32; 3]), String> {
-    match &current_map.0 {
+    match current_map {
         MapName::Outdoor(odm) => match dir_fn(odm) {
             Some(next) => Ok((MapName::Outdoor(next), [player_pos.x + x_offset, player_pos.y, player_pos.z + z_offset])),
             None => Err("No map in that direction.".to_string()),

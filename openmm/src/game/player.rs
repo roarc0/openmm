@@ -30,14 +30,7 @@ pub struct PlayerPhysics {
 
 // --- Resources ---
 
-#[derive(Resource)]
-pub struct FlyMode(pub bool);
-
-impl Default for FlyMode {
-    fn default() -> Self {
-        Self(false)
-    }
-}
+// FlyMode moved to WorldState — use world_state.player.fly_mode
 
 /// Runtime toggle for mouse look — initialized from config, toggled by CapsLock.
 #[derive(Resource)]
@@ -123,7 +116,6 @@ impl Plugin for PlayerPlugin {
         let cfg = app.world().resource::<GameConfig>().clone();
         app.init_resource::<PlayerSettings>()
             .init_resource::<PlayerKeyBindings>()
-            .init_resource::<FlyMode>()
             .insert_resource(MouseLookEnabled(cfg.mouse_look))
             .insert_resource(MouseSensitivity {
                 x: cfg.mouse_sensitivity_x,
@@ -313,12 +305,12 @@ fn toggle_fly_mode(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<PlayerKeyBindings>,
     gamepads: Query<&Gamepad>,
-    mut fly_mode: ResMut<FlyMode>,
+    mut world_state: ResMut<crate::game::world_state::WorldState>,
 ) {
     let gamepad_toggle = gamepads.iter().any(|gp| gp.just_pressed(GamepadButton::Select));
     if keys.just_pressed(key_bindings.toggle_fly) || gamepad_toggle {
-        fly_mode.0 = !fly_mode.0;
-        info!("Fly mode: {}", if fly_mode.0 { "ON" } else { "OFF" });
+        world_state.player.fly_mode = !world_state.player.fly_mode;
+        info!("Fly mode: {}", if world_state.player.fly_mode { "ON" } else { "OFF" });
     }
 }
 
@@ -357,7 +349,7 @@ fn player_movement(
     settings: Res<PlayerSettings>,
     cfg: Res<GameConfig>,
     key_bindings: Res<PlayerKeyBindings>,
-    fly_mode: Res<FlyMode>,
+    world_state: Res<crate::game::world_state::WorldState>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
     water_map: Option<Res<WaterMap>>,
@@ -389,7 +381,7 @@ fn player_movement(
     }
 
     // always_run: use full speed; walk would be half speed
-    let base_speed = if fly_mode.0 {
+    let base_speed = if world_state.player.fly_mode {
         settings.fly_speed
     } else if cfg.always_run {
         settings.speed
@@ -454,7 +446,7 @@ fn player_movement(
         if movement != Vec3::ZERO {
             movement = movement.normalize() * base_speed * time.delta_secs();
 
-            if fly_mode.0 {
+            if world_state.player.fly_mode {
                 let from = transform.translation;
                 let mut dest = from + movement;
                 // BSP wall collision still applies when flying
@@ -497,7 +489,7 @@ fn player_movement(
 
                 // Water check
                 let can_enter_water = water_walking.as_ref().map_or(false, |w| w.0)
-                    || fly_mode.0
+                    || world_state.player.fly_mode
                     || !physics.on_ground;
                 if !can_enter_water {
                     if let Some(ref wm) = water_map {
@@ -530,13 +522,13 @@ fn player_movement(
         }
 
         // Jump (keyboard or gamepad South/A button)
-        if !fly_mode.0 && physics.on_ground && (keys.just_pressed(key_bindings.jump) || gp_jump) {
+        if !world_state.player.fly_mode && physics.on_ground && (keys.just_pressed(key_bindings.jump) || gp_jump) {
             physics.vertical_velocity = settings.jump_velocity;
             physics.on_ground = false;
         }
 
         // Fly vertical with BSP collision
-        if fly_mode.0 {
+        if world_state.player.fly_mode {
             let mut dy = 0.0_f32;
             if keys.pressed(key_bindings.fly_up) || gp_fly_up {
                 dy += base_speed * time.delta_secs();

@@ -12,9 +12,8 @@ use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::map_name::MapName;
 use crate::game::player::Player;
-use crate::save::{GameSave, MapState, PlayerState};
+use crate::save::GameSave;
 
 #[derive(Resource)]
 pub struct DebugConfig {
@@ -46,15 +45,7 @@ impl Default for DebugKeyBindings {
     }
 }
 
-/// Tracks the current map for dev map switching.
-#[derive(Resource)]
-pub struct CurrentMapName(pub MapName);
-
-impl Default for CurrentMapName {
-    fn default() -> Self {
-        Self(MapName::Outdoor(crate::game::odm::OdmName::default()))
-    }
-}
+// CurrentMapName moved to WorldState — use world_state.map.name
 
 fn debug_setup(
     mut commands: Commands,
@@ -391,8 +382,7 @@ fn update_hud_text(
     diagnostics: Res<DiagnosticsStore>,
     player_query: Query<&Transform, With<Player>>,
     cfg: Res<GameConfig>,
-    fly_mode: Res<crate::game::player::FlyMode>,
-    current_map: Res<CurrentMapName>,
+    world_state: Res<crate::game::world_state::WorldState>,
     spawn_progress: Res<crate::game::odm::SpawnProgress>,
     mut fps_history: ResMut<FpsHistory>,
     mut fps_query: Query<(&mut Text, &mut TextColor), With<FpsText>>,
@@ -436,7 +426,7 @@ fn update_hud_text(
         Color::WHITE
     };
 
-    let map_name = current_map.0.to_string().to_uppercase();
+    let map_name = world_state.map.name.to_string().to_uppercase();
     let pos_str = if let Ok(transform) = player_query.single() {
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
         let spawn_str = if cfg.debug
@@ -447,7 +437,7 @@ fn update_hud_text(
         } else {
             String::new()
         };
-        let mode_str = if fly_mode.0 { "FLY" } else { "WALK" };
+        let mode_str = if world_state.player.fly_mode { "FLY" } else { "WALK" };
         format!(
             "\n{}  {}  X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
             map_name,
@@ -532,32 +522,16 @@ fn debug_log(
 
 fn quicksave(
     keys: Res<ButtonInput<KeyCode>>,
-    player_query: Query<&Transform, With<Player>>,
-    current_map: Res<CurrentMapName>,
+    world_state: Res<crate::game::world_state::WorldState>,
     mut save_data: ResMut<GameSave>,
 ) {
-    if keys.just_pressed(KeyCode::F3)
-        && let Ok(transform) = player_query.single() {
-            let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-            save_data.player = PlayerState {
-                position: [
-                    transform.translation.x,
-                    transform.translation.y,
-                    transform.translation.z,
-                ],
-                yaw,
-            };
-            if let MapName::Outdoor(ref odm) = current_map.0 {
-                save_data.map = MapState {
-                    map_x: odm.x,
-                    map_y: odm.y,
-                };
-            }
-            match save_data.autosave() {
-                Ok(()) => info!("Saved to target/saves/autosave.json"),
-                Err(e) => error!("Failed to quicksave: {}", e),
-            }
+    if keys.just_pressed(KeyCode::F3) {
+        world_state.write_to_save(&mut save_data);
+        match save_data.autosave() {
+            Ok(()) => info!("Saved to target/saves/autosave.json"),
+            Err(e) => error!("Failed to quicksave: {}", e),
         }
+    }
 }
 
 fn debug_screenshot(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
@@ -582,7 +556,6 @@ impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugKeyBindings>()
             .init_resource::<DebugConfig>()
-            .init_resource::<CurrentMapName>()
             .init_resource::<FpsHistory>()
             .add_plugins((
                 WireframePlugin::default(),

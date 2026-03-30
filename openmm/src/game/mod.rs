@@ -18,6 +18,7 @@ pub(crate) mod player;
 pub(crate) mod terrain_material;
 pub(crate) mod utils;
 pub(crate) mod world;
+pub(crate) mod world_state;
 
 /// Marker component for all entities spawned during the Game state.
 /// Despawned automatically on OnExit(Game).
@@ -40,6 +41,7 @@ impl Plugin for InGamePlugin {
             interaction::InteractionPlugin,
             event_dispatch::EventDispatchPlugin,
             console::ConsolePlugin,
+            world_state::WorldStatePlugin,
             MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
         .add_systems(

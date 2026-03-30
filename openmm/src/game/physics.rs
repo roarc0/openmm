@@ -5,7 +5,7 @@ use crate::game::collision::{
     BuildingColliders, CollisionTriangle, CollisionWall, TerrainHeightMap, WaterMap, WaterWalking,
     sample_terrain_height,
 };
-use crate::game::player::{FlyMode, Player, PlayerPhysics, PlayerSettings};
+use crate::game::player::{Player, PlayerPhysics, PlayerSettings};
 use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
 pub struct PhysicsPlugin;
@@ -138,7 +138,7 @@ fn gravity_system(
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
     settings: Res<PlayerSettings>,
-    fly_mode: Res<FlyMode>,
+    world_state: Res<crate::game::world_state::WorldState>,
     mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
 ) {
     // Need at least one ground source
@@ -165,7 +165,7 @@ fn gravity_system(
                 transform.translation.y, feet_y))
             .unwrap_or(f32::MAX);
 
-        if fly_mode.0 {
+        if world_state.player.fly_mode {
             physics.vertical_velocity = 0.0;
             physics.on_ground = false;
             if transform.translation.y < ground_y {
