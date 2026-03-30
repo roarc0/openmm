@@ -2,6 +2,23 @@ use bevy::{ecs::message::{MessageReader, MessageWriter}, prelude::*};
 
 use crate::game::InGame;
 
+/// Strip ID3v2 tag from MP3 data. Symphonia/rodio can struggle with large or
+/// unusual ID3v2 headers, causing panics. The actual audio starts after the tag.
+fn strip_id3v2(data: Vec<u8>) -> Vec<u8> {
+    if data.len() > 10 && &data[0..3] == b"ID3" {
+        // ID3v2 tag size is stored in bytes 6-9 as syncsafe integer (7 bits per byte)
+        let size = ((data[6] as usize & 0x7F) << 21)
+            | ((data[7] as usize & 0x7F) << 14)
+            | ((data[8] as usize & 0x7F) << 7)
+            | (data[9] as usize & 0x7F);
+        let tag_end = 10 + size;
+        if tag_end < data.len() {
+            return data[tag_end..].to_vec();
+        }
+    }
+    data
+}
+
 /// Marker for the map music entity, so we can despawn it on map change.
 #[derive(Component)]
 pub struct MapMusic;
@@ -43,6 +60,8 @@ fn handle_play_music(
             std::path::Path::new(&data_path).join(format!("Music/{}.mp3", ev.track));
 
         if let Ok(bytes) = std::fs::read(&music_path) {
+            // Strip ID3v2 tag — symphonia struggles with large ID3 headers
+            let bytes = strip_id3v2(bytes);
             let source = AudioSource {
                 bytes: bytes.into(),
             };
