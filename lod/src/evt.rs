@@ -40,6 +40,10 @@ pub enum GameEvent {
     ChangeDoorState { door_id: u8, action: u8 },
     /// Play a sound effect. sound_id indexes into dsounds.bin.
     PlaySound { sound_id: u32 },
+    /// Show status bar text. Uses same .str table as Hint.
+    StatusText { str_id: u8, text: String },
+    /// Exit/stop processing this event sequence.
+    Exit,
 }
 
 /// Parsed events from a .evt file, keyed by event_id.
@@ -100,6 +104,10 @@ impl EvtFile {
             let params = &data[pos + 5..pos + total];
 
             let action = match opcode {
+                0x01 => {
+                    // Exit — stop processing this event sequence
+                    Some(GameEvent::Exit)
+                }
                 0x02 => {
                     // SpeakInHouse
                     if params.len() >= 4 {
@@ -150,6 +158,15 @@ impl EvtFile {
                     Some(GameEvent::OpenChest {
                         id: params.first().copied().unwrap_or(0),
                     })
+                }
+                0x1D => {
+                    // StatusText — show text in status bar
+                    let str_id = params.first().copied().unwrap_or(0);
+                    let text = str_table
+                        .get(str_id as usize)
+                        .cloned()
+                        .unwrap_or_default();
+                    Some(GameEvent::StatusText { str_id, text })
                 }
                 0x0F => {
                     // ChangeDoorState: door_id (u8), action (u8)

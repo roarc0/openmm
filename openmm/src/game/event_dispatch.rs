@@ -243,5 +243,12 @@ fn process_events(
             debug!("PlaySound sound_id={}", sound_id);
             sound_events.write(PlayUiSoundEvent { sound_id });
         }
+        GameEvent::StatusText { text, .. } => {
+            footer.set(&text);
+        }
+        GameEvent::Exit => {
+            // Stop processing remaining events in this sequence
+            event_queue.clear();
+        }
     }
 }

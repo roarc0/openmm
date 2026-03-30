@@ -196,6 +196,12 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
                     }
                     lod::evt::GameEvent::ChangeDoorState { .. } => {}
                     lod::evt::GameEvent::PlaySound { .. } => {}
+                    lod::evt::GameEvent::StatusText { text, .. } => {
+                        if !text.is_empty() {
+                            return Some(text.clone());
+                        }
+                    }
+                    lod::evt::GameEvent::Exit => {}
                 }
             }
         }
