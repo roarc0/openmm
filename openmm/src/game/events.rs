@@ -15,7 +15,7 @@ pub struct MapEvents {
 /// `map_base` is the map filename stem without extension, e.g. "oute3" or "d01".
 /// `indoor` controls whether to skip loading 2devents.txt (only relevant for outdoor maps).
 pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_base: &str, indoor: bool) {
-    let evt = match lod::evt::EvtFile::parse(game_assets.lod_manager(), map_base) {
+    let mut evt = match lod::evt::EvtFile::parse(game_assets.lod_manager(), map_base) {
         Ok(e) => {
             info!("Loaded {}.evt: {} events", map_base, e.events.len());
             Some(e)
@@ -25,6 +25,23 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
             None
         }
     };
+
+    // Merge global.evt events (map-independent global events)
+    match lod::evt::EvtFile::parse(game_assets.lod_manager(), "global") {
+        Ok(global) => {
+            info!("Loaded global.evt: {} events", global.events.len());
+            if let Some(ref mut map_evt) = evt {
+                for (id, actions) in global.events {
+                    map_evt.events.entry(id).or_default().extend(actions);
+                }
+            } else {
+                evt = Some(global);
+            }
+        }
+        Err(e) => {
+            debug!("No global.evt: {}", e);
+        }
+    }
     let houses = if indoor {
         None
     } else {

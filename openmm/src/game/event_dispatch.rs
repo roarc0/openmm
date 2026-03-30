@@ -12,6 +12,7 @@ use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::map_name::MapName;
 use crate::save::GameSave;
+use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::states::loading::LoadRequest;
 
 /// Queue of game events waiting to be processed, one per frame.
@@ -149,6 +150,7 @@ fn process_events(
     mut save_data: ResMut<GameSave>,
     mut game_state: ResMut<NextState<GameState>>,
     mut blv_doors: Option<ResMut<crate::game::blv::BlvDoors>>,
+    mut sound_events: bevy::ecs::message::MessageWriter<PlayUiSoundEvent>,
 ) {
     // Don't process events while a UI overlay is blocking
     if !matches!(*hud_view, HudView::World) {
@@ -232,6 +234,10 @@ fn process_events(
             if let Some(ref mut doors) = blv_doors {
                 crate::game::blv::trigger_door(doors, door_id as u32, action);
             }
+        }
+        GameEvent::PlaySound { sound_id } => {
+            debug!("PlaySound sound_id={}", sound_id);
+            sound_events.write(PlayUiSoundEvent { sound_id });
         }
     }
 }

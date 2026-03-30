@@ -195,6 +195,7 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
                         return Some(format!("Enter {}", map_name));
                     }
                     lod::evt::GameEvent::ChangeDoorState { .. } => {}
+                    lod::evt::GameEvent::PlaySound { .. } => {}
                 }
             }
         }

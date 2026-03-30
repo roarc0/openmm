@@ -38,6 +38,8 @@ pub enum GameEvent {
     /// door_id indexes into the BLV door array.
     /// action: 0=Open, 1=Close, 2=Toggle.
     ChangeDoorState { door_id: u8, action: u8 },
+    /// Play a sound effect. sound_id indexes into dsounds.bin.
+    PlaySound { sound_id: u32 },
 }
 
 /// Parsed events from a .evt file, keyed by event_id.
@@ -103,6 +105,16 @@ impl EvtFile {
                     if params.len() >= 4 {
                         Some(GameEvent::SpeakInHouse {
                             house_id: u32::from_le_bytes([params[0], params[1], params[2], params[3]]),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                0x03 => {
+                    // PlaySound
+                    if params.len() >= 4 {
+                        Some(GameEvent::PlaySound {
+                            sound_id: u32::from_le_bytes([params[0], params[1], params[2], params[3]]),
                         })
                     } else {
                         None
