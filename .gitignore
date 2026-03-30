@@ -1,12 +1,8 @@
-assets/
-!assets/shaders/
-!openmm/assets/
-!openmm/assets/shaders/
-!openmm/assets/shaders/*.wgsl
+/assets
+/target
 *.odm
 *.png
 *.bmp
 *.bin
 *.txt
-/target
 openmm.toml
