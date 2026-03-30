@@ -171,12 +171,9 @@ fn follow_camera(
 /// This fills the area below the sky cylinder.
 fn update_sky_color(
     mut clear_color: ResMut<ClearColor>,
-    clock_query: Query<&super::sun::DayClock>,
+    world_state: Res<crate::game::world_state::WorldState>,
 ) {
-    let Ok(clock) = clock_query.single() else {
-        return;
-    };
-    let tod = clock.time_of_day;
+    let tod = world_state.time_of_day;
 
     let day_amount = 1.0 - (tod * 2.0 - 1.0).abs();
     let dawn_dusk: f32 = {

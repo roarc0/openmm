@@ -15,9 +15,10 @@ pub(crate) mod map_name;
 pub(crate) mod odm;
 pub(crate) mod physics;
 pub(crate) mod player;
+pub(crate) mod lighting;
+pub(crate) mod sky;
 pub(crate) mod terrain_material;
 pub(crate) mod utils;
-pub(crate) mod world;
 pub(crate) mod world_state;
 
 /// Marker component for all entities spawned during the Game state.
@@ -30,7 +31,8 @@ pub struct InGamePlugin;
 impl Plugin for InGamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            world::WorldPlugin,
+            lighting::LightingPlugin,
+            sky::SkyPlugin,
             player::PlayerPlugin,
             physics::PhysicsPlugin,
             odm::OdmPlugin,

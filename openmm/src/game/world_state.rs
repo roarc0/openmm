@@ -14,6 +14,8 @@ pub struct WorldState {
     pub player: PlayerRuntimeState,
     pub map: MapRuntimeState,
     pub debug: DebugRuntimeState,
+    /// Time of day: 0.0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset
+    pub time_of_day: f32,
 }
 
 pub struct PlayerRuntimeState {
@@ -69,6 +71,7 @@ impl Default for WorldState {
             player: PlayerRuntimeState::default(),
             map: MapRuntimeState::default(),
             debug: DebugRuntimeState::default(),
+            time_of_day: 0.375, // 9am
         }
     }
 }
