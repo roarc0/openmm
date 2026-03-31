@@ -3,7 +3,7 @@ use std::io::{Cursor, Seek};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, LodManager};
+use crate::{LodManager, lod_data::LodData};
 
 /// MM6 MapMonster struct size = 0x224 = 548 bytes.
 /// Layout from MMExtension: Scripts/Structs/01 common structs.lua (MapMonster).
@@ -62,7 +62,7 @@ pub struct Ddm {
 impl Ddm {
     pub fn new(lod_manager: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>> {
         let ddm_name = map_name.replace(".odm", ".ddm");
-        let raw = lod_manager.try_get_bytes(&format!("games/{}", ddm_name))?;
+        let raw = lod_manager.try_get_bytes(format!("games/{}", ddm_name))?;
         let data = LodData::try_from(raw)?;
         Self::parse(&data.data)
     }
@@ -105,7 +105,9 @@ impl Ddm {
         let mut actors = Vec::with_capacity(count);
         for i in 0..count {
             let start = offset + i * ACTOR_SIZE_MM6;
-            if start + ACTOR_SIZE_MM6 > data.len() { break; }
+            if start + ACTOR_SIZE_MM6 > data.len() {
+                break;
+            }
             if let Some(actor) = Self::read_actor(&data[start..start + ACTOR_SIZE_MM6]) {
                 actors.push(actor);
             }
@@ -115,26 +117,24 @@ impl Ddm {
 
     fn find_actors(data: &[u8]) -> Result<usize, Box<dyn Error>> {
         for offset in (0..data.len().saturating_sub(40)).step_by(2) {
-            let val = u32::from_le_bytes([
-                data[offset],
-                data[offset + 1],
-                data[offset + 2],
-                data[offset + 3],
-            ]);
-            if val >= 1 && val <= 500 {
+            let val = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            if (1..=500).contains(&val) {
                 let name_start = offset + 4;
                 if name_start + 32 > data.len() {
                     continue;
                 }
                 let name_bytes = &data[name_start..name_start + 32];
-                let is_name = name_bytes.iter().take(20).all(|&b| b == 0 || (b >= 0x20 && b <= 0x7E));
+                let is_name = name_bytes
+                    .iter()
+                    .take(20)
+                    .all(|&b| b == 0 || (0x20..=0x7E).contains(&b));
                 let has_alpha = name_bytes.iter().take(10).any(|&b| b.is_ascii_alphabetic());
                 if is_name && has_alpha {
                     // Verify second actor name too
                     let second = name_start + ACTOR_SIZE_MM6;
                     if second + 32 <= data.len() && val > 1 {
                         let name2 = &data[second..second + 32];
-                        let is_name2 = name2.iter().take(20).all(|&b| b == 0 || (b >= 0x20 && b <= 0x7E));
+                        let is_name2 = name2.iter().take(20).all(|&b| b == 0 || (0x20..=0x7E).contains(&b));
                         let has_alpha2 = name2.iter().take(10).any(|&b| b.is_ascii_alphabetic());
                         if is_name2 && has_alpha2 {
                             return Ok(offset);

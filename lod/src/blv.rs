@@ -6,11 +6,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{
-    lod_data::LodData,
-    odm::mm6_to_bevy,
-    LodManager,
-};
+use crate::{LodManager, lod_data::LodData, odm::mm6_to_bevy};
 
 /// Read a fixed-size string block, using lossy UTF-8 conversion for non-ASCII bytes.
 fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, Box<dyn Error>> {
@@ -25,9 +21,6 @@ const FACE_ATTR_PORTAL: u32 = 0x00000001;
 
 const FACE_ATTR_CLICKABLE: u32 = 0x02000000;
 const FACE_ATTR_INVISIBLE: u32 = 0x00002000;
-
-/// MM6 decoration name size (28 bytes, vs 32 in MM7).
-const DECORATION_NAME_SIZE: usize = 32;
 
 /// BLV header (136 bytes): 104 bytes padding, then size fields, then 16 bytes padding.
 #[derive(Debug)]
@@ -291,13 +284,13 @@ pub struct BlvDoor {
 impl Blv {
     /// Parse a BLV file from a LOD archive.
     pub fn new(lod_manager: &LodManager, name: &str) -> Result<Self, Box<dyn Error>> {
-        let raw = lod_manager.try_get_bytes(&format!("games/{}", name))?;
+        let raw = lod_manager.try_get_bytes(format!("games/{}", name))?;
         let data = LodData::try_from(raw)?;
         Self::parse(&data.data)
     }
 
     fn parse(data: &[u8]) -> Result<Self, Box<dyn Error>> {
-        let mut cursor = Cursor::new(data.as_ref());
+        let mut cursor = Cursor::new(data);
 
         // 1. Header (136 bytes)
         let header = Self::read_header(&mut cursor)?;
@@ -721,7 +714,7 @@ impl Blv {
             [c[ax_u], c[ax_v]]
         };
 
-        let pts: Vec<[f32; 2]> = (0..n).map(|i| project(i)).collect();
+        let pts: Vec<[f32; 2]> = (0..n).map(project).collect();
 
         // Compute signed area to determine winding.
         let signed_area: f32 = (0..n)
@@ -871,10 +864,7 @@ impl Blv {
                 continue;
             }
 
-            let (tex_w, tex_h) = texture_sizes
-                .get(tex_name)
-                .copied()
-                .unwrap_or((128, 128));
+            let (tex_w, tex_h) = texture_sizes.get(tex_name).copied().unwrap_or((128, 128));
             let tex_w_f = tex_w as f32;
             let tex_h_f = tex_h as f32;
 
@@ -885,12 +875,8 @@ impl Blv {
 
             let door = &doors[door_index];
             // Build map: blv vertex_id -> index in door.vertex_ids
-            let vert_to_door_idx: HashMap<u16, usize> = door
-                .vertex_ids
-                .iter()
-                .enumerate()
-                .map(|(i, &vid)| (vid, i))
-                .collect();
+            let vert_to_door_idx: HashMap<u16, usize> =
+                door.vertex_ids.iter().enumerate().map(|(i, &vid)| (vid, i)).collect();
 
             let mut mesh = BlvDoorFaceMesh {
                 face_index: face_idx,
@@ -980,10 +966,7 @@ impl Blv {
                 continue;
             }
 
-            let (tex_w, tex_h) = texture_sizes
-                .get(tex_name)
-                .copied()
-                .unwrap_or((128, 128));
+            let (tex_w, tex_h) = texture_sizes.get(tex_name).copied().unwrap_or((128, 128));
             let tex_w_f = tex_w as f32;
             let tex_h_f = tex_h as f32;
 
@@ -1012,9 +995,7 @@ impl Blv {
                         let vert_idx = face.vertex_ids[vi] as usize;
                         if vert_idx < self.vertices.len() {
                             let v = &self.vertices[vert_idx];
-                            mesh.positions.push(mm6_to_bevy(
-                                v.x as i32, v.y as i32, v.z as i32,
-                            ));
+                            mesh.positions.push(mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32));
                         } else {
                             mesh.positions.push([0.0, 0.0, 0.0]);
                         }
@@ -1045,7 +1026,7 @@ impl Blv {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     #[test]
     fn parse_d01_blv() {
@@ -1079,7 +1060,9 @@ mod tests {
         assert!(sectors_with_faces > 0, "sector data blob should be unpacked");
 
         // Print some unique texture names
-        let mut unique: Vec<&str> = blv.texture_names.iter()
+        let mut unique: Vec<&str> = blv
+            .texture_names
+            .iter()
             .filter(|s| !s.is_empty())
             .map(|s| s.as_str())
             .collect();
@@ -1091,13 +1074,18 @@ mod tests {
         }
 
         // Print a few wall faces to check UV data
-        let wall_faces: Vec<_> = blv.faces.iter().enumerate()
+        let wall_faces: Vec<_> = blv
+            .faces
+            .iter()
+            .enumerate()
             .filter(|(_, f)| f.polygon_type == 1 && f.num_vertices == 4) // walls with 4 verts
             .take(3)
             .collect();
         println!("  sample wall faces (4-vert quads):");
         for (i, face) in &wall_faces {
-            let verts: Vec<_> = face.vertex_ids.iter()
+            let verts: Vec<_> = face
+                .vertex_ids
+                .iter()
                 .map(|&vid| {
                     let v = &blv.vertices[vid as usize];
                     (v.x, v.y, v.z)
@@ -1112,23 +1100,36 @@ mod tests {
         }
 
         // Find door-textured faces
-        let door_faces: Vec<_> = blv.faces.iter().enumerate()
+        let door_faces: Vec<_> = blv
+            .faces
+            .iter()
+            .enumerate()
             .filter(|(i, _)| {
-                blv.texture_names.get(*i).map(|t| {
-                    let tl = t.to_lowercase();
-                    tl.contains("door") || tl.contains("dr") || tl.contains("gate")
-                }).unwrap_or(false)
+                blv.texture_names
+                    .get(*i)
+                    .map(|t| {
+                        let tl = t.to_lowercase();
+                        tl.contains("door") || tl.contains("dr") || tl.contains("gate")
+                    })
+                    .unwrap_or(false)
             })
             .take(5)
             .collect();
         println!("  door-textured faces ({} found, showing 5):", door_faces.len());
         for (i, face) in &door_faces {
-            let verts: Vec<_> = face.vertex_ids.iter()
-                .map(|&vid| { let v = &blv.vertices[vid as usize]; (v.x, v.y, v.z) })
+            let verts: Vec<_> = face
+                .vertex_ids
+                .iter()
+                .map(|&vid| {
+                    let v = &blv.vertices[vid as usize];
+                    (v.x, v.y, v.z)
+                })
                 .collect();
             let tex = blv.texture_names.get(*i).unwrap();
-            println!("    face[{}]: nverts={} tex={} attrs=0x{:08X} extra_id={}",
-                i, face.num_vertices, tex, face.attributes, face.face_extra_id);
+            println!(
+                "    face[{}]: nverts={} tex={} attrs=0x{:08X} extra_id={}",
+                i, face.num_vertices, tex, face.attributes, face.face_extra_id
+            );
             println!("      verts: {:?}", verts);
             println!("      Us: {:?}", &face.texture_us);
             println!("      Vs: {:?}", &face.texture_vs);
@@ -1137,23 +1138,34 @@ mod tests {
 
         // Print sector bounding boxes
         for (i, s) in blv.sectors.iter().take(5).enumerate() {
-            println!("  sector[{}]: bbox min={:?} max={:?} floors={} walls={} ceilings={}",
-                i, s.bbox_min, s.bbox_max, s.floor_count, s.wall_count, s.ceiling_count);
+            println!(
+                "  sector[{}]: bbox min={:?} max={:?} floors={} walls={} ceilings={}",
+                i, s.bbox_min, s.bbox_max, s.floor_count, s.wall_count, s.ceiling_count
+            );
         }
 
         // Print decoration info, resolving names via ddeclist
         let ddeclist = crate::ddeclist::DDecList::new(&lod_manager).unwrap();
         println!("  first 20 decorations:");
         for (i, d) in blv.decorations.iter().take(20).enumerate() {
-            let resolved = ddeclist.items.get(d.decoration_desc_id as usize)
+            let resolved = ddeclist
+                .items
+                .get(d.decoration_desc_id as usize)
                 .and_then(|item| item.game_name());
-            println!("    [{}] desc_id={} resolved={:?} pos={:?}", i, d.decoration_desc_id, resolved, d.position);
+            println!(
+                "    [{}] desc_id={} resolved={:?} pos={:?}",
+                i, d.decoration_desc_id, resolved, d.position
+            );
         }
 
         // Verify faces have plausible vertex counts
         let max_verts = blv.faces.iter().map(|f| f.num_vertices).max().unwrap_or(0);
         println!("  max face vertex count: {}", max_verts);
-        assert!(max_verts <= 30, "max vertex count should be reasonable (got {})", max_verts);
+        assert!(
+            max_verts <= 30,
+            "max vertex count should be reasonable (got {})",
+            max_verts
+        );
     }
 
     #[test]
@@ -1191,11 +1203,7 @@ mod tests {
         assert!(total_tris > 0, "should have triangles");
 
         for mesh in meshes.iter().take(5) {
-            println!(
-                "  texture '{}': {} tris",
-                mesh.texture_name,
-                mesh.positions.len() / 3
-            );
+            println!("  texture '{}': {} tris", mesh.texture_name, mesh.positions.len() / 3);
         }
     }
 
@@ -1204,24 +1212,35 @@ mod tests {
         let lod_manager = LodManager::new(get_lod_path()).unwrap();
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
 
-        let clickable: Vec<_> = blv.faces.iter().enumerate()
+        let clickable: Vec<_> = blv
+            .faces
+            .iter()
+            .enumerate()
             .filter(|(_, f)| f.is_clickable() && f.event_id != 0)
             .collect();
         println!("d01.blv clickable faces with events: {}", clickable.len());
         for (i, face) in clickable.iter().take(10) {
-            println!("  face[{}]: event_id={} cog={} attrs=0x{:08X}", i, face.event_id, face.cog_number, face.attributes);
+            println!(
+                "  face[{}]: event_id={} cog={} attrs=0x{:08X}",
+                i, face.event_id, face.cog_number, face.attributes
+            );
         }
         assert!(!clickable.is_empty(), "d01 should have clickable faces with event IDs");
 
         // Dump door-related faces (moves_by_door flag)
-        let door_faces: Vec<_> = blv.faces.iter().enumerate()
+        let door_faces: Vec<_> = blv
+            .faces
+            .iter()
+            .enumerate()
             .filter(|(_, f)| f.moves_by_door())
             .collect();
         println!("\nd01.blv moves_by_door faces: {}", door_faces.len());
         for (i, face) in door_faces.iter().take(20) {
             let tex = blv.texture_names.get(*i).map(|s| s.as_str()).unwrap_or("?");
-            println!("  face[{}]: cog={} event_id={} tex={} nverts={} attrs=0x{:08X}",
-                i, face.cog_number, face.event_id, tex, face.num_vertices, face.attributes);
+            println!(
+                "  face[{}]: cog={} event_id={} tex={} nverts={} attrs=0x{:08X}",
+                i, face.cog_number, face.event_id, tex, face.num_vertices, face.attributes
+            );
         }
 
         // Show unique cog numbers for door faces

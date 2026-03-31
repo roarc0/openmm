@@ -151,7 +151,7 @@ mod tests {
         let lod_manager = LodManager::new(get_lod_path()).unwrap();
         let d_declist = DDecList::new(&lod_manager).unwrap();
         assert_eq!(d_declist.items.len(), 230);
-        assert_eq!(d_declist.items[6].name(), Some("fountain".to_string()));
+        assert_eq!(d_declist.items[6].name(), Some("fount1".to_string()));
         assert_eq!(d_declist.items[6].game_name(), Some("fountain".to_string()));
     }
 }

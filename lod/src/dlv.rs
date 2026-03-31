@@ -3,10 +3,10 @@ use std::error::Error;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Cursor;
 
+use crate::LodManager;
 use crate::blv::{BlvDoor, DoorState};
 use crate::ddm::{Ddm, DdmActor};
 use crate::lod_data::LodData;
-use crate::LodManager;
 
 /// Parsed DLV indoor delta file. The indoor equivalent of DDM.
 /// Contains actors and doors for an indoor (BLV) map.
@@ -15,12 +15,6 @@ pub struct Dlv {
     pub doors: Vec<BlvDoor>,
 }
 
-/// MM6 chest size: 36-byte header + 140 items x 36 bytes = 5076 bytes.
-const CHEST_SIZE_MM6: usize = 5076;
-/// MM6 SpriteObject size: 112 bytes.
-const SPRITE_OBJECT_SIZE_MM6: usize = 112;
-/// MM6 Actor (MapMonster) size: 548 bytes.
-const ACTOR_SIZE_MM6: usize = 548;
 /// Door header size: 80 bytes.
 const DOOR_HEADER_SIZE: usize = 80;
 
@@ -57,9 +51,17 @@ impl Dlv {
         let face_extras_count = blv.face_extras_count;
         let face_data_size = blv.face_data_size;
 
-        let raw = lod_manager.try_get_bytes(&format!("games/{}", dlv_name))?;
+        let raw = lod_manager.try_get_bytes(format!("games/{}", dlv_name))?;
         let data = LodData::try_from(raw)?;
-        Self::parse(&data.data, door_count, doors_data_size, face_count, decoration_count, face_extras_count, face_data_size)
+        Self::parse(
+            &data.data,
+            door_count,
+            doors_data_size,
+            face_count,
+            decoration_count,
+            face_extras_count,
+            face_data_size,
+        )
     }
 
     fn parse(
@@ -103,7 +105,9 @@ impl Dlv {
 
         // Scan for valid door headers and verify array alignment
         for offset in 0..data.len().saturating_sub(DOOR_HEADER_SIZE) {
-            if !Self::is_valid_door_header(data, offset) { continue; }
+            if !Self::is_valid_door_header(data, offset) {
+                continue;
+            }
 
             // Found a candidate. Compute potential array start by trying each slot index.
             for slot in 0..door_count {
@@ -113,7 +117,9 @@ impl Dlv {
                 // Verify: the array should fit door_count × 80 bytes + doorsData
                 let array_end = start + door_count * DOOR_HEADER_SIZE;
                 let total_end = array_end + doors_data_size as usize;
-                if total_end > data.len() { continue; }
+                if total_end > data.len() {
+                    continue;
+                }
 
                 // Count how many slots in this array have valid door headers
                 let valid_count = (0..door_count)
@@ -121,11 +127,10 @@ impl Dlv {
                     .count();
 
                 // Also check that the doorsData blob has non-zero entries
-                let data_nonzero = (0..((doors_data_size / 2) as usize).min(100))
-                    .any(|i| {
-                        let off = array_end + i * 2;
-                        off + 2 <= data.len() && read_u16(data, off) != 0
-                    });
+                let data_nonzero = (0..((doors_data_size / 2) as usize).min(100)).any(|i| {
+                    let off = array_end + i * 2;
+                    off + 2 <= data.len() && read_u16(data, off) != 0
+                });
 
                 if valid_count >= 1 && data_nonzero {
                     best_start = Some(start);
@@ -133,25 +138,40 @@ impl Dlv {
                 }
             }
 
-            if best_start.is_some() { break; }
+            if best_start.is_some() {
+                break;
+            }
         }
 
         let Some(array_start) = best_start else {
             // No valid doors found — return empty doors for all slots
-            return (0..door_count).map(|_| BlvDoor {
-                attributes: 0, door_id: 0, direction: [0.0; 3],
-                move_length: 0, open_speed: 0, close_speed: 0,
-                vertex_ids: Vec::new(), face_ids: Vec::new(),
-                x_offsets: Vec::new(), y_offsets: Vec::new(), z_offsets: Vec::new(),
-                delta_us: Vec::new(), delta_vs: Vec::new(), state: DoorState::Open,
-            }).collect();
+            return (0..door_count)
+                .map(|_| BlvDoor {
+                    attributes: 0,
+                    door_id: 0,
+                    direction: [0.0; 3],
+                    move_length: 0,
+                    open_speed: 0,
+                    close_speed: 0,
+                    vertex_ids: Vec::new(),
+                    face_ids: Vec::new(),
+                    x_offsets: Vec::new(),
+                    y_offsets: Vec::new(),
+                    z_offsets: Vec::new(),
+                    delta_us: Vec::new(),
+                    delta_vs: Vec::new(),
+                    state: DoorState::Open,
+                })
+                .collect();
         };
 
         // Parse door headers from the array start
         let mut door_headers = Vec::with_capacity(door_count);
         let mut offset = array_start;
         for _ in 0..door_count {
-            if offset + DOOR_HEADER_SIZE > data.len() { break; }
+            if offset + DOOR_HEADER_SIZE > data.len() {
+                break;
+            }
             if let Ok(header) = parse_door_header(data, offset) {
                 door_headers.push(header);
             }
@@ -177,19 +197,28 @@ impl Dlv {
     }
 
     fn is_valid_door_header(data: &[u8], offset: usize) -> bool {
-        if offset + DOOR_HEADER_SIZE > data.len() { return false; }
+        if offset + DOOR_HEADER_SIZE > data.len() {
+            return false;
+        }
         let door_id = read_u32(data, offset + 4);
-        if door_id == 0 || door_id > 200 { return false; }
+        if door_id == 0 || door_id > 200 {
+            return false;
+        }
         let move_length = read_i32(data, offset + 24);
         let open_speed = read_i32(data, offset + 28);
         let close_speed = read_i32(data, offset + 32);
         let num_vertices = read_u16(data, offset + 68);
         let num_faces = read_u16(data, offset + 70);
-        move_length > 0 && move_length < 10000
-            && open_speed > 0 && open_speed < 10000
-            && close_speed > 0 && close_speed < 10000
-            && num_vertices > 0 && num_vertices < 200
-            && num_faces > 0 && num_faces < 200
+        move_length > 0
+            && move_length < 10000
+            && open_speed > 0
+            && open_speed < 10000
+            && close_speed > 0
+            && close_speed < 10000
+            && num_vertices > 0
+            && num_vertices < 200
+            && num_faces > 0
+            && num_faces < 200
     }
 }
 
@@ -209,21 +238,11 @@ struct DoorHeader {
 }
 
 fn read_u32(data: &[u8], offset: usize) -> u32 {
-    u32::from_le_bytes([
-        data[offset],
-        data[offset + 1],
-        data[offset + 2],
-        data[offset + 3],
-    ])
+    u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
 }
 
 fn read_i32(data: &[u8], offset: usize) -> i32 {
-    i32::from_le_bytes([
-        data[offset],
-        data[offset + 1],
-        data[offset + 2],
-        data[offset + 3],
-    ])
+    i32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
 }
 
 fn read_u16(data: &[u8], offset: usize) -> u16 {
@@ -379,18 +398,30 @@ mod tests {
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
         let dlv = Dlv::new(&lod_manager, "d01.blv", blv.door_count, blv.doors_data_size).unwrap();
 
-        println!("d01.blv: door_count={}, doors_data_size={}, face_extras_count={}", blv.door_count, blv.doors_data_size, blv.face_extras_count);
+        println!(
+            "d01.blv: door_count={}, doors_data_size={}, face_extras_count={}",
+            blv.door_count, blv.doors_data_size, blv.face_extras_count
+        );
         println!("d01.dlv: {} actors, {} doors", dlv.actors.len(), dlv.doors.len());
-        let nonempty: Vec<_> = dlv.doors.iter().enumerate()
+        let nonempty: Vec<_> = dlv
+            .doors
+            .iter()
+            .enumerate()
             .filter(|(_, d)| !d.vertex_ids.is_empty())
             .collect();
         println!("  Non-empty doors: {}", nonempty.len());
         for (i, door) in &nonempty {
             println!(
                 "  door[{}]: id={} dir={:?} move_len={} open_speed={} close_speed={} verts={} faces={} state={:?}",
-                i, door.door_id, door.direction, door.move_length,
-                door.open_speed, door.close_speed,
-                door.vertex_ids.len(), door.face_ids.len(), door.state
+                i,
+                door.door_id,
+                door.direction,
+                door.move_length,
+                door.open_speed,
+                door.close_speed,
+                door.vertex_ids.len(),
+                door.face_ids.len(),
+                door.state
             );
         }
         assert_eq!(dlv.doors.len(), blv.door_count as usize);

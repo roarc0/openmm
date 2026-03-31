@@ -148,8 +148,11 @@ pub struct PreparedMonster {
     pub height: u16,
     pub move_speed: u16,
     pub hostile: bool,
-    /// Difficulty variant: 1=A (base), 2=B, 3=C. Used for palette offset.
+    /// Difficulty variant: 1=A (base), 2=B, 3=C.
     pub variant: u8,
+    /// DSFT palette_id for this variant. Used directly for palette swap
+    /// (sprite file header palettes use a different numbering system).
+    pub palette_id: u16,
 }
 
 pub struct PreparedBillboard {

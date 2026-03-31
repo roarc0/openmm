@@ -215,7 +215,7 @@ mod tests {
         let lod_path = Path::new(&lod_path);
 
         let sprites_lod = Lod::open(lod_path.join("SPRITES.LOD")).unwrap();
-        let rock01 = sprites_lod.try_get_bytes("rock01");
-        assert!(rock01.is_some());
+        let rok1 = sprites_lod.try_get_bytes("rok1");
+        assert!(rok1.is_some());
     }
 }

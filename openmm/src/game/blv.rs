@@ -219,10 +219,10 @@ fn spawn_indoor_world(
             .unwrap_or(*pal_id);
         let variant = (pal_id - base_pal + 1).min(3) as u8;
 
+        // Indoor NPCs use palette offset (no DSFT palette_id available)
         let (states, sw, sh) = sprites::load_entity_sprites(
             s, w, game_assets.lod_manager(),
-            &mut images, &mut materials, &mut Some(&mut sprite_cache), variant,
-        );
+            &mut images, &mut materials, &mut Some(&mut sprite_cache), variant, 0);
         if states.is_empty() || states[0].is_empty() {
             error!("Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, s, w);
             continue;

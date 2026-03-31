@@ -35,7 +35,7 @@ impl SpriteCache {
         materials: &mut Assets<StandardMaterial>,
     ) {
         for &(root, variant) in roots {
-            load_sprite_frames(root, lod_manager, images, materials, &mut Some(self), variant, 0, 0);
+            load_sprite_frames(root, lod_manager, images, materials, &mut Some(self), variant, 0, 0, 0);
         }
     }
 }
@@ -89,6 +89,9 @@ impl SpriteSheet {
 /// Load a complete entity's sprite set (standing + walking) using the cache.
 /// Returns (states, quad_width, quad_height) where the quad uses the max
 /// dimensions across both states so neither gets stretched.
+/// Load entity sprites. `palette_id` is the DSFT palette for this variant —
+/// when non-zero and variant > 1, used directly for palette swap instead of
+/// the offset-from-sprite-header approach (which uses a different numbering).
 pub fn load_entity_sprites(
     standing_root: &str,
     walking_root: &str,
@@ -97,15 +100,16 @@ pub fn load_entity_sprites(
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
+    palette_id: u16,
 ) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, f32, f32) {
     // Load walking first (usually wider) to get target dimensions
     let (walking, ww, wh) = load_sprite_frames(
-        walking_root, lod_manager, images, materials, cache, variant, 0, 0);
+        walking_root, lod_manager, images, materials, cache, variant, 0, 0, palette_id);
 
     // Load standing, padded to at least walking dimensions
     let (standing, sw, sh) = load_sprite_frames(
         standing_root, lod_manager, images, materials, cache, variant,
-        ww as u32, wh as u32);
+        ww as u32, wh as u32, palette_id);
     if standing.is_empty() {
         return (Vec::new(), 0.0, 0.0);
     }
@@ -117,7 +121,7 @@ pub fn load_entity_sprites(
     let walking = if !walking.is_empty() && (sw > ww || sh > wh) {
         let (padded, _, _) = load_sprite_frames(
             walking_root, lod_manager, images, materials, cache, variant,
-            qw as u32, qh as u32);
+            qw as u32, qh as u32, palette_id);
         padded
     } else {
         walking
@@ -136,6 +140,7 @@ pub fn load_entity_sprites(
 /// `variant` controls tinting: 0/1 = none, 2 = blue, 3 = red.
 /// `min_w`/`min_h` enforce minimum padding dimensions (used to pad standing
 /// sprites to match walking sprite size). Pass 0 for no minimum.
+/// `palette_id` is the DSFT palette — when non-zero and variant > 1, used directly.
 pub fn load_sprite_frames(
     root: &str,
     lod_manager: &LodManager,
@@ -145,6 +150,7 @@ pub fn load_sprite_frames(
     variant: u8,
     min_w: u32,
     min_h: u32,
+    palette_id: u16,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
     let key = cache_key(root, variant, min_w, min_h);
@@ -162,7 +168,7 @@ pub fn load_sprite_frames(
     let mut try_root = root;
     while try_root.len() >= 3 {
         let (frames, w, h) = decode_sprite_frames(
-            try_root, lod_manager, images, materials, variant, min_w, min_h);
+            try_root, lod_manager, images, materials, variant, min_w, min_h, palette_id);
         if !frames.is_empty() {
             store_in_cache(&key, &frames, w, h, cache);
             return (frames, w, h);
@@ -213,6 +219,8 @@ fn rebuild_from_cache(
 }
 
 /// Decode sprite frames from the LOD, apply variant tinting, and pad to uniform size.
+/// When `palette_id > 0` and `variant > 1`, uses the DSFT palette directly
+/// (sprite file header palettes use a different numbering system).
 fn decode_sprite_frames(
     root: &str,
     lod_manager: &LodManager,
@@ -221,6 +229,7 @@ fn decode_sprite_frames(
     variant: u8,
     min_w: u32,
     min_h: u32,
+    palette_id: u16,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     // First pass: collect all raw sprites and find max dimensions.
     let mut raw_sprites: Vec<Vec<Option<DynamicImage>>> = Vec::new();
@@ -241,11 +250,14 @@ fn decode_sprite_frames(
         let mut dir_imgs: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
         for dir in 0..5u8 {
             let name = format!("{}{}{}", root, frame_letter, dir);
-            // For variant B/C, use the DSFT palette_id directly.
-            // The variant encodes a palette offset from the base palette stored
-            // in the sprite file header. But DSFT palette IDs don't always match
-            // file header palette IDs, so we pass the exact palette.
-            let img = if variant > 1 {
+            let img = if variant > 1 && palette_id > 0 {
+                // Use DSFT palette directly (sprite header palettes differ in numbering)
+                let sprite_name = if lod_manager.try_get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
+                    &name
+                } else { &test_nodir };
+                lod_manager.sprite_with_palette(sprite_name, palette_id)
+                    .or_else(|| lod_manager.sprite(sprite_name))
+            } else if variant > 1 {
                 let pal_offset = (variant - 1) as u16;
                 load_sprite_with_palette_offset(lod_manager, &name, &test_nodir, pal_offset)
             } else {

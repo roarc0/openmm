@@ -144,3 +144,83 @@ impl MonsterList {
         self.find_by_name(name, difficulty)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{get_lod_path, LodManager};
+    use super::MonsterList;
+
+    /// Table-driven test: find_by_name must return the correct A/B/C variant.
+    /// Each row is (monster_name, difficulty, expected_suffix).
+    /// Add new rows as we discover variant resolution issues.
+    #[test]
+    fn find_by_name_returns_correct_variant() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let monlist = MonsterList::new(&lod_manager).unwrap();
+
+        let test_cases: &[(&str, u8, &str)] = &[
+            // (monster_name, difficulty, expected_internal_name_suffix)
+            ("Goblin",   1, "A"),
+            ("Goblin",   2, "B"),
+            ("Goblin",   3, "C"),
+            ("Ghost",    1, "A"),
+            ("Ghost",    2, "B"),
+            ("Ghost",    3, "C"),
+            ("Skeleton", 1, "A"),
+            ("Skeleton", 2, "B"),
+            ("Skeleton", 3, "C"),
+            ("Spider",   1, "A"),
+            ("Spider",   2, "B"),
+        ];
+
+        for &(name, dif, expected_suffix) in test_cases {
+            let desc = monlist.find_by_name(name, dif)
+                .unwrap_or_else(|| panic!("{} difficulty {} should exist", name, dif));
+            assert!(
+                desc.internal_name.ends_with(expected_suffix),
+                "{} difficulty {} should return variant {}, got '{}'",
+                name, dif, expected_suffix, desc.internal_name
+            );
+        }
+    }
+
+    /// Variants A vs B/C must have different standing sprite groups.
+    /// Regression: find_with_sprite fell back to variant A for B/C,
+    /// giving all variants the same sprite group and palette.
+    #[test]
+    fn variants_have_distinct_sprite_groups() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let monlist = MonsterList::new(&lod_manager).unwrap();
+
+        // (monster_name, variants that must have distinct sprite groups)
+        let test_cases: &[(&str, &[u8])] = &[
+            ("Goblin",   &[1, 2, 3]),
+            ("Ghost",    &[1, 2, 3]),
+            ("Skeleton", &[1, 2, 3]),
+        ];
+
+        for &(name, variants) in test_cases {
+            let descs: Vec<_> = variants.iter()
+                .filter_map(|&dif| monlist.find_by_name(name, dif))
+                .collect();
+
+            // All requested variants should exist
+            assert_eq!(
+                descs.len(), variants.len(),
+                "{} should have {} variants, found {}",
+                name, variants.len(), descs.len()
+            );
+
+            // Standing sprite groups should all differ
+            for i in 0..descs.len() {
+                for j in (i + 1)..descs.len() {
+                    assert_ne!(
+                        descs[i].sprite_names[0], descs[j].sprite_names[0],
+                        "{}: variant '{}' and '{}' should have different standing sprite groups",
+                        name, descs[i].internal_name, descs[j].internal_name
+                    );
+                }
+            }
+        }
+    }
+}

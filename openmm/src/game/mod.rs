@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{despawn_all, GameState};
+use crate::{GameState, despawn_all};
 
 pub(crate) mod blv;
 pub(crate) mod collision;
@@ -11,15 +11,14 @@ pub(crate) mod event_dispatch;
 pub(crate) mod events;
 pub(crate) mod hud;
 pub(crate) mod interaction;
+pub(crate) mod lighting;
 pub(crate) mod map_name;
 pub(crate) mod odm;
 pub(crate) mod physics;
 pub(crate) mod player;
-pub(crate) mod lighting;
 pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod terrain_material;
-pub(crate) mod utils;
 pub(crate) mod world_state;
 
 /// Marker component for all entities spawned during the Game state.

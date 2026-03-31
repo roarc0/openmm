@@ -276,12 +276,43 @@ fn decode_pcx(data: &[u8]) -> Option<DynamicImage> {
     Some(DynamicImage::ImageRgba8(img))
 }
 
+/// Returns the base MM6 game data directory (e.g. for Sounds/).
+/// Uses OPENMM_6_PATH env var if set, otherwise falls back to workspace target dir.
 pub fn get_data_path() -> String {
-    env::var(ENV_OPENMM_6_PATH).unwrap_or("./target/mm6".into())
+    env::var(ENV_OPENMM_6_PATH)
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(default_data_path)
 }
 
+/// Returns the LOD archive directory (where .lod files live).
+/// Uses OPENMM_6_PATH env var if set, otherwise falls back to workspace target dir.
 pub fn get_lod_path() -> String {
-    env::var(ENV_OPENMM_6_PATH).unwrap_or("./target/mm6/data".into())
+    env::var(ENV_OPENMM_6_PATH)
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(default_lod_path)
+}
+
+fn default_data_path() -> String {
+    // Try workspace root (two levels up from lod crate manifest)
+    let manifest = env!("CARGO_MANIFEST_DIR");
+    let workspace = Path::new(manifest).parent().unwrap_or(Path::new("."));
+    let candidate = workspace.join("target/mm6");
+    if candidate.exists() {
+        return candidate.to_string_lossy().into_owned();
+    }
+    "./target/mm6".into()
+}
+
+fn default_lod_path() -> String {
+    let manifest = env!("CARGO_MANIFEST_DIR");
+    let workspace = Path::new(manifest).parent().unwrap_or(Path::new("."));
+    let candidate = workspace.join("target/mm6/data");
+    if candidate.exists() {
+        return candidate.to_string_lossy().into_owned();
+    }
+    "./target/mm6/data".into()
 }
 
 #[cfg(test)]
@@ -324,5 +355,54 @@ mod tests {
         let lod_manager = LodManager::new(lod_path).unwrap();
         let rock = lod_manager.sprite("rok1");
         assert!(rock.is_some());
+    }
+
+    /// Verify that sprite_with_palette produces different pixel data than the default palette.
+    /// This is the mechanism used for monster variant B/C coloring (ghosts, skeletons, etc.).
+    #[test]
+    fn sprite_with_palette_produces_different_pixels() {
+        let lod_path = get_lod_path();
+        let lod_manager = LodManager::new(lod_path).unwrap();
+        let dsft = crate::dsft::DSFT::new(&lod_manager).unwrap();
+        let monlist = crate::monlist::MonsterList::new(&lod_manager).unwrap();
+
+        // Ghost B has a different DSFT palette than the sprite file header palette.
+        // Loading with the DSFT palette should produce visually different pixels.
+        let ghost_b = monlist.find_by_name("Ghost", 2).expect("Ghost B should exist");
+        let st_group = &ghost_b.sprite_names[0];
+
+        // Find DSFT palette_id for this group
+        let frame = dsft.frames.iter().find(|f| {
+            f.group_name().map(|g| g.eq_ignore_ascii_case(st_group)).unwrap_or(false)
+        }).expect("DSFT frame for ghost B");
+        assert!(frame.palette_id > 0, "ghost B should have non-zero DSFT palette");
+
+        // Derive the sprite root from DSFT sprite name
+        let sprite_name = frame.sprite_name().unwrap();
+        let root = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
+        let root = if root.len() > 1 && root.as_bytes()[root.len() - 1] >= b'a' && root.as_bytes()[root.len() - 1] <= b'f' {
+            &root[..root.len() - 1]
+        } else {
+            root
+        };
+        let test_sprite = format!("{}a0", root);
+
+        // Load with default palette and DSFT palette
+        let default_img = lod_manager.sprite(&test_sprite).expect("ghost sprite with default palette");
+        let dsft_img = lod_manager.sprite_with_palette(&test_sprite, frame.palette_id as u16)
+            .expect("ghost sprite with DSFT palette");
+
+        // Both should be the same dimensions
+        assert_eq!(default_img.width(), dsft_img.width());
+        assert_eq!(default_img.height(), dsft_img.height());
+
+        // But the pixel data should differ (different palette = different colors)
+        let default_bytes = default_img.to_rgba8().into_raw();
+        let dsft_bytes = dsft_img.to_rgba8().into_raw();
+        assert_ne!(
+            default_bytes, dsft_bytes,
+            "sprite with DSFT palette {} should produce different pixels than default",
+            frame.palette_id
+        );
     }
 }

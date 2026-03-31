@@ -413,14 +413,17 @@ fn resolve_monsters(
             // Seed is per-monster (position + group index) for deterministic results.
             let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs() + g as u32) as u32;
             let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else { continue };
-            let Some(desc) = monlist.find_with_sprite(mon_name, dif, lod) else { continue };
+            // Use find_by_name (not find_with_sprite) — the sprite existence check in
+            // find_with_sprite uses raw file names, but variant B/C sprite names are DSFT
+            // group names that need resolution. DSFT resolution below handles finding files.
+            let Some(desc) = monlist.find_by_name(mon_name, dif) else { continue };
 
             // Resolve monlist group names through DSFT to get actual sprite file roots.
             // Variant B/C sprites share base files with A but use different palettes
             // (e.g. "lz2sta" → root "lzdsta", palette 246).
             let st_group = &desc.sprite_names[0];
             let wa_group = &desc.sprite_names[1];
-            let Some((st_root, _)) = resolve_dsft_sprite(&dsft, st_group, lod) else {
+            let Some((st_root, palette_id)) = resolve_dsft_sprite(&dsft, st_group, lod) else {
                 warn!("Monster '{}' standing sprite '{}' not found in DSFT — skipping", mon_name, st_group);
                 continue;
             };
@@ -443,6 +446,7 @@ fn resolve_monsters(
                 move_speed: desc.move_speed,
                 hostile: true,
                 variant: dif,
+                palette_id: palette_id as u16,
             });
         }
     }
@@ -698,7 +702,7 @@ fn lazy_spawn(
         let variant = (pal_id - base_pal + 1).min(3) as u8;
         let (s2, w2, h2) = sprites::load_entity_sprites(
             s, w, game_assets.lod_manager(),
-            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant);
+            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant, 0);
         if s2.is_empty() || s2[0].is_empty() {
             error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, s, w);
             continue;
@@ -735,7 +739,7 @@ fn lazy_spawn(
         p.idx += 1;
         let (states, sw, sh) = sprites::load_entity_sprites(
             &m.standing_sprite, &m.walking_sprite, game_assets.lod_manager(),
-            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant);
+            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant, m.palette_id);
         if states.is_empty() || states[0].is_empty() {
             error!("Monster sprite '{}'/'{}'  failed to load — skipping", m.standing_sprite, m.walking_sprite);
             continue;
