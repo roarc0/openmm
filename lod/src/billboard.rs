@@ -145,6 +145,12 @@ impl BillboardManager {
         }
     }
 
+    /// Get the DSFT scale factor for a sprite group name (e.g. monster/NPC sprite root).
+    /// Returns the fixed-point 16.16 scale as f32, or 1.0 if not found.
+    pub fn dsft_scale_for_group(&self, group: &str) -> f32 {
+        self.d_sft.scale_for_group(group)
+    }
+
     pub fn get(
         &self,
         lod_manager: &LodManager,

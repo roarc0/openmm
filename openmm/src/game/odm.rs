@@ -707,9 +707,13 @@ fn lazy_spawn(
             error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, s, w);
             continue;
         }
+        // Apply DSFT scale (same as decorations — sprite group name lookup)
+        let dsft_scale = bb_mgr.as_ref()
+            .map(|mgr| mgr.dsft_scale_for_group(s))
+            .unwrap_or(1.0);
         let states = s2;
-        let sw = w2;
-        let sh = h2;
+        let sw = w2 * dsft_scale;
+        let sh = h2 * dsft_scale;
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
         let wx = a.position[0] as f32;
@@ -737,13 +741,19 @@ fn lazy_spawn(
         let m = &p.resolved_monsters[p.monster_order[monster_idx]];
         monster_idx += 1;
         p.idx += 1;
-        let (states, sw, sh) = sprites::load_entity_sprites(
+        let (states, raw_w, raw_h) = sprites::load_entity_sprites(
             &m.standing_sprite, &m.walking_sprite, game_assets.lod_manager(),
             &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant, m.palette_id);
         if states.is_empty() || states[0].is_empty() {
             error!("Monster sprite '{}'/'{}'  failed to load — skipping", m.standing_sprite, m.walking_sprite);
             continue;
         }
+        // Apply DSFT scale (same as decorations — sprite group name lookup)
+        let dsft_scale = bb_mgr.as_ref()
+            .map(|mgr| mgr.dsft_scale_for_group(&m.standing_sprite))
+            .unwrap_or(1.0);
+        let sw = raw_w * dsft_scale;
+        let sh = raw_h * dsft_scale;
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
         let wx = m.position[0] as f32;

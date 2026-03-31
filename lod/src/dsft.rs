@@ -99,6 +99,22 @@ impl DSFTFrame {
 }
 
 impl DSFT {
+    /// Look up the scale factor for a sprite group name (case-insensitive).
+    /// Returns the fixed-point 16.16 scale as f32, or 1.0 if not found or zero.
+    pub fn scale_for_group(&self, group: &str) -> f32 {
+        for frame in &self.frames {
+            if let Some(name) = frame.group_name() {
+                if name.eq_ignore_ascii_case(group) {
+                    if frame.scale > 0 {
+                        return frame.scale as f32 / 65536.0;
+                    }
+                    return 1.0;
+                }
+            }
+        }
+        1.0
+    }
+
     pub fn new(lod_manager: &LodManager) -> Result<Self, Box<dyn Error>> {
         let data = LodData::try_from(lod_manager.try_get_bytes("icons/dsft.bin")?)?;
         let data = data.data.as_slice();
