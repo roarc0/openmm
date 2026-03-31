@@ -7,6 +7,7 @@ use bevy::{
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
+use lod::dtile::Tileset;
 use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
@@ -14,6 +15,7 @@ use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::player::Player;
 use crate::save::GameSave;
+use crate::states::loading::PreparedWorld;
 
 #[derive(Resource)]
 pub struct DebugKeyBindings {
@@ -90,6 +92,15 @@ fn debug_setup(
             },
             TextColor(Color::WHITE),
             PosSpan,
+        ))
+        .with_child((
+            TextSpan::new(""),
+            TextFont {
+                font_size: 22.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            TileSpan,
         ));
 
     // FPS chart — bars with min/max labels
@@ -331,6 +342,20 @@ impl FpsHistory {
     }
 }
 
+/// Distinct color per terrain tileset.
+fn tileset_color(ts: Tileset) -> Color {
+    match ts {
+        Tileset::Grass => Color::srgb(0.3, 0.9, 0.3),
+        Tileset::Snow => Color::srgb(0.9, 0.9, 1.0),
+        Tileset::Desert => Color::srgb(1.0, 0.85, 0.4),
+        Tileset::Dirt => Color::srgb(0.7, 0.5, 0.3),
+        Tileset::Water => Color::srgb(0.3, 0.5, 1.0),
+        Tileset::Badlands => Color::srgb(0.8, 0.3, 0.2),
+        Tileset::Swamp => Color::srgb(0.4, 0.6, 0.2),
+        Tileset::Road => Color::srgb(0.7, 0.7, 0.7),
+    }
+}
+
 /// Color for an FPS value: green > 55, yellow > 30, red below.
 fn fps_color(fps: f64) -> Color {
     if fps >= 55.0 {
@@ -347,6 +372,9 @@ pub struct FpsText;
 
 #[derive(Component)]
 struct PosSpan;
+
+#[derive(Component)]
+struct TileSpan;
 
 /// Marker for the FPS chart container.
 #[derive(Component)]
@@ -368,9 +396,14 @@ fn update_hud_text(
     cfg: Res<GameConfig>,
     world_state: Res<crate::game::world_state::WorldState>,
     spawn_progress: Res<crate::game::odm::SpawnProgress>,
+    prepared: Option<Res<PreparedWorld>>,
     mut fps_history: ResMut<FpsHistory>,
     mut fps_query: Query<(&mut Text, &mut TextColor), With<FpsText>>,
     mut pos_query: Query<(&mut TextSpan, &mut TextColor), (With<PosSpan>, Without<FpsText>)>,
+    mut tile_query: Query<
+        (&mut TextSpan, &mut TextColor),
+        (With<TileSpan>, Without<FpsText>, Without<PosSpan>),
+    >,
     mut bar_query: Query<(&FpsChartBar, &mut Node, &mut BackgroundColor)>,
     mut max_label: Query<&mut Text, (With<ChartMaxLabel>, Without<FpsText>)>,
     mut min_label: Query<
@@ -443,6 +476,22 @@ fn update_hud_text(
     for (mut span, mut tc) in &mut pos_query {
         **span = pos_str.clone();
         *tc = TextColor(Color::srgb(1.0, 0.3, 0.3));
+    }
+
+    // Update tile type from terrain
+    let tileset = player_query
+        .single()
+        .ok()
+        .and_then(|tf| {
+            prepared.as_ref()?.terrain_at(tf.translation.x, tf.translation.z)
+        });
+    for (mut span, mut tc) in &mut tile_query {
+        if let Some(ts) = tileset {
+            **span = format!("  {ts}");
+            *tc = TextColor(tileset_color(ts));
+        } else {
+            **span = String::new();
+        }
     }
 
     // Update chart bars with adaptive min/max scaling

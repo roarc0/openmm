@@ -14,10 +14,25 @@ pub enum Tileset {
     Road = 8,
 }
 
+impl std::fmt::Display for Tileset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Tileset::Grass => write!(f, "GRASS"),
+            Tileset::Snow => write!(f, "SNOW"),
+            Tileset::Desert => write!(f, "DESERT"),
+            Tileset::Dirt => write!(f, "DIRT"),
+            Tileset::Water => write!(f, "WATER"),
+            Tileset::Badlands => write!(f, "BADLANDS"),
+            Tileset::Swamp => write!(f, "SWAMP"),
+            Tileset::Road => write!(f, "ROAD"),
+        }
+    }
+}
+
 impl Tileset {
     pub fn from_raw(v: i16) -> Option<Self> {
         match v {
-            0 => Some(Self::Dirt),      // 0 = base/dirt (default terrain)
+            0 => Some(Self::Grass),     // 0 = grass (primary terrain in MM6 dtile.bin)
             1 => Some(Self::Grass),
             2 => Some(Self::Snow),
             3 => Some(Self::Desert),
@@ -137,6 +152,13 @@ impl Dtile {
     /// Returns the tileset enum: 0=invalid, 1=grass, 2=snow, 3=desert, 4=dirt, 5=water, 6=badlands, 7=swamp, 8=road
     pub fn tile_set(&self, tile_index: u8) -> i16 {
         self.tiles.get(tile_index as usize).map(|t| t.tile_set).unwrap_or(0)
+    }
+
+    /// Get name and tile_set for a dtile entry (for debugging).
+    pub fn tile_info(&self, index: usize) -> (String, i16) {
+        self.tiles.get(index)
+            .map(|t| (t.name().unwrap_or("?".into()), t.tile_set))
+            .unwrap_or(("OOB".into(), -1))
     }
 
     /// Build a tileset lookup table for tile_map values 0-255 using the per-map tile_data offsets.
@@ -294,7 +316,7 @@ impl TileTable {
 
 #[cfg(test)]
 mod tests {
-    use crate::{dtile::Dtile, get_lod_path, odm::Odm, LodManager};
+    use crate::{dtile::{Dtile, Tileset}, get_lod_path, odm::Odm, LodManager};
 
     #[test]
     fn read_dtile_data_works() {
@@ -315,5 +337,50 @@ mod tests {
             .unwrap()
             .save("terrain_atlas.png")
             .unwrap();
+    }
+
+    #[test]
+    fn tileset_lookup_grass_map() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let odm = Odm::new(&lod_manager, "oute3.odm").unwrap();
+        let dtile = Dtile::new(&lod_manager).unwrap();
+        let lookup = dtile.tileset_lookup(odm.tile_data);
+
+        // tile_map=90 is the first primary terrain tile on oute3 (a grass map)
+        assert_eq!(
+            Tileset::from_raw(lookup[90]),
+            Some(Tileset::Grass),
+            "primary terrain tiles (90-124) should be Grass on oute3"
+        );
+
+        // tile_map=1 is a dirt tile
+        assert_eq!(
+            Tileset::from_raw(lookup[1]),
+            Some(Tileset::Dirt),
+            "base tiles (1-12) should be Dirt"
+        );
+
+        // tile_map=126 is water
+        assert_eq!(
+            Tileset::from_raw(lookup[126]),
+            Some(Tileset::Water),
+            "water tiles (126-161) should be Water"
+        );
+    }
+
+    #[test]
+    fn from_raw_covers_all_tilesets() {
+        // MM6 dtile.bin uses tile_set=0 for grass entries
+        assert_eq!(Tileset::from_raw(0), Some(Tileset::Grass));
+        assert_eq!(Tileset::from_raw(1), Some(Tileset::Grass));
+        assert_eq!(Tileset::from_raw(2), Some(Tileset::Snow));
+        assert_eq!(Tileset::from_raw(3), Some(Tileset::Desert));
+        assert_eq!(Tileset::from_raw(4), Some(Tileset::Dirt));
+        assert_eq!(Tileset::from_raw(5), Some(Tileset::Water));
+        assert_eq!(Tileset::from_raw(6), Some(Tileset::Badlands));
+        assert_eq!(Tileset::from_raw(7), Some(Tileset::Swamp));
+        assert_eq!(Tileset::from_raw(8), Some(Tileset::Road));
+        assert_eq!(Tileset::from_raw(22), Some(Tileset::Road));
+        assert_eq!(Tileset::from_raw(-1), None);
     }
 }
