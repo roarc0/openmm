@@ -12,7 +12,7 @@ pub struct TerrainLookup {
 impl TerrainLookup {
     /// Empty lookup (all dirt). Used as fallback.
     pub fn empty() -> Self {
-        Self { tilesets: vec![4; 256] }
+        Self { tilesets: vec![4; 256] } // 4 = dirt in MM6 dtile.bin
     }
 
     /// Build from dtile and the per-map tile_data offsets.

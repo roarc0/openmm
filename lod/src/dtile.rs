@@ -1,17 +1,19 @@
 use crate::{image::get_atlas, lod_data::LodData, utils::try_read_name, LodManager};
 
-/// Terrain tileset types from MM6.
+/// Terrain tileset types from MM6 dtile.bin.
+/// Raw tile_set values: 0=grass, 1=snow, 2=sand, 3=volcanic, 4=dirt,
+/// 5=water, 6=cracked swamp, 7=swamp, 8+=roads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(i16)]
 pub enum Tileset {
-    Grass = 1,
-    Snow = 2,
-    Desert = 3,
-    Dirt = 4,
-    Water = 5,
-    Badlands = 6,
-    Swamp = 7,
-    Road = 8,
+    Grass,
+    Snow,
+    Desert,
+    Volcanic,
+    Dirt,
+    Water,
+    CrackedSwamp,
+    Swamp,
+    Road,
 }
 
 impl std::fmt::Display for Tileset {
@@ -20,9 +22,10 @@ impl std::fmt::Display for Tileset {
             Tileset::Grass => write!(f, "GRASS"),
             Tileset::Snow => write!(f, "SNOW"),
             Tileset::Desert => write!(f, "DESERT"),
+            Tileset::Volcanic => write!(f, "VOLCANIC"),
             Tileset::Dirt => write!(f, "DIRT"),
             Tileset::Water => write!(f, "WATER"),
-            Tileset::Badlands => write!(f, "BADLANDS"),
+            Tileset::CrackedSwamp => write!(f, "CRACKED"),
             Tileset::Swamp => write!(f, "SWAMP"),
             Tileset::Road => write!(f, "ROAD"),
         }
@@ -30,17 +33,19 @@ impl std::fmt::Display for Tileset {
 }
 
 impl Tileset {
+    /// Convert raw tile_set value from dtile.bin to Tileset enum.
+    /// MM6 dtile.bin uses: 0=grass, 1=snow, 2=sand, 3=volcanic, 4=dirt, 5=water, 6=cracked, 7=swamp, 8+=roads.
     pub fn from_raw(v: i16) -> Option<Self> {
         match v {
-            0 => Some(Self::Grass),     // 0 = grass (primary terrain in MM6 dtile.bin)
-            1 => Some(Self::Grass),
-            2 => Some(Self::Snow),
-            3 => Some(Self::Desert),
+            0 => Some(Self::Grass),
+            1 => Some(Self::Snow),
+            2 => Some(Self::Desert),
+            3 => Some(Self::Volcanic),      // voltyl
             4 => Some(Self::Dirt),
             5 => Some(Self::Water),
-            6 => Some(Self::Badlands),
-            7 => Some(Self::Swamp),
-            8..=255 => Some(Self::Road), // road variants (8, 22, etc.)
+            6 => Some(Self::CrackedSwamp),  // crktyl
+            7 => Some(Self::Swamp),         // swmtyl
+            8..=255 => Some(Self::Road),
             _ => None,
         }
     }
@@ -369,16 +374,41 @@ mod tests {
     }
 
     #[test]
+    fn tileset_lookup_snow_map() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let odm = Odm::new(&lod_manager, "outc1.odm").unwrap();
+        let dtile = Dtile::new(&lod_manager).unwrap();
+        println!("outc1 tile_data: {:?}", odm.tile_data);
+
+        let lookup = dtile.tileset_lookup(odm.tile_data);
+
+        // Dump primary terrain entries
+        for i in 90..95 {
+            let dtile_idx = i - 90 + odm.tile_data[1] as usize;
+            let info = dtile.tile_info(dtile_idx);
+            println!("tile_map={} -> dtile[{}] name={:?} tile_set={} -> {:?}",
+                i, dtile_idx, info.0, info.1, Tileset::from_raw(lookup[i]));
+        }
+
+        // outc1 is a snow map — primary terrain should be Snow
+        assert_eq!(
+            Tileset::from_raw(lookup[90]),
+            Some(Tileset::Snow),
+            "primary terrain tiles (90-124) should be Snow on outc1"
+        );
+    }
+
+    #[test]
     fn from_raw_covers_all_tilesets() {
-        // MM6 dtile.bin uses tile_set=0 for grass entries
+        // MM6 dtile.bin raw values
         assert_eq!(Tileset::from_raw(0), Some(Tileset::Grass));
-        assert_eq!(Tileset::from_raw(1), Some(Tileset::Grass));
-        assert_eq!(Tileset::from_raw(2), Some(Tileset::Snow));
-        assert_eq!(Tileset::from_raw(3), Some(Tileset::Desert));
+        assert_eq!(Tileset::from_raw(1), Some(Tileset::Snow));
+        assert_eq!(Tileset::from_raw(2), Some(Tileset::Desert));
+        assert_eq!(Tileset::from_raw(3), Some(Tileset::Volcanic)); // voltyl
         assert_eq!(Tileset::from_raw(4), Some(Tileset::Dirt));
         assert_eq!(Tileset::from_raw(5), Some(Tileset::Water));
-        assert_eq!(Tileset::from_raw(6), Some(Tileset::Badlands));
-        assert_eq!(Tileset::from_raw(7), Some(Tileset::Swamp));
+        assert_eq!(Tileset::from_raw(6), Some(Tileset::CrackedSwamp)); // crktyl
+        assert_eq!(Tileset::from_raw(7), Some(Tileset::Swamp));    // swmtyl
         assert_eq!(Tileset::from_raw(8), Some(Tileset::Road));
         assert_eq!(Tileset::from_raw(22), Some(Tileset::Road));
         assert_eq!(Tileset::from_raw(-1), None);

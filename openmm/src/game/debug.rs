@@ -348,9 +348,10 @@ fn tileset_color(ts: Tileset) -> Color {
         Tileset::Grass => Color::srgb(0.3, 0.9, 0.3),
         Tileset::Snow => Color::srgb(0.9, 0.9, 1.0),
         Tileset::Desert => Color::srgb(1.0, 0.85, 0.4),
+        Tileset::Volcanic => Color::srgb(0.8, 0.3, 0.2),
         Tileset::Dirt => Color::srgb(0.7, 0.5, 0.3),
         Tileset::Water => Color::srgb(0.3, 0.5, 1.0),
-        Tileset::Badlands => Color::srgb(0.8, 0.3, 0.2),
+        Tileset::CrackedSwamp => Color::srgb(0.5, 0.5, 0.2),
         Tileset::Swamp => Color::srgb(0.4, 0.6, 0.2),
         Tileset::Road => Color::srgb(0.7, 0.7, 0.7),
     }

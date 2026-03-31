@@ -10,11 +10,12 @@ use super::SoundManager;
 fn walk_sound_id(tileset: Tileset) -> u32 {
     match tileset {
         Tileset::Grass => 93,
-        Tileset::Dirt => 92,
-        Tileset::Desert => 91,
         Tileset::Snow => 97,
+        Tileset::Desert => 91,
+        Tileset::Volcanic => 88,
+        Tileset::Dirt => 92,
         Tileset::Water => 101,
-        Tileset::Badlands => 88,
+        Tileset::CrackedSwamp => 100,
         Tileset::Swamp => 100,
         Tileset::Road => 96,
     }
