@@ -420,7 +420,7 @@ fn resolve_monsters(
             // (e.g. "lz2sta" → root "lzdsta", palette 246).
             let st_group = &desc.sprite_names[0];
             let wa_group = &desc.sprite_names[1];
-            let Some((st_root, _pal)) = resolve_dsft_sprite(&dsft, st_group, lod) else {
+            let Some((st_root, _)) = resolve_dsft_sprite(&dsft, st_group, lod) else {
                 warn!("Monster '{}' standing sprite '{}' not found in DSFT — skipping", mon_name, st_group);
                 continue;
             };

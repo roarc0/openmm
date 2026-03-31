@@ -142,13 +142,13 @@ pub struct PreparedMonster {
     /// Position in MM6 coordinates.
     pub position: [i32; 3],
     pub radius: u16,
-    /// Sprite name roots: [standing, walking]
+    /// DSFT-resolved sprite root names (not raw monlist group names).
     pub standing_sprite: String,
     pub walking_sprite: String,
     pub height: u16,
     pub move_speed: u16,
     pub hostile: bool,
-    /// Difficulty variant: 1=A (base), 2=B, 3=C. Used for color tinting.
+    /// Difficulty variant: 1=A (base), 2=B, 3=C. Used for palette offset.
     pub variant: u8,
 }
 
@@ -249,6 +249,7 @@ fn loading_setup(
     game_assets: Res<GameAssets>,
     mut ui_assets: ResMut<crate::ui_assets::UiAssets>,
     mut images: ResMut<Assets<Image>>,
+    mut world_state: ResMut<crate::game::world_state::WorldState>,
 ) {
     // Clean up resources from previous map (indoor or outdoor)
     commands.remove_resource::<PreparedWorld>();
@@ -270,6 +271,13 @@ fn loading_setup(
             x: save_data.map.map_x,
             y: save_data.map.map_y,
         }));
+
+    // Keep world_state in sync so spawn_world sees the correct map name
+    world_state.map.name = map_name.clone();
+    if let MapName::Outdoor(ref odm) = map_name {
+        world_state.map.map_x = odm.x;
+        world_state.map.map_y = odm.y;
+    }
     commands.insert_resource(LoadingProgress {
         step: LoadingStep::ParseMap,
         odm: None,
