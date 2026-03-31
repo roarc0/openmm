@@ -134,6 +134,17 @@ impl BillboardManager {
         self.d_declist.items.get(id as usize)
     }
 
+    /// Get the DSFT scale factor for a decoration item (fixed-point 16.16 → f32).
+    /// Returns None if scale is 0 or the SFT frame is not found.
+    pub fn get_dsft_scale(&self, item: &DDecListItem) -> Option<f32> {
+        let frame = self.d_sft.frames.get(item.sft_index() as usize)?;
+        if frame.scale > 0 {
+            Some(frame.scale as f32 / 65536.0)
+        } else {
+            None
+        }
+    }
+
     pub fn get(
         &self,
         lod_manager: &LodManager,

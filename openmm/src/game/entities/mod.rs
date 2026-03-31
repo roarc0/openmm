@@ -32,16 +32,11 @@ pub enum EntityKind {
 #[derive(Component)]
 pub struct Billboard;
 
-/// Directional sprite: the displayed frame depends on the angle between
-/// the entity's facing direction and the camera. Used by NPCs and monsters.
-/// Not implemented yet — placeholder for the sprite angle system.
+/// Fixed facing direction in world space (radians, Y-axis rotation).
+/// Used by directional decorations (e.g. ships) whose displayed sprite depends
+/// on the camera angle relative to this facing. Actor entities use Actor.facing_yaw instead.
 #[derive(Component)]
-pub struct DirectionalSprite {
-    /// The entity's facing direction in world space (radians, Y-axis rotation).
-    pub facing: f32,
-    /// Number of directional frames (typically 8 for MM6).
-    pub direction_count: u8,
-}
+pub struct FacingYaw(pub f32);
 
 /// Animation state for entities that have multiple frames.
 /// Not implemented yet — placeholder for the animation system.
@@ -177,11 +172,11 @@ fn wander_system(
 }
 
 /// Rotate visible billboard entities to face the camera (Y-axis only, stays upright).
-/// Rotate visible billboard entities to face the camera (Y-axis only, stays upright).
 /// Only processes visible entities — distance_culling already hides far ones.
+/// Skips entities with SpriteSheet (those are handled by update_sprite_sheets).
 fn billboard_face_camera(
     camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
-    mut billboard_query: Query<(&mut Transform, &GlobalTransform, &Visibility), With<Billboard>>,
+    mut billboard_query: Query<(&mut Transform, &GlobalTransform, &Visibility), (With<Billboard>, Without<sprites::SpriteSheet>)>,
 ) {
     let Ok(camera_gt) = camera_query.single() else {
         return;

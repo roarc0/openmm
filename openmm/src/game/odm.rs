@@ -25,6 +25,8 @@ struct PendingSpawns {
     sprite_cache: sprites::SpriteCache,
     /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
     billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
+    /// Cache for directional sprite detection: key = declist name, value = sprite root if directional
+    directional_cache: std::collections::HashMap<String, Option<String>>,
     resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
     /// NPC sprite lookup: monlist_id → (standing_root, walking_root, palette_id)
     npc_sprite_table: std::collections::HashMap<u8, (String, String, u16)>,
@@ -380,6 +382,7 @@ fn spawn_world(
         frames_elapsed: 0,
         sprite_cache: prepared.sprite_cache.clone(),
         billboard_cache: prepared.billboard_cache.clone(),
+        directional_cache: std::collections::HashMap::new(),
         resolved_monsters,
         npc_sprite_table,
         terrain_entity,
@@ -564,51 +567,92 @@ fn lazy_spawn(
     let mut actor_idx = p.idx.saturating_sub(bb_len).min(actor_len);
     let mut monster_idx = p.idx.saturating_sub(bb_len + actor_len).min(monster_len);
 
-    // Billboards
+    // Billboards — directional decorations (e.g. ships) get SpriteSheet + FacingYaw
+    // so they show the correct side based on camera angle.
+    let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
     while bb_idx < bb_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
         let idx = p.billboard_order[bb_idx];
         bb_idx += 1;
         p.idx += 1;
         let bb = &prepared.billboards[idx];
         let key = &bb.declist_name;
-        let (mat, quad, h) = if let Some((m, q, h)) = p.billboard_cache.get(key) {
-            (m.clone(), q.clone(), *h)
+
+        let directional = if let Some(cached) = p.directional_cache.get(key.as_str()) {
+            cached.clone()
         } else {
-            let bb_mgr_result = lod::billboard::BillboardManager::new(game_assets.lod_manager());
-            let bb_mgr = match &bb_mgr_result {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-            let sprite = match bb_mgr.get(game_assets.lod_manager(), key, bb.declist_id) {
-                Some(s) => s,
-                None => {
-                    warn!("Billboard '{}' (declist={}) sprite not found, skipping", key, bb.declist_id);
-                    continue;
-                }
-            };
-            let (w, h) = sprite.dimensions();
-            let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
-            let tex = images.add(bevy_img);
-            let m = materials.add(StandardMaterial {
-                unlit: true,
-                base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
-                cull_mode: None, double_sided: true,
-                perceptual_roughness: 1.0, reflectance: 0.0,
-                ..default()
-            });
-            let q = meshes.add(Rectangle::new(w, h));
-            p.billboard_cache.insert(key.clone(), (m.clone(), q.clone(), h));
-            (m, q, h)
+            let result = sprites::has_directional_sprites(key, game_assets.lod_manager());
+            p.directional_cache.insert(key.clone(), result.clone());
+            result
         };
-        let pos = bb.position + Vec3::new(0.0, h / 2.0, 0.0);
-        commands.entity(terrain_entity).with_child((
-            Name::new("decoration"), Mesh3d(quad), MeshMaterial3d(mat),
-            Transform::from_translation(pos),
-            crate::game::entities::WorldEntity,
-            crate::game::entities::EntityKind::Decoration,
-            crate::game::entities::Billboard,
-        ));
-        spawned += 1;
+
+        if let Some(sprite_root) = directional {
+            let (dirs, px_w, px_h) = sprites::load_decoration_directions(
+                &sprite_root, game_assets.lod_manager(),
+                &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
+            if px_w > 0.0 {
+                // Apply DSFT scale (fixed-point 16.16, same as BillboardSprite::dimensions)
+                let dsft_scale = bb_mgr.as_ref()
+                    .and_then(|mgr| mgr.get_declist_item(bb.declist_id)
+                        .and_then(|item| mgr.get_dsft_scale(item)))
+                    .unwrap_or(1.0);
+                let sw = px_w * dsft_scale;
+                let sh = px_h * dsft_scale;
+                let initial_mat = dirs[0].clone();
+                let quad = meshes.add(Rectangle::new(sw, sh));
+                let pos = bb.position + Vec3::new(0.0, sh / 2.0, 0.0);
+                // Single animation frame with 5 directional views
+                let states = vec![vec![dirs]];
+                commands.entity(terrain_entity).with_child((
+                    Name::new(format!("decoration:{}", key)),
+                    Mesh3d(quad), MeshMaterial3d(initial_mat),
+                    Transform::from_translation(pos),
+                    crate::game::entities::WorldEntity,
+                    crate::game::entities::EntityKind::Decoration,
+                    crate::game::entities::Billboard,
+                    crate::game::entities::AnimationState::Idle,
+                    sprites::SpriteSheet::new(states, vec![(sw, sh)]),
+                    crate::game::entities::FacingYaw(bb.facing_yaw),
+                ));
+                spawned += 1;
+            } else {
+                continue;
+            }
+        } else {
+            let (mat, quad, h) = if let Some((m, q, h)) = p.billboard_cache.get(key) {
+                (m.clone(), q.clone(), *h)
+            } else {
+                let Some(ref mgr) = bb_mgr else { continue };
+                let sprite = match mgr.get(game_assets.lod_manager(), key, bb.declist_id) {
+                    Some(s) => s,
+                    None => {
+                        warn!("Billboard '{}' (declist={}) sprite not found, skipping", key, bb.declist_id);
+                        continue;
+                    }
+                };
+                let (w, h) = sprite.dimensions();
+                let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
+                let tex = images.add(bevy_img);
+                let m = materials.add(StandardMaterial {
+                    unlit: true,
+                    base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
+                    cull_mode: None, double_sided: true,
+                    perceptual_roughness: 1.0, reflectance: 0.0,
+                    ..default()
+                });
+                let q = meshes.add(Rectangle::new(w, h));
+                p.billboard_cache.insert(key.clone(), (m.clone(), q.clone(), h));
+                (m, q, h)
+            };
+            let pos = bb.position + Vec3::new(0.0, h / 2.0, 0.0);
+            commands.entity(terrain_entity).with_child((
+                Name::new("decoration"), Mesh3d(quad), MeshMaterial3d(mat),
+                Transform::from_translation(pos),
+                crate::game::entities::WorldEntity,
+                crate::game::entities::EntityKind::Decoration,
+                crate::game::entities::Billboard,
+            ));
+            spawned += 1;
+        }
 
         if bb.sound_id > 0 {
             sound_events.write(crate::game::sound::effects::PlaySoundEvent {

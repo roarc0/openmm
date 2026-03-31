@@ -11,7 +11,8 @@ use image::{DynamicImage, GenericImageView, RgbaImage};
 
 use lod::LodManager;
 
-use crate::game::entities::AnimationState;
+use crate::game::entities::{AnimationState, FacingYaw};
+use crate::game::entities::actor::Actor;
 use crate::game::player::PlayerCamera;
 
 /// Cache for loaded sprite materials to avoid duplicate texture loading.
@@ -338,6 +339,7 @@ fn load_sprite_with_palette_offset(
 }
 
 /// Update sprite sheets based on camera angle, entity facing, and animation state.
+/// Works with Actor entities (NPCs/monsters) and directional decorations (FacingYaw).
 /// Only processes visible entities within draw distance. Skips material swap when
 /// the displayed (state, frame, direction) hasn't changed.
 pub fn update_sprite_sheets(
@@ -350,7 +352,8 @@ pub fn update_sprite_sheets(
         &mut Transform,
         &GlobalTransform,
         &AnimationState,
-        &super::actor::Actor,
+        Option<&Actor>,
+        Option<&FacingYaw>,
         &Visibility,
     )>,
 ) {
@@ -360,7 +363,7 @@ pub fn update_sprite_sheets(
     let cam_pos = camera_gt.translation();
     let dt = time.delta_secs();
 
-    for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state, actor, vis) in
+    for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state, actor, facing_yaw, vis) in
         query.iter_mut()
     {
         if *vis == Visibility::Hidden {
@@ -397,26 +400,14 @@ pub fn update_sprite_sheets(
             sprites.current_frame = (sprites.current_frame + 1) % frame_count;
         }
 
-        // Pick directional frame based on camera angle relative to actor facing.
-        // MM6 sprites have 5 pre-rendered views (0=front, 1-4=rotations).
-        // Octants 5-7 mirror views 3-1 via negative X scale.
+        // Pick directional frame based on camera angle relative to entity facing.
+        // Actors use Actor.facing_yaw (updated by wander), decorations use FacingYaw (fixed from map).
+        let entity_yaw = actor.map(|a| a.facing_yaw)
+            .or_else(|| facing_yaw.map(|f| f.0))
+            .unwrap_or(0.0);
         let dir_to_camera = cam_pos - actor_pos;
         let camera_angle = dir_to_camera.x.atan2(dir_to_camera.z);
-        let relative = (actor.facing_yaw - camera_angle).rem_euclid(std::f32::consts::TAU);
-        let octant = ((relative + std::f32::consts::FRAC_PI_8)
-            / std::f32::consts::FRAC_PI_4) as usize % 8;
-
-        let (direction, mirrored) = match octant {
-            0 => (0, false),
-            1 => (1, false),
-            2 => (2, false),
-            3 => (3, false),
-            4 => (4, false),
-            5 => (3, true),
-            6 => (2, true),
-            7 => (1, true),
-            _ => (0, false),
-        };
+        let (direction, mirrored) = direction_for_angle(entity_yaw, camera_angle);
 
         // Only swap material when the displayed frame actually changed
         let current_key = (state_idx, sprites.current_frame, direction);
@@ -426,11 +417,261 @@ pub fn update_sprite_sheets(
             *mat_handle = MeshMaterial3d(new_mat);
         }
 
-        // Billboard: always face camera. Only rotate around Y axis.
-        // The directional texture already shows the correct view angle.
-        let face_angle = dir_to_camera.x.atan2(dir_to_camera.z);
-        transform.rotation = Quat::from_rotation_y(face_angle);
+        transform.rotation = Quat::from_rotation_y(camera_angle);
         // Mirror for octants 5-7 via negative X scale, otherwise keep scale at 1.
         transform.scale = Vec3::new(if mirrored { -1.0 } else { 1.0 }, 1.0, 1.0);
+    }
+}
+
+/// Pick the sprite direction index (0-4) and mirror flag from an entity's facing
+/// yaw and the camera angle. MM6 sprites have 5 pre-rendered views (0=front,
+/// 1-4=rotations). Octants 5-7 mirror views 3-1 via negative X scale.
+pub fn direction_for_angle(facing_yaw: f32, camera_angle: f32) -> (usize, bool) {
+    let relative = (facing_yaw - camera_angle).rem_euclid(std::f32::consts::TAU);
+    let octant = ((relative + std::f32::consts::FRAC_PI_8)
+        / std::f32::consts::FRAC_PI_4) as usize % 8;
+    match octant {
+        0 => (0, false),
+        1 => (1, false),
+        2 => (2, false),
+        3 => (3, false),
+        4 => (4, false),
+        5 => (3, true),
+        6 => (2, true),
+        7 => (1, true),
+        _ => (0, false),
+    }
+}
+
+/// Check if a decoration sprite has directional frames in the LOD.
+/// Decoration sprites use `{root}{direction}` naming (e.g. "shp0", "shp1")
+/// unlike NPC sprites which use `{root}{frame}{direction}` (e.g. "fmpstaa0").
+/// Returns the root name if at least directions 0 and 1 exist.
+pub fn has_directional_sprites(name: &str, lod_manager: &lod::LodManager) -> Option<String> {
+    let root = name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let mut try_root = root;
+    while try_root.len() >= 3 {
+        let lower = try_root.to_lowercase();
+        let test0 = format!("sprites/{}0", lower);
+        let test1 = format!("sprites/{}1", lower);
+        if lod_manager.try_get_bytes(&test0).is_ok()
+            && lod_manager.try_get_bytes(&test1).is_ok()
+        {
+            return Some(lower);
+        }
+        try_root = &try_root[..try_root.len() - 1];
+    }
+    None
+}
+
+/// Load decoration directional sprites (e.g. "shp0"-"shp4").
+/// Unlike NPC sprites, decoration directions use `{root}{direction}` naming
+/// with no frame letters or animation — just 5 pre-rendered views.
+/// Returns (materials_for_5_directions, width, height).
+pub fn load_decoration_directions(
+    root: &str,
+    lod_manager: &LodManager,
+    images: &mut Assets<Image>,
+    materials: &mut Assets<StandardMaterial>,
+    cache: &mut Option<&mut SpriteCache>,
+) -> ([Handle<StandardMaterial>; 5], f32, f32) {
+    let key = format!("dec:{}", root);
+    if let Some(c) = cache.as_ref() {
+        if let Some(&(w, h)) = c.dimensions.get(&key) {
+            let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+            let mut found = true;
+            for di in 0..5 {
+                let mat_key = format!("{}a{}", key, di);
+                if let Some(mat) = c.materials.get(&mat_key) {
+                    dirs[di] = mat.clone();
+                } else {
+                    found = false;
+                    break;
+                }
+            }
+            if found {
+                return (dirs, w, h);
+            }
+        }
+    }
+
+    // Load all direction sprites and find max dimensions
+    let mut raw: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
+    let mut max_w = 0u32;
+    let mut max_h = 0u32;
+    for dir in 0..5u8 {
+        let name = format!("{}{}", root, dir);
+        let img = lod_manager.sprite(&name);
+        if let Some(ref i) = img {
+            max_w = max_w.max(i.width());
+            max_h = max_h.max(i.height());
+        }
+        raw.push(img);
+    }
+
+    if max_w == 0 || raw[0].is_none() {
+        return (Default::default(), 0.0, 0.0);
+    }
+
+    // Pad to uniform size and create materials
+    let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+    for (dir, img_opt) in raw.into_iter().enumerate() {
+        if let Some(img) = img_opt {
+            let img = if img.width() != max_w || img.height() != max_h {
+                let mut padded = RgbaImage::new(max_w, max_h);
+                let x_off = (max_w - img.width()) / 2;
+                let y_off = max_h - img.height();
+                for py in 0..img.height() {
+                    for px in 0..img.width() {
+                        padded.put_pixel(px + x_off, py + y_off, img.get_pixel(px, py));
+                    }
+                }
+                DynamicImage::ImageRgba8(padded)
+            } else {
+                img
+            };
+            let bevy_img = crate::assets::dynamic_to_bevy_image(img);
+            let tex = images.add(bevy_img);
+            dirs[dir] = materials.add(StandardMaterial {
+                unlit: true,
+                base_color_texture: Some(tex),
+                alpha_mode: AlphaMode::Mask(0.5),
+                double_sided: true,
+                cull_mode: None,
+                perceptual_roughness: 1.0,
+                reflectance: 0.0,
+                ..default()
+            });
+        } else if dir > 0 {
+            dirs[dir] = dirs[0].clone();
+        }
+    }
+
+    // Store in cache
+    if let Some(cache) = cache.as_mut() {
+        cache.dimensions.insert(key.clone(), (max_w as f32, max_h as f32));
+        for (di, mat) in dirs.iter().enumerate() {
+            let mat_key = format!("{}a{}", key, di);
+            cache.materials.insert(mat_key, mat.clone());
+        }
+    }
+
+    (dirs, max_w as f32, max_h as f32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+
+    #[test]
+    fn direction_front_when_camera_faces_entity() {
+        // Camera is directly in front of entity (same angle as facing)
+        let (dir, mirror) = direction_for_angle(0.0, 0.0);
+        assert_eq!(dir, 0);
+        assert!(!mirror);
+    }
+
+    #[test]
+    fn direction_back_when_camera_behind_entity() {
+        // Camera is directly behind (facing 0, camera at PI)
+        let (dir, mirror) = direction_for_angle(0.0, PI);
+        assert_eq!(dir, 4);
+        assert!(!mirror);
+    }
+
+    #[test]
+    fn direction_right_side() {
+        // Camera is 90° to the right of entity facing
+        let (dir, mirror) = direction_for_angle(0.0, -FRAC_PI_2);
+        assert_eq!(dir, 2);
+        assert!(!mirror);
+    }
+
+    #[test]
+    fn direction_left_side_mirrors() {
+        // Camera is 90° to the left — should mirror direction 2
+        let (dir, mirror) = direction_for_angle(0.0, FRAC_PI_2);
+        assert_eq!(dir, 2);
+        assert!(mirror);
+    }
+
+    #[test]
+    fn direction_symmetry_octants_5_6_7_mirror() {
+        // Octants 5, 6, 7 should mirror 3, 2, 1 respectively
+        // Octant 5: relative ≈ 5*PI/4
+        let (dir, mirror) = direction_for_angle(0.0, -5.0 * FRAC_PI_4);
+        assert_eq!(dir, 3, "octant 5 should use direction 3");
+        assert!(mirror, "octant 5 should be mirrored");
+
+        // Octant 7: relative ≈ 7*PI/4
+        let (dir, mirror) = direction_for_angle(0.0, -7.0 * FRAC_PI_4);
+        assert_eq!(dir, 1, "octant 7 should use direction 1");
+        assert!(mirror, "octant 7 should be mirrored");
+    }
+
+    #[test]
+    fn direction_wraps_around_tau() {
+        // Angles that differ by TAU should give the same result
+        let (d1, m1) = direction_for_angle(0.5, 1.0);
+        let (d2, m2) = direction_for_angle(0.5 + TAU, 1.0);
+        assert_eq!(d1, d2);
+        assert_eq!(m1, m2);
+
+        let (d3, m3) = direction_for_angle(0.5, 1.0 + TAU);
+        assert_eq!(d1, d3);
+        assert_eq!(m1, m3);
+    }
+
+    #[test]
+    fn direction_negative_angles() {
+        // Negative facing and camera angles should work correctly
+        let (dir, mirror) = direction_for_angle(-PI, -PI);
+        assert_eq!(dir, 0, "same direction should always be front");
+        assert!(!mirror);
+    }
+
+    #[test]
+    fn all_eight_octants_covered() {
+        // Walk around the full circle in 8 steps and verify we get all expected directions
+        let expected = [
+            (0, false), // 0: front
+            (1, false), // 1: front-right
+            (2, false), // 2: right
+            (3, false), // 3: back-right
+            (4, false), // 4: back
+            (3, true),  // 5: back-left (mirror of 3)
+            (2, true),  // 6: left (mirror of 2)
+            (1, true),  // 7: front-left (mirror of 1)
+        ];
+        for (i, &(exp_dir, exp_mirror)) in expected.iter().enumerate() {
+            let angle = i as f32 * FRAC_PI_4;
+            let (dir, mirror) = direction_for_angle(angle, 0.0);
+            assert_eq!(
+                (dir, mirror),
+                (exp_dir, exp_mirror),
+                "octant {}: facing={:.2} camera=0.0",
+                i,
+                angle
+            );
+        }
+    }
+
+    #[test]
+    fn has_directional_sprites_with_lod() {
+        let lod_path = lod::get_lod_path();
+        let Ok(lod_manager) = lod::LodManager::new(lod_path) else {
+            eprintln!("Skipping test: LOD data not available");
+            return;
+        };
+
+        // Ship sprite should have directional frames (shp0, shp1, etc.)
+        let result = has_directional_sprites("shp", &lod_manager);
+        assert!(result.is_some(), "ship 'shp' should have directional sprites");
+        assert_eq!(result.unwrap(), "shp");
+
+        // Non-directional decorations should return None
+        let result = has_directional_sprites("pending", &lod_manager);
+        assert!(result.is_none(), "'pending' should not have directional sprites");
     }
 }

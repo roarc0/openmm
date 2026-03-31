@@ -161,6 +161,8 @@ pub struct PreparedBillboard {
     pub declist_id: u16,
     /// Sound ID from ddeclist (0 = no sound).
     pub sound_id: u16,
+    /// Facing direction in radians (from map data direction_degrees).
+    pub facing_yaw: f32,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -744,6 +746,7 @@ fn loading_step(
                         declist_name: bb.declist_name.clone(),
                         declist_id: bb.data.declist_id,
                         sound_id,
+                        facing_yaw: yaw,
                     });
                 }
 
