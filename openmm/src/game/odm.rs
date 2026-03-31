@@ -390,6 +390,8 @@ fn spawn_world(
 }
 
 /// Resolve monsters from spawn points using mapstats + monlist.
+/// Sprite group names from monlist are resolved through DSFT to get actual
+/// sprite file roots (e.g. "lz2sta" → "lzdsta" with palette 246).
 fn resolve_monsters(
     prepared: &PreparedWorld,
     game_assets: &GameAssets,
@@ -398,6 +400,8 @@ fn resolve_monsters(
     let mut monsters = Vec::new();
     let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) else { return monsters };
     let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else { return monsters };
+    let Ok(dsft) = lod::dsft::DSFT::new(game_assets.lod_manager()) else { return monsters };
+    let lod = game_assets.lod_manager();
 
     let map_config = mapstats.get(&map_name.to_string());
     let Some(cfg) = map_config else { return monsters };
@@ -409,7 +413,20 @@ fn resolve_monsters(
             // Seed is per-monster (position + group index) for deterministic results.
             let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs() + g as u32) as u32;
             let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else { continue };
-            let Some(desc) = monlist.find_with_sprite(mon_name, dif, game_assets.lod_manager()) else { continue };
+            let Some(desc) = monlist.find_with_sprite(mon_name, dif, lod) else { continue };
+
+            // Resolve monlist group names through DSFT to get actual sprite file roots.
+            // Variant B/C sprites share base files with A but use different palettes
+            // (e.g. "lz2sta" → root "lzdsta", palette 246).
+            let st_group = &desc.sprite_names[0];
+            let wa_group = &desc.sprite_names[1];
+            let Some((st_root, _pal)) = resolve_dsft_sprite(&dsft, st_group, lod) else {
+                warn!("Monster '{}' standing sprite '{}' not found in DSFT — skipping", mon_name, st_group);
+                continue;
+            };
+            let wa_root = resolve_dsft_sprite(&dsft, wa_group, lod)
+                .map(|(n, _)| n)
+                .unwrap_or_else(|| st_root.clone());
 
             let angle = g as f32 * 2.094;
             let spread = sp.radius.max(200) as f32 * 0.5;
@@ -420,8 +437,8 @@ fn resolve_monsters(
                     sp.position[2],
                 ],
                 radius: sp.radius.max(300),
-                standing_sprite: desc.sprite_names[0].clone(),
-                walking_sprite: desc.sprite_names[1].clone(),
+                standing_sprite: st_root,
+                walking_sprite: wa_root,
                 height: desc.height,
                 move_speed: desc.move_speed,
                 hostile: true,
@@ -464,8 +481,6 @@ pub fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::Has
     table
 }
 
-/// Resolve a monlist sprite group name through the DSFT to find the actual
-/// sprite file name that exists in the LOD.
 /// Resolve a monlist sprite group name through the DSFT to find the actual
 /// sprite file name and palette_id. Returns (sprite_root, palette_id).
 fn resolve_dsft_sprite(dsft: &lod::dsft::DSFT, group_name: &str, lod: &lod::LodManager) -> Option<(String, i16)> {
