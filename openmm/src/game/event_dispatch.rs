@@ -119,26 +119,6 @@ fn load_icon(
     Some(images.add(bevy_img))
 }
 
-/// Build the NPC dialogue screen: composite the NPC portrait onto the detbgrnd backdrop.
-fn load_npc_dialogue(
-    portrait_name: &str,
-    game_assets: &GameAssets,
-    images: &mut Assets<Image>,
-) -> Option<Handle<Image>> {
-    let lod = game_assets.lod_manager();
-    let bg = lod.icon("detbgrnd")?;
-    let portrait = lod.icon(portrait_name)
-        .or_else(|| lod.icon("npc001"))?;
-
-    let mut bg_rgba = bg.to_rgba8();
-    let portrait_rgba = portrait.to_rgba8();
-    image::imageops::overlay(&mut bg_rgba, &portrait_rgba, 20, 10);
-
-    let combined = image::DynamicImage::ImageRgba8(bg_rgba);
-    let mut bevy_img = crate::assets::dynamic_to_bevy_image(combined);
-    bevy_img.sampler = bevy::image::ImageSampler::nearest();
-    Some(images.add(bevy_img))
-}
 
 /// Resolve the background image for a building interaction.
 fn resolve_building_image(
@@ -597,13 +577,18 @@ fn process_events(
             }
             GameEvent::SpeakNPC { npc_id } => {
                 let portrait_name = format!("NPC{:03}", npc_id);
-                let image = load_npc_dialogue(&portrait_name, &game_assets, &mut images);
-                if let Some(image) = image {
-                    commands.insert_resource(OverlayImage { image });
+                let portrait_img = game_assets.lod_manager().icon(&portrait_name)
+                    .or_else(|| game_assets.lod_manager().icon("npc001"));
+                if let Some(portrait_img) = portrait_img {
+                    let size = Vec2::new(portrait_img.width() as f32, portrait_img.height() as f32);
+                    let mut bevy_img = crate::assets::dynamic_to_bevy_image(portrait_img);
+                    bevy_img.sampler = bevy::image::ImageSampler::nearest();
+                    let handle = images.add(bevy_img);
+                    commands.insert_resource(crate::game::hud::NpcPortrait { image: handle, size });
                     *hud_view = HudView::Building;
                     grab_cursor(&mut cursor_query, false);
                 } else {
-                    warn!("SpeakNPC: failed to build dialogue for npc_id={}", npc_id);
+                    warn!("SpeakNPC: no portrait found for npc_id={}", npc_id);
                 }
             }
             GameEvent::ChangeEvent { target, new_event_id } => {

@@ -17,9 +17,22 @@ pub struct OverlayImage {
     pub image: Handle<Image>,
 }
 
+/// Resource holding an NPC portrait image to display at actual size.
+/// Like OverlayImage but rendered at 2× scale in the upper-left of the viewport.
+#[derive(Resource)]
+pub struct NpcPortrait {
+    pub image: Handle<Image>,
+    /// Natural pixel size of the portrait.
+    pub size: Vec2,
+}
+
 /// Marker component for the overlay UI node.
 #[derive(Component)]
 pub(super) struct OverlayUI;
+
+/// Marker component for the NPC portrait UI node.
+#[derive(Component)]
+pub(super) struct NpcPortraitUI;
 
 /// Compute the inner viewport rect (excluding left border4) in logical pixels.
 /// Returns (left, top, width, height).
@@ -108,5 +121,57 @@ pub(super) fn update_overlay_layout(
         node.top = Val::Px(top);
         node.width = Val::Px(width);
         node.height = Val::Px(height);
+    }
+}
+
+/// Spawn the NPC portrait node at 2× scale in the upper-left of the viewport inner area.
+pub(super) fn spawn_npc_portrait(
+    mut commands: Commands,
+    portrait: Option<Res<NpcPortrait>>,
+    view: Res<HudView>,
+    existing: Query<Entity, With<NpcPortraitUI>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    cfg: Res<GameConfig>,
+    ui_assets: Res<UiAssets>,
+) {
+    if matches!(*view, HudView::World) || portrait.is_none() || !existing.is_empty() {
+        return;
+    }
+    let Some(portrait) = portrait else { return };
+    let Ok(window) = windows.single() else { return };
+    let (left, top, _, _) = viewport_inner_rect(&window, &cfg, &ui_assets);
+
+    // Display at 2× native size so the portrait is readable
+    let w = portrait.size.x * 2.0;
+    let h = portrait.size.y * 2.0;
+
+    commands.spawn((
+        Name::new("npc_portrait_ui"),
+        ImageNode::new(portrait.image.clone()),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(left + 10.0),
+            top: Val::Px(top + 10.0),
+            width: Val::Px(w),
+            height: Val::Px(h),
+            ..default()
+        },
+        NpcPortraitUI,
+        super::HudUI,
+        crate::game::InGame,
+    ));
+}
+
+/// Despawn NPC portrait node when returning to World view or portrait removed.
+pub(super) fn despawn_npc_portrait(
+    mut commands: Commands,
+    view: Res<HudView>,
+    portrait: Option<Res<NpcPortrait>>,
+    existing: Query<Entity, With<NpcPortraitUI>>,
+) {
+    if matches!(*view, HudView::World) || portrait.is_none() {
+        for entity in existing.iter() {
+            commands.entity(entity).despawn();
+        }
     }
 }

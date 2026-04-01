@@ -179,6 +179,7 @@ fn interaction_input(
 ) {
     if check_exit_input(&keys, &gamepads) {
         commands.remove_resource::<OverlayImage>();
+        commands.remove_resource::<crate::game::hud::NpcPortrait>();
         *view = HudView::World;
         if let Ok(mut cursor) = cursor_query.single_mut() {
             cursor.grab_mode = CursorGrabMode::Confined;

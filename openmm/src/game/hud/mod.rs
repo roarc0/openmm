@@ -6,7 +6,7 @@ mod stats_bar;
 
 pub use borders::{parse_aspect_ratio, viewport_rect};
 pub use footer::FooterText;
-pub use overlay::{OverlayImage, viewport_inner_rect};
+pub use overlay::{NpcPortrait, OverlayImage, viewport_inner_rect};
 
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
@@ -55,6 +55,8 @@ impl Plugin for HudPlugin {
                     overlay::spawn_overlay,
                     overlay::despawn_overlay,
                     overlay::update_overlay_layout,
+                    overlay::spawn_npc_portrait,
+                    overlay::despawn_npc_portrait,
                     freeze_system,
                 )
                     .chain()
