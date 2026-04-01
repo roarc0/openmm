@@ -417,9 +417,10 @@ impl Blv {
             decorations.push(Self::read_decoration(&mut cursor)?);
         }
 
-        // 13. Decoration names
+        // 13. Decoration names: 32-byte null-terminated name buffers
+        //     (MM6 BLV files store 32-byte name fields, verified by binary trace)
         for dec in &mut decorations {
-            dec.name = read_string_lossy(&mut cursor, 28)?;
+            dec.name = read_string_lossy(&mut cursor, 32)?;
         }
 
         // 14. Lights: u32 count, then count x 12 bytes (MM6 format)

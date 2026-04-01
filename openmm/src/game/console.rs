@@ -289,7 +289,8 @@ fn execute_command(
                 name => match MapName::try_from(name) {
                     Ok(target) => {
                         let pos = parts.get(2).and_then(|c| parse_coords(c));
-                        Ok((target, pos.unwrap_or([0.0, ctx_world.player.position.y, 0.0])))
+                        // Default to [0,0,0] so spawn_player uses the map's start point
+                        Ok((target, pos.unwrap_or([0.0, 0.0, 0.0])))
                     }
                     Err(e) => Err(format!("Invalid map name '{}': {}", name, e)),
                 },

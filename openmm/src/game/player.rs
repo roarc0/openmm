@@ -164,6 +164,8 @@ fn spawn_player(
         // Indoor: prefer save_data position (set by MoveToMap) if non-zero,
         // otherwise fall back to sector center start point
         let pos = save_data.player.position;
+        info!("Indoor spawn: save_pos={:?} start_point={:?}",
+            pos, indoor.start_points.first().map(|sp| sp.position));
         if pos[0] != 0.0 || pos[1] != 0.0 || pos[2] != 0.0 {
             (pos[0], pos[1] + settings.eye_height, pos[2], save_data.player.yaw)
         } else if let Some(sp) = indoor.start_points.first() {
@@ -196,6 +198,9 @@ fn spawn_player(
         (save_data.player.position[0], save_data.player.position[1],
          save_data.player.position[2], save_data.player.yaw)
     };
+
+    info!("Player spawn: pos=({:.1}, {:.1}, {:.1}) yaw={:.1}deg indoor={}",
+        start_x, start_y, start_z, start_yaw.to_degrees(), is_indoor);
 
     let mut player_entity = commands.spawn((
         Name::new("player"),
