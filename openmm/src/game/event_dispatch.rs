@@ -585,7 +585,7 @@ fn process_events(
                     bevy_img.sampler = bevy::image::ImageSampler::nearest();
                     let handle = images.add(bevy_img);
                     commands.insert_resource(crate::game::hud::NpcPortrait { image: handle, size });
-                    *hud_view = HudView::Building;
+                    *hud_view = HudView::NpcDialogue;
                     grab_cursor(&mut cursor_query, false);
                 } else {
                     warn!("SpeakNPC: no portrait found for npc_id={}", npc_id);

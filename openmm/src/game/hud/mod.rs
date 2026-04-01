@@ -30,7 +30,10 @@ pub(super) struct HudUI;
 pub enum HudView {
     #[default]
     World,
+    /// Entered a building interior (shop, temple, tavern, etc.).
     Building,
+    /// Talking to a street NPC.
+    NpcDialogue,
     Chest,
     Inventory,
     Stats,
