@@ -26,6 +26,13 @@ pub struct DecorationInfo {
     pub billboard_index: usize,
 }
 
+/// Component on NPC actor entities for hover/click interaction.
+#[derive(Component)]
+pub struct NpcInteractable {
+    pub name: String,
+    pub position: Vec3,
+}
+
 
 const INTERACT_RANGE: f32 = 250.0;
 const RAYCAST_RANGE: f32 = 2000.0;
@@ -40,7 +47,7 @@ impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (hover_hint_system, interact_system, decoration_interact_system)
+            (hover_hint_system, interact_system, decoration_interact_system, npc_interact_system)
                 .chain()
                 .run_if(in_state(GameState::Game))
                 .run_if(resource_equals(HudView::World)),
@@ -313,12 +320,61 @@ fn decoration_interact_system(
     event_queue.push_all(info.event_id, evt);
 }
 
-/// Show the name of the nearest interactive building or decoration in the footer bar.
+/// Find the nearest NPC via raycast from the camera.
+fn find_nearest_npc<'a>(
+    cam_global: &GlobalTransform,
+    npcs: &'a Query<&NpcInteractable>,
+) -> Option<&'a NpcInteractable> {
+    let ray_origin = cam_global.translation();
+    let ray_dir = cam_global.forward().as_vec3();
+    let mut nearest: Option<(&NpcInteractable, f32)> = None;
+
+    for info in npcs.iter() {
+        let to_npc = info.position - ray_origin;
+        let along_ray = to_npc.dot(ray_dir);
+        if along_ray < 0.0 || along_ray > RAYCAST_RANGE { continue; }
+        let closest_point = ray_origin + ray_dir * along_ray;
+        let perp_dist = closest_point.distance(info.position);
+        if perp_dist < DECORATION_RAY_PERP {
+            if nearest.is_none() || along_ray < nearest.unwrap().1 {
+                nearest = Some((info, along_ray));
+            }
+        }
+    }
+
+    nearest.map(|(info, _)| info)
+}
+
+/// Detect click on an NPC and show their name in the footer.
+fn npc_interact_system(
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    gamepads: Query<&Gamepad>,
+    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
+    npcs: Query<&NpcInteractable>,
+    mut footer: ResMut<FooterText>,
+    cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
+) {
+    let Ok((cam_global, _)) = camera_query.single() else { return };
+
+    let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
+    if !key && !click && !gamepad { return; }
+
+    let cursor_grabbed = cursor_query.single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
+    if click && !cursor_grabbed { return; }
+
+    let Some(info) = find_nearest_npc(cam_global, &npcs) else { return };
+    footer.set(&format!("Speak to {}", info.name));
+}
+
+/// Show the name of the nearest interactive building, decoration, or NPC in the footer bar.
 fn hover_hint_system(
     player_query: Query<&Transform, With<Player>>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     buildings: Query<(&BuildingInfo, &GlobalTransform)>,
     decorations: Query<&DecorationInfo>,
+    npcs: Query<&NpcInteractable>,
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
@@ -332,13 +388,18 @@ fn hover_hint_system(
         }
     }
 
-    // Raycast check for decorations (they're click-to-interact, not proximity)
+    // Raycast check for decorations and NPCs
     if let Ok((cam_global, _)) = camera_query.single() {
         if let Some(info) = find_nearest_decoration(cam_global, &decorations) {
             if let Some(name) = resolve_decoration_name(info.event_id, &map_events) {
                 footer.set(&name);
                 return;
             }
+        }
+
+        if let Some(info) = find_nearest_npc(cam_global, &npcs) {
+            footer.set(&info.name);
+            return;
         }
     }
 
