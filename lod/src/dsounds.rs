@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{enums::{SoundAttributes, SoundType}, lod_data::LodData, utils::try_read_name, LodManager};
 
 pub struct DSounds {
     pub items: Vec<DSoundInfo>,
@@ -41,6 +41,16 @@ impl DSoundInfo {
 
     pub fn is_3d(&self) -> bool {
         (self.attributes & 0x0002) != 0
+    }
+
+    /// Get typed sound type enum.
+    pub fn sound_type_enum(&self) -> Option<SoundType> {
+        SoundType::from_u32(self.sound_type)
+    }
+
+    /// Get typed sound attribute flags.
+    pub fn sound_attributes(&self) -> SoundAttributes {
+        SoundAttributes::from_bits_truncate(self.attributes)
     }
 }
 

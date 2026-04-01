@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{enums::SpriteFrameFlags, lod_data::LodData, utils::try_read_name, LodManager};
 
 pub struct DSFT {
     pub frames: Vec<DSFTFrame>,
@@ -87,6 +87,11 @@ impl DSFTFrame {
 
     pub fn is_mirror8(&self) -> bool {
         (self.attributes & 0x8000) != 0
+    }
+
+    /// Get typed sprite frame flags.
+    pub fn flags(&self) -> SpriteFrameFlags {
+        SpriteFrameFlags::from_bits_truncate(self.attributes)
     }
 
     pub fn group_name(&self) -> Option<String> {

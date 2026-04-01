@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{enums::DecorationDescFlags, lod_data::LodData, utils::try_read_name, LodManager};
 
 pub struct DDecList {
     pub items: Vec<DDecListItem>,
@@ -87,6 +87,11 @@ impl DDecListItem {
 
     pub fn is_emit_smoke(&self) -> bool {
         (self.attributes & 0x0400) != 0
+    }
+
+    /// Get typed decoration description flags.
+    pub fn desc_flags(&self) -> DecorationDescFlags {
+        DecorationDescFlags::from_bits_truncate(self.attributes)
     }
 }
 
