@@ -31,6 +31,8 @@ pub struct DecorationInfo {
 pub struct NpcInteractable {
     pub name: String,
     pub position: Vec3,
+    /// Index into the street NPC table (Game.StreetNPC + 1). Zero means no NPC dialogue.
+    pub npc_id: i16,
 }
 
 
@@ -345,16 +347,15 @@ fn find_nearest_npc<'a>(
     nearest.map(|(info, _)| info)
 }
 
-/// Detect click on an NPC and show their name in the footer as a timed status message.
+/// Detect click on an NPC and push a SpeakNPC event to open the dialogue UI.
 fn npc_interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     npcs: Query<&NpcInteractable>,
-    mut footer: ResMut<FooterText>,
+    mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
-    time: Res<Time>,
 ) {
     let Ok((cam_global, _)) = camera_query.single() else { return };
 
@@ -366,7 +367,7 @@ fn npc_interact_system(
     if click && !cursor_grabbed { return; }
 
     let Some(info) = find_nearest_npc(cam_global, &npcs) else { return };
-    footer.set_status(&format!("Speak to {}", info.name), 2.0, time.elapsed_secs_f64());
+    event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: info.npc_id as i32 });
 }
 
 /// Show the name of the nearest interactive building, decoration, or NPC in the footer bar.

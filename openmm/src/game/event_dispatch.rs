@@ -64,6 +64,13 @@ impl EventQueue {
         self.sequences.pop_front()
     }
 
+    /// Enqueue a single synthesized event (not from an EvtFile).
+    pub fn push_single(&mut self, event: lod::evt::GameEvent) {
+        self.sequences.push_back(EventSequence {
+            steps: vec![lod::evt::EvtStep { step: 0, event }],
+        });
+    }
+
     /// Clear all pending sequences.
     pub fn clear(&mut self) {
         self.sequences.clear();
@@ -568,7 +575,17 @@ fn process_events(
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
-                warn!("STUB SpeakNPC: npc={}", npc_id);
+                // Load NPC portrait: NPC001, NPC002, ... from icons.lod
+                let portrait_name = format!("NPC{:03}", npc_id);
+                let image = load_icon(&portrait_name, &game_assets, &mut images)
+                    .or_else(|| load_icon("NPC001", &game_assets, &mut images));
+                if let Some(image) = image {
+                    commands.insert_resource(OverlayImage { image });
+                    *hud_view = HudView::Building;
+                    grab_cursor(&mut cursor_query, false);
+                } else {
+                    warn!("SpeakNPC: no portrait found for npc_id={}", npc_id);
+                }
             }
             GameEvent::ChangeEvent { target, new_event_id } => {
                 warn!("STUB ChangeEvent: target={} event={}", target, new_event_id);

@@ -750,7 +750,7 @@ fn lazy_spawn(
                 initial_position: pos, guarding_position: pos, tether_distance: a.tether_distance as f32,
                 wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0, wander_target: pos, facing_yaw: 0.0, hostile: false,
             },
-            crate::game::interaction::NpcInteractable { name: a.name.clone(), position: pos },
+            crate::game::interaction::NpcInteractable { name: a.name.clone(), position: pos, npc_id: a.npc_id },
         ));
         spawned += 1;
     }

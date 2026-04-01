@@ -381,7 +381,7 @@ fn spawn_indoor_world(
                 facing_yaw: 0.0,
                 hostile: false,
             },
-            crate::game::interaction::NpcInteractable { name: a.name.clone(), position: pos },
+            crate::game::interaction::NpcInteractable { name: a.name.clone(), position: pos, npc_id: a.npc_id },
             crate::game::entities::Billboard,
             InGame,
         ));
