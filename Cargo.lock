@@ -3848,6 +3848,7 @@ dependencies = [
 name = "lod"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.11.0",
  "byteorder",
  "flate2",
  "hexdump",
