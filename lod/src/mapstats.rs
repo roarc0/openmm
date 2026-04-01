@@ -1,22 +1,55 @@
-//! Parser for mapstats.txt — maps spawn point indices to monster types.
+//! Parser for mapstats.txt — per-map configuration (encounters, traps, music, etc.).
+//!
+//! Tab-separated text file with 3 header lines, then one row per map.
+//! Column layout (0-indexed):
+//!   0: Index, 1: Name, 2: Filename, 3: ResetCount, 4: FirstVisitDay,
+//!   5: RefillDays, 6: Lock(0-10), 7: Trap d20(0-10), 8: Treasure(0-6),
+//!   9: EncounterChance%, 10: Mon1Enc%, 11: Mon2Enc%, 12: Mon3Enc%,
+//!   13: Mon1Pic, 14: Mon1Name, 15: Mon1Dif(1-5), 16: Mon1Count(e.g."2-4"),
+//!   17-20: Mon2 same, 21-24: Mon3 same, 25: RedbookTrack, 26: Designer
 
 use std::error::Error;
 
 use crate::LodManager;
 
-/// Per-map configuration from mapstats.txt.
-pub struct MapMonsterConfig {
-    /// Monster picture/dmonlist prefix for each of 3 slots (1-indexed in spawn points).
+/// Per-map info from mapstats.txt.
+/// From OpenEnroth MapInfo and MMExtension MapStatsItem.
+pub struct MapInfo {
+    /// Display name (e.g. "New Sorpigal").
+    pub name: String,
+    /// File name (e.g. "oute3.odm").
+    pub filename: String,
+    /// Monster picture/dmonlist prefix for each of 3 slots.
     pub monster_names: [String; 3],
     /// Difficulty level for each monster (1-5, controls A/B/C variant odds).
     pub difficulty: [u8; 3],
+    /// Number of map resets.
+    pub reset_count: u16,
+    /// First visit day.
+    pub first_visit_day: u16,
+    /// Respawn interval in days.
+    pub respawn_days: u16,
+    /// Lock difficulty (0-10, "x5 Lock" from mapstats.txt).
+    pub lock: u8,
+    /// Trap damage (d20 count, 0-10).
+    pub trap_d20_count: u8,
+    /// Map treasure level (0-6).
+    pub treasure_level: u8,
+    /// Encounter chance when resting [0, 100].
+    pub encounter_chance: u8,
+    /// Per-encounter slot chances (should add to 100 or all 0).
+    pub encounter_chances: [u8; 3],
+    /// Min monster count per encounter slot.
+    pub encounter_min: [u8; 3],
+    /// Max monster count per encounter slot.
+    pub encounter_max: [u8; 3],
     /// Music track ID (maps to Music/{track}.mp3). 0 = no music.
     pub music_track: u8,
 }
 
 /// All map stats.
 pub struct MapStats {
-    pub maps: Vec<(String, MapMonsterConfig)>, // (filename, config)
+    pub maps: Vec<MapInfo>,
 }
 
 impl MapStats {
@@ -34,43 +67,89 @@ impl MapStats {
     fn parse(text: &str) -> Result<Self, Box<dyn Error>> {
         let mut maps = Vec::new();
         for line in text.lines().skip(3) {
-            // Skip header lines
             let cols: Vec<&str> = line.split('\t').collect();
             if cols.len() < 25 {
                 continue;
             }
             let filename = cols[2].trim().to_lowercase();
-            if filename.is_empty() || !filename.ends_with(".odm") {
+            if filename.is_empty() {
+                continue;
+            }
+            // Accept both .odm (outdoor) and .blv (indoor) maps
+            if !filename.ends_with(".odm") && !filename.ends_with(".blv") {
                 continue;
             }
 
-            // Mon1 Pic at col 13, Mon1 Dif at col 15
-            // Mon2 Pic at col 17, Mon2 Dif at col 19
-            // Mon3 Pic at col 21, Mon3 Dif at col 23
+            let name = cols[1].trim().to_string();
+            let reset_count: u16 = cols.get(3).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let first_visit_day: u16 = cols.get(4).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let respawn_days: u16 = cols.get(5).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let lock: u8 = cols.get(6).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let trap_d20_count: u8 = cols.get(7).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let treasure_level: u8 = cols.get(8).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let encounter_chance: u8 = cols.get(9).unwrap_or(&"0").trim().parse().unwrap_or(0);
+
+            // Encounter slot chances (cols 10-12)
+            let enc1: u8 = cols.get(10).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let enc2: u8 = cols.get(11).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let enc3: u8 = cols.get(12).unwrap_or(&"0").trim().parse().unwrap_or(0);
+
+            // Monster names (cols 13, 17, 21)
             let m1_name = cols.get(13).unwrap_or(&"").trim().to_string();
-            let m1_dif: u8 = cols.get(15).unwrap_or(&"0").trim().parse().unwrap_or(1);
             let m2_name = cols.get(17).unwrap_or(&"").trim().to_string();
-            let m2_dif: u8 = cols.get(19).unwrap_or(&"0").trim().parse().unwrap_or(1);
             let m3_name = cols.get(21).unwrap_or(&"").trim().to_string();
+
+            // Monster difficulty (cols 15, 19, 23)
+            let m1_dif: u8 = cols.get(15).unwrap_or(&"0").trim().parse().unwrap_or(1);
+            let m2_dif: u8 = cols.get(19).unwrap_or(&"0").trim().parse().unwrap_or(1);
             let m3_dif: u8 = cols.get(23).unwrap_or(&"0").trim().parse().unwrap_or(1);
+
+            // Monster count ranges (cols 16, 20, 24) — format "min-max" or just a number
+            let (min1, max1) = parse_count_range(cols.get(16).unwrap_or(&"0"));
+            let (min2, max2) = parse_count_range(cols.get(20).unwrap_or(&"0"));
+            let (min3, max3) = parse_count_range(cols.get(24).unwrap_or(&"0"));
+
             let music_track: u8 = cols.get(25).unwrap_or(&"0").trim().parse().unwrap_or(0);
 
-            maps.push((
+            maps.push(MapInfo {
+                name,
                 filename,
-                MapMonsterConfig {
-                    monster_names: [m1_name, m2_name, m3_name],
-                    difficulty: [m1_dif, m2_dif, m3_dif],
-                    music_track,
-                },
-            ));
+                monster_names: [m1_name, m2_name, m3_name],
+                difficulty: [m1_dif, m2_dif, m3_dif],
+                reset_count,
+                first_visit_day,
+                respawn_days,
+                lock,
+                trap_d20_count,
+                treasure_level,
+                encounter_chance,
+                encounter_chances: [enc1, enc2, enc3],
+                encounter_min: [min1, min2, min3],
+                encounter_max: [max1, max2, max3],
+                music_track,
+            });
         }
         Ok(MapStats { maps })
     }
 
-    /// Get monster config for a specific map file.
-    pub fn get(&self, map_filename: &str) -> Option<&MapMonsterConfig> {
+    /// Get map info for a specific map file.
+    pub fn get(&self, map_filename: &str) -> Option<&MapInfo> {
         let lower = map_filename.to_lowercase();
-        self.maps.iter().find(|(f, _)| *f == lower).map(|(_, c)| c)
+        self.maps.iter().find(|m| m.filename == lower)
+    }
+}
+
+/// Parse a count range like "2-4" or " 2-4" into (min, max).
+/// Falls back to (0, 0) for invalid/empty values.
+fn parse_count_range(s: &str) -> (u8, u8) {
+    let s = s.trim();
+    if let Some((a, b)) = s.split_once('-') {
+        let min: u8 = a.trim().parse().unwrap_or(0);
+        let max: u8 = b.trim().parse().unwrap_or(0);
+        (min, max)
+    } else {
+        let v: u8 = s.parse().unwrap_or(0);
+        (v, v)
     }
 }
 
@@ -85,7 +164,7 @@ const VARIANT_ODDS: [[u8; 3]; 6] = [
     [10, 50, 40],  // difficulty 5: mostly B/C
 ];
 
-impl MapMonsterConfig {
+impl MapInfo {
     /// Resolve a spawn point's monster_index to (monster_name_prefix, variant).
     ///
     /// MM6 spawn index mapping (from OpenEnroth SpawnEncounter):
@@ -109,19 +188,11 @@ impl MapMonsterConfig {
             return None;
         }
 
-        // MM6 spawn index mapping (from OpenEnroth SpawnEncounter):
-        // 1-3:   Mon1/Mon2/Mon3 — base group (uses difficulty odds for A/B/C mix)
-        // 4-6:   Mon1/Mon2/Mon3 — forced variant A
-        // 7-9:   Mon1/Mon2/Mon3 — forced variant B
-        // 10-12: Mon1/Mon2/Mon3 — forced variant C
         let variant = match group {
             0 => {
-                // Base group: each individual spawn rolls A/B/C using difficulty odds.
-                // The seed is per-spawn-point so the mix is deterministic across loads.
                 let dif = (self.difficulty[slot] as usize).min(5);
                 let odds = &VARIANT_ODDS[dif];
-                // Hash the seed for better distribution (simple xorshift)
-                let h = seed.wrapping_mul(2654435761); // Knuth multiplicative hash
+                let h = seed.wrapping_mul(2654435761);
                 let roll = ((h >> 16) % 100) as u8;
                 if roll < odds[0] { 1 }
                 else if roll < odds[0] + odds[1] { 2 }
