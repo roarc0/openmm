@@ -1086,6 +1086,9 @@ mod tests {
         println!("  lights: {}", blv.lights.len());
         println!("  bsp_nodes: {}", blv.bsp_nodes.len());
         println!("  spawn_points: {}", blv.spawn_points.len());
+        for (i, sp) in blv.spawn_points.iter().take(5).enumerate() {
+            println!("    sp[{}]: pos={:?} type={} monster={} radius={}", i, sp.position, sp.spawn_type, sp.monster_index, sp.radius);
+        }
         println!("  map_outlines: {}", blv.map_outlines.len());
         println!("  door_count: {}", blv.door_count);
 

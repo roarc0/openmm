@@ -630,14 +630,19 @@ fn loading_step(
                     position: Vec3::ZERO,
                     event_ids: vec![],
                 }];
-                // Compute spawn from sector 1's bounding box (sector 0 is the void).
-                // Use XY center, Z at floor level (min Z in MM6 = lowest point).
-                let spawn_sector = blv.sectors.get(1).or_else(|| blv.sectors.first());
+                // Pick the sector with the most floor faces as the spawn room.
+                // Sector 0 is typically the void; skip it. The sector with the most
+                // floors is likely the main entry hall.
+                let spawn_sector = blv.sectors.iter().skip(1)
+                    .max_by_key(|s| s.floor_count);
                 let spawn_pos = if let Some(sector) = spawn_sector {
                     let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2) as i32;
                     let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2) as i32;
-                    // Floor level: minimum of the two Z values (bbox may be swapped)
                     let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
+                    info!("Indoor spawn sector: floors={} bbox=({},{},{})..({},{},{})",
+                        sector.floor_count,
+                        sector.bbox_min[0], sector.bbox_min[1], sector.bbox_min[2],
+                        sector.bbox_max[0], sector.bbox_max[1], sector.bbox_max[2]);
                     Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))
                 } else {
                     Vec3::ZERO
