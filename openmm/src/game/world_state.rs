@@ -95,6 +95,40 @@ impl Default for GameVariables {
     }
 }
 
+impl GameVariables {
+    pub fn set_qbit(&mut self, bit: i32) {
+        if self.quest_bits.insert(bit) {
+            info!("[QBit {:4}] set", bit);
+        }
+    }
+
+    pub fn clear_qbit(&mut self, bit: i32) {
+        if self.quest_bits.remove(&bit) {
+            info!("[QBit {:4}] cleared", bit);
+        }
+    }
+
+    pub fn has_qbit(&self, bit: i32) -> bool {
+        self.quest_bits.contains(&bit)
+    }
+
+    pub fn add_autonote(&mut self, note: i32) {
+        if self.autonotes.insert(note) {
+            info!("[Note {:4}] added", note);
+        }
+    }
+
+    pub fn remove_autonote(&mut self, note: i32) {
+        if self.autonotes.remove(&note) {
+            info!("[Note {:4}] removed", note);
+        }
+    }
+
+    pub fn has_autonote(&self, note: i32) -> bool {
+        self.autonotes.contains(&note)
+    }
+}
+
 impl Default for WorldState {
     fn default() -> Self {
         Self {
