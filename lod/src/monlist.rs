@@ -73,6 +73,11 @@ impl MonsterList {
             *sn = String::from_utf8_lossy(&bytes[..end]).to_lowercase();
         }
 
+        // Bytes 128-147: 20 bytes of padding/unused data at end of each record.
+        // The full monster stats (level, HP, AC, resistances, attacks, spells)
+        // come from monstxt.txt (text table), not from this binary file.
+        // Kept unread for now; will need to be preserved for round-trip LOD writing.
+
         MonsterDesc {
             height,
             radius,
