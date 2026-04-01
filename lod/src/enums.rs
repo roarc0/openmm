@@ -1044,6 +1044,20 @@ impl EvtVariable {
             None
         }
     }
+
+    /// Returns true if this variable ID refers to a skill (SkillStaff..SkillMisc).
+    pub fn is_skill(self) -> bool {
+        (0x38..=0x56).contains(&self.0)
+    }
+
+    /// For skill variables, returns the skill index (0 = Staff, 30 = Misc).
+    pub fn skill_index(self) -> Option<u8> {
+        if self.is_skill() {
+            Some(self.0 - 0x38)
+        } else {
+            None
+        }
+    }
 }
 
 impl std::fmt::Display for EvtVariable {
