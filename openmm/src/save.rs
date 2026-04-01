@@ -6,12 +6,22 @@ use serde::{Deserialize, Serialize};
 
 const SAVE_DIR: &str = "target/saves";
 
+/// Persistent quest progress: quest bits, autonotes, gold, food.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct SavedProgress {
+    pub quest_bits: Vec<i32>,
+    pub autonotes: Vec<i32>,
+    pub gold: i32,
+    pub food: i32,
+}
+
 /// Persistent game state that can be saved and loaded.
 #[derive(Serialize, Deserialize, Clone, Debug, Resource)]
 pub struct GameSave {
     pub version: u32,
     pub map: MapState,
     pub player: PlayerState,
+    pub progress: SavedProgress,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -37,6 +47,12 @@ impl Default for GameSave {
             player: PlayerState {
                 position: [-10178.0, 340.0, 11206.0],
                 yaw: -38.7_f32.to_radians(),
+            },
+            progress: SavedProgress {
+                quest_bits: Vec::new(),
+                autonotes: Vec::new(),
+                gold: 200,
+                food: 7,
             },
         }
     }

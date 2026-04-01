@@ -152,6 +152,10 @@ impl WorldState {
         save.player.yaw = self.player.yaw;
         save.map.map_x = self.map.map_x;
         save.map.map_y = self.map.map_y;
+        save.progress.quest_bits = self.game_vars.quest_bits.iter().copied().collect();
+        save.progress.autonotes  = self.game_vars.autonotes.iter().copied().collect();
+        save.progress.gold       = self.game_vars.gold;
+        save.progress.food       = self.game_vars.food;
     }
 
     /// Restore live state from GameSave after loading.
@@ -161,6 +165,10 @@ impl WorldState {
         self.player.yaw = p.yaw;
         self.map.map_x = save.map.map_x;
         self.map.map_y = save.map.map_y;
+        self.game_vars.quest_bits = save.progress.quest_bits.iter().copied().collect();
+        self.game_vars.autonotes  = save.progress.autonotes.iter().copied().collect();
+        self.game_vars.gold       = save.progress.gold;
+        self.game_vars.food       = save.progress.food;
     }
 }
 
