@@ -637,23 +637,57 @@ fn loading_step(
                     event_ids: vec![],
                 }];
                 // Spawn position: prefer LoadRequest.spawn_position (set by MoveToMap),
-                // otherwise use the center of the sector with the most floors.
+                // then try the map's own EVT for a self-referencing MoveToMap (entry point),
+                // finally fall back to sector center.
                 let (spawn_pos, spawn_yaw) = if let Some(pos) = load_request.spawn_position {
-                    info!("Indoor spawn from MoveToMap: pos={:?}", pos);
+                    info!("Indoor spawn from MoveToMap event: pos={:?}", pos);
                     (Vec3::from(pos), load_request.spawn_yaw.unwrap_or(0.0))
                 } else {
-                    let spawn_sector = blv.sectors.iter().skip(1)
-                        .max_by_key(|s| s.floor_count);
-                    let pos = if let Some(sector) = spawn_sector {
-                        let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2) as i32;
-                        let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2) as i32;
-                        let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
-                        info!("Indoor spawn from sector center: floors={}", sector.floor_count);
-                        Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))
-                    } else {
-                        Vec3::ZERO
+                    // Search outdoor EVT files for a MoveToMap targeting this BLV.
+                    // In MM6, indoor entry coordinates are in the outdoor map's EVT.
+                    let blv_name = match &load_request.map_name {
+                        crate::game::map_name::MapName::Indoor(name) => format!("{}.blv", name),
+                        _ => String::new(),
                     };
-                    (pos, 0.0)
+                    // MM6 outdoor maps: outa3..oute3, outb1..oute1, etc.
+                    let outdoor_bases: Vec<String> = ('a'..='e')
+                        .flat_map(|c| (1..=3).map(move |n| format!("out{}{}", c, n)))
+                        .collect();
+                    let evt_entry = outdoor_bases.iter().find_map(|base| {
+                        lod::evt::EvtFile::parse(game_assets.lod_manager(), base).ok().and_then(|evt| {
+                            evt.events.values().flatten().find_map(|action| {
+                                if let lod::evt::GameEvent::MoveToMap { x, y, z, direction, map_name } = action {
+                                    if map_name.eq_ignore_ascii_case(&blv_name) {
+                                        Some((*x, *y, *z, *direction))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            })
+                        })
+                    });
+                    if let Some((x, y, z, dir)) = evt_entry {
+                        let pos = Vec3::from(lod::odm::mm6_to_bevy(x, y, z));
+                        let yaw = (dir as f32) * std::f32::consts::TAU / 65536.0;
+                        info!("Indoor spawn from EVT self-MoveToMap: mm6=({},{},{}) dir={}", x, y, z, dir);
+                        (pos, yaw)
+                    } else {
+                        // Final fallback: center of sector with most floors
+                        let spawn_sector = blv.sectors.iter().skip(1)
+                            .max_by_key(|s| s.floor_count);
+                        let pos = if let Some(sector) = spawn_sector {
+                            let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2) as i32;
+                            let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2) as i32;
+                            let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
+                            info!("Indoor spawn from sector center: floors={}", sector.floor_count);
+                            Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))
+                        } else {
+                            Vec3::ZERO
+                        };
+                        (pos, 0.0)
+                    }
                 };
                 let start_points = vec![StartPoint {
                     name: "indoor_start".to_string(),
