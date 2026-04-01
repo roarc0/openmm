@@ -28,6 +28,7 @@ pub mod dsft;
 pub mod dsounds;
 pub mod enums;
 pub mod font;
+pub mod npctable;
 pub mod snd;
 pub mod terrain;
 pub mod tft;
@@ -189,6 +190,13 @@ impl LodManager {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    /// Load and parse `npcdata.txt` from the icons archive.
+    /// Returns the global NPC metadata table (id → name, portrait, profession).
+    pub fn npc_table(&self) -> Option<npctable::StreetNpcTable> {
+        let data = self.get_decompressed("icons/npcdata.txt").ok()?;
+        npctable::StreetNpcTable::parse(&data).ok()
     }
 
     pub fn bitmap(&self, name: &str) -> Option<DynamicImage> {

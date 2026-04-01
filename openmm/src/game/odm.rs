@@ -565,6 +565,7 @@ fn lazy_spawn(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlaySoundEvent>,
+    map_events: Option<Res<crate::game::events::MapEvents>>,
 ) {
     let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
         return;
@@ -750,7 +751,15 @@ fn lazy_spawn(
                 initial_position: pos, guarding_position: pos, tether_distance: a.tether_distance as f32,
                 wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0, wander_target: pos, facing_yaw: 0.0, hostile: false,
             },
-            crate::game::interaction::NpcInteractable { name: a.name.clone(), position: pos, npc_id: a.npc_id },
+            crate::game::interaction::NpcInteractable {
+                name: map_events.as_ref()
+                    .and_then(|me| me.npc_table.as_ref())
+                    .and_then(|t| t.npc_name(a.npc_id as i32))
+                    .unwrap_or(&a.name)
+                    .to_string(),
+                position: pos,
+                npc_id: a.npc_id,
+            },
         ));
         spawned += 1;
     }

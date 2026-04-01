@@ -576,7 +576,18 @@ fn process_events(
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
-                let portrait_name = format!("NPC{:03}", npc_id);
+                // Resolve portrait name from npcdata.txt (Pic column), fallback to npc_id
+                let portrait_name = map_events.as_ref()
+                    .and_then(|me| me.npc_table.as_ref())
+                    .and_then(|t| t.portrait_name(*npc_id))
+                    .unwrap_or_else(|| format!("NPC{:03}", npc_id));
+                let npc_display_name = map_events.as_ref()
+                    .and_then(|me| me.npc_table.as_ref())
+                    .and_then(|t| t.npc_name(*npc_id))
+                    .map(|s| s.to_string());
+
+                info!("SpeakNPC: npc_id={} portrait='{}' name={:?}", npc_id, portrait_name, npc_display_name);
+
                 let portrait_img = game_assets.lod_manager().icon(&portrait_name)
                     .or_else(|| game_assets.lod_manager().icon("npc001"));
                 if let Some(portrait_img) = portrait_img {
@@ -585,10 +596,13 @@ fn process_events(
                     bevy_img.sampler = bevy::image::ImageSampler::nearest();
                     let handle = images.add(bevy_img);
                     commands.insert_resource(crate::game::hud::NpcPortrait { image: handle, size });
+                    if let Some(name) = npc_display_name {
+                        footer.set_status(&name, 5.0, time.elapsed_secs_f64());
+                    }
                     *hud_view = HudView::NpcDialogue;
                     grab_cursor(&mut cursor_query, false);
                 } else {
-                    warn!("SpeakNPC: no portrait found for npc_id={}", npc_id);
+                    warn!("SpeakNPC: no portrait found for npc_id={} portrait='{}'", npc_id, portrait_name);
                 }
             }
             GameEvent::ChangeEvent { target, new_event_id } => {

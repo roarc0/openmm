@@ -9,6 +9,9 @@ use crate::assets::GameAssets;
 pub struct MapEvents {
     pub evt: Option<lod::evt::EvtFile>,
     pub houses: Option<lod::twodevents::TwoDEvents>,
+    /// Global NPC metadata table (id → name, portrait, profession).
+    /// Loaded from `npcdata.txt` in icons.lod; same for every map.
+    pub npc_table: Option<lod::npctable::StreetNpcTable>,
 }
 
 /// Load event data for a map and insert the MapEvents resource.
@@ -66,5 +69,16 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
             }
         }
     }
-    commands.insert_resource(MapEvents { evt, houses });
+    let npc_table = match game_assets.lod_manager().npc_table() {
+        Some(t) => {
+            info!("Loaded npcdata.txt: {} NPC entries", t.npcs.len());
+            Some(t)
+        }
+        None => {
+            warn!("Failed to load npcdata.txt");
+            None
+        }
+    };
+
+    commands.insert_resource(MapEvents { evt, houses, npc_table });
 }

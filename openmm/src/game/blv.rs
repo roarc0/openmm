@@ -328,6 +328,7 @@ fn spawn_indoor_world(
 
     // Spawn NPC actors from DLV data
     let npc_sprite_table = crate::game::odm::build_npc_sprite_table(&game_assets);
+    let npc_table = game_assets.lod_manager().npc_table();
     let mut sprite_cache = sprites::SpriteCache::default();
 
     for a in &prepared.actors {
@@ -381,7 +382,14 @@ fn spawn_indoor_world(
                 facing_yaw: 0.0,
                 hostile: false,
             },
-            crate::game::interaction::NpcInteractable { name: a.name.clone(), position: pos, npc_id: a.npc_id },
+            crate::game::interaction::NpcInteractable {
+                name: npc_table.as_ref()
+                    .and_then(|t| t.npc_name(a.npc_id as i32))
+                    .unwrap_or(&a.name)
+                    .to_string(),
+                position: pos,
+                npc_id: a.npc_id,
+            },
             crate::game::entities::Billboard,
             InGame,
         ));
