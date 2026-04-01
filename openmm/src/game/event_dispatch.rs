@@ -119,6 +119,27 @@ fn load_icon(
     Some(images.add(bevy_img))
 }
 
+/// Build the NPC dialogue screen: composite the NPC portrait onto the detbgrnd backdrop.
+fn load_npc_dialogue(
+    portrait_name: &str,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+) -> Option<Handle<Image>> {
+    let lod = game_assets.lod_manager();
+    let bg = lod.icon("detbgrnd")?;
+    let portrait = lod.icon(portrait_name)
+        .or_else(|| lod.icon("npc001"))?;
+
+    let mut bg_rgba = bg.to_rgba8();
+    let portrait_rgba = portrait.to_rgba8();
+    image::imageops::overlay(&mut bg_rgba, &portrait_rgba, 20, 10);
+
+    let combined = image::DynamicImage::ImageRgba8(bg_rgba);
+    let mut bevy_img = crate::assets::dynamic_to_bevy_image(combined);
+    bevy_img.sampler = bevy::image::ImageSampler::nearest();
+    Some(images.add(bevy_img))
+}
+
 /// Resolve the background image for a building interaction.
 fn resolve_building_image(
     house_id: u32,
@@ -575,16 +596,14 @@ fn process_events(
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
-                // Load NPC portrait: NPC001, NPC002, ... from icons.lod
                 let portrait_name = format!("NPC{:03}", npc_id);
-                let image = load_icon(&portrait_name, &game_assets, &mut images)
-                    .or_else(|| load_icon("NPC001", &game_assets, &mut images));
+                let image = load_npc_dialogue(&portrait_name, &game_assets, &mut images);
                 if let Some(image) = image {
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Building;
                     grab_cursor(&mut cursor_query, false);
                 } else {
-                    warn!("SpeakNPC: no portrait found for npc_id={}", npc_id);
+                    warn!("SpeakNPC: failed to build dialogue for npc_id={}", npc_id);
                 }
             }
             GameEvent::ChangeEvent { target, new_event_id } => {
