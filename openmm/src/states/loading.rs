@@ -280,19 +280,20 @@ fn loading_setup(
     commands.remove_resource::<crate::game::blv::TouchTriggerFaces>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.
-    let map_name = load_request
-        .map(|r| r.map_name.clone())
-        .or_else(|| {
-            cfg.map.as_ref().and_then(|m| {
-                MapName::try_from(m.as_str())
-                    .inspect_err(|e| eprintln!("warning: invalid map in config: {e}"))
-                    .ok()
-            })
+    let (map_name, spawn_position, spawn_yaw) = if let Some(r) = load_request {
+        (r.map_name.clone(), r.spawn_position, r.spawn_yaw)
+    } else {
+        let name = cfg.map.as_ref().and_then(|m| {
+            MapName::try_from(m.as_str())
+                .inspect_err(|e| eprintln!("warning: invalid map in config: {e}"))
+                .ok()
         })
         .unwrap_or_else(|| MapName::Outdoor(OdmName {
             x: save_data.map.map_x,
             y: save_data.map.map_y,
         }));
+        (name, None, None)
+    };
 
     // Keep world_state in sync so spawn_world sees the correct map name
     world_state.map.name = map_name.clone();
@@ -323,8 +324,8 @@ fn loading_setup(
         preload_queue: None,
     });
 
-    // Keep the load request around as context
-    commands.insert_resource(LoadRequest { map_name, spawn_position: None, spawn_yaw: None });
+    // Keep the load request around as context (preserve spawn position from MoveToMap)
+    commands.insert_resource(LoadRequest { map_name, spawn_position, spawn_yaw });
 
     // Spawn loading screen with loading.pcx background from LOD
     commands.spawn((Camera2d, InLoading));
