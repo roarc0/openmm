@@ -19,6 +19,7 @@ pub(crate) mod player;
 pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod terrain_material;
+pub(crate) mod party;
 pub(crate) mod world_state;
 
 /// Marker component for all entities spawned during the Game state.
@@ -47,6 +48,7 @@ impl Plugin for InGamePlugin {
             sound::SoundPlugin,
             MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
+        .add_plugins(party::PartyPlugin)
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
     }
 }
