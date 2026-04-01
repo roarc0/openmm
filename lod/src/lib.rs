@@ -23,6 +23,7 @@ pub mod billboard;
 pub mod ddeclist;
 pub mod dsft;
 pub mod dsounds;
+pub mod enums;
 pub mod font;
 pub mod snd;
 pub mod terrain;
