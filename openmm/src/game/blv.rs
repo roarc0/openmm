@@ -376,7 +376,7 @@ fn spawn_indoor_world(
                 initial_position: pos,
                 guarding_position: pos,
                 tether_distance: a.tether_distance as f32,
-                wander_timer: 0.0,
+                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
                 wander_target: pos,
                 facing_yaw: 0.0,
                 hostile: false,

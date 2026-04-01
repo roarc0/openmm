@@ -124,12 +124,15 @@ fn wander_system(
         actor.wander_timer -= dt;
 
         if actor.wander_timer <= 0.0 {
+            // Position-based seed keeps each actor on its own independent schedule.
+            // Using shared time as seed causes all actors to synchronize and all
+            // fire collision checks in the same frame, causing periodic spikes.
+            let pos_seed = actor.initial_position.x * 7.3 + actor.initial_position.z * 13.7;
+
             // Toggle between idle and walking
             if *anim_state == AnimationState::Idle {
                 // Pick a new target and start walking
-                let seed = actor.initial_position.x * 7.3
-                    + actor.initial_position.z * 13.7
-                    + time.elapsed_secs() * 0.5;
+                let seed = pos_seed + time.elapsed_secs() * 0.5;
                 let angle = (seed * 2.3).sin() * std::f32::consts::TAU;
                 let dist = actor.tether_distance.max(300.0) * 0.4;
                 actor.wander_target = actor.guarding_position
@@ -137,8 +140,10 @@ fn wander_system(
                 actor.wander_timer = 3.0 + (seed.cos().abs()) * 3.0; // walk for 3-6s
                 *anim_state = AnimationState::Walking;
             } else {
-                // Stop and idle
-                actor.wander_timer = 2.0 + (time.elapsed_secs() * 3.7).sin().abs() * 3.0; // idle 2-5s
+                // Stop and idle — seed from position, not from shared elapsed time.
+                // Using time.elapsed_secs() here gave all actors the same idle duration
+                // when they transitioned in the same frame, causing synchronized wake-ups.
+                actor.wander_timer = 2.0 + (pos_seed * 3.7).sin().abs() * 3.0; // idle 2-5s
                 *anim_state = AnimationState::Idle;
             }
         }

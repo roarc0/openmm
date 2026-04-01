@@ -748,7 +748,7 @@ fn lazy_spawn(
             actor::Actor {
                 name: a.name.clone(), hp: a.hp, max_hp: a.hp, move_speed: a.move_speed as f32,
                 initial_position: pos, guarding_position: pos, tether_distance: a.tether_distance as f32,
-                wander_timer: 0.0, wander_target: pos, facing_yaw: 0.0, hostile: false,
+                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0, wander_target: pos, facing_yaw: 0.0, hostile: false,
             },
         ));
         spawned += 1;
@@ -788,7 +788,7 @@ fn lazy_spawn(
             actor::Actor {
                 name: "Monster".into(), hp: 10, max_hp: 10, move_speed: m.move_speed as f32,
                 initial_position: pos, guarding_position: pos, tether_distance: m.radius.max(200) as f32,
-                wander_timer: 0.0, wander_target: pos, facing_yaw: 0.0, hostile: true,
+                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0, wander_target: pos, facing_yaw: 0.0, hostile: true,
             },
         ));
         spawned += 1;
