@@ -3,57 +3,54 @@ use std::collections::VecDeque;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use lod::evt::{EvtFile, GameEvent};
+use lod::enums::EvtVariable;
+use lod::evt::{EvtFile, EvtStep, GameEvent};
 use lod::odm::mm6_to_bevy;
 
 use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
+use crate::game::interaction::DecorationInfo;
 use crate::game::map_name::MapName;
+use crate::game::world_state::GameVariables;
 use crate::save::GameSave;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::states::loading::LoadRequest;
 
-/// Queue of game events waiting to be processed, one per frame.
+/// An event sequence — a list of steps from one event_id, executed as a script.
+#[derive(Clone)]
+struct EventSequence {
+    steps: Vec<EvtStep>,
+}
+
+/// Queue of event sequences waiting to be processed.
+/// Each sequence is executed in full (with control flow) in one frame.
 #[derive(Resource, Default)]
 pub struct EventQueue {
-    queue: VecDeque<GameEvent>,
+    sequences: VecDeque<EventSequence>,
 }
 
 impl EventQueue {
-    /// Push an event to the back of the queue.
-    pub fn push(&mut self, event: GameEvent) {
-        self.queue.push_back(event);
-    }
-
-    /// Push an event to the front of the queue (high priority).
-    pub fn push_front(&mut self, event: GameEvent) {
-        self.queue.push_front(event);
-    }
-
-    /// Pop the next event from the front.
-    pub fn pop(&mut self) -> Option<GameEvent> {
-        self.queue.pop_front()
-    }
-
-    /// Enqueue all actions for a given event_id from the EvtFile.
+    /// Enqueue all steps for a given event_id from the EvtFile as a single sequence.
     pub fn push_all(&mut self, event_id: u16, evt: &EvtFile) {
-        if let Some(actions) = evt.events.get(&event_id) {
-            for action in actions {
-                self.queue.push_back(action.clone());
+        if let Some(steps) = evt.events.get(&event_id) {
+            if !steps.is_empty() {
+                self.sequences.push_back(EventSequence {
+                    steps: steps.clone(),
+                });
             }
         }
     }
 
-    /// Returns true if the queue is empty.
-    pub fn is_empty(&self) -> bool {
-        self.queue.is_empty()
+    /// Pop the next sequence from the front.
+    fn pop(&mut self) -> Option<EventSequence> {
+        self.sequences.pop_front()
     }
 
-    /// Clear all pending events.
+    /// Clear all pending sequences.
     pub fn clear(&mut self) {
-        self.queue.clear();
+        self.sequences.clear();
     }
 }
 
@@ -84,7 +81,6 @@ fn building_background(building_type: &str) -> &'static str {
     if lower.contains("general") || lower.contains("store") {
         return "genshelf";
     }
-    // Taverns, temples, training, houses, stables, banks, etc. use dialogue background
     "evt02"
 }
 
@@ -101,8 +97,6 @@ fn load_icon(
 }
 
 /// Resolve the background image for a building interaction.
-/// Tries the house's picture_id first (e.g. "evt07"), then falls back to
-/// building_background() based on type, and finally "evt02" as a last resort.
 fn resolve_building_image(
     house_id: u32,
     map_events: &MapEvents,
@@ -111,16 +105,13 @@ fn resolve_building_image(
 ) -> Option<Handle<Image>> {
     if let Some(houses) = map_events.houses.as_ref() {
         if let Some(entry) = houses.houses.get(&house_id) {
-            // Try picture_id-based icon first (e.g. "evt07")
             let pic_name = format!("evt{:02}", entry.picture_id);
             if let Some(handle) = load_icon(&pic_name, game_assets, images) {
                 return Some(handle);
             }
-            // Fall back to building type
             return load_icon(building_background(&entry.building_type), game_assets, images);
         }
     }
-    // Last resort
     load_icon("evt02", game_assets, images)
 }
 
@@ -137,12 +128,156 @@ fn grab_cursor(cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>
     }
 }
 
-/// Process one event per frame from the EventQueue.
+// ── Variable read/write helpers ────────────────────────────────────────
+
+/// Read a game variable's current value.
+fn get_variable(vars: &GameVariables, var: EvtVariable) -> i32 {
+    if var.is_map_var() {
+        return vars.map_vars[var.map_var_index().unwrap() as usize];
+    }
+    match var {
+        EvtVariable::GOLD => vars.gold,
+        EvtVariable::FOOD => vars.food,
+        EvtVariable::REPUTATION_IS => vars.reputation,
+        EvtVariable::QBITS => 0, // compare uses contains check, handled separately
+        EvtVariable::AUTONOTES_BITS => 0, // compare uses contains check
+        _ => {
+            debug!("get_variable: unhandled variable {} (0x{:02x}), returning 0", var, var.0);
+            0
+        }
+    }
+}
+
+/// Write a value to a game variable.
+fn set_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
+    if var.is_map_var() {
+        let idx = var.map_var_index().unwrap() as usize;
+        info!("  {} = {} (was {})", var, value, vars.map_vars[idx]);
+        vars.map_vars[idx] = value;
+        return;
+    }
+    match var {
+        EvtVariable::GOLD => {
+            info!("  Gold = {} (was {})", value, vars.gold);
+            vars.gold = value;
+        }
+        EvtVariable::FOOD => {
+            info!("  Food = {} (was {})", value, vars.food);
+            vars.food = value;
+        }
+        EvtVariable::REPUTATION_IS => {
+            info!("  Reputation = {} (was {})", value, vars.reputation);
+            vars.reputation = value;
+        }
+        EvtVariable::QBITS => {
+            if value != 0 {
+                vars.quest_bits.insert(value);
+            }
+        }
+        EvtVariable::AUTONOTES_BITS => {
+            if value != 0 {
+                vars.autonotes.insert(value);
+            }
+        }
+        _ => {
+            warn!("  set_variable: unhandled variable {} (0x{:02x}) = {}", var, var.0, value);
+        }
+    }
+}
+
+/// Add to a game variable.
+fn add_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
+    if var.is_map_var() {
+        let idx = var.map_var_index().unwrap() as usize;
+        let old = vars.map_vars[idx];
+        vars.map_vars[idx] = old.wrapping_add(value);
+        info!("  {} += {} ({} -> {})", var, value, old, vars.map_vars[idx]);
+        return;
+    }
+    match var {
+        EvtVariable::GOLD => {
+            let old = vars.gold;
+            vars.gold += value;
+            info!("  Gold += {} ({} -> {})", value, old, vars.gold);
+        }
+        EvtVariable::FOOD => {
+            let old = vars.food;
+            vars.food += value;
+            info!("  Food += {} ({} -> {})", value, old, vars.food);
+        }
+        EvtVariable::QBITS => {
+            vars.quest_bits.insert(value);
+        }
+        EvtVariable::AUTONOTES_BITS => {
+            vars.autonotes.insert(value);
+        }
+        _ => {
+            warn!("  add_variable: unhandled variable {} (0x{:02x}) += {}", var, var.0, value);
+        }
+    }
+}
+
+/// Subtract from a game variable.
+fn subtract_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
+    if var.is_map_var() {
+        let idx = var.map_var_index().unwrap() as usize;
+        let old = vars.map_vars[idx];
+        vars.map_vars[idx] = old.wrapping_sub(value);
+        info!("  {} -= {} ({} -> {})", var, value, old, vars.map_vars[idx]);
+        return;
+    }
+    match var {
+        EvtVariable::GOLD => {
+            let old = vars.gold;
+            vars.gold -= value;
+            info!("  Gold -= {} ({} -> {})", value, old, vars.gold);
+        }
+        EvtVariable::FOOD => {
+            let old = vars.food;
+            vars.food -= value;
+            info!("  Food -= {} ({} -> {})", value, old, vars.food);
+        }
+        EvtVariable::QBITS => {
+            vars.quest_bits.remove(&value);
+        }
+        EvtVariable::AUTONOTES_BITS => {
+            vars.autonotes.remove(&value);
+        }
+        _ => {
+            warn!("  subtract_variable: unhandled variable {} (0x{:02x}) -= {}", var, var.0, value);
+        }
+    }
+}
+
+/// Evaluate a Compare condition. Returns true if condition is met (don't jump).
+fn evaluate_compare(vars: &GameVariables, var: EvtVariable, value: i32) -> bool {
+    // Special cases: QBits and Autonotes check set membership
+    if var == EvtVariable::QBITS {
+        let result = vars.quest_bits.contains(&value);
+        debug!("  Compare: QBit {} present? -> {}", value, result);
+        return result;
+    }
+    if var == EvtVariable::AUTONOTES_BITS {
+        let result = vars.autonotes.contains(&value);
+        debug!("  Compare: Autonote {} present? -> {}", value, result);
+        return result;
+    }
+
+    // MM6 Compare semantics: numeric variables use >= (not ==)
+    let current = get_variable(vars, var);
+    let result = current >= value;
+    debug!("  Compare: {} = {} >= {}? -> {}", var, current, value, result);
+    result
+}
+
+/// Process one event sequence per frame from the EventQueue.
+/// Each sequence is executed as a script with control flow (Compare/Jmp/RandomGoTo).
 fn process_events(
     mut event_queue: ResMut<EventQueue>,
     map_events: Option<Res<MapEvents>>,
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut commands: Commands,
     mut hud_view: ResMut<HudView>,
     mut footer: ResMut<FooterText>,
@@ -153,6 +288,7 @@ fn process_events(
     mut sound_events: bevy::ecs::message::MessageWriter<PlayUiSoundEvent>,
     mut world_state: ResMut<crate::game::world_state::WorldState>,
     time: Res<Time>,
+    mut decoration_query: Query<(&DecorationInfo, &mut MeshMaterial3d<StandardMaterial>)>,
 ) {
     // Tick footer timer every frame
     footer.tick(time.elapsed_secs_f64());
@@ -161,114 +297,386 @@ fn process_events(
         return;
     }
 
-    let Some(event) = event_queue.pop() else {
+    let Some(sequence) = event_queue.pop() else {
         return;
     };
 
-    info!("EventDispatch: {}", event);
+    let steps = &sequence.steps;
+    let mut pc = 0usize; // program counter (index into steps vec)
+    let mut iterations = 0u32;
+    const MAX_ITERATIONS: u32 = 500;
 
-    match event {
-        GameEvent::Hint { text, .. } => {
-            footer.set(&text);
+    while pc < steps.len() {
+        iterations += 1;
+        if iterations > MAX_ITERATIONS {
+            warn!("Event script exceeded {} iterations, aborting (infinite loop?)", MAX_ITERATIONS);
+            break;
         }
-        GameEvent::SpeakInHouse { house_id } => {
-            let image = map_events
-                .as_ref()
-                .and_then(|me| resolve_building_image(house_id, me, &game_assets, &mut images))
-                .or_else(|| load_icon("evt02", &game_assets, &mut images));
-            if let Some(image) = image {
-                commands.insert_resource(OverlayImage { image });
-                *hud_view = HudView::Building;
-                grab_cursor(&mut cursor_query, false);
+
+        let EvtStep { step, ref event } = steps[pc];
+        pc += 1; // advance past current instruction
+
+        info!("  [step {}] {}", step, event);
+
+        match event {
+            // ── Already implemented (side-effects) ───────────────────
+            GameEvent::Hint { text, .. } => {
+                footer.set(text);
             }
-        }
-        GameEvent::OpenChest { id } => {
-            if let Some(image) = load_icon("chest01", &game_assets, &mut images) {
-                commands.insert_resource(OverlayImage { image });
-                *hud_view = HudView::Chest;
-                grab_cursor(&mut cursor_query, false);
+            GameEvent::SpeakInHouse { house_id } => {
+                let image = map_events
+                    .as_ref()
+                    .and_then(|me| resolve_building_image(*house_id, me, &game_assets, &mut images))
+                    .or_else(|| load_icon("evt02", &game_assets, &mut images));
+                if let Some(image) = image {
+                    commands.insert_resource(OverlayImage { image });
+                    *hud_view = HudView::Building;
+                    grab_cursor(&mut cursor_query, false);
+                }
             }
-        }
-        GameEvent::MoveToMap {
-            x,
-            y,
-            z,
-            direction,
-            map_name,
-        } => {
-            let Ok(target) = MapName::try_from(map_name.as_str()) else {
-                warn!("MoveToMap: invalid map name '{}'", map_name);
+            GameEvent::OpenChest { .. } => {
+                if let Some(image) = load_icon("chest01", &game_assets, &mut images) {
+                    commands.insert_resource(OverlayImage { image });
+                    *hud_view = HudView::Chest;
+                    grab_cursor(&mut cursor_query, false);
+                }
+            }
+            GameEvent::MoveToMap {
+                x, y, z, direction, map_name,
+            } => {
+                let Ok(target) = MapName::try_from(map_name.as_str()) else {
+                    warn!("MoveToMap: invalid map name '{}'", map_name);
+                    return;
+                };
+
+                let pos = mm6_to_bevy(*x, *y, *z);
+                let yaw = (*direction as f32) * std::f32::consts::TAU / 65536.0;
+
+                debug!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg",
+                    map_name, x, y, z, direction, pos, yaw.to_degrees());
+
+                if let MapName::Outdoor(ref odm) = target {
+                    save_data.map.map_x = odm.x;
+                    save_data.map.map_y = odm.y;
+                    world_state.map.map_x = odm.x;
+                    world_state.map.map_y = odm.y;
+                }
+                world_state.map.name = target.clone();
+
+                save_data.player.position = pos;
+                save_data.player.yaw = yaw;
+
+                commands.insert_resource(LoadRequest {
+                    map_name: target,
+                    spawn_position: Some(pos),
+                    spawn_yaw: Some(yaw),
+                });
+                game_state.set(GameState::Loading);
+
+                // Reset map vars on map transition
+                world_state.game_vars.map_vars = [0; 100];
+                event_queue.clear();
+                return; // Stop executing this sequence
+            }
+            GameEvent::ChangeDoorState { door_id, action } => {
+                debug!("ChangeDoorState door_id={} action={}", door_id, action);
+                if let Some(ref mut doors) = blv_doors {
+                    crate::game::blv::trigger_door(doors, *door_id as u32, action.as_u8());
+                }
+            }
+            GameEvent::PlaySound { sound_id } => {
+                sound_events.write(PlayUiSoundEvent { sound_id: *sound_id });
+            }
+            GameEvent::StatusText { text, .. } => {
+                footer.set_status(text, 2.0, time.elapsed_secs_f64());
+            }
+            GameEvent::LocationName { text, .. } => {
+                footer.set_status(text, 2.0, time.elapsed_secs_f64());
+            }
+            GameEvent::ShowMessage { text, .. } => {
+                footer.set_status(text, 4.0, time.elapsed_secs_f64());
+            }
+            GameEvent::Exit => {
+                // Stop processing this sequence and clear the queue
+                event_queue.clear();
                 return;
-            };
-
-            // Convert MM6 coords to Bevy
-            let pos = mm6_to_bevy(x, y, z);
-
-            // Convert direction (0-65535 range, 0=east, counter-clockwise) to yaw radians
-            // MM6 direction: 0=east, 512=north, 1024=west, 1536=south (in 2048 units per circle)
-            // But EVT uses 0-65535 range (65536 units per circle)
-            let yaw = (direction as f32) * std::f32::consts::TAU / 65536.0;
-
-            debug!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg", map_name, x, y, z, direction, pos, yaw.to_degrees());
-
-            // Update map state
-            if let MapName::Outdoor(ref odm) = target {
-                save_data.map.map_x = odm.x;
-                save_data.map.map_y = odm.y;
-                world_state.map.map_x = odm.x;
-                world_state.map.map_y = odm.y;
             }
-            world_state.map.name = target.clone();
 
-            // Store spawn position in save data ONLY — don't move the player entity
-            // on the current map, or the boundary crossing system will trigger before
-            // the Loading state takes effect.
-            save_data.player.position = pos;
-            save_data.player.yaw = yaw;
-
-            // Transition to loading immediately — clears the event queue
-            commands.insert_resource(LoadRequest {
-                map_name: target,
-                spawn_position: Some(pos),
-                spawn_yaw: Some(yaw),
-            });
-            game_state.set(GameState::Loading);
-
-            // Clear remaining events to prevent stale events (e.g. SpeakInHouse
-            // after MoveToMap) from firing on the wrong map
-            event_queue.clear();
-        }
-        GameEvent::ChangeDoorState { door_id, action } => {
-            debug!("ChangeDoorState door_id={} action={}", door_id, action);
-            if let Some(ref mut doors) = blv_doors {
-                crate::game::blv::trigger_door(doors, door_id as u32, action.as_u8());
+            // ── Control flow (NOW WORKING) ───────────────────────────
+            GameEvent::Compare { var, value, jump_step } => {
+                if !evaluate_compare(&world_state.game_vars, *var, *value) {
+                    // Condition failed — jump to target step
+                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                        debug!("  Compare failed -> jumping to step {}", jump_step);
+                        pc = target_idx;
+                    } else {
+                        debug!("  Compare failed -> jump target step {} not found, ending", jump_step);
+                        return;
+                    }
+                }
             }
-        }
-        GameEvent::PlaySound { sound_id } => {
-            debug!("PlaySound sound_id={}", sound_id);
-            sound_events.write(PlayUiSoundEvent { sound_id });
-        }
-        GameEvent::StatusText { text, .. } => {
-            info!("StatusText: '{}'", text);
-            footer.set_status(&text, 2.0, time.elapsed_secs_f64());
-        }
-        GameEvent::LocationName { text, .. } => {
-            footer.set_status(&text, 2.0, time.elapsed_secs_f64());
-        }
-        GameEvent::ShowMessage { text, .. } => {
-            info!("ShowMessage: '{}'", text);
-            footer.set_status(&text, 4.0, time.elapsed_secs_f64());
-        }
-        GameEvent::Exit => {
-            // Stop processing remaining events in this sequence
-            event_queue.clear();
-        }
-        GameEvent::Unhandled { opcode, opcode_name, params } => {
-            warn!("Unhandled event: 0x{:02x} ({}) params={:02x?}", opcode, opcode_name, params);
-        }
-        // Parsed but not yet executed — log with readable Display format
-        other => {
-            debug!("Parsed (not executed): {}", other);
+            GameEvent::Jmp { target_step } => {
+                if let Some(target_idx) = steps.iter().position(|s| s.step >= *target_step) {
+                    debug!("  Jmp -> step {}", target_step);
+                    pc = target_idx;
+                } else {
+                    debug!("  Jmp -> step {} not found, ending", target_step);
+                    return;
+                }
+            }
+            GameEvent::RandomGoTo { steps: goto_steps } => {
+                if !goto_steps.is_empty() {
+                    // Simple deterministic pick (first option) — proper RNG can be added later
+                    let idx = (step as usize) % goto_steps.len();
+                    let target_step = goto_steps[idx];
+                    debug!("  RandomGoTo -> picked step {} from {:?}", target_step, goto_steps);
+                    if let Some(target_idx) = sequence.steps.iter().position(|s| s.step >= target_step) {
+                        pc = target_idx;
+                    } else {
+                        return;
+                    }
+                }
+            }
+            GameEvent::ForPartyMember { player } => {
+                let target = lod::enums::EvtTargetCharacter::from_u8(*player)
+                    .map(|t| format!("{:?}", t))
+                    .unwrap_or_else(|| format!("Unknown({})", player));
+                debug!("  ForPartyMember: target={} (stored, no party system yet)", target);
+                // TODO: Store active target character for subsequent operations
+            }
+
+            // ── Variable operations (NOW WORKING) ────────────────────
+            GameEvent::Add { var, value } => {
+                add_variable(&mut world_state.game_vars, *var, *value);
+            }
+            GameEvent::Subtract { var, value } => {
+                subtract_variable(&mut world_state.game_vars, *var, *value);
+            }
+            GameEvent::Set { var, value } => {
+                set_variable(&mut world_state.game_vars, *var, *value);
+            }
+
+            // ── World operations (stubs with warns) ──────────────────
+            GameEvent::SetSnow { on } => {
+                warn!("STUB SetSnow: on={} (no weather system yet)", on);
+            }
+            GameEvent::SetFacesBit { face_id, bit, on } => {
+                warn!("STUB SetFacesBit: face={} bit=0x{:x} on={}", face_id, bit, on);
+            }
+            GameEvent::ToggleActorFlag { actor_id, flag, on } => {
+                warn!("STUB ToggleActorFlag: actor={} flag=0x{:x} on={}", actor_id, flag, on);
+            }
+            GameEvent::SetTexture { face_id, texture_name } => {
+                warn!("STUB SetTexture: face={} tex='{}'", face_id, texture_name);
+            }
+            GameEvent::SetSprite { decoration_id, sprite_name } => {
+                info!("SetSprite: deco={} sprite='{}'", decoration_id, sprite_name);
+                // Find the decoration entity by billboard_index and replace its material
+                let target_idx = *decoration_id as usize;
+                let mut found = false;
+                for (deco_info, mut mat_handle) in decoration_query.iter_mut() {
+                    if deco_info.billboard_index == target_idx {
+                        // Load the new sprite and create a material for it
+                        let sprite_lower = sprite_name.to_lowercase();
+                        if let Some(img) = game_assets.lod_manager().sprite(&sprite_lower) {
+                            let bevy_img = crate::assets::dynamic_to_bevy_image(img);
+                            let tex = images.add(bevy_img);
+                            let new_mat = materials.add(StandardMaterial {
+                                unlit: true,
+                                base_color_texture: Some(tex),
+                                alpha_mode: AlphaMode::Mask(0.5),
+                                cull_mode: None,
+                                double_sided: true,
+                                perceptual_roughness: 1.0,
+                                reflectance: 0.0,
+                                ..default()
+                            });
+                            mat_handle.0 = new_mat;
+                            found = true;
+                        } else {
+                            warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
+                        }
+                        break;
+                    }
+                }
+                if !found {
+                    debug!("SetSprite: decoration {} not found (may not have DecorationInfo)", target_idx);
+                }
+            }
+            GameEvent::ToggleIndoorLight { light_id, on } => {
+                warn!("STUB ToggleIndoorLight: light={} on={}", light_id, on);
+            }
+
+            // ── Combat / items ───────────────────────────────────────
+            GameEvent::SummonMonsters { monster_id, count, x, y, z } => {
+                warn!("STUB SummonMonsters: id={} count={} pos=({},{},{})", monster_id, count, x, y, z);
+            }
+            GameEvent::CastSpell { spell_id, skill_level, skill_mastery, from_x, from_y, from_z, to_x, to_y, to_z } => {
+                warn!("STUB CastSpell: spell={} level={} mastery={} from=({},{},{}) to=({},{},{})",
+                    spell_id, skill_level, skill_mastery, from_x, from_y, from_z, to_x, to_y, to_z);
+            }
+            GameEvent::ReceiveDamage { damage_type, amount } => {
+                warn!("STUB ReceiveDamage: type={} amount={}", damage_type, amount);
+            }
+            GameEvent::GiveItem { strength, item_type, item_id } => {
+                warn!("STUB GiveItem: str={} type={} id={}", strength, item_type, item_id);
+            }
+            GameEvent::SummonItem { item_id, x, y, z } => {
+                warn!("STUB SummonItem: id={} pos=({},{},{})", item_id, x, y, z);
+            }
+            GameEvent::CheckItemsCount { item_id, count, jump_step } => {
+                // TODO: check actual inventory count; for now, always fail (jump)
+                warn!("STUB CheckItemsCount: item={} count={} -> failing, jumping to step {}", item_id, count, jump_step);
+                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    pc = target_idx;
+                } else {
+                    return;
+                }
+            }
+            GameEvent::RemoveItems { item_id, count } => {
+                warn!("STUB RemoveItems: item={} count={}", item_id, count);
+            }
+
+            // ── NPC operations ───────────────────────────────────────
+            GameEvent::SetNPCTopic { npc_id, topic_index, event_id } => {
+                warn!("STUB SetNPCTopic: npc={} topic={} event={}", npc_id, topic_index, event_id);
+            }
+            GameEvent::MoveNPC { npc_id, map_id } => {
+                warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
+            }
+            GameEvent::SpeakNPC { npc_id } => {
+                warn!("STUB SpeakNPC: npc={}", npc_id);
+            }
+            GameEvent::ChangeEvent { target, new_event_id } => {
+                warn!("STUB ChangeEvent: target={} event={}", target, new_event_id);
+            }
+            GameEvent::SetNPCGreeting { npc_id, greeting_id } => {
+                warn!("STUB SetNPCGreeting: npc={} greeting={}", npc_id, greeting_id);
+            }
+            GameEvent::SetNPCGroupNews { npc_group, news_id } => {
+                warn!("STUB SetNPCGroupNews: group={} news={}", npc_group, news_id);
+            }
+            GameEvent::NPCSetItem { npc_id, item_id, on } => {
+                warn!("STUB NPCSetItem: npc={} item={} on={}", npc_id, item_id, on);
+            }
+
+            // ── Character / UI ───────────────────────────────────────
+            GameEvent::ShowFace { player, expression } => {
+                warn!("STUB ShowFace: player={} expr={}", player, expression);
+            }
+            GameEvent::CharacterAnimation { player, anim_id } => {
+                warn!("STUB CharacterAnimation: player={} anim={}", player, anim_id);
+            }
+            GameEvent::ShowMovie { movie_name } => {
+                warn!("STUB ShowMovie: '{}'", movie_name);
+            }
+            GameEvent::PressAnyKey => {
+                warn!("STUB PressAnyKey");
+            }
+            GameEvent::InputString { params } => {
+                warn!("STUB InputString: params={:02x?}", params);
+            }
+
+            // ── Timer / conditional hooks ────────────────────────────
+            GameEvent::OnTimer { .. } | GameEvent::OnLongTimer { .. } |
+            GameEvent::OnDateTimer { .. } | GameEvent::OnMapReload | GameEvent::OnMapLeave => {
+                // These are lifecycle hooks, not dispatched via the queue
+            }
+            GameEvent::EnableDateTimer { timer_id, on } => {
+                warn!("STUB EnableDateTimer: timer={} on={}", timer_id, on);
+            }
+
+            // ── Dialogue conditions ──────────────────────────────────
+            GameEvent::OnCanShowDialogItemCmp { var, value } => {
+                warn!("STUB OnCanShowDialogItemCmp: {} == {}?", var, value);
+            }
+            GameEvent::EndCanShowDialogItem => {
+                warn!("STUB EndCanShowDialogItem");
+            }
+            GameEvent::SetCanShowDialogItem { on } => {
+                warn!("STUB SetCanShowDialogItem: on={}", on);
+            }
+            GameEvent::CanShowTopicIsActorKilled { actor_group, count } => {
+                warn!("STUB CanShowTopicIsActorKilled: group={} count={}", actor_group, count);
+            }
+
+            // ── Skills / kill / condition checks ─────────────────────
+            GameEvent::IsActorKilled { actor_group, count, jump_step } => {
+                // TODO: check actual kill count; for now, always fail (jump)
+                warn!("STUB IsActorKilled: group={} count={} -> failing, jumping to step {}", actor_group, count, jump_step);
+                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    pc = target_idx;
+                } else {
+                    return;
+                }
+            }
+            GameEvent::CheckSkill { skill_id, skill_level, jump_step } => {
+                // TODO: check actual skill; for now, always fail (jump)
+                warn!("STUB CheckSkill: skill={} level={} -> failing, jumping to step {}", skill_id, skill_level, jump_step);
+                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    pc = target_idx;
+                } else {
+                    return;
+                }
+            }
+            GameEvent::CheckSeason { season, jump_step } => {
+                let name = match season {
+                    0 => "Winter", 1 => "Spring", 2 => "Summer", 3 => "Autumn", _ => "Unknown",
+                };
+                warn!("STUB CheckSeason: {}({}) -> failing, jumping to step {}", name, season, jump_step);
+                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    pc = target_idx;
+                } else {
+                    return;
+                }
+            }
+            GameEvent::IsNPCInParty { npc_id, jump_step } => {
+                // Always fail for now (NPC not in party)
+                warn!("STUB IsNPCInParty: npc={} -> failing, jumping to step {}", npc_id, jump_step);
+                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    pc = target_idx;
+                } else {
+                    return;
+                }
+            }
+            GameEvent::IsTotalBountyHuntingAwardInRange { min, max, jump_step } => {
+                warn!("STUB IsTotalBountyHuntingAwardInRange: min={} max={} -> failing, jumping to step {}", min, max, jump_step);
+                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    pc = target_idx;
+                } else {
+                    return;
+                }
+            }
+
+            // ── Actor / group operations ─────────────────────────────
+            GameEvent::SetActorGroup { actor_id, group_id } => {
+                warn!("STUB SetActorGroup: actor={} group={}", actor_id, group_id);
+            }
+            GameEvent::ChangeGroup { old_group, new_group } => {
+                warn!("STUB ChangeGroup: old={} new={}", old_group, new_group);
+            }
+            GameEvent::ChangeGroupAlly { group_id, ally_group } => {
+                warn!("STUB ChangeGroupAlly: group={} ally={}", group_id, ally_group);
+            }
+            GameEvent::ToggleActorGroupFlag { group_id, flag, on } => {
+                warn!("STUB ToggleActorGroupFlag: group={} flag=0x{:x} on={}", group_id, flag, on);
+            }
+            GameEvent::SetActorItem { actor_id, item_id, on } => {
+                warn!("STUB SetActorItem: actor={} item={} on={}", actor_id, item_id, on);
+            }
+            GameEvent::StopAnimation { decoration_id } => {
+                warn!("STUB StopAnimation: deco={}", decoration_id);
+            }
+            GameEvent::ToggleChestFlag { chest_id, flag, on } => {
+                warn!("STUB ToggleChestFlag: chest={} flag=0x{:x} on={}", chest_id, flag, on);
+            }
+            GameEvent::SpecialJump { jump_value } => {
+                warn!("STUB SpecialJump: value={}", jump_value);
+            }
+
+            GameEvent::Unhandled { opcode, opcode_name, params } => {
+                warn!("Unhandled opcode: 0x{:02x} ({}) params={:02x?}", opcode, opcode_name, params);
+            }
         }
     }
 }

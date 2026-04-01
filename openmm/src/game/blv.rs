@@ -28,8 +28,17 @@ use crate::GameState;
 pub struct DoorFace {
     pub door_index: usize,
     pub face_index: usize,
-    /// For each triangle vertex, the index into door.vertex_ids/offsets.
-    pub vertex_door_indices: Vec<usize>,
+    /// Per triangle-vertex: whether it moves with the door.
+    pub is_moving_vertex: Vec<bool>,
+    /// Base vertex positions (Bevy coords) at door distance=0.
+    /// Used directly for animation: moved_pos = base_pos + direction_bevy * distance.
+    pub base_positions: Vec<[f32; 3]>,
+    /// UV change per unit of door displacement for moving vertices.
+    pub uv_rate: [f32; 2],
+    /// Base UV values per triangle vertex (at distance=0).
+    pub base_uvs: Vec<[f32; 2]>,
+    /// Whether this face has the MOVES_BY_DOOR (FACE_TexMoveByDoor) attribute.
+    pub moves_by_door: bool,
 }
 
 // --- Resources ---
@@ -45,16 +54,71 @@ pub struct DoorRuntime {
     pub state: DoorState,
     /// Milliseconds since last state change.
     pub time_since_triggered_ms: f32,
-    pub vertex_ids: Vec<u16>,
-    pub x_offsets: Vec<i16>,
-    pub y_offsets: Vec<i16>,
-    pub z_offsets: Vec<i16>,
 }
 
 /// Resource holding all door runtime states for the current indoor map.
 #[derive(Resource)]
 pub struct BlvDoors {
     pub doors: Vec<DoorRuntime>,
+}
+
+/// Collision data for a single door face — a polygon that blocks movement.
+pub struct DoorCollisionFace {
+    pub door_index: usize,
+    /// Base vertex positions (Bevy coords) at door distance=0.
+    pub base_positions: Vec<Vec3>,
+    /// Face normal in Bevy coords.
+    pub normal: Vec3,
+    /// Per-vertex: whether this vertex moves with the door.
+    pub is_moving: Vec<bool>,
+}
+
+/// Dynamic collision resource for door faces.
+/// Updated each frame by the door animation system.
+#[derive(Resource, Default)]
+pub struct DoorColliders {
+    /// Source data for rebuilding collision each frame.
+    pub face_data: Vec<DoorCollisionFace>,
+    /// Current collision walls (rebuilt from face_data + door positions).
+    pub walls: Vec<crate::game::collision::CollisionWall>,
+}
+
+impl DoorColliders {
+    /// Push the player out of any door wall they would penetrate.
+    /// Same algorithm as BuildingColliders::resolve_movement.
+    pub fn resolve_movement(&self, from: Vec3, to: Vec3, radius: f32, eye_height: f32) -> Vec3 {
+        let mut result = to;
+        let feet_y = from.y - eye_height;
+
+        for _ in 0..3 {
+            let prev = result;
+
+            for wall in &self.walls {
+                if feet_y > wall.max_y || from.y < wall.min_y {
+                    continue;
+                }
+                // Check if player is within the face's XZ footprint
+                if result.x + radius < wall.min_x || result.x - radius > wall.max_x
+                    || result.z + radius < wall.min_z || result.z - radius > wall.max_z
+                {
+                    continue;
+                }
+
+                let dist = wall.normal.dot(result) - wall.plane_dist;
+                if dist < radius && dist > -radius {
+                    let push = radius - dist;
+                    result.x += wall.normal.x * push;
+                    result.z += wall.normal.z * push;
+                }
+            }
+
+            if (result.x - prev.x).abs() < 0.1 && (result.z - prev.z).abs() < 0.1 {
+                break;
+            }
+        }
+
+        result
+    }
 }
 
 /// Info about a single clickable indoor face.
@@ -151,7 +215,11 @@ fn spawn_indoor_world(
             DoorFace {
                 door_index: df.door_index,
                 face_index: df.face_index,
-                vertex_door_indices: df.vertex_door_indices.clone(),
+                is_moving_vertex: df.is_moving_vertex.clone(),
+                base_positions: df.base_positions.clone(),
+                uv_rate: df.uv_rate,
+                base_uvs: df.base_uvs.clone(),
+                moves_by_door: df.moves_by_door,
             },
             InGame,
         ));
@@ -179,15 +247,41 @@ fn spawn_indoor_world(
                 }
                 _ => 0.0,
             },
-            vertex_ids: door.vertex_ids.clone(),
-            x_offsets: door.x_offsets.clone(),
-            y_offsets: door.y_offsets.clone(),
-            z_offsets: door.z_offsets.clone(),
         })
         .collect();
 
     commands.insert_resource(BlvDoors {
         doors: door_runtimes,
+    });
+
+    // Build DoorColliders from door face data for dynamic collision.
+    // Each door face that is a wall (normal mostly horizontal) contributes
+    // a collision polygon that moves with the door.
+    let mut door_collision_faces = Vec::new();
+    for df in &prepared.door_face_meshes {
+        // Only wall-like faces block movement (normal.y close to 0)
+        // Reconstruct polygon vertices from the triangle mesh base_positions.
+        // Door faces are small enough that using all triangle vertices works.
+        let n = df.base_positions.len();
+        if n < 3 { continue; }
+
+        // Compute face normal from first triangle
+        let p0 = Vec3::from(df.base_positions[0]);
+        let p1 = Vec3::from(df.base_positions[1]);
+        let p2 = Vec3::from(df.base_positions[2]);
+        let normal = (p1 - p0).cross(p2 - p0).normalize_or_zero();
+        if normal.y.abs() > 0.7 { continue; } // Skip floors/ceilings
+
+        door_collision_faces.push(DoorCollisionFace {
+            door_index: df.door_index,
+            base_positions: df.base_positions.iter().map(|p| Vec3::from(*p)).collect(),
+            normal,
+            is_moving: df.is_moving_vertex.clone(),
+        });
+    }
+    commands.insert_resource(DoorColliders {
+        face_data: door_collision_faces,
+        walls: Vec::new(),
     });
 
     // Build ClickableFaces resource
@@ -437,8 +531,8 @@ fn indoor_interact_system(
             warn!("Indoor interact: no EVT file loaded");
             return;
         };
-        if let Some(actions) = evt.events.get(&event_id) {
-            info!("Indoor interact: dispatching {} actions for event_id={}: {:?}", actions.len(), event_id, actions);
+        if let Some(steps) = evt.events.get(&event_id) {
+            info!("Indoor interact: dispatching {} steps for event_id={}", steps.len(), event_id);
         } else {
             info!("Indoor interact: no actions found for event_id={}", event_id);
         }
@@ -490,16 +584,26 @@ fn indoor_touch_trigger_system(
 // --- Door trigger ---
 
 /// Trigger a door state change. Called from event_dispatch when ChangeDoorState fires.
+///
+/// MM6 SetDoorState actions (from MMExtension):
+///   0 = go to state (0) = Open position (initial)
+///   1 = go to state (1) = Closed position (alternate)
+///   2 = toggle if door isn't moving
+///   3 = toggle always
 pub fn trigger_door(doors: &mut BlvDoors, door_id: u32, action: u8) {
-    // For toggle (action=2), resolve to open/close first to avoid borrow issues
-    let resolved_action = if action == 2 {
+    // For toggle (action=2 or 3), resolve to open/close first
+    let resolved_action = if action == 2 || action == 3 {
         let Some(door) = doors.doors.iter().find(|d| d.door_id == door_id) else {
             warn!("trigger_door: no door with id={}", door_id);
             return;
         };
+        // action=2: only toggle if fully open/closed (not moving)
+        if action == 2 && matches!(door.state, DoorState::Opening | DoorState::Closing) {
+            return;
+        }
         match door.state {
-            DoorState::Closed | DoorState::Closing => 1u8, // Open
-            DoorState::Open | DoorState::Opening => 0u8,   // Close
+            DoorState::Closed | DoorState::Closing => 0u8, // -> Open (state 0)
+            DoorState::Open | DoorState::Opening => 1u8,   // -> Close (state 1)
         }
     } else {
         action
@@ -512,24 +616,7 @@ pub fn trigger_door(doors: &mut BlvDoors, door_id: u32, action: u8) {
 
     match resolved_action {
         0 => {
-            // Close
-            match door.state {
-                DoorState::Open | DoorState::Opening => {
-                    if door.state == DoorState::Opening && door.move_length > 0 && door.close_speed > 0 {
-                        let total_open_time = (door.move_length as f32 / door.open_speed as f32) * 1000.0;
-                        let progress = (door.time_since_triggered_ms / total_open_time).clamp(0.0, 1.0);
-                        let total_close_time = (door.move_length as f32 / door.close_speed as f32) * 1000.0;
-                        door.time_since_triggered_ms = total_close_time * (1.0 - progress);
-                    } else {
-                        door.time_since_triggered_ms = 0.0;
-                    }
-                    door.state = DoorState::Closing;
-                }
-                _ => {}
-            }
-        }
-        1 => {
-            // Open
+            // Go to state (0) = Open position
             match door.state {
                 DoorState::Closed | DoorState::Closing => {
                     if door.state == DoorState::Closing && door.move_length > 0 && door.open_speed > 0 {
@@ -545,6 +632,23 @@ pub fn trigger_door(doors: &mut BlvDoors, door_id: u32, action: u8) {
                 _ => {}
             }
         }
+        1 => {
+            // Go to state (1) = Closed position
+            match door.state {
+                DoorState::Open | DoorState::Opening => {
+                    if door.state == DoorState::Opening && door.move_length > 0 && door.close_speed > 0 {
+                        let total_open_time = (door.move_length as f32 / door.open_speed as f32) * 1000.0;
+                        let progress = (door.time_since_triggered_ms / total_open_time).clamp(0.0, 1.0);
+                        let total_close_time = (door.move_length as f32 / door.close_speed as f32) * 1000.0;
+                        door.time_since_triggered_ms = total_close_time * (1.0 - progress);
+                    } else {
+                        door.time_since_triggered_ms = 0.0;
+                    }
+                    door.state = DoorState::Closing;
+                }
+                _ => {}
+            }
+        }
         _ => {
             warn!("trigger_door: unknown action={}", resolved_action);
         }
@@ -554,42 +658,52 @@ pub fn trigger_door(doors: &mut BlvDoors, door_id: u32, action: u8) {
 // --- Door animation ---
 
 /// Calculate the slide distance for a door based on its current state and time.
+///
+/// Returns the displacement from the "open" (base) position:
+///   0.0 = fully open (vertices at BLV positions)
+///   move_length = fully closed (vertices displaced by direction * move_length)
 fn door_slide_distance(door: &DoorRuntime) -> f32 {
-    let total_time = match door.state {
-        DoorState::Opening | DoorState::Open => {
-            if door.open_speed > 0 {
+    match door.state {
+        DoorState::Open => 0.0,
+        DoorState::Closed => door.move_length as f32,
+        DoorState::Opening => {
+            // Opening = moving toward Open (displacement decreasing: move_length → 0)
+            let total_time = if door.open_speed > 0 {
                 (door.move_length as f32 / door.open_speed as f32) * 1000.0
             } else {
                 0.0
-            }
+            };
+            let progress = if total_time > 0.0 {
+                (door.time_since_triggered_ms / total_time).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+            (1.0 - progress) * door.move_length as f32
         }
-        DoorState::Closing | DoorState::Closed => {
-            if door.close_speed > 0 {
+        DoorState::Closing => {
+            // Closing = moving toward Closed (displacement increasing: 0 → move_length)
+            let total_time = if door.close_speed > 0 {
                 (door.move_length as f32 / door.close_speed as f32) * 1000.0
             } else {
                 0.0
-            }
+            };
+            let progress = if total_time > 0.0 {
+                (door.time_since_triggered_ms / total_time).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+            progress * door.move_length as f32
         }
-    };
-
-    let progress = if total_time > 0.0 {
-        (door.time_since_triggered_ms / total_time).clamp(0.0, 1.0)
-    } else {
-        1.0
-    };
-
-    match door.state {
-        DoorState::Opening | DoorState::Open => progress * door.move_length as f32,
-        DoorState::Closing | DoorState::Closed => (1.0 - progress) * door.move_length as f32,
     }
 }
 
-/// Advance door animations and update mesh vertex positions.
+/// Advance door animations, update mesh vertex positions, and rebuild door collision.
 fn door_animation_system(
     time: Res<Time>,
     mut blv_doors: Option<ResMut<BlvDoors>>,
     door_faces: Query<(&DoorFace, &Mesh3d)>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut door_colliders: Option<ResMut<DoorColliders>>,
 ) {
     let Some(ref mut doors) = blv_doors else { return };
     let dt_ms = time.delta_secs() * 1000.0;
@@ -625,40 +739,101 @@ fn door_animation_system(
         }
     }
 
-    // Second pass: update mesh positions for animating doors
+    // Second pass: update mesh positions for all door faces
     for (face, mesh_handle) in door_faces.iter() {
         let Some(door) = doors.doors.get(face.door_index) else { continue };
 
-        // Skip doors with no vertex data or not animating
-        if door.vertex_ids.is_empty() {
-            continue;
-        }
-        match door.state {
-            DoorState::Opening | DoorState::Closing => {}
-            _ => continue,
-        }
-
         let distance = door_slide_distance(door);
 
+        // Convert MM6 direction to Bevy coords: mm6(x,y,z) → bevy(x,z,-y)
+        let dir = [door.direction[0], door.direction[2], -door.direction[1]];
+
         let Some(mesh) = meshes.get_mut(&mesh_handle.0) else { continue };
+
+        // Update vertex positions using stored base positions (Bevy coords).
+        // base_positions are the open/retracted positions; closed = base + dir * distance.
         if let Some(VertexAttributeValues::Float32x3(positions)) =
             mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
         {
             for (vi, pos) in positions.iter_mut().enumerate() {
-                let door_vi = face.vertex_door_indices.get(vi).copied().unwrap_or(0);
-
-                // Base position from door offsets (MM6 coords)
-                let base_x = door.x_offsets.get(door_vi).copied().unwrap_or(0) as f32;
-                let base_y = door.y_offsets.get(door_vi).copied().unwrap_or(0) as f32;
-                let base_z = door.z_offsets.get(door_vi).copied().unwrap_or(0) as f32;
-
-                // Apply direction * distance (in MM6 coords)
-                let moved_x = base_x + door.direction[0] * distance;
-                let moved_y = base_y + door.direction[1] * distance;
-                let moved_z = base_z + door.direction[2] * distance;
-
-                *pos = mm6_to_bevy(moved_x as i32, moved_y as i32, moved_z as i32);
+                if !face.is_moving_vertex.get(vi).copied().unwrap_or(false) {
+                    continue;
+                }
+                let Some(base) = face.base_positions.get(vi) else { continue };
+                pos[0] = base[0] + dir[0] * distance;
+                pos[1] = base[1] + dir[1] * distance;
+                pos[2] = base[2] + dir[2] * distance;
             }
         }
+
+        // Update UVs for faces with the MOVES_BY_DOOR (FACE_TexMoveByDoor) flag.
+        // These are typically reveal/frame faces where some vertices move and some are fixed.
+        // For pure panel faces (all moving, no flag), the texture moves with geometry naturally.
+        //
+        // OpenEnroth formula: textureDelta = -dot(direction, axis) * distance + baseDelta
+        // Our per-vertex equivalent: scroll moving vertex UVs opposite to geometric movement
+        // to keep the texture aligned with the face plane as it deforms.
+        if face.moves_by_door && face.uv_rate != [0.0, 0.0] {
+            if let Some(VertexAttributeValues::Float32x2(uvs)) =
+                mesh.attribute_mut(Mesh::ATTRIBUTE_UV_0)
+            {
+                for (vi, uv) in uvs.iter_mut().enumerate() {
+                    if face.is_moving_vertex.get(vi).copied().unwrap_or(false) {
+                        if let Some(base) = face.base_uvs.get(vi) {
+                            uv[0] = base[0] - face.uv_rate[0] * distance;
+                            uv[1] = base[1] - face.uv_rate[1] * distance;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Third pass: rebuild door collision walls from face data
+    if let Some(ref mut colliders) = door_colliders {
+        // Build new walls into a temporary vec to avoid borrow conflict
+        let mut new_walls = Vec::new();
+        for cf in &colliders.face_data {
+            let Some(door) = doors.doors.get(cf.door_index) else { continue };
+
+            // Only block when the door is not fully open
+            let distance = door_slide_distance(door);
+            if distance < 1.0 { continue; } // Fully open — no collision
+
+            let dir_bevy = Vec3::new(
+                door.direction[0],
+                door.direction[2],
+                -door.direction[1],
+            );
+
+            // Compute current vertex positions (applying door displacement to moving verts)
+            let current_verts: Vec<Vec3> = cf.base_positions.iter().enumerate()
+                .map(|(vi, base)| {
+                    if cf.is_moving.get(vi).copied().unwrap_or(false) {
+                        *base + dir_bevy * distance
+                    } else {
+                        *base
+                    }
+                })
+                .collect();
+
+            if current_verts.len() < 3 { continue; }
+
+            // Deduplicate vertices (triangulated meshes have duplicates)
+            let mut unique_verts: Vec<Vec3> = Vec::new();
+            for v in &current_verts {
+                let is_dup = unique_verts.iter().any(|u| (*u - *v).length_squared() < 1.0);
+                if !is_dup {
+                    unique_verts.push(*v);
+                }
+            }
+            if unique_verts.len() < 3 { continue; }
+
+            let plane_dist = cf.normal.dot(unique_verts[0]);
+            new_walls.push(
+                crate::game::collision::CollisionWall::new(cf.normal, plane_dist, &unique_verts)
+            );
+        }
+        colliders.walls = new_walls;
     }
 }

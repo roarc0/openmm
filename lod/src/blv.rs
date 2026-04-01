@@ -5,6 +5,7 @@ use std::{
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use log::info;
 
 use crate::{enums::{FaceAttributes, DoorAttributes, PolygonType}, LodManager, lod_data::LodData, odm::mm6_to_bevy};
 
@@ -230,18 +231,26 @@ pub struct BlvMapOutline {
 pub struct BlvDoorFaceMesh {
     /// Index into blv.faces.
     pub face_index: usize,
-    /// Index into the doors array.
+    /// Index into the doors array (primary door — owns the direction/speed for animation).
     pub door_index: usize,
     /// Texture name for material lookup.
     pub texture_name: String,
-    /// Triangle vertex positions in Bevy coordinates.
+    /// Triangle vertex positions in Bevy coordinates (the "open"/base positions).
     pub positions: Vec<[f32; 3]>,
     /// Vertex normals.
     pub normals: Vec<[f32; 3]>,
     /// Texture UVs.
     pub uvs: Vec<[f32; 2]>,
-    /// For each triangle vertex, the index into door.vertex_ids (for animation).
-    pub vertex_door_indices: Vec<usize>,
+    /// For each triangle vertex, whether it moves with the door.
+    /// Built from the union of vertex_ids across ALL doors that include this face,
+    /// so cross-door shared faces are correctly marked as fully moving.
+    pub is_moving: Vec<bool>,
+    /// UV change per unit of door displacement for moving vertices.
+    /// Only applied when some vertices are fixed (reveal/frame faces).
+    pub uv_rate: [f32; 2],
+    /// Whether this face has the MOVES_BY_DOOR (FACE_TexMoveByDoor) attribute.
+    /// Controls whether UV scrolling is applied during door animation.
+    pub moves_by_door: bool,
 }
 
 /// A per-texture mesh extracted from a BLV map, ready for rendering.
@@ -868,12 +877,154 @@ impl Blv {
         triangles
     }
 
+    /// Fill in door face/vertex/offset data from BLV geometry for doors
+    /// that are missing this data. DLV files usually have this populated,
+    /// but as a fallback we compute it from face cog_numbers.
+    pub fn initialize_doors(&self, doors: &mut [BlvDoor]) {
+        for door in doors.iter_mut() {
+            if door.door_id == 0 || !door.face_ids.is_empty() {
+                continue; // Already has data or unused slot
+            }
+
+            let mut face_ids = Vec::new();
+            let mut vertex_id_set = std::collections::BTreeSet::new();
+
+            for (fi, face) in self.faces.iter().enumerate() {
+                if face.cog_number == door.door_id as i16 {
+                    face_ids.push(fi as u16);
+                    for &vid in &face.vertex_ids {
+                        vertex_id_set.insert(vid);
+                    }
+                }
+            }
+
+            if face_ids.is_empty() {
+                continue;
+            }
+
+            let vertex_ids: Vec<u16> = vertex_id_set.into_iter().collect();
+
+            // Base offsets = BLV vertex positions (the "open"/state-0 positions)
+            let x_offsets: Vec<i16> = vertex_ids.iter()
+                .map(|&vid| self.vertices.get(vid as usize).map(|v| v.x).unwrap_or(0))
+                .collect();
+            let y_offsets: Vec<i16> = vertex_ids.iter()
+                .map(|&vid| self.vertices.get(vid as usize).map(|v| v.y).unwrap_or(0))
+                .collect();
+            let z_offsets: Vec<i16> = vertex_ids.iter()
+                .map(|&vid| self.vertices.get(vid as usize).map(|v| v.z).unwrap_or(0))
+                .collect();
+
+            info!(
+                "InitializeDoors fallback: door_id={} faces={} verts={}",
+                door.door_id, face_ids.len(), vertex_ids.len()
+            );
+
+            door.face_ids = face_ids;
+            door.vertex_ids = vertex_ids;
+            door.x_offsets = x_offsets;
+            door.y_offsets = y_offsets;
+            door.z_offsets = z_offsets;
+        }
+    }
+
+    /// Compute the UV change rate per unit of door displacement for a face.
+    ///
+    /// Uses the texture mapping gradient derived from 3 face vertices:
+    /// finds how much U and V (in normalized 0..1 UV space) change when a
+    /// vertex moves one unit along the door direction in MM6 coordinates.
+    fn compute_face_uv_rate(
+        face: &BlvFace,
+        vertices: &[BlvVertex],
+        door_direction: &[f32; 3],
+        tex_w: f32,
+        tex_h: f32,
+    ) -> [f32; 2] {
+        let n = face.num_vertices as usize;
+        if n < 3 || face.texture_us.len() < 3 || face.texture_vs.len() < 3 {
+            return [0.0, 0.0];
+        }
+
+        // Get 3 vertices with positions (MM6 coords) and UVs (pixel space)
+        let pos = |i: usize| -> [f32; 3] {
+            let vid = face.vertex_ids[i] as usize;
+            let v = &vertices[vid];
+            [v.x as f32, v.y as f32, v.z as f32]
+        };
+
+        let p0 = pos(0);
+        let p1 = pos(1);
+        let p2 = pos(2);
+
+        let e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+        let e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+
+        let du1 = face.texture_us[1] as f32 - face.texture_us[0] as f32;
+        let du2 = face.texture_us[2] as f32 - face.texture_us[0] as f32;
+        let dv1 = face.texture_vs[1] as f32 - face.texture_vs[0] as f32;
+        let dv2 = face.texture_vs[2] as f32 - face.texture_vs[0] as f32;
+
+        // Solve for texture gradient vectors using metric tensor on the face plane:
+        // gradient_u · e1 = du1, gradient_u · e2 = du2
+        // gradient_u = a1*e1 + a2*e2
+        let dot = |a: &[f32; 3], b: &[f32; 3]| -> f32 {
+            a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+        };
+
+        let g11 = dot(&e1, &e1);
+        let g12 = dot(&e1, &e2);
+        let g22 = dot(&e2, &e2);
+        let det = g11 * g22 - g12 * g12;
+        if det.abs() < 1e-6 {
+            return [0.0, 0.0]; // Degenerate triangle
+        }
+
+        // U gradient in MM6 coords (pixels per MM6 unit)
+        let a1_u = (g22 * du1 - g12 * du2) / det;
+        let a2_u = (g11 * du2 - g12 * du1) / det;
+        let grad_u = [
+            a1_u * e1[0] + a2_u * e2[0],
+            a1_u * e1[1] + a2_u * e2[1],
+            a1_u * e1[2] + a2_u * e2[2],
+        ];
+
+        // V gradient in MM6 coords (pixels per MM6 unit)
+        let a1_v = (g22 * dv1 - g12 * dv2) / det;
+        let a2_v = (g11 * dv2 - g12 * dv1) / det;
+        let grad_v = [
+            a1_v * e1[0] + a2_v * e2[0],
+            a1_v * e1[1] + a2_v * e2[1],
+            a1_v * e1[2] + a2_v * e2[2],
+        ];
+
+        // Project door direction onto texture gradients → pixels per unit distance
+        let du_per_dist = dot(door_direction, &grad_u);
+        let dv_per_dist = dot(door_direction, &grad_v);
+
+        // Convert to normalized UV space
+        [du_per_dist / tex_w, dv_per_dist / tex_h]
+    }
+
     /// Collect the set of face indices belonging to any door.
-    pub fn door_face_set(doors: &[BlvDoor]) -> std::collections::HashSet<usize> {
-        doors
-            .iter()
-            .flat_map(|d| d.face_ids.iter().map(|&id| id as usize))
-            .collect()
+    ///
+    /// Includes ALL faces referenced by any door's face_ids list.
+    /// The original engine (OpenEnroth BLV_UpdateDoorGeometry) moves all
+    /// vertices in the door's vertex_ids and updates all faces in its
+    /// face_ids — we must do the same for correct doorframe/reveal faces.
+    /// Per-vertex `is_moving` flags handle which vertices actually translate.
+    pub fn door_face_set(doors: &[BlvDoor], faces: &[BlvFace]) -> std::collections::HashSet<usize> {
+        let mut result = std::collections::HashSet::new();
+        for door in doors {
+            for &fid in &door.face_ids {
+                let fi = fid as usize;
+                let Some(face) = faces.get(fi) else { continue };
+                if face.vertex_ids.is_empty() {
+                    continue;
+                }
+                result.insert(fi);
+            }
+        }
+        result
     }
 
     /// Generate individual meshes for each door face, with per-vertex door index tracking
@@ -885,12 +1036,18 @@ impl Blv {
     ) -> Vec<BlvDoorFaceMesh> {
         let mut result = Vec::new();
 
-        // Build reverse map: face_index -> (door_index, vertex mapping)
-        // vertex mapping: face vertex_id -> index in door.vertex_ids
+        // Use the same filtering as door_face_set — only include faces where
+        // at least half the vertices are door vertices.
+        let door_face_indices = Self::door_face_set(doors, &self.faces);
+
+        // Build reverse map: face_index -> door_index
         let mut face_to_door: HashMap<usize, usize> = HashMap::new();
         for (di, door) in doors.iter().enumerate() {
             for &fid in &door.face_ids {
-                face_to_door.insert(fid as usize, di);
+                let fi = fid as usize;
+                if door_face_indices.contains(&fi) {
+                    face_to_door.insert(fi, di);
+                }
             }
         }
 
@@ -918,9 +1075,25 @@ impl Blv {
             let normal = [mm6_normal[0] * sign, mm6_normal[2] * sign, -mm6_normal[1] * sign];
 
             let door = &doors[door_index];
-            // Build map: blv vertex_id -> index in door.vertex_ids
-            let vert_to_door_idx: HashMap<u16, usize> =
-                door.vertex_ids.iter().enumerate().map(|(i, &vid)| (vid, i)).collect();
+
+            // Build the set of BLV vertex IDs that move for this face.
+            // Combine vertex_ids from ALL doors whose face_ids include this face so that
+            // cross-door shared faces (e.g., a trim between two adjacent portcullis panels)
+            // are correctly treated as fully moving rather than partially fixed.
+            let mut moving_vids: std::collections::HashSet<u16> = std::collections::HashSet::new();
+            for d in doors {
+                if d.face_ids.iter().any(|&fid| fid as usize == face_idx) {
+                    for &vid in &d.vertex_ids {
+                        moving_vids.insert(vid);
+                    }
+                }
+            }
+
+            // Compute UV rate: how much U and V change per unit of door displacement.
+            // Only used for reveal/frame faces (some vertices fixed, some moving).
+            let uv_rate = Self::compute_face_uv_rate(
+                face, &self.vertices, &door.direction, tex_w_f, tex_h_f,
+            );
 
             let mut mesh = BlvDoorFaceMesh {
                 face_index: face_idx,
@@ -929,7 +1102,9 @@ impl Blv {
                 positions: Vec::new(),
                 normals: Vec::new(),
                 uvs: Vec::new(),
-                vertex_door_indices: Vec::new(),
+                is_moving: Vec::new(),
+                uv_rate,
+                moves_by_door: face.moves_by_door(),
             };
 
             let triangles = Self::triangulate_face(face, &self.vertices);
@@ -962,14 +1137,14 @@ impl Blv {
                     mesh.uvs.push([u, v_coord]);
                     mesh.normals.push(normal);
 
-                    // Door vertex index mapping
+                    // Mark this triangle vertex as moving if its BLV vertex ID is in
+                    // any door's vertex set for this face.
                     let face_vert_id = if vi < face.vertex_ids.len() {
                         face.vertex_ids[vi]
                     } else {
                         0
                     };
-                    let door_vi = vert_to_door_idx.get(&face_vert_id).copied().unwrap_or(0);
-                    mesh.vertex_door_indices.push(door_vi);
+                    mesh.is_moving.push(moving_vids.contains(&face_vert_id));
                 }
             }
 
@@ -1295,5 +1470,64 @@ mod tests {
         door_cogs.sort();
         door_cogs.dedup();
         println!("\nUnique cog numbers on door faces: {:?}", door_cogs);
+    }
+
+    #[test]
+    fn initialize_doors_d01() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
+        let dlv = crate::dlv::Dlv::new(&lod_manager, "d01.blv", blv.door_count, blv.doors_data_size).unwrap();
+
+        // Check cog_numbers on all faces
+        let faces_with_cog: Vec<_> = blv.faces.iter().enumerate()
+            .filter(|(_, f)| f.cog_number != 0)
+            .collect();
+        println!("Faces with non-zero cog_number: {}", faces_with_cog.len());
+        for (i, f) in faces_with_cog.iter().take(20) {
+            let tex = blv.texture_names.get(*i).map(|s| s.as_str()).unwrap_or("?");
+            println!("  face[{}]: cog={} attrs=0x{:08X} tex={} moves_by_door={}",
+                i, f.cog_number, f.attributes, tex, f.moves_by_door());
+        }
+
+        // Check MOVES_BY_DOOR flag
+        let mbd_count = blv.faces.iter().filter(|f| f.moves_by_door()).count();
+        println!("\nFaces with MOVES_BY_DOOR flag: {}", mbd_count);
+
+        // Dump DLV door data for first non-empty door
+        println!("\nDLV door data (non-empty):");
+        for (i, d) in dlv.doors.iter().enumerate() {
+            if d.face_ids.is_empty() { continue; }
+            println!("  door[{}]: id={} dir={:?} move_len={} speed=({},{})",
+                i, d.door_id, d.direction, d.move_length, d.open_speed, d.close_speed);
+            println!("    face_ids: {:?}", &d.face_ids);
+            println!("    vertex_ids: {:?}", &d.vertex_ids);
+            println!("    x_offsets: {:?}", &d.x_offsets);
+            println!("    y_offsets: {:?}", &d.y_offsets);
+            println!("    z_offsets: {:?}", &d.z_offsets);
+            // Compare offsets to BLV vertices
+            for (vi, &vid) in d.vertex_ids.iter().enumerate() {
+                if let Some(v) = blv.vertices.get(vid as usize) {
+                    let matches = d.x_offsets[vi] == v.x && d.y_offsets[vi] == v.y && d.z_offsets[vi] == v.z;
+                    println!("    vert[{}] id={}: blv=({},{},{}) offset=({},{},{}) match={}",
+                        vi, vid, v.x, v.y, v.z, d.x_offsets[vi], d.y_offsets[vi], d.z_offsets[vi], matches);
+                }
+            }
+            if i > 5 { break; }  // Limit output
+        }
+
+        // Verify door_face_set includes ALL faces from door face_ids
+        // (no filtering — the original engine moves all door-referenced faces)
+        let door_set = Blv::door_face_set(&dlv.doors, &blv.faces);
+        let all_face_ids: std::collections::HashSet<u16> = dlv.doors.iter()
+            .flat_map(|d| d.face_ids.iter().copied())
+            .collect();
+        let included = all_face_ids.iter().filter(|&&fid| door_set.contains(&(fid as usize))).count();
+        println!("\nDoor face set: {} included out of {} total door face_ids",
+            included, all_face_ids.len());
+        // All faces with non-empty vertex_ids should be included
+        let faces_with_vids = all_face_ids.iter()
+            .filter(|&&fid| blv.faces.get(fid as usize).map(|f| !f.vertex_ids.is_empty()).unwrap_or(false))
+            .count();
+        assert_eq!(included, faces_with_vids, "all door faces with vertex data should be included");
     }
 }

@@ -2,6 +2,7 @@ mod borders;
 mod footer;
 mod minimap;
 mod overlay;
+mod stats_bar;
 
 pub use borders::{parse_aspect_ratio, viewport_rect};
 pub use footer::FooterText;
@@ -49,6 +50,7 @@ impl Plugin for HudPlugin {
                     update_hud_layout,
                     update_minimap,
                     update_footer_text,
+                    stats_bar::update_stats_bar,
                     update_viewport,
                     overlay::spawn_overlay,
                     overlay::despawn_overlay,
@@ -418,6 +420,9 @@ fn spawn_hud(
                     HudUI,
                 ));
             }
+
+            // Gold and food text display
+            stats_bar::spawn_stats_bar(parent);
 
             // Footer text -- spawned last so it renders on top of everything
             parent.spawn((

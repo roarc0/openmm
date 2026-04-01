@@ -352,6 +352,7 @@ fn player_movement(
     world_state: Res<crate::game::world_state::WorldState>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
+    door_colliders: Option<Res<crate::game::blv::DoorColliders>>,
     water_map: Option<Res<WaterMap>>,
     water_walking: Option<Res<WaterWalking>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
@@ -453,6 +454,9 @@ fn player_movement(
                 if let Some(ref c) = colliders {
                     dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
                 }
+                if let Some(ref dc) = door_colliders {
+                    dest = dc.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
+                }
                 transform.translation = dest;
             } else {
                 let from = transform.translation;
@@ -515,6 +519,10 @@ fn player_movement(
                         settings.eye_height,
                     );
                 }
+                // Door collision
+                if let Some(ref dc) = door_colliders {
+                    dest = dc.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
+                }
 
                 transform.translation.x = dest.x;
                 transform.translation.z = dest.z;
@@ -541,6 +549,9 @@ fn player_movement(
                 let mut dest = from + Vec3::new(0.0, dy, 0.0);
                 if let Some(ref c) = colliders {
                     dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
+                }
+                if let Some(ref dc) = door_colliders {
+                    dest = dc.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
                 }
                 transform.translation = dest;
             }

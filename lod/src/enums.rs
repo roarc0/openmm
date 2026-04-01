@@ -697,20 +697,28 @@ impl PolygonType {
 }
 
 /// Door action type used in ChangeDoorState EVT event.
+///
+/// MM6 semantics (from MMExtension evt.SetDoorState):
+///   0 = go to state (0) = initial/open position
+///   1 = go to state (1) = alternate/closed position
+///   2 = toggle if door isn't moving
+///   3 = toggle always
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum DoorAction {
-    Open = 0,
-    Close = 1,
-    Toggle = 2,
+    GoToOpen = 0,
+    GoToClosed = 1,
+    ToggleIfStopped = 2,
+    Toggle = 3,
 }
 
 impl DoorAction {
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
-            0 => Some(Self::Open),
-            1 => Some(Self::Close),
-            2 => Some(Self::Toggle),
+            0 => Some(Self::GoToOpen),
+            1 => Some(Self::GoToClosed),
+            2 => Some(Self::ToggleIfStopped),
+            3 => Some(Self::Toggle),
             _ => None,
         }
     }
@@ -723,8 +731,9 @@ impl DoorAction {
 impl std::fmt::Display for DoorAction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Open => write!(f, "Open"),
-            Self::Close => write!(f, "Close"),
+            Self::GoToOpen => write!(f, "GoToOpen"),
+            Self::GoToClosed => write!(f, "GoToClosed"),
+            Self::ToggleIfStopped => write!(f, "ToggleIfStopped"),
             Self::Toggle => write!(f, "Toggle"),
         }
     }

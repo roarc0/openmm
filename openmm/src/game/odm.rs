@@ -623,7 +623,7 @@ fn lazy_spawn(
                 let pos = bb.position + Vec3::new(0.0, sh / 2.0, 0.0);
                 // Single animation frame with 5 directional views
                 let states = vec![vec![dirs]];
-                commands.entity(terrain_entity).with_child((
+                let child_id = commands.spawn((
                     Name::new(format!("decoration:{}", key)),
                     Mesh3d(quad), MeshMaterial3d(initial_mat),
                     Transform::from_translation(pos),
@@ -633,7 +633,15 @@ fn lazy_spawn(
                     crate::game::entities::AnimationState::Idle,
                     sprites::SpriteSheet::new(states, vec![(sw, sh)]),
                     crate::game::entities::FacingYaw(bb.facing_yaw),
-                ));
+                )).id();
+                commands.entity(terrain_entity).add_child(child_id);
+                if bb.event_id > 0 {
+                    commands.entity(child_id).insert(crate::game::interaction::DecorationInfo {
+                        event_id: bb.event_id as u16,
+                        position: pos,
+                        billboard_index: bb.billboard_index,
+                    });
+                }
                 spawned += 1;
             } else {
                 continue;
@@ -665,13 +673,21 @@ fn lazy_spawn(
                 (m, q, h)
             };
             let pos = bb.position + Vec3::new(0.0, h / 2.0, 0.0);
-            commands.entity(terrain_entity).with_child((
+            let child_id = commands.spawn((
                 Name::new("decoration"), Mesh3d(quad), MeshMaterial3d(mat),
                 Transform::from_translation(pos),
                 crate::game::entities::WorldEntity,
                 crate::game::entities::EntityKind::Decoration,
                 crate::game::entities::Billboard,
-            ));
+            )).id();
+            commands.entity(terrain_entity).add_child(child_id);
+            if bb.event_id > 0 {
+                commands.entity(child_id).insert(crate::game::interaction::DecorationInfo {
+                    event_id: bb.event_id as u16,
+                    position: pos,
+                    billboard_index: bb.billboard_index,
+                });
+            }
             spawned += 1;
         }
 

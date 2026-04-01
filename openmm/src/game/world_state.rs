@@ -14,8 +14,25 @@ pub struct WorldState {
     pub player: PlayerRuntimeState,
     pub map: MapRuntimeState,
     pub debug: DebugRuntimeState,
+    pub game_vars: GameVariables,
     /// Time of day: 0.0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset
     pub time_of_day: f32,
+}
+
+/// Game variables storage — quest flags, map locals, gold, food, etc.
+pub struct GameVariables {
+    /// Map-local variables (MapVar0..MapVar99), reset on map change.
+    pub map_vars: [i32; 100],
+    /// Global quest bits (set/cleared by event scripts).
+    pub quest_bits: std::collections::HashSet<i32>,
+    /// Party gold.
+    pub gold: i32,
+    /// Party food rations.
+    pub food: i32,
+    /// Party reputation (signed — negative is good, positive is bad in MM6).
+    pub reputation: i32,
+    /// Auto-notes (journal entries).
+    pub autonotes: std::collections::HashSet<i32>,
 }
 
 pub struct PlayerRuntimeState {
@@ -65,12 +82,26 @@ impl Default for MapRuntimeState {
     }
 }
 
+impl Default for GameVariables {
+    fn default() -> Self {
+        Self {
+            map_vars: [0; 100],
+            quest_bits: std::collections::HashSet::new(),
+            gold: 200, // Starting gold in MM6
+            food: 7,
+            reputation: 0,
+            autonotes: std::collections::HashSet::new(),
+        }
+    }
+}
+
 impl Default for WorldState {
     fn default() -> Self {
         Self {
             player: PlayerRuntimeState::default(),
             map: MapRuntimeState::default(),
             debug: DebugRuntimeState::default(),
+            game_vars: GameVariables::default(),
             time_of_day: 0.375, // 9am
         }
     }

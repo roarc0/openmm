@@ -91,8 +91,8 @@ src/
 
 ## Useful Resources
 
-- Reference OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats but be careful because mm7 might be different. You should find a copy of that codebase in the target folder
-- Reference MMExtension from grayface that is a modding engine for mm6 so more reilable but different codebase. You should find a copy too in that folder
+- Reference MMExtension from grayface that is just a modding engine for mm6, it can tell you much more accurately the data structures. You should find a copy too in that folder
+- Reference OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats but be careful because mm7 might be different. You should find a copy of that codebase in the target folder. Use it as a last resort because if we take the wrong path here we might introduce very nasty bugs. mm7 is different in many ways.
 
 ### Rules
 
@@ -118,9 +118,9 @@ When implementing a feature, always separate concerns and organize logic into we
 
 ### Rule 4: It's ok to log debug noisy stuff and, or info,warn,error. The logger level can be adjusted and it will help debugging.
 
-### Rule 5: Document and keep updated all the relevant findings about the original engine. 
+### Rule 5: Document and keep updated all the relevant findings about the original engine.
 
-Document what each file,format does how it is structured in terms of lod raw data and what each field is for. 
+Document what each file,format does how it is structured in terms of lod raw data and what each field is for.
 Add the complete details in the docs folder.
 
 ### Coordinate conversion

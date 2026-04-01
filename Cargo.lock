@@ -3853,6 +3853,7 @@ dependencies = [
  "flate2",
  "hexdump",
  "image",
+ "log",
 ]
 
 [[package]]

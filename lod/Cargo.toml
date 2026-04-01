@@ -10,6 +10,7 @@ byteorder = "1.5"
 flate2 = "1.0"
 hexdump = "0.1"
 image = "0.25"
+log = "0.4"
 
 [lints]
 workspace = true

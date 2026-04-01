@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::io::Read;
 
-use crate::enums::{DoorAction, EvtOpcode, EvtVariable};
+use crate::enums::{DoorAction, EvtOpcode, EvtTargetCharacter, EvtVariable};
 use crate::LodManager;
 
 /// A parsed game event — the simplified result of executing an event script.
@@ -138,7 +138,43 @@ pub enum GameEvent {
     /// Remove items from inventory.
     RemoveItems { item_id: i32, count: i32 },
 
-    /// Unhandled opcode — parsed but not yet implemented.
+    // ── Remaining opcodes (parsed with params, not yet executed) ──────
+    /// Input string prompt (MM6-era text input).
+    InputString { params: Vec<u8> },
+    /// Set NPC group news.
+    SetNPCGroupNews { npc_group: i32, news_id: i32 },
+    /// Set actor to a group.
+    SetActorGroup { actor_id: i32, group_id: i32 },
+    /// Give or take an item from an NPC.
+    NPCSetItem { npc_id: i32, item_id: i32, on: u8 },
+    /// Can-show dialog variant of IsActorKilled.
+    CanShowTopicIsActorKilled { actor_group: i32, count: i32 },
+    /// Change monster group.
+    ChangeGroup { old_group: i32, new_group: i32 },
+    /// Change monster group ally.
+    ChangeGroupAlly { group_id: i32, ally_group: i32 },
+    /// Check season (0=winter, 1=spring, 2=summer, 3=autumn).
+    CheckSeason { season: i32, jump_step: u8 },
+    /// Toggle a flag on all actors in a group.
+    ToggleActorGroupFlag { group_id: i32, flag: i32, on: u8 },
+    /// Toggle a chest flag.
+    ToggleChestFlag { chest_id: i32, flag: i32, on: u8 },
+    /// Give or take an item on a specific actor.
+    SetActorItem { actor_id: i32, item_id: i32, on: u8 },
+    /// Date timer trigger.
+    OnDateTimer { timer_data: Vec<u8> },
+    /// Enable/disable a date timer.
+    EnableDateTimer { timer_id: i32, on: u8 },
+    /// Stop a decoration animation.
+    StopAnimation { decoration_id: i32 },
+    /// Special jump (e.g. to another event).
+    SpecialJump { jump_value: i32 },
+    /// Check if total bounty hunting award is in range.
+    IsTotalBountyHuntingAwardInRange { min: i32, max: i32, jump_step: u8 },
+    /// Check if NPC is in party.
+    IsNPCInParty { npc_id: i32, jump_step: u8 },
+
+    /// Unhandled opcode — unknown or truly unparseable.
     Unhandled { opcode: u8, opcode_name: &'static str, params: Vec<u8> },
 }
 
@@ -158,13 +194,39 @@ impl std::fmt::Display for GameEvent {
             Self::LocationName { text, .. } => write!(f, "LocationName('{}')", text),
             Self::ShowMessage { text, .. } => write!(f, "ShowMessage('{}')", text),
             Self::Exit => write!(f, "Exit"),
-            Self::Compare { var, value, jump_step } =>
-                write!(f, "Compare({} == {}? else goto step {})", var, value, jump_step),
+            Self::Compare { var, value, jump_step } => {
+                if *var == EvtVariable::QBITS {
+                    write!(f, "Compare(QBit[{}] set? else step {})", value, jump_step)
+                } else if *var == EvtVariable::AUTONOTES_BITS {
+                    write!(f, "Compare(Autonote[{}] set? else step {})", value, jump_step)
+                } else if *var == EvtVariable::INVENTORY {
+                    write!(f, "Compare(HasItem({})? else step {})", value, jump_step)
+                } else {
+                    write!(f, "Compare({} >= {}? else step {})", var, value, jump_step)
+                }
+            }
             Self::Jmp { target_step } => write!(f, "Jmp(step {})", target_step),
-            Self::ForPartyMember { player } => write!(f, "ForPartyMember(player={})", player),
-            Self::Add { var, value } => write!(f, "Add({} += {})", var, value),
-            Self::Subtract { var, value } => write!(f, "Subtract({} -= {})", var, value),
-            Self::Set { var, value } => write!(f, "Set({} = {})", var, value),
+            Self::ForPartyMember { player } => {
+                let name = EvtTargetCharacter::from_u8(*player)
+                    .map(|t| format!("{:?}", t))
+                    .unwrap_or_else(|| player.to_string());
+                write!(f, "ForPartyMember({})", name)
+            }
+            Self::Add { var, value } => {
+                if *var == EvtVariable::QBITS { write!(f, "Add(QBit[{}] = true)", value) }
+                else if *var == EvtVariable::AUTONOTES_BITS { write!(f, "Add(Autonote[{}] = true)", value) }
+                else { write!(f, "Add({} += {})", var, value) }
+            }
+            Self::Subtract { var, value } => {
+                if *var == EvtVariable::QBITS { write!(f, "Subtract(QBit[{}] = false)", value) }
+                else if *var == EvtVariable::AUTONOTES_BITS { write!(f, "Subtract(Autonote[{}] = false)", value) }
+                else { write!(f, "Subtract({} -= {})", var, value) }
+            }
+            Self::Set { var, value } => {
+                if *var == EvtVariable::QBITS { write!(f, "Set(QBit[{}] = true)", value) }
+                else if *var == EvtVariable::AUTONOTES_BITS { write!(f, "Set(Autonote[{}] = true)", value) }
+                else { write!(f, "Set({} = {})", var, value) }
+            }
             Self::GiveItem { strength, item_type, item_id } =>
                 write!(f, "GiveItem(str={} type={} id={})", strength, item_type, item_id),
             Self::SetNPCTopic { npc_id, topic_index, event_id } =>
@@ -223,16 +285,65 @@ impl std::fmt::Display for GameEvent {
                 write!(f, "CheckItemsCount(item={} count={} else step {})", item_id, count, jump_step),
             Self::RemoveItems { item_id, count } =>
                 write!(f, "RemoveItems(item={} count={})", item_id, count),
+            Self::InputString { params } =>
+                write!(f, "InputString(params={:02x?})", params),
+            Self::SetNPCGroupNews { npc_group, news_id } =>
+                write!(f, "SetNPCGroupNews(group={} news={})", npc_group, news_id),
+            Self::SetActorGroup { actor_id, group_id } =>
+                write!(f, "SetActorGroup(actor={} group={})", actor_id, group_id),
+            Self::NPCSetItem { npc_id, item_id, on } =>
+                write!(f, "NPCSetItem(npc={} item={} on={})", npc_id, item_id, on),
+            Self::CanShowTopicIsActorKilled { actor_group, count } =>
+                write!(f, "CanShowTopicIsActorKilled(group={} count={})", actor_group, count),
+            Self::ChangeGroup { old_group, new_group } =>
+                write!(f, "ChangeGroup(old={} new={})", old_group, new_group),
+            Self::ChangeGroupAlly { group_id, ally_group } =>
+                write!(f, "ChangeGroupAlly(group={} ally={})", group_id, ally_group),
+            Self::CheckSeason { season, jump_step } => {
+                let name = match season {
+                    0 => "Winter",
+                    1 => "Spring",
+                    2 => "Summer",
+                    3 => "Autumn",
+                    _ => "Unknown",
+                };
+                write!(f, "CheckSeason({}={} else step {})", name, season, jump_step)
+            }
+            Self::ToggleActorGroupFlag { group_id, flag, on } =>
+                write!(f, "ToggleActorGroupFlag(group={} flag=0x{:x} on={})", group_id, flag, on),
+            Self::ToggleChestFlag { chest_id, flag, on } =>
+                write!(f, "ToggleChestFlag(chest={} flag=0x{:x} on={})", chest_id, flag, on),
+            Self::SetActorItem { actor_id, item_id, on } =>
+                write!(f, "SetActorItem(actor={} item={} on={})", actor_id, item_id, on),
+            Self::OnDateTimer { timer_data } =>
+                write!(f, "OnDateTimer(data={:02x?})", timer_data),
+            Self::EnableDateTimer { timer_id, on } =>
+                write!(f, "EnableDateTimer(timer={} on={})", timer_id, on),
+            Self::StopAnimation { decoration_id } =>
+                write!(f, "StopAnimation(deco={})", decoration_id),
+            Self::SpecialJump { jump_value } =>
+                write!(f, "SpecialJump(value={})", jump_value),
+            Self::IsTotalBountyHuntingAwardInRange { min, max, jump_step } =>
+                write!(f, "IsTotalBountyHuntingAwardInRange(min={} max={} else step {})", min, max, jump_step),
+            Self::IsNPCInParty { npc_id, jump_step } =>
+                write!(f, "IsNPCInParty(npc={} else step {})", npc_id, jump_step),
             Self::Unhandled { opcode, opcode_name, params } =>
                 write!(f, "Unhandled(0x{:02x} {} params={:02x?})", opcode, opcode_name, params),
         }
     }
 }
 
+/// A single step in an event script: step number + action.
+#[derive(Debug, Clone)]
+pub struct EvtStep {
+    pub step: u8,
+    pub event: GameEvent,
+}
+
 /// Parsed events from a .evt file, keyed by event_id.
 pub struct EvtFile {
-    /// For each event_id, the list of actions (simplified from raw instructions).
-    pub events: HashMap<u16, Vec<GameEvent>>,
+    /// For each event_id, the list of steps (step number + action).
+    pub events: HashMap<u16, Vec<EvtStep>>,
 }
 
 /// Parse a .str string table: null-separated strings indexed from 0.
@@ -294,7 +405,7 @@ impl EvtFile {
             raw.to_vec()
         };
 
-        let mut events: HashMap<u16, Vec<GameEvent>> = HashMap::new();
+        let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
         let mut pos = 0;
 
         while pos < data.len() {
@@ -305,7 +416,7 @@ impl EvtFile {
             }
 
             let event_id = u16::from_le_bytes([data[pos + 1], data[pos + 2]]);
-            // byte 3 = step (not needed for simplified parsing)
+            let step = data[pos + 3];
             let opcode = data[pos + 4];
             let params = &data[pos + 5..pos + total];
 
@@ -487,9 +598,10 @@ impl EvtFile {
                     }
                 }
                 Some(EvtOpcode::SetSprite) => {
-                    if params.len() >= 5 {
+                    // Format: cog(u32) + hide(u8) + name(null-terminated string)
+                    if params.len() >= 6 {
                         let decoration_id = i32_at(params, 0);
-                        let name = read_string(&params[4..]);
+                        let name = read_string(&params[5..]);
                         Some(GameEvent::SetSprite { decoration_id, sprite_name: name })
                     } else {
                         None
@@ -650,6 +762,112 @@ impl EvtFile {
                         None
                     }
                 }
+                // ── Remaining opcodes with param parsing ─────────
+                Some(EvtOpcode::InputString) => {
+                    Some(GameEvent::InputString { params: params.to_vec() })
+                }
+                Some(EvtOpcode::SetNPCGroupNews) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::SetNPCGroupNews { npc_group: i32_at(params, 0), news_id: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::SetActorGroup) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::SetActorGroup { actor_id: i32_at(params, 0), group_id: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::NPCSetItem) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::NPCSetItem { npc_id: i32_at(params, 0), item_id: i32_at(params, 4), on: params[8] })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::CanShowTopicIsActorKilled) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::CanShowTopicIsActorKilled { actor_group: i32_at(params, 0), count: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::ChangeGroup) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::ChangeGroup { old_group: i32_at(params, 0), new_group: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::ChangeGroupAlly) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::ChangeGroupAlly { group_id: i32_at(params, 0), ally_group: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::CheckSeason) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::CheckSeason { season: i32_at(params, 0), jump_step: params[4] })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::ToggleActorGroupFlag) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::ToggleActorGroupFlag { group_id: i32_at(params, 0), flag: i32_at(params, 4), on: params[8] })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::ToggleChestFlag) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::ToggleChestFlag { chest_id: i32_at(params, 0), flag: i32_at(params, 4), on: params[8] })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::SetActorItem) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::SetActorItem { actor_id: i32_at(params, 0), item_id: i32_at(params, 4), on: params[8] })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::OnDateTimer) => {
+                    Some(GameEvent::OnDateTimer { timer_data: params.to_vec() })
+                }
+                Some(EvtOpcode::EnableDateTimer) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::EnableDateTimer { timer_id: i32_at(params, 0), on: params[4] })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::StopAnimation) => {
+                    read_i32(params).map(|v| GameEvent::StopAnimation { decoration_id: v })
+                }
+                Some(EvtOpcode::SpecialJump) => {
+                    read_i32(params).map(|v| GameEvent::SpecialJump { jump_value: v })
+                }
+                Some(EvtOpcode::IsTotalBountyHuntingAwardInRange) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::IsTotalBountyHuntingAwardInRange {
+                            min: i32_at(params, 0), max: i32_at(params, 4), jump_step: params[8],
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::IsNPCInParty) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::IsNPCInParty { npc_id: i32_at(params, 0), jump_step: params[4] })
+                    } else {
+                        None
+                    }
+                }
                 _ => Some(GameEvent::Unhandled {
                     opcode,
                     opcode_name: evt_opcode.map_or("Unknown", |o| o.name()),
@@ -657,8 +875,8 @@ impl EvtFile {
                 }),
             };
 
-            if let Some(action) = action {
-                events.entry(event_id).or_default().push(action);
+            if let Some(event) = action {
+                events.entry(event_id).or_default().push(EvtStep { step, event });
             }
 
             pos += total;
@@ -669,8 +887,9 @@ impl EvtFile {
 
     /// Get the primary action for an event (first SpeakInHouse or MoveToMap).
     pub fn primary_action(&self, event_id: u16) -> Option<&GameEvent> {
-        self.events.get(&event_id)?.iter().find(|a| matches!(a,
-            GameEvent::SpeakInHouse { .. } | GameEvent::MoveToMap { .. }
-        ))
+        self.events.get(&event_id)?.iter().find_map(|s| match &s.event {
+            GameEvent::SpeakInHouse { .. } | GameEvent::MoveToMap { .. } => Some(&s.event),
+            _ => None,
+        })
     }
 }

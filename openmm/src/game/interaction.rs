@@ -17,9 +17,20 @@ pub struct BuildingInfo {
     pub event_ids: Vec<u16>,
 }
 
+/// Component on billboard/decoration entities that have EVT events.
+#[derive(Component)]
+pub struct DecorationInfo {
+    pub event_id: u16,
+    pub position: Vec3,
+    /// Index into the map's billboard array (for SetSprite targeting).
+    pub billboard_index: usize,
+}
+
 
 const INTERACT_RANGE: f32 = 250.0;
 const RAYCAST_RANGE: f32 = 2000.0;
+/// Decorations use a tighter perpendicular distance threshold for raycast hits.
+const DECORATION_RAY_PERP: f32 = 150.0;
 
 // --- Plugin ---
 
@@ -29,7 +40,7 @@ impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (hover_hint_system, interact_system)
+            (hover_hint_system, interact_system, decoration_interact_system)
                 .chain()
                 .run_if(in_state(GameState::Game))
                 .run_if(resource_equals(HudView::World)),
@@ -172,9 +183,9 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
     let evt = me.evt.as_ref()?;
 
     for &eid in &info.event_ids {
-        if let Some(actions) = evt.events.get(&eid) {
-            for action in actions {
-                match action {
+        if let Some(steps) = evt.events.get(&eid) {
+            for s in steps {
+                match &s.event {
                     lod::evt::GameEvent::OpenChest { id } => {
                         return Some(format!("Chest #{}", id));
                     }
@@ -216,20 +227,117 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
     None
 }
 
-/// Show the name of the nearest interactive building in the footer bar.
+/// Find the nearest interactive decoration via raycast from the camera.
+fn find_nearest_decoration<'a>(
+    cam_global: &GlobalTransform,
+    decorations: &'a Query<&DecorationInfo>,
+) -> Option<&'a DecorationInfo> {
+    let ray_origin = cam_global.translation();
+    let ray_dir = cam_global.forward().as_vec3();
+    let mut nearest: Option<(&DecorationInfo, f32)> = None;
+
+    for info in decorations.iter() {
+        let to_deco = info.position - ray_origin;
+        let along_ray = to_deco.dot(ray_dir);
+        if along_ray < 0.0 || along_ray > RAYCAST_RANGE { continue; }
+        let closest_point = ray_origin + ray_dir * along_ray;
+        let perp_dist = closest_point.distance(info.position);
+        if perp_dist < DECORATION_RAY_PERP {
+            if nearest.is_none() || along_ray < nearest.unwrap().1 {
+                nearest = Some((info, along_ray));
+            }
+        }
+    }
+
+    nearest.map(|(info, _)| info)
+}
+
+/// Resolve a human-readable name for a decoration from its event data.
+fn resolve_decoration_name(event_id: u16, map_events: &Option<Res<MapEvents>>) -> Option<String> {
+    let me = map_events.as_ref()?;
+    let evt = me.evt.as_ref()?;
+    let steps = evt.events.get(&event_id)?;
+    for s in steps {
+        match &s.event {
+            lod::evt::GameEvent::Hint { text, .. } if !text.is_empty() => {
+                return Some(text.clone());
+            }
+            lod::evt::GameEvent::StatusText { text, .. } if !text.is_empty() => {
+                return Some(text.clone());
+            }
+            lod::evt::GameEvent::OpenChest { id } => {
+                return Some(format!("Chest #{}", id));
+            }
+            lod::evt::GameEvent::SpeakInHouse { house_id } => {
+                if let Some(houses) = me.houses.as_ref() {
+                    if let Some(entry) = houses.houses.get(house_id) {
+                        return Some(entry.name.clone());
+                    }
+                }
+                return Some(format!("Building #{}", house_id));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Detect click on a decoration and push its events to the queue.
+fn decoration_interact_system(
+    keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    gamepads: Query<&Gamepad>,
+    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
+    decorations: Query<&DecorationInfo>,
+    map_events: Option<Res<MapEvents>>,
+    mut event_queue: ResMut<EventQueue>,
+    cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
+) {
+    let Ok((cam_global, _)) = camera_query.single() else { return };
+
+    let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
+    if !key && !click && !gamepad { return; }
+
+    let cursor_grabbed = cursor_query.single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
+    if click && !cursor_grabbed { return; }
+
+    let Some(info) = find_nearest_decoration(cam_global, &decorations) else {
+        return;
+    };
+
+    let Some(me) = map_events else { return };
+    let Some(evt) = me.evt.as_ref() else { return };
+
+    event_queue.push_all(info.event_id, evt);
+}
+
+/// Show the name of the nearest interactive building or decoration in the footer bar.
 fn hover_hint_system(
     player_query: Query<&Transform, With<Player>>,
+    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     buildings: Query<(&BuildingInfo, &GlobalTransform)>,
+    decorations: Query<&DecorationInfo>,
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
     let Ok(player_tf) = player_query.single() else { return };
 
-    // Proximity-only check for hover (no raycast — saves a full building scan per frame)
+    // Proximity check for buildings
     if let Some(info) = find_nearest_building(player_tf.translation, &GlobalTransform::default(), &buildings, false) {
         if let Some(name) = resolve_building_name(info, &map_events) {
             footer.set(&name);
             return;
+        }
+    }
+
+    // Raycast check for decorations (they're click-to-interact, not proximity)
+    if let Ok((cam_global, _)) = camera_query.single() {
+        if let Some(info) = find_nearest_decoration(cam_global, &decorations) {
+            if let Some(name) = resolve_decoration_name(info.event_id, &map_events) {
+                footer.set(&name);
+                return;
+            }
         }
     }
 

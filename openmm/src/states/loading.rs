@@ -115,7 +115,16 @@ pub struct PreparedDoorFace {
     pub mesh: Mesh,
     pub material: StandardMaterial,
     pub texture: Option<Image>,
-    pub vertex_door_indices: Vec<usize>,
+    /// Per triangle-vertex: whether it moves with the door.
+    pub is_moving_vertex: Vec<bool>,
+    /// Base vertex positions (Bevy coords) at door distance=0 (open/retracted state).
+    pub base_positions: Vec<[f32; 3]>,
+    /// UV change per unit of door displacement for moving vertices.
+    pub uv_rate: [f32; 2],
+    /// Base UV values per triangle vertex (at distance=0).
+    pub base_uvs: Vec<[f32; 2]>,
+    /// Whether this face has the MOVES_BY_DOOR flag (needs UV scrolling).
+    pub moves_by_door: bool,
 }
 
 /// Data for a clickable indoor face.
@@ -184,6 +193,10 @@ pub struct PreparedBillboard {
     pub sound_id: u16,
     /// Facing direction in radians (from map data direction_degrees).
     pub facing_yaw: f32,
+    /// EVT event ID triggered on interaction (0 = no event).
+    pub event_id: i16,
+    /// Original index in the map's billboard array (for SetSprite targeting).
+    pub billboard_index: usize,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -276,6 +289,7 @@ fn loading_setup(
     commands.remove_resource::<PreparedWorld>();
     commands.remove_resource::<PreparedIndoorWorld>();
     commands.remove_resource::<crate::game::blv::BlvDoors>();
+    commands.remove_resource::<crate::game::blv::DoorColliders>();
     commands.remove_resource::<crate::game::blv::ClickableFaces>();
     commands.remove_resource::<crate::game::blv::TouchTriggerFaces>();
 
@@ -500,13 +514,18 @@ fn loading_step(
                     .as_ref()
                     .map(|d| d.actors.clone())
                     .unwrap_or_default();
-                let dlv_doors = dlv_result
+                let mut dlv_doors = dlv_result
                     .as_ref()
                     .map(|d| d.doors.clone())
                     .unwrap_or_default();
 
+                // Fill in any doors missing face/vertex data from BLV geometry.
+                // Some DLV files have fully populated door data; others need
+                // runtime initialization (matching the original engine's InitializeDoors).
+                blv.initialize_doors(&mut dlv_doors);
+
                 // Exclude door faces from batched geometry
-                let door_faces = lod::blv::Blv::door_face_set(&dlv_doors);
+                let door_faces = lod::blv::Blv::door_face_set(&dlv_doors, &blv.faces);
                 let textured = blv.textured_meshes(&texture_sizes, &door_faces);
 
                 // Generate individual door face meshes
@@ -514,14 +533,19 @@ fn loading_step(
                 let prepared_door_faces: Vec<PreparedDoorFace> = door_face_meshes_raw
                     .into_iter()
                     .map(|dfm| {
+                        // Door meshes need MAIN_WORLD to retain vertex data for animation
                         let mut mesh = Mesh::new(
                             PrimitiveTopology::TriangleList,
-                            RenderAssetUsages::RENDER_WORLD,
+                            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
                         );
+                        // Capture base positions before consuming them into the mesh.
+                        let base_positions = dfm.positions.clone();
                         mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, dfm.positions);
                         mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, dfm.normals);
+                        let base_uvs = dfm.uvs.clone();
                         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, dfm.uvs);
-                        _ = mesh.generate_tangents();
+                        // Skip generate_tangents — door vertices are animated and
+                        // tangents would become stale. Not needed for flat surfaces.
                         let texture = game_assets.lod_manager().bitmap(&dfm.texture_name)
                             .map(|img| {
                                 let mut image = crate::assets::dynamic_to_bevy_image(img);
@@ -543,7 +567,11 @@ fn loading_step(
                                 ..default()
                             },
                             texture,
-                            vertex_door_indices: dfm.vertex_door_indices,
+                            is_moving_vertex: dfm.is_moving,
+                            base_positions,
+                            uv_rate: dfm.uv_rate,
+                            base_uvs,
+                            moves_by_door: dfm.moves_by_door,
                         }
                     })
                     .collect();
@@ -655,8 +683,8 @@ fn loading_step(
                         .collect();
                     let evt_entry = outdoor_bases.iter().find_map(|base| {
                         lod::evt::EvtFile::parse(game_assets.lod_manager(), base).ok().and_then(|evt| {
-                            evt.events.values().flatten().find_map(|action| {
-                                if let lod::evt::GameEvent::MoveToMap { x, y, z, direction, map_name } = action {
+                            evt.events.values().flatten().find_map(|s| {
+                                if let lod::evt::GameEvent::MoveToMap { x, y, z, direction, map_name } = &s.event {
                                     if map_name.eq_ignore_ascii_case(&blv_name) {
                                         Some((*x, *y, *z, *direction))
                                     } else {
@@ -694,8 +722,11 @@ fn loading_step(
                     position: spawn_pos,
                     yaw: spawn_yaw,
                 }];
-                // Extract collision geometry from BLV faces
-                let (collision_walls, collision_floors, collision_ceilings) = extract_blv_collision(blv);
+                // Extract collision geometry from BLV faces, excluding animated door faces.
+                // Door face geometry is animated separately; their collision would block
+                // the player even after a door opens.
+                let (collision_walls, collision_floors, collision_ceilings) =
+                    extract_blv_collision(blv, &door_faces);
                 let map_base = match &load_request.map_name {
                     crate::game::map_name::MapName::Indoor(name) => name.clone(),
                     _ => load_request.map_name.to_string().replace(".blv", ""),
@@ -810,7 +841,7 @@ fn loading_step(
                 let mut start_points = Vec::new();
                 let mut billboards = Vec::new();
 
-                for bb in &odm.billboards {
+                for (bb_i, bb) in odm.billboards.iter().enumerate() {
                     if bb.data.is_invisible() { continue; }
 
                     let pos = Vec3::from(lod::odm::mm6_to_bevy(
@@ -847,6 +878,8 @@ fn loading_step(
                         declist_id: bb.data.declist_id,
                         sound_id,
                         facing_yaw: yaw,
+                        event_id: bb.data.event,
+                        billboard_index: bb_i,
                     });
                 }
 
@@ -1026,8 +1059,12 @@ fn loading_step(
 }
 
 /// Extract collision walls and floors from BLV face geometry.
-/// Uses the same CollisionWall/CollisionTriangle types as ODM BSP buildings.
-fn extract_blv_collision(blv: &Blv) -> (Vec<crate::game::collision::CollisionWall>, Vec<crate::game::collision::CollisionTriangle>, Vec<crate::game::collision::CollisionTriangle>) {
+/// `door_faces` contains face indices to exclude — animated door faces have their
+/// own moving geometry and must not remain as static collision obstacles.
+fn extract_blv_collision(
+    blv: &Blv,
+    door_faces: &std::collections::HashSet<usize>,
+) -> (Vec<crate::game::collision::CollisionWall>, Vec<crate::game::collision::CollisionTriangle>, Vec<crate::game::collision::CollisionTriangle>) {
     use crate::game::collision::{CollisionTriangle, CollisionWall};
     use lod::odm::mm6_to_bevy;
 
@@ -1035,8 +1072,12 @@ fn extract_blv_collision(blv: &Blv) -> (Vec<crate::game::collision::CollisionWal
     let mut floors = Vec::new();
     let mut ceilings = Vec::new();
 
-    for face in &blv.faces {
+    for (face_idx, face) in blv.faces.iter().enumerate() {
         if face.num_vertices < 3 || face.is_invisible() || face.is_portal() {
+            continue;
+        }
+        // Skip animated door faces — they move and shouldn't remain as static obstacles.
+        if door_faces.contains(&face_idx) {
             continue;
         }
 
