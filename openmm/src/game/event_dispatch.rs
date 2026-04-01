@@ -240,7 +240,7 @@ fn process_events(
         GameEvent::ChangeDoorState { door_id, action } => {
             debug!("ChangeDoorState door_id={} action={}", door_id, action);
             if let Some(ref mut doors) = blv_doors {
-                crate::game::blv::trigger_door(doors, door_id as u32, action);
+                crate::game::blv::trigger_door(doors, door_id as u32, action.as_u8());
             }
         }
         GameEvent::PlaySound { sound_id } => {

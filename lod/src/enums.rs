@@ -708,6 +708,20 @@ impl DoorAction {
             _ => None,
         }
     }
+
+    pub fn as_u8(self) -> u8 {
+        self as u8
+    }
+}
+
+impl std::fmt::Display for DoorAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Open => write!(f, "Open"),
+            Self::Close => write!(f, "Close"),
+            Self::Toggle => write!(f, "Toggle"),
+        }
+    }
 }
 
 /// Target character selection for EVT events.
