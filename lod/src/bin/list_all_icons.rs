@@ -3,7 +3,7 @@ fn main() {
     if let Some(files) = lod.files_in("icons") {
         let mut items: Vec<(String, u32, u32)> = Vec::new();
         for f in &files {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lod.icon(f)));
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lod.game().icon(f)));
             if let Ok(Some(img)) = result {
                 items.push((f.to_string(), img.width(), img.height()));
             }

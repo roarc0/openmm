@@ -328,7 +328,7 @@ fn spawn_indoor_world(
 
     // Spawn NPC actors from DLV data
     let npc_sprite_table = crate::game::odm::build_npc_sprite_table(&game_assets);
-    let npc_table = game_assets.lod_manager().npc_table();
+    let npc_table = game_assets.game_lod().npc_table();
     let mut sprite_cache = sprites::SpriteCache::default();
 
     for a in &prepared.actors {

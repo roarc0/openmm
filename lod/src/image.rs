@@ -317,7 +317,7 @@ pub fn get_atlas(
             continue;
         }
 
-        let mut image = lod_manager.bitmap(name).ok_or("image not found")?;
+        let mut image = lod_manager.game().bitmap(name).ok_or("image not found")?;
         if image.dimensions() != (128, 128) {
             image = DynamicImage::ImageRgba8(imageops::resize(
                 &image,

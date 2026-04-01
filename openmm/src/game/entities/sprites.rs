@@ -241,8 +241,8 @@ fn decode_sprite_frames(
         let test0 = format!("{}{}0", root, frame_letter);
         let test_nodir = format!("{}{}", root, frame_letter);
 
-        let has_frame = lod_manager.sprite(&test0).is_some()
-            || lod_manager.sprite(&test_nodir).is_some();
+        let has_frame = lod_manager.game().sprite(&test0).is_some()
+            || lod_manager.game().sprite(&test_nodir).is_some();
         if !has_frame {
             break;
         }
@@ -255,14 +255,14 @@ fn decode_sprite_frames(
                 let sprite_name = if lod_manager.try_get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
                     &name
                 } else { &test_nodir };
-                lod_manager.sprite_with_palette(sprite_name, palette_id)
-                    .or_else(|| lod_manager.sprite(sprite_name))
+                lod_manager.game().sprite_with_palette(sprite_name, palette_id)
+                    .or_else(|| lod_manager.game().sprite(sprite_name))
             } else if variant > 1 {
                 let pal_offset = (variant - 1) as u16;
                 load_sprite_with_palette_offset(lod_manager, &name, &test_nodir, pal_offset)
             } else {
-                lod_manager.sprite(&name)
-                    .or_else(|| lod_manager.sprite(&test_nodir))
+                lod_manager.game().sprite(&name)
+                    .or_else(|| lod_manager.game().sprite(&test_nodir))
             };
             if let Some(ref i) = img {
                 max_w = max_w.max(i.width());
@@ -346,8 +346,8 @@ fn load_sprite_with_palette_offset(
     let variant_palette_id = base_palette_id + palette_offset;
 
     // Try with variant palette, fall back to normal decode
-    lod_manager.sprite_with_palette(sprite_name, variant_palette_id)
-        .or_else(|| lod_manager.sprite(sprite_name))
+    lod_manager.game().sprite_with_palette(sprite_name, variant_palette_id)
+        .or_else(|| lod_manager.game().sprite(sprite_name))
 }
 
 /// Update sprite sheets based on camera angle, entity facing, and animation state.
@@ -513,7 +513,7 @@ pub fn load_decoration_directions(
     let mut max_h = 0u32;
     for dir in 0..5u8 {
         let name = format!("{}{}", root, dir);
-        let img = lod_manager.sprite(&name);
+        let img = lod_manager.game().sprite(&name);
         if let Some(ref i) = img {
             max_w = max_w.max(i.width());
             max_h = max_h.max(i.height());

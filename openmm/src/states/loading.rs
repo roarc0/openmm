@@ -476,7 +476,7 @@ fn loading_step(
 
                         // Load water texture
                         progress.water_texture = game_assets
-                            .lod_manager()
+                            .game_lod()
                             .bitmap("wtrtyl")
                             .map(|img| {
                                 let mut water_img = crate::assets::dynamic_to_bevy_image(img);
@@ -499,7 +499,7 @@ fn loading_step(
                 let mut texture_sizes: HashMap<String, (u32, u32)> = HashMap::new();
                 for name in &blv.texture_names {
                     if name.is_empty() || texture_sizes.contains_key(name) { continue; }
-                    if let Some(img) = game_assets.lod_manager().bitmap(name) {
+                    if let Some(img) = game_assets.game_lod().bitmap(name) {
                         texture_sizes.insert(name.clone(), (img.width(), img.height()));
                     }
                 }
@@ -546,7 +546,7 @@ fn loading_step(
                         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, dfm.uvs);
                         // Skip generate_tangents — door vertices are animated and
                         // tangents would become stale. Not needed for flat surfaces.
-                        let texture = game_assets.lod_manager().bitmap(&dfm.texture_name)
+                        let texture = game_assets.game_lod().bitmap(&dfm.texture_name)
                             .map(|img| {
                                 let mut image = crate::assets::dynamic_to_bevy_image(img);
                                 image.sampler = crate::assets::repeat_sampler();
@@ -639,7 +639,7 @@ fn loading_step(
                         mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, tm.normals);
                         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, tm.uvs);
                         _ = mesh.generate_tangents();
-                        let texture = game_assets.lod_manager().bitmap(&tm.texture_name)
+                        let texture = game_assets.game_lod().bitmap(&tm.texture_name)
                             .map(|img| {
                                 let mut image = crate::assets::dynamic_to_bevy_image(img);
                                 image.sampler = crate::assets::repeat_sampler();
@@ -755,7 +755,7 @@ fn loading_step(
                 for b in &odm.bsp_models {
                     for name in &b.texture_names {
                         if !texture_sizes.contains_key(name) {
-                            if let Some(img) = game_assets.lod_manager().bitmap(name) {
+                            if let Some(img) = game_assets.game_lod().bitmap(name) {
                                 texture_sizes
                                     .insert(name.clone(), (img.width(), img.height()));
                             }
@@ -784,7 +784,7 @@ fn loading_step(
                                 _ = mesh.generate_tangents();
 
                                 let texture = game_assets
-                                    .lod_manager()
+                                    .game_lod()
                                     .bitmap(&tm.texture_name)
                                     .map(|img| {
                                         let mut image = crate::assets::dynamic_to_bevy_image(img);

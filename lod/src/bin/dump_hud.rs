@@ -11,7 +11,7 @@ fn main() {
         "tap1", "tap2", "tap3", "tap4",
     ];
     for name in assets {
-        if let Some(img) = lod.icon(name) {
+        if let Some(img) = lod.game().icon(name) {
             img.save(out.join(format!("{}.png", name))).unwrap();
             println!("{}: {}x{}", name, img.width(), img.height());
         } else {

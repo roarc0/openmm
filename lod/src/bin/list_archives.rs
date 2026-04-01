@@ -4,7 +4,7 @@ fn main() {
         let mut bgs: Vec<(String, u32, u32)> = Vec::new();
         for f in &files {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                lod.icon(f)
+                lod.game().icon(f)
             }));
             if let Ok(Some(img)) = result {
                 if img.width() >= 200 {

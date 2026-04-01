@@ -21,7 +21,7 @@ fn main() {
             let tex_idx = face.texture_id as usize;
             if tex_idx < model.texture_names.len() {
                 let name = &model.texture_names[tex_idx];
-                if let Some(img) = lod_manager.bitmap(name) {
+                if let Some(img) = lod_manager.game().bitmap(name) {
                     println!("    texture '{}': {}x{}", name, img.width(), img.height());
                     // Show what UVs would be
                     let w = img.width() as f32;

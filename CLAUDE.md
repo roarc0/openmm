@@ -118,10 +118,14 @@ When implementing a feature, always separate concerns and organize logic into we
 
 ### Rule 4: It's ok to log debug noisy stuff and, or info,warn,error. The logger level can be adjusted and it will help debugging.
 
-### Rule 5: Document and keep updated all the relevant findings about the original engine.
+### Rule 5: Document and keep updated all the relevant findings about the original engine
 
 Document what each file,format does how it is structured in terms of lod raw data and what each field is for.
 Add the complete details in the docs folder.
+
+### Rule 6: Create tests instead of Examples
+
+Creating tests will help keeping the code working and enhances the confidence that our changes did not break the functionality.
 
 ### Coordinate conversion
 

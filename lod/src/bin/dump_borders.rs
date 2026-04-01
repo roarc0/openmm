@@ -17,7 +17,7 @@ fn main() {
                     x_max - x_min + 1, y_max - y_min + 1);
             }
         }
-        if let Some(img) = lod.icon(name) {
+        if let Some(img) = lod.game().icon(name) {
             let fname = name.replace(".pcx", "");
             img.save(out.join(format!("{}.png", fname))).unwrap();
             println!("Saved {}: {}x{}", name, img.width(), img.height());

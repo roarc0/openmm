@@ -248,7 +248,7 @@ mod tests {
             root
         };
         let test_name = format!("{}a0", root);
-        let img = lod_manager.sprite_with_palette(&test_name, frame.palette_id as u16);
+        let img = lod_manager.game().sprite_with_palette(&test_name, frame.palette_id as u16);
         assert!(img.is_some(), "should load ghost sprite with DSFT palette {}", frame.palette_id);
     }
 

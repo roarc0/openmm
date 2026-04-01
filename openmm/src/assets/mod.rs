@@ -19,6 +19,11 @@ impl GameAssets {
     pub fn lod_manager(&self) -> &LodManager {
         &self.lod_manager
     }
+
+    /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).
+    pub fn game_lod(&self) -> lod::game::GameLod<'_> {
+        self.lod_manager.game()
+    }
 }
 
 // ── Shared image/sampler helpers ────────────────────────────

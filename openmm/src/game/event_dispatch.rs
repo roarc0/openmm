@@ -113,7 +113,7 @@ fn load_icon(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
 ) -> Option<Handle<Image>> {
-    let img = game_assets.lod_manager().icon(name)?;
+    let img = game_assets.game_lod().icon(name)?;
     let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
     bevy_img.sampler = bevy::image::ImageSampler::nearest();
     Some(images.add(bevy_img))
@@ -509,7 +509,7 @@ fn process_events(
                     if deco_info.billboard_index == target_idx {
                         // Load the new sprite and create a material for it
                         let sprite_lower = sprite_name.to_lowercase();
-                        if let Some(img) = game_assets.lod_manager().sprite(&sprite_lower) {
+                        if let Some(img) = game_assets.game_lod().sprite(&sprite_lower) {
                             let bevy_img = crate::assets::dynamic_to_bevy_image(img);
                             let tex = images.add(bevy_img);
                             let new_mat = materials.add(StandardMaterial {
@@ -588,8 +588,8 @@ fn process_events(
 
                 info!("SpeakNPC: npc_id={} portrait='{}' name={:?}", npc_id, portrait_name, npc_display_name);
 
-                let portrait_img = game_assets.lod_manager().icon(&portrait_name)
-                    .or_else(|| game_assets.lod_manager().icon("npc001"));
+                let portrait_img = game_assets.game_lod().icon(&portrait_name)
+                    .or_else(|| game_assets.game_lod().icon("npc001"));
                 if let Some(portrait_img) = portrait_img {
                     let size = Vec2::new(portrait_img.width() as f32, portrait_img.height() as f32);
                     let mut bevy_img = crate::assets::dynamic_to_bevy_image(portrait_img);

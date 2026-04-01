@@ -162,13 +162,13 @@ impl BillboardManager {
 
         let dec_name = declist_item.name().unwrap_or_default();
         let sft_name = sft_frame.sprite_name().unwrap_or_default();
-        let image = lod_manager.sprite(&dec_name)
-            .or_else(|| lod_manager.sprite(&sft_name))
-            .or_else(|| lod_manager.sprite(name))
+        let image = lod_manager.game().sprite(&dec_name)
+            .or_else(|| lod_manager.game().sprite(&sft_name))
+            .or_else(|| lod_manager.game().sprite(name))
             // Directional sprites use frame suffixes (e.g. shp0, shp1). Try frame 0.
-            .or_else(|| lod_manager.sprite(&format!("{}0", dec_name)))
-            .or_else(|| lod_manager.sprite(&format!("{}0", sft_name)))
-            .or_else(|| lod_manager.sprite(&format!("{}0", name)));
+            .or_else(|| lod_manager.game().sprite(&format!("{}0", dec_name)))
+            .or_else(|| lod_manager.game().sprite(&format!("{}0", sft_name)))
+            .or_else(|| lod_manager.game().sprite(&format!("{}0", name)));
 
         let image = match image {
             Some(img) => img,
@@ -177,7 +177,7 @@ impl BillboardManager {
                     "WARN: billboard sprite not found: declist[{}] name='{}' sft='{}'",
                     declist_id, dec_name, sft_name
                 );
-                lod_manager.sprite("pending").unwrap()
+                lod_manager.game().sprite("pending").unwrap()
             }
         };
 
