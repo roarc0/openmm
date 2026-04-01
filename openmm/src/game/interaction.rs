@@ -345,7 +345,7 @@ fn find_nearest_npc<'a>(
     nearest.map(|(info, _)| info)
 }
 
-/// Detect click on an NPC and show their name in the footer.
+/// Detect click on an NPC and show their name in the footer as a timed status message.
 fn npc_interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
@@ -354,6 +354,7 @@ fn npc_interact_system(
     npcs: Query<&NpcInteractable>,
     mut footer: ResMut<FooterText>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
+    time: Res<Time>,
 ) {
     let Ok((cam_global, _)) = camera_query.single() else { return };
 
@@ -365,7 +366,7 @@ fn npc_interact_system(
     if click && !cursor_grabbed { return; }
 
     let Some(info) = find_nearest_npc(cam_global, &npcs) else { return };
-    footer.set(&format!("Speak to {}", info.name));
+    footer.set_status(&format!("Speak to {}", info.name), 2.0, time.elapsed_secs_f64());
 }
 
 /// Show the name of the nearest interactive building, decoration, or NPC in the footer bar.
