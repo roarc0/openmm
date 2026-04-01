@@ -345,6 +345,12 @@ bitflags! {
     }
 }
 
+impl Default for TileFlags {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
 // ── Decoration Flags ─────────────────────────────────────────────────────
 
 bitflags! {

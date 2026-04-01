@@ -1,4 +1,4 @@
-use crate::{image::get_atlas, lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{enums::TileFlags, image::get_atlas, lod_data::LodData, utils::try_read_name, LodManager};
 
 /// Terrain tileset types from MM6 dtile.bin.
 /// Raw tile_set values: 0=grass, 1=snow, 2=sand, 3=volcanic, 4=dirt,
@@ -70,61 +70,61 @@ struct Tile {
     bitmap: i16,
     tile_set: i16,
     section: i16,
-    attributes: u16,
+    attributes: TileFlags,
 }
 
 #[allow(dead_code)]
 impl Tile {
     pub fn is_burn(&self) -> bool {
-        (self.attributes & 0x0001) != 0
+        self.attributes.contains(TileFlags::BURN)
     }
 
     pub fn is_water(&self) -> bool {
-        (self.attributes & 0x0002) != 0
+        self.attributes.contains(TileFlags::WATER)
     }
 
     pub fn is_block(&self) -> bool {
-        (self.attributes & 0x0004) != 0
+        self.attributes.contains(TileFlags::BLOCK)
     }
 
     pub fn is_repulse(&self) -> bool {
-        (self.attributes & 0x0010) != 0
+        self.attributes.contains(TileFlags::REPULSE)
     }
 
     pub fn is_flat(&self) -> bool {
-        (self.attributes & 0x0020) != 0
+        self.attributes.contains(TileFlags::FLAT)
     }
 
     pub fn is_wave(&self) -> bool {
-        (self.attributes & 0x0040) != 0
+        self.attributes.contains(TileFlags::WAVY)
     }
 
     pub fn is_no_draw(&self) -> bool {
-        (self.attributes & 0x0080) != 0
+        self.attributes.contains(TileFlags::DONT_DRAW)
     }
 
     pub fn is_water_transition(&self) -> bool {
-        (self.attributes & 0x0200) != 0
+        self.attributes.contains(TileFlags::SHORE)
     }
 
     pub fn is_transition(&self) -> bool {
-        (self.attributes & 0x0400) != 0
+        self.attributes.contains(TileFlags::TRANSITION)
     }
 
     pub fn is_scroll_down(&self) -> bool {
-        (self.attributes & 0x0800) != 0
+        self.attributes.contains(TileFlags::SCROLL_DOWN)
     }
 
     pub fn is_scroll_up(&self) -> bool {
-        (self.attributes & 0x1000) != 0
+        self.attributes.contains(TileFlags::SCROLL_UP)
     }
 
     pub fn is_scroll_left(&self) -> bool {
-        (self.attributes & 0x2000) != 0
+        self.attributes.contains(TileFlags::SCROLL_LEFT)
     }
 
     pub fn is_scroll_right(&self) -> bool {
-        (self.attributes & 0x4000) != 0
+        self.attributes.contains(TileFlags::SCROLL_RIGHT)
     }
 
     pub fn name(&self) -> Option<String> {
