@@ -248,6 +248,14 @@ where
     Ok(image_buffer)
 }
 
+/// Padding (in pixels) added around each tile in the atlas.
+///
+/// Each tile gets a 1-pixel border of replicated edge pixels on all four sides.
+/// This prevents linear filtering from bleeding into adjacent tiles at tile UV
+/// boundaries, without requiring a UV inset that cuts into tile content.
+/// `tile_uvs` in `odm.rs` must use the same constant to compute correct UVs.
+pub const ATLAS_TILE_PAD: u32 = 1;
+
 fn join_images_in_grid(
     images: &[DynamicImage],
     grid_width: usize,
@@ -259,20 +267,30 @@ fn join_images_in_grid(
         panic!("No images provided.");
     }
 
-    let combined_width = image_width * grid_width as u32;
-    let combined_height = image_height * ((num_images as f32 / grid_width as f32).ceil() as u32);
+    let pad = ATLAS_TILE_PAD;
+    let slot_w = image_width + 2 * pad;
+    let slot_h = image_height + 2 * pad;
+
+    let combined_width = slot_w * grid_width as u32;
+    let combined_height = slot_h * ((num_images as f32 / grid_width as f32).ceil() as u32);
 
     let mut combined_image = ImageBuffer::new(combined_width, combined_height);
 
     for (i, image) in images.iter().enumerate() {
-        let x_offset = (i % grid_width) as u32 * image_width;
-        let y_offset = (i / grid_width) as u32 * image_height;
-        for y in 0..image_height {
-            for x in 0..image_width {
-                let pixel = image.get_pixel(x, y);
-                if pixel.0[0..2] != [0, 255, 255] {
-                    combined_image.put_pixel(x + x_offset, y + y_offset, pixel);
-                }
+        let col = (i % grid_width) as u32;
+        let row = (i / grid_width) as u32;
+        let x_offset = col * slot_w;
+        let y_offset = row * slot_h;
+
+        // Fill the full slot (content + padding) by clamping source coords.
+        // Pixels outside [0, image_width) / [0, image_height) clamp to the
+        // nearest edge pixel, replicating the tile edge into the border.
+        for sy in 0..slot_h {
+            for sx in 0..slot_w {
+                let src_x = (sx as i32 - pad as i32).clamp(0, image_width as i32 - 1) as u32;
+                let src_y = (sy as i32 - pad as i32).clamp(0, image_height as i32 - 1) as u32;
+                let pixel = image.get_pixel(src_x, src_y);
+                combined_image.put_pixel(x_offset + sx, y_offset + sy, pixel);
             }
         }
     }
@@ -385,7 +403,7 @@ pub fn tint_variant(image: &mut DynamicImage, variant: u8) {
 
 #[cfg(test)]
 mod test {
-    use super::get_atlas;
+    use super::{get_atlas, ATLAS_TILE_PAD};
     use crate::{get_lod_path, LodManager};
     use image::GenericImageView;
 
@@ -400,6 +418,7 @@ mod test {
             2,
         )
         .unwrap();
-        assert_eq!(atlas_image.dimensions(), (128 * 2, 128 * 3));
+        let slot = 128 + 2 * ATLAS_TILE_PAD;
+        assert_eq!(atlas_image.dimensions(), (slot * 2, slot * 3));
     }
 }

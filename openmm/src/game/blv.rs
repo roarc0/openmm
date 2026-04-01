@@ -11,7 +11,6 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use lod::blv::DoorState;
 use lod::odm::mm6_to_bevy;
 
-use crate::assets::GameAssets;
 use crate::game::entities::{actor, sprites};
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;

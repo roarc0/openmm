@@ -349,15 +349,22 @@ impl OdmData {
         let (size_x, size_y) = tile_table.size();
         let (size_x, size_y) = (size_x as f32, size_y as f32);
 
-        // Inset by half a pixel to prevent atlas bleeding at tile boundaries.
-        // Each tile is 128px in the atlas.
-        let half_px_u = 0.5 / (size_x * 128.0);
-        let half_px_v = 0.5 / (size_y * 128.0);
+        // Each tile occupies a (128 + 2*pad) × (128 + 2*pad) pixel slot in the
+        // atlas, with pad pixels of replicated edge content on every side.
+        // UVs point to the inner 128×128 content area; the padded border ensures
+        // linear filtering that bleeds slightly past the UV boundary still samples
+        // the correct edge color rather than the neighbouring tile.
+        let tile_px = 128.0_f32;
+        let pad = crate::image::ATLAS_TILE_PAD as f32;
+        let slot_px = tile_px + 2.0 * pad;
 
-        let u0 = tile_x / size_x + half_px_u;
-        let u1 = (tile_x + 1.0) / size_x - half_px_u;
-        let v0 = tile_y / size_y + half_px_v;
-        let v1 = (tile_y + 1.0) / size_y - half_px_v;
+        let atlas_w = size_x * slot_px;
+        let atlas_h = size_y * slot_px;
+
+        let u0 = (tile_x * slot_px + pad) / atlas_w;
+        let u1 = (tile_x * slot_px + pad + tile_px) / atlas_w;
+        let v0 = (tile_y * slot_px + pad) / atlas_h;
+        let v1 = (tile_y * slot_px + pad + tile_px) / atlas_h;
 
         // TL, TR, BL, BR
         ([u0, v0], [u1, v0], [u0, v1], [u1, v1])
