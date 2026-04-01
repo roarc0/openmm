@@ -20,13 +20,17 @@ pub mod odm;
 pub mod twodevents;
 
 pub mod billboard;
+pub mod dchest;
 pub mod ddeclist;
+pub mod dobjlist;
+pub mod doverlay;
 pub mod dsft;
 pub mod dsounds;
 pub mod enums;
 pub mod font;
 pub mod snd;
 pub mod terrain;
+pub mod tft;
 pub mod image;
 
 mod lod;
