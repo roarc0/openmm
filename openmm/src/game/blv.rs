@@ -72,6 +72,21 @@ pub struct ClickableFaces {
     pub faces: Vec<ClickableFaceInfo>,
 }
 
+/// Info about a single touch-triggered indoor face.
+pub struct TouchTriggerInfo {
+    pub event_id: u16,
+    pub center: Vec3,
+    pub radius: f32,
+}
+
+/// Resource holding touch-triggered face data for the current indoor map.
+#[derive(Resource)]
+pub struct TouchTriggerFaces {
+    pub faces: Vec<TouchTriggerInfo>,
+    /// Track which events were already fired to avoid repeating every frame.
+    pub fired: std::collections::HashSet<u16>,
+}
+
 // --- Plugin ---
 
 pub struct BlvPlugin;
@@ -81,7 +96,7 @@ impl Plugin for BlvPlugin {
         app.add_systems(OnEnter(GameState::Game), spawn_indoor_world)
             .add_systems(
                 Update,
-                (indoor_interact_system, door_animation_system)
+                (indoor_interact_system, indoor_touch_trigger_system, door_animation_system)
                     .run_if(in_state(GameState::Game))
                     .run_if(resource_equals(HudView::World)),
             );
@@ -188,6 +203,24 @@ fn spawn_indoor_world(
         })
         .collect();
     commands.insert_resource(ClickableFaces { faces });
+
+    // Build TouchTriggerFaces resource
+    let touch_faces: Vec<TouchTriggerInfo> = prepared
+        .touch_trigger_faces
+        .iter()
+        .map(|tf| TouchTriggerInfo {
+            event_id: tf.event_id,
+            center: tf.center,
+            radius: tf.radius,
+        })
+        .collect();
+    if !touch_faces.is_empty() {
+        info!("Indoor map has {} touch-trigger faces", touch_faces.len());
+    }
+    commands.insert_resource(TouchTriggerFaces {
+        faces: touch_faces,
+        fired: std::collections::HashSet::new(),
+    });
 
     // Indoor ambient lighting — dim for dungeon atmosphere.
     // TODO: read per-sector light levels from BLV data for proper local lighting.
@@ -411,6 +444,47 @@ fn indoor_interact_system(
         }
         event_queue.push_all(event_id, evt);
     }
+}
+
+// --- Touch trigger (EVENT_BY_TOUCH proximity) ---
+
+/// Check player proximity to touch-triggered faces and dispatch events.
+fn indoor_touch_trigger_system(
+    player_query: Query<&Transform, With<crate::game::player::Player>>,
+    mut touch_triggers: Option<ResMut<TouchTriggerFaces>>,
+    map_events: Option<Res<MapEvents>>,
+    mut event_queue: ResMut<EventQueue>,
+) {
+    let Some(ref mut triggers) = touch_triggers else { return };
+    if triggers.faces.is_empty() { return; }
+    let Ok(player_tf) = player_query.single() else { return };
+    let player_pos = player_tf.translation;
+
+    // Collect events to fire (avoids borrow conflict with fired set)
+    let to_fire: Vec<u16> = triggers.faces.iter()
+        .filter(|f| !triggers.fired.contains(&f.event_id))
+        .filter(|f| player_pos.distance(f.center) <= f.radius)
+        .map(|f| f.event_id)
+        .collect();
+
+    if let Some(me) = map_events.as_ref() {
+        if let Some(evt) = me.evt.as_ref() {
+            for eid in &to_fire {
+                info!("Touch trigger: event_id={}", eid);
+                event_queue.push_all(*eid, evt);
+            }
+        }
+    }
+    for eid in to_fire {
+        triggers.fired.insert(eid);
+    }
+
+    // Reset fired events when player moves away (allows re-triggering)
+    let still_near: std::collections::HashSet<u16> = triggers.faces.iter()
+        .filter(|f| triggers.fired.contains(&f.event_id) && player_pos.distance(f.center) <= f.radius * 1.5)
+        .map(|f| f.event_id)
+        .collect();
+    triggers.fired = still_near;
 }
 
 // --- Door trigger ---

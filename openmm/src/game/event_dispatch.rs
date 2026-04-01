@@ -165,11 +165,10 @@ fn process_events(
         return;
     };
 
-    info!("EventDispatch: {:?}", event);
+    info!("EventDispatch: {}", event);
 
     match event {
         GameEvent::Hint { text, .. } => {
-            debug!("Hint: '{}'", text);
             footer.set(&text);
         }
         GameEvent::SpeakInHouse { house_id } => {
@@ -264,6 +263,10 @@ fn process_events(
         }
         GameEvent::Unhandled { opcode, opcode_name, params } => {
             warn!("Unhandled event: 0x{:02x} ({}) params={:02x?}", opcode, opcode_name, params);
+        }
+        // Parsed but not yet executed — log with readable Display format
+        other => {
+            debug!("Parsed (not executed): {}", other);
         }
     }
 }

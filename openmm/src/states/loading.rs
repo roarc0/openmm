@@ -95,6 +95,8 @@ pub struct PreparedIndoorWorld {
     pub door_face_meshes: Vec<PreparedDoorFace>,
     /// Clickable face data for indoor interaction.
     pub clickable_faces: Vec<ClickableFaceData>,
+    /// Touch-triggered faces (EVENT_BY_TOUCH) for proximity events.
+    pub touch_trigger_faces: Vec<TouchTriggerFaceData>,
     /// Map base name for EVT loading (e.g. "d01").
     pub map_base: String,
     /// Actors (NPCs) from DLV file.
@@ -118,6 +120,17 @@ pub struct ClickableFaceData {
     pub normal: Vec3,
     pub plane_dist: f32,
     pub vertices: Vec<Vec3>,
+}
+
+/// Data for a touch-triggered indoor face (EVENT_BY_TOUCH flag).
+/// These fire events when the player walks near/over them.
+pub struct TouchTriggerFaceData {
+    pub face_index: usize,
+    pub event_id: u16,
+    /// Center of the face in Bevy coordinates (for distance check).
+    pub center: Vec3,
+    /// Trigger radius — half the bounding box diagonal for floor faces.
+    pub radius: f32,
 }
 
 pub struct PreparedModel {
@@ -259,6 +272,7 @@ fn loading_setup(
     commands.remove_resource::<PreparedIndoorWorld>();
     commands.remove_resource::<crate::game::blv::BlvDoors>();
     commands.remove_resource::<crate::game::blv::ClickableFaces>();
+    commands.remove_resource::<crate::game::blv::TouchTriggerFaces>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.
     let map_name = load_request
@@ -554,6 +568,33 @@ fn loading_step(
                     })
                     .collect();
 
+                // Collect touch-triggered faces (EVENT_BY_TOUCH flag)
+                let touch_trigger_faces: Vec<TouchTriggerFaceData> = blv.faces.iter().enumerate()
+                    .filter(|(_, f)| f.is_touch_trigger() && f.event_id != 0 && f.num_vertices >= 3)
+                    .filter_map(|(i, face)| {
+                        let verts: Vec<Vec3> = face.vertex_ids.iter()
+                            .filter_map(|&vid| {
+                                let v = blv.vertices.get(vid as usize)?;
+                                Some(Vec3::from(lod::odm::mm6_to_bevy(
+                                    v.x as i32, v.y as i32, v.z as i32,
+                                )))
+                            })
+                            .collect();
+                        if verts.len() < 3 { return None; }
+                        let center = verts.iter().copied().sum::<Vec3>() / verts.len() as f32;
+                        // Use half bounding box diagonal as trigger radius
+                        let min = verts.iter().copied().reduce(|a, b| a.min(b))?;
+                        let max = verts.iter().copied().reduce(|a, b| a.max(b))?;
+                        let radius = (max - min).length() * 0.5;
+                        Some(TouchTriggerFaceData {
+                            face_index: i,
+                            event_id: face.event_id,
+                            center,
+                            radius: radius.max(128.0), // minimum trigger radius
+                        })
+                    })
+                    .collect();
+
                 let models = vec![PreparedModel {
                     sub_meshes: textured.into_iter().map(|tm| {
                         let mut mesh = Mesh::new(
@@ -621,6 +662,7 @@ fn loading_step(
                     doors: dlv_doors,
                     door_face_meshes: prepared_door_faces,
                     clickable_faces,
+                    touch_trigger_faces,
                     map_base,
                     actors: dlv_actors,
                 });

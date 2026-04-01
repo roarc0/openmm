@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::io::Read;
 
-use crate::enums::{DoorAction, EvtOpcode};
+use crate::enums::{DoorAction, EvtOpcode, EvtVariable};
 use crate::LodManager;
 
 /// A parsed game event — the simplified result of executing an event script.
@@ -36,8 +36,6 @@ pub enum GameEvent {
     /// Show hint text (tooltip on mouseover). `text` is resolved from the .str table.
     Hint { str_id: u8, text: String },
     /// Change a door's state (open/close/toggle).
-    /// door_id indexes into the BLV door array.
-    /// action: 0=Open, 1=Close, 2=Toggle.
     ChangeDoorState { door_id: u8, action: DoorAction },
     /// Play a sound effect. sound_id indexes into dsounds.bin.
     PlaySound { sound_id: u32 },
@@ -49,8 +47,186 @@ pub enum GameEvent {
     ShowMessage { str_id: u8, text: String },
     /// Exit/stop processing this event sequence.
     Exit,
+
+    // ── Control flow ────────────────────────────────────────────────────
+    /// Compare variable against value; if false, jump to `jump_step`.
+    Compare { var: EvtVariable, value: i32, jump_step: u8 },
+    /// Jump unconditionally to step.
+    Jmp { target_step: u8 },
+    /// Set target character for subsequent operations.
+    ForPartyMember { player: u8 },
+
+    // ── Variable operations ─────────────────────────────────────────────
+    /// Add value to variable.
+    Add { var: EvtVariable, value: i32 },
+    /// Subtract value from variable.
+    Subtract { var: EvtVariable, value: i32 },
+    /// Set variable to value.
+    Set { var: EvtVariable, value: i32 },
+
+    // ── NPC / item operations ───────────────────────────────────────────
+    /// Give an item to the party.
+    GiveItem { strength: u8, item_type: u8, item_id: u32 },
+    /// Set an NPC dialogue topic.
+    SetNPCTopic { npc_id: i32, topic_index: u8, event_id: i32 },
+    /// Move an NPC to a new location.
+    MoveNPC { npc_id: i32, map_id: i32 },
+    /// Speak to an NPC by id.
+    SpeakNPC { npc_id: i32 },
+    /// Change the event associated with a face/object.
+    ChangeEvent { target: i32, new_event_id: i32 },
+    /// Set an NPC greeting.
+    SetNPCGreeting { npc_id: i32, greeting_id: i32 },
+
+    // ── World operations ────────────────────────────────────────────────
+    /// Set or clear face attribute bits.
+    SetFacesBit { face_id: i32, bit: i32, on: u8 },
+    /// Toggle an actor flag.
+    ToggleActorFlag { actor_id: i32, flag: i32, on: u8 },
+    /// Set a texture on a face.
+    SetTexture { face_id: i32, texture_name: String },
+    /// Set a sprite on a decoration.
+    SetSprite { decoration_id: i32, sprite_name: String },
+    /// Toggle an indoor light.
+    ToggleIndoorLight { light_id: i32, on: u8 },
+    /// Set snow/weather state.
+    SetSnow { on: u8 },
+    /// Summon monsters.
+    SummonMonsters { monster_id: i32, count: i32, x: i32, y: i32, z: i32 },
+    /// Cast a spell.
+    CastSpell { spell_id: i32, skill_level: i32, skill_mastery: i32, from_x: i32, from_y: i32, from_z: i32, to_x: i32, to_y: i32, to_z: i32 },
+    /// Receive damage.
+    ReceiveDamage { damage_type: i32, amount: i32 },
+    /// Show a character face animation.
+    ShowFace { player: u8, expression: i32 },
+
+    // ── Timer / conditional ─────────────────────────────────────────────
+    /// Timer-based event (fires after delay).
+    OnTimer { year: u16, month: u8, week: u8, day: u16, hour: u8, minute: u8 },
+    /// Long timer (date-based).
+    OnLongTimer { timer_data: Vec<u8> },
+    /// Map reload hook.
+    OnMapReload,
+    /// Map leave hook.
+    OnMapLeave,
+
+    // ── Dialogue ────────────────────────────────────────────────────────
+    /// Check if dialog item can be shown (compare variant).
+    OnCanShowDialogItemCmp { var: EvtVariable, value: i32 },
+    /// End can-show dialog item block.
+    EndCanShowDialogItem,
+    /// Set can-show dialog item flag.
+    SetCanShowDialogItem { on: u8 },
+
+    // ── Misc ────────────────────────────────────────────────────────────
+    /// Check if an actor group is killed.
+    IsActorKilled { actor_group: i32, count: i32, jump_step: u8 },
+    /// Check skill level.
+    CheckSkill { skill_id: u8, skill_level: u8, jump_step: u8 },
+    /// Random goto — jump to one of several steps randomly.
+    RandomGoTo { steps: Vec<u8> },
+    /// Summon an item at a location.
+    SummonItem { item_id: i32, x: i32, y: i32, z: i32 },
+    /// Character animation.
+    CharacterAnimation { player: u8, anim_id: u8 },
+    /// Wait for key press.
+    PressAnyKey,
+    /// Show a movie.
+    ShowMovie { movie_name: String },
+    /// Check items count.
+    CheckItemsCount { item_id: i32, count: i32, jump_step: u8 },
+    /// Remove items from inventory.
+    RemoveItems { item_id: i32, count: i32 },
+
     /// Unhandled opcode — parsed but not yet implemented.
     Unhandled { opcode: u8, opcode_name: &'static str, params: Vec<u8> },
+}
+
+/// Display implementation for readable logging.
+impl std::fmt::Display for GameEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::SpeakInHouse { house_id } => write!(f, "SpeakInHouse(house={})", house_id),
+            Self::MoveToMap { x, y, z, direction, map_name } =>
+                write!(f, "MoveToMap('{}' pos=({},{},{}) dir={})", map_name, x, y, z, direction),
+            Self::OpenChest { id } => write!(f, "OpenChest({})", id),
+            Self::Hint { text, .. } => write!(f, "Hint('{}')", text),
+            Self::ChangeDoorState { door_id, action } =>
+                write!(f, "ChangeDoorState(door={} action={})", door_id, action),
+            Self::PlaySound { sound_id } => write!(f, "PlaySound({})", sound_id),
+            Self::StatusText { text, .. } => write!(f, "StatusText('{}')", text),
+            Self::LocationName { text, .. } => write!(f, "LocationName('{}')", text),
+            Self::ShowMessage { text, .. } => write!(f, "ShowMessage('{}')", text),
+            Self::Exit => write!(f, "Exit"),
+            Self::Compare { var, value, jump_step } =>
+                write!(f, "Compare({} == {}? else goto step {})", var, value, jump_step),
+            Self::Jmp { target_step } => write!(f, "Jmp(step {})", target_step),
+            Self::ForPartyMember { player } => write!(f, "ForPartyMember(player={})", player),
+            Self::Add { var, value } => write!(f, "Add({} += {})", var, value),
+            Self::Subtract { var, value } => write!(f, "Subtract({} -= {})", var, value),
+            Self::Set { var, value } => write!(f, "Set({} = {})", var, value),
+            Self::GiveItem { strength, item_type, item_id } =>
+                write!(f, "GiveItem(str={} type={} id={})", strength, item_type, item_id),
+            Self::SetNPCTopic { npc_id, topic_index, event_id } =>
+                write!(f, "SetNPCTopic(npc={} topic={} event={})", npc_id, topic_index, event_id),
+            Self::MoveNPC { npc_id, map_id } =>
+                write!(f, "MoveNPC(npc={} map={})", npc_id, map_id),
+            Self::SpeakNPC { npc_id } => write!(f, "SpeakNPC(npc={})", npc_id),
+            Self::ChangeEvent { target, new_event_id } =>
+                write!(f, "ChangeEvent(target={} event={})", target, new_event_id),
+            Self::SetNPCGreeting { npc_id, greeting_id } =>
+                write!(f, "SetNPCGreeting(npc={} greeting={})", npc_id, greeting_id),
+            Self::SetFacesBit { face_id, bit, on } =>
+                write!(f, "SetFacesBit(face={} bit=0x{:x} on={})", face_id, bit, on),
+            Self::ToggleActorFlag { actor_id, flag, on } =>
+                write!(f, "ToggleActorFlag(actor={} flag=0x{:x} on={})", actor_id, flag, on),
+            Self::SetTexture { face_id, texture_name } =>
+                write!(f, "SetTexture(face={} tex='{}')", face_id, texture_name),
+            Self::SetSprite { decoration_id, sprite_name } =>
+                write!(f, "SetSprite(deco={} sprite='{}')", decoration_id, sprite_name),
+            Self::ToggleIndoorLight { light_id, on } =>
+                write!(f, "ToggleIndoorLight(light={} on={})", light_id, on),
+            Self::SetSnow { on } => write!(f, "SetSnow(on={})", on),
+            Self::SummonMonsters { monster_id, count, x, y, z } =>
+                write!(f, "SummonMonsters(id={} count={} pos=({},{},{}))", monster_id, count, x, y, z),
+            Self::CastSpell { spell_id, skill_level, skill_mastery, .. } =>
+                write!(f, "CastSpell(spell={} level={} mastery={})", spell_id, skill_level, skill_mastery),
+            Self::ReceiveDamage { damage_type, amount } =>
+                write!(f, "ReceiveDamage(type={} amount={})", damage_type, amount),
+            Self::ShowFace { player, expression } =>
+                write!(f, "ShowFace(player={} expr={})", player, expression),
+            Self::OnTimer { year, month, week, day, hour, minute } =>
+                write!(f, "OnTimer(y={} m={} w={} d={} h={} min={})", year, month, week, day, hour, minute),
+            Self::OnLongTimer { timer_data } =>
+                write!(f, "OnLongTimer(data={:02x?})", timer_data),
+            Self::OnMapReload => write!(f, "OnMapReload"),
+            Self::OnMapLeave => write!(f, "OnMapLeave"),
+            Self::OnCanShowDialogItemCmp { var, value } =>
+                write!(f, "OnCanShowDialogItemCmp({} == {}?)", var, value),
+            Self::EndCanShowDialogItem => write!(f, "EndCanShowDialogItem"),
+            Self::SetCanShowDialogItem { on } =>
+                write!(f, "SetCanShowDialogItem(on={})", on),
+            Self::IsActorKilled { actor_group, count, jump_step } =>
+                write!(f, "IsActorKilled(group={} count={} else step {})", actor_group, count, jump_step),
+            Self::CheckSkill { skill_id, skill_level, jump_step } =>
+                write!(f, "CheckSkill(skill={} level={} else step {})", skill_id, skill_level, jump_step),
+            Self::RandomGoTo { steps } =>
+                write!(f, "RandomGoTo(steps={:?})", steps),
+            Self::SummonItem { item_id, x, y, z } =>
+                write!(f, "SummonItem(id={} pos=({},{},{}))", item_id, x, y, z),
+            Self::CharacterAnimation { player, anim_id } =>
+                write!(f, "CharacterAnimation(player={} anim={})", player, anim_id),
+            Self::PressAnyKey => write!(f, "PressAnyKey"),
+            Self::ShowMovie { movie_name } =>
+                write!(f, "ShowMovie('{}')", movie_name),
+            Self::CheckItemsCount { item_id, count, jump_step } =>
+                write!(f, "CheckItemsCount(item={} count={} else step {})", item_id, count, jump_step),
+            Self::RemoveItems { item_id, count } =>
+                write!(f, "RemoveItems(item={} count={})", item_id, count),
+            Self::Unhandled { opcode, opcode_name, params } =>
+                write!(f, "Unhandled(0x{:02x} {} params={:02x?})", opcode, opcode_name, params),
+        }
+    }
 }
 
 /// Parsed events from a .evt file, keyed by event_id.
@@ -71,6 +247,29 @@ fn parse_str_table(lod: &LodManager, map_base: &str) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .collect()
+}
+
+// ── Binary helpers ──────────────────────────────────────────────────────
+
+/// Read i32 LE from params at offset.
+fn i32_at(params: &[u8], off: usize) -> i32 {
+    i32::from_le_bytes([params[off], params[off + 1], params[off + 2], params[off + 3]])
+}
+
+/// Read u32 LE from params at offset.
+fn u32_at(params: &[u8], off: usize) -> u32 {
+    u32::from_le_bytes([params[off], params[off + 1], params[off + 2], params[off + 3]])
+}
+
+/// Read first i32 from params, or None if too short.
+fn read_i32(params: &[u8]) -> Option<i32> {
+    if params.len() >= 4 { Some(i32_at(params, 0)) } else { None }
+}
+
+/// Read a null-terminated string from params.
+fn read_string(params: &[u8]) -> String {
+    let end = params.iter().position(|&b| b == 0).unwrap_or(params.len());
+    String::from_utf8_lossy(&params[..end]).to_string()
 }
 
 impl EvtFile {
@@ -114,30 +313,11 @@ impl EvtFile {
 
             let action = match evt_opcode {
                 Some(EvtOpcode::Exit) => Some(GameEvent::Exit),
-                Some(EvtOpcode::SpeakInHouse) => {
-                    if params.len() >= 4 {
-                        Some(GameEvent::SpeakInHouse {
-                            house_id: u32::from_le_bytes([params[0], params[1], params[2], params[3]]),
-                        })
-                    } else {
-                        None
-                    }
-                }
-                Some(EvtOpcode::PlaySound) => {
-                    if params.len() >= 4 {
-                        Some(GameEvent::PlaySound {
-                            sound_id: u32::from_le_bytes([params[0], params[1], params[2], params[3]]),
-                        })
-                    } else {
-                        None
-                    }
-                }
+                Some(EvtOpcode::SpeakInHouse) => read_i32(params).map(|v| GameEvent::SpeakInHouse { house_id: v as u32 }),
+                Some(EvtOpcode::PlaySound) => read_i32(params).map(|v| GameEvent::PlaySound { sound_id: v as u32 }),
                 Some(EvtOpcode::MouseOver) => {
                     let str_id = params.first().copied().unwrap_or(0);
-                    let text = str_table
-                        .get(str_id as usize)
-                        .cloned()
-                        .unwrap_or_default();
+                    let text = str_table.get(str_id as usize).cloned().unwrap_or_default();
                     Some(GameEvent::Hint { str_id, text })
                 }
                 Some(EvtOpcode::LocationName) => {
@@ -147,12 +327,11 @@ impl EvtFile {
                 }
                 Some(EvtOpcode::MoveToMap) => {
                     if params.len() >= 26 {
-                        let x = i32::from_le_bytes([params[0], params[1], params[2], params[3]]);
-                        let y = i32::from_le_bytes([params[4], params[5], params[6], params[7]]);
-                        let z = i32::from_le_bytes([params[8], params[9], params[10], params[11]]);
-                        let direction = i32::from_le_bytes([params[12], params[13], params[14], params[15]]);
-                        let name_start = 26;
-                        let name_bytes = &params[name_start..];
+                        let x = i32_at(params, 0);
+                        let y = i32_at(params, 4);
+                        let z = i32_at(params, 8);
+                        let direction = i32_at(params, 12);
+                        let name_bytes = &params[26..];
                         let end = name_bytes.iter().position(|&b| b == 0).unwrap_or(name_bytes.len());
                         let map_name = String::from_utf8_lossy(&name_bytes[..end]).to_string();
                         Some(GameEvent::MoveToMap { x, y, z, direction, map_name })
@@ -161,9 +340,7 @@ impl EvtFile {
                     }
                 }
                 Some(EvtOpcode::OpenChest) => {
-                    Some(GameEvent::OpenChest {
-                        id: params.first().copied().unwrap_or(0),
-                    })
+                    Some(GameEvent::OpenChest { id: params.first().copied().unwrap_or(0) })
                 }
                 Some(EvtOpcode::ShowMessage) => {
                     let str_id = params.first().copied().unwrap_or(0);
@@ -172,10 +349,7 @@ impl EvtFile {
                 }
                 Some(EvtOpcode::StatusText) => {
                     let str_id = params.first().copied().unwrap_or(0);
-                    let text = str_table
-                        .get(str_id as usize)
-                        .cloned()
-                        .unwrap_or_default();
+                    let text = str_table.get(str_id as usize).cloned().unwrap_or_default();
                     Some(GameEvent::StatusText { str_id, text })
                 }
                 Some(EvtOpcode::ChangeDoorState) => {
@@ -184,6 +358,294 @@ impl EvtFile {
                             door_id: params[0],
                             action: DoorAction::from_u8(params[1]).unwrap_or(DoorAction::Toggle),
                         })
+                    } else {
+                        None
+                    }
+                }
+                // ── Control flow ────────────────────────────────────────
+                // MM6: Compare = var_id(u8) + value(i32 LE) + jump_step(u8) = 6 bytes
+                Some(EvtOpcode::Compare) => {
+                    if params.len() >= 6 {
+                        Some(GameEvent::Compare {
+                            var: EvtVariable(params[0]),
+                            value: i32_at(params, 1),
+                            jump_step: params[5],
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::Jmp) => {
+                    Some(GameEvent::Jmp { target_step: params.first().copied().unwrap_or(0) })
+                }
+                Some(EvtOpcode::ForPartyMember) => {
+                    Some(GameEvent::ForPartyMember { player: params.first().copied().unwrap_or(0) })
+                }
+                // ── Variable operations ─────────────────────────────────
+                // MM6: Add/Subtract/Set = var_id(u8) + value(i32 LE) = 5 bytes
+                Some(EvtOpcode::Add) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::Add { var: EvtVariable(params[0]), value: i32_at(params, 1) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::Subtract) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::Subtract { var: EvtVariable(params[0]), value: i32_at(params, 1) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::Set) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::Set { var: EvtVariable(params[0]), value: i32_at(params, 1) })
+                    } else {
+                        None
+                    }
+                }
+                // ── NPC / item operations ───────────────────────────────
+                // MM6: GiveItem = strength(u8) + type(u8) + id(u32 LE) = 6 bytes
+                Some(EvtOpcode::GiveItem) => {
+                    if params.len() >= 6 {
+                        Some(GameEvent::GiveItem {
+                            strength: params[0],
+                            item_type: params[1],
+                            item_id: u32_at(params, 2),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                // MM6: SetNPCTopic = npc_id(i32) + index(u8) + event_id(i32) = 9 bytes
+                Some(EvtOpcode::SetNPCTopic) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::SetNPCTopic {
+                            npc_id: i32_at(params, 0),
+                            topic_index: params[4],
+                            event_id: i32_at(params, 5),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::MoveNPC) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::MoveNPC { npc_id: i32_at(params, 0), map_id: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::SpeakNPC) => {
+                    read_i32(params).map(|v| GameEvent::SpeakNPC { npc_id: v })
+                }
+                Some(EvtOpcode::ChangeEvent) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::ChangeEvent { target: i32_at(params, 0), new_event_id: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::SetNPCGreeting) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::SetNPCGreeting { npc_id: i32_at(params, 0), greeting_id: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                // ── World operations ────────────────────────────────────
+                // SetFacesBit = face_id(i32) + bit(i32) + on(u8) = 9 bytes
+                Some(EvtOpcode::SetFacesBit) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::SetFacesBit {
+                            face_id: i32_at(params, 0),
+                            bit: i32_at(params, 4),
+                            on: params[8],
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::ToggleActorFlag) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::ToggleActorFlag {
+                            actor_id: i32_at(params, 0),
+                            flag: i32_at(params, 4),
+                            on: params[8],
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::SetTexture) => {
+                    if params.len() >= 5 {
+                        let face_id = i32_at(params, 0);
+                        let name = read_string(&params[4..]);
+                        Some(GameEvent::SetTexture { face_id, texture_name: name })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::SetSprite) => {
+                    if params.len() >= 5 {
+                        let decoration_id = i32_at(params, 0);
+                        let name = read_string(&params[4..]);
+                        Some(GameEvent::SetSprite { decoration_id, sprite_name: name })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::ToggleIndoorLight) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::ToggleIndoorLight { light_id: i32_at(params, 0), on: params[4] })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::SetSnow) => {
+                    Some(GameEvent::SetSnow { on: params.first().copied().unwrap_or(0) })
+                }
+                Some(EvtOpcode::SummonMonsters) => {
+                    if params.len() >= 20 {
+                        Some(GameEvent::SummonMonsters {
+                            monster_id: i32_at(params, 0),
+                            count: i32_at(params, 4),
+                            x: i32_at(params, 8),
+                            y: i32_at(params, 12),
+                            z: i32_at(params, 16),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::CastSpell) => {
+                    if params.len() >= 36 {
+                        Some(GameEvent::CastSpell {
+                            spell_id: i32_at(params, 0),
+                            skill_level: i32_at(params, 4),
+                            skill_mastery: i32_at(params, 8),
+                            from_x: i32_at(params, 12),
+                            from_y: i32_at(params, 16),
+                            from_z: i32_at(params, 20),
+                            to_x: i32_at(params, 24),
+                            to_y: i32_at(params, 28),
+                            to_z: i32_at(params, 32),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::ReceiveDamage) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::ReceiveDamage { damage_type: i32_at(params, 0), amount: i32_at(params, 4) })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::ShowFace) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::ShowFace { player: params[0], expression: i32_at(params, 1) })
+                    } else {
+                        None
+                    }
+                }
+                // ── Timer / conditional ─────────────────────────────────
+                Some(EvtOpcode::OnTimer) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::OnTimer {
+                            year: u16::from_le_bytes([params[0], params[1]]),
+                            month: params[2],
+                            week: params[3],
+                            day: u16::from_le_bytes([params[4], params[5]]),
+                            hour: params[6],
+                            minute: params[7],
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::OnLongTimer) => {
+                    Some(GameEvent::OnLongTimer { timer_data: params.to_vec() })
+                }
+                Some(EvtOpcode::OnMapReload) => Some(GameEvent::OnMapReload),
+                Some(EvtOpcode::OnMapLeave) => Some(GameEvent::OnMapLeave),
+                Some(EvtOpcode::OnCanShowDialogItemCmp) => {
+                    if params.len() >= 5 {
+                        Some(GameEvent::OnCanShowDialogItemCmp {
+                            var: EvtVariable(params[0]),
+                            value: i32_at(params, 1),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::EndCanShowDialogItem) => Some(GameEvent::EndCanShowDialogItem),
+                Some(EvtOpcode::SetCanShowDialogItem) => {
+                    Some(GameEvent::SetCanShowDialogItem { on: params.first().copied().unwrap_or(0) })
+                }
+                // ── Misc ────────────────────────────────────────────────
+                Some(EvtOpcode::IsActorKilled) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::IsActorKilled {
+                            actor_group: i32_at(params, 0),
+                            count: i32_at(params, 4),
+                            jump_step: params[8],
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::CheckSkill) => {
+                    if params.len() >= 3 {
+                        Some(GameEvent::CheckSkill {
+                            skill_id: params[0],
+                            skill_level: params[1],
+                            jump_step: params[2],
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::RandomGoTo) => {
+                    Some(GameEvent::RandomGoTo { steps: params.to_vec() })
+                }
+                Some(EvtOpcode::SummonItem) => {
+                    if params.len() >= 16 {
+                        Some(GameEvent::SummonItem {
+                            item_id: i32_at(params, 0),
+                            x: i32_at(params, 4),
+                            y: i32_at(params, 8),
+                            z: i32_at(params, 12),
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::CharacterAnimation) => {
+                    if params.len() >= 2 {
+                        Some(GameEvent::CharacterAnimation { player: params[0], anim_id: params[1] })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::PressAnyKey) => Some(GameEvent::PressAnyKey),
+                Some(EvtOpcode::ShowMovie) => {
+                    Some(GameEvent::ShowMovie { movie_name: read_string(params) })
+                }
+                Some(EvtOpcode::CheckItemsCount) => {
+                    if params.len() >= 9 {
+                        Some(GameEvent::CheckItemsCount {
+                            item_id: i32_at(params, 0),
+                            count: i32_at(params, 4),
+                            jump_step: params[8],
+                        })
+                    } else {
+                        None
+                    }
+                }
+                Some(EvtOpcode::RemoveItems) => {
+                    if params.len() >= 8 {
+                        Some(GameEvent::RemoveItems { item_id: i32_at(params, 0), count: i32_at(params, 4) })
                     } else {
                         None
                     }

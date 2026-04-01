@@ -108,6 +108,10 @@ impl BlvFace {
         self.face_attributes().contains(FaceAttributes::CLICKABLE)
     }
 
+    pub fn is_touch_trigger(&self) -> bool {
+        self.face_attributes().contains(FaceAttributes::EVENT_BY_TOUCH)
+    }
+
     pub fn moves_by_door(&self) -> bool {
         self.face_attributes().contains(FaceAttributes::MOVES_BY_DOOR)
     }

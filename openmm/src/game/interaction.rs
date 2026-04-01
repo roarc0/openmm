@@ -208,7 +208,7 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
                     }
                     lod::evt::GameEvent::ShowMessage { .. } => {}
                     lod::evt::GameEvent::Exit => {}
-                    lod::evt::GameEvent::Unhandled { .. } => {}
+                    _ => {}
                 }
             }
         }
