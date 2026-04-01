@@ -24,7 +24,15 @@ use crate::game::interaction::DecorationInfo;
 use crate::game::map_name::MapName;
 use crate::game::world_state::GameVariables;
 use crate::game::sound::effects::PlayUiSoundEvent;
+use crate::game::sound::SoundManager;
 use crate::states::loading::LoadRequest;
+
+/// Bundles audio writer + SoundManager to stay within Bevy's 16-param limit.
+#[derive(SystemParam)]
+struct AudioParams<'w> {
+    ui_sound: bevy::ecs::message::MessageWriter<'w, PlayUiSoundEvent>,
+    sound_manager: Option<Res<'w, SoundManager>>,
+}
 
 /// An event sequence — a list of steps from one event_id, executed as a script.
 #[derive(Clone)]
@@ -292,7 +300,7 @@ fn process_events(
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut transition: TransitionParams,
     mut blv_doors: Option<ResMut<crate::game::blv::BlvDoors>>,
-    mut sound_events: bevy::ecs::message::MessageWriter<PlayUiSoundEvent>,
+    mut audio: AudioParams,
     mut world_state: ResMut<crate::game::world_state::WorldState>,
     mut party: ResMut<Party>,
     time: Res<Time>,
@@ -344,6 +352,12 @@ fn process_events(
             }
             GameEvent::OpenChest { .. } => {
                 if let Some(image) = load_icon("chest01", &game_assets, &mut images) {
+                    // Play chest-open sound if available
+                    if let Some(ref sm) = audio.sound_manager {
+                        if let Some(id) = sm.chest_open_sound_id {
+                            audio.ui_sound.write(PlayUiSoundEvent { sound_id: id });
+                        }
+                    }
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Chest;
                     grab_cursor(&mut cursor_query, false);
@@ -393,7 +407,7 @@ fn process_events(
                 }
             }
             GameEvent::PlaySound { sound_id } => {
-                sound_events.write(PlayUiSoundEvent { sound_id: *sound_id });
+                audio.ui_sound.write(PlayUiSoundEvent { sound_id: *sound_id });
             }
             GameEvent::StatusText { text, .. } => {
                 footer.set_status(text, 2.0, time.elapsed_secs_f64());

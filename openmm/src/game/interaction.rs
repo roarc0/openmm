@@ -49,7 +49,8 @@ impl Plugin for InteractionPlugin {
             Update,
             interaction_input
                 .run_if(in_state(GameState::Game))
-                .run_if(|view: Res<HudView>| matches!(*view, HudView::Building | HudView::Chest)),
+                .run_if(|view: Res<HudView>| matches!(*view, HudView::Building | HudView::Chest))
+                .after(crate::game::player::PlayerInputSet),
         );
     }
 }

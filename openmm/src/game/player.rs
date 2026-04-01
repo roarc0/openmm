@@ -6,6 +6,11 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
+
+/// System set label for player input systems (movement, look, cursor).
+/// Used by other systems to order themselves after player input is processed.
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub struct PlayerInputSet;
 use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::collision::{
@@ -127,6 +132,7 @@ impl Plugin for PlayerPlugin {
                 Update,
                 (toggle_fly_mode, toggle_mouse_look, adjust_sensitivity, player_movement, player_look, cursor_grab, log_gamepads)
                     .chain()
+                    .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
                     .run_if(resource_equals(crate::game::hud::HudView::World))
                     .run_if(|console: Res<crate::game::console::ConsoleState>| !console.open),

@@ -78,6 +78,14 @@ impl DSounds {
     pub fn get_by_id(&self, id: u32) -> Option<&DSoundInfo> {
         self.items.iter().find(|s| s.sound_id == id)
     }
+
+    /// Look up a sound by name (case-insensitive).
+    pub fn get_by_name(&self, name: &str) -> Option<&DSoundInfo> {
+        let lower = name.to_lowercase();
+        self.items.iter().find(|s| {
+            s.name().map(|n| n.to_lowercase() == lower).unwrap_or(false)
+        })
+    }
 }
 
 #[cfg(test)]

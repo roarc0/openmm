@@ -15,6 +15,8 @@ pub struct SoundManager {
     pub dsounds: DSounds,
     pub snd_archive: SndArchive,
     cache: HashMap<u32, Handle<AudioSource>>,
+    /// Cached sound ID for chest-open sound ("openchest0101").
+    pub chest_open_sound_id: Option<u32>,
 }
 
 impl SoundManager {
@@ -109,9 +111,14 @@ fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
         dsounds.items.len(),
         snd_archive.list().len()
     );
+    let chest_open_sound_id = dsounds.get_by_name("openchest0101").map(|s| s.sound_id);
+    if chest_open_sound_id.is_none() {
+        warn!("Chest open sound 'openchest0101' not found in dsounds");
+    }
     commands.insert_resource(SoundManager {
         dsounds,
         snd_archive,
         cache: HashMap::new(),
+        chest_open_sound_id,
     });
 }
