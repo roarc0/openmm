@@ -6,7 +6,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{LodManager, lod_data::LodData, odm::mm6_to_bevy};
+use crate::{enums::{FaceAttributes, DoorAttributes, PolygonType}, LodManager, lod_data::LodData, odm::mm6_to_bevy};
 
 /// Read a fixed-size string block, using lossy UTF-8 conversion for non-ASCII bytes.
 fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, Box<dyn Error>> {
@@ -15,12 +15,6 @@ fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, 
     let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
     Ok(String::from_utf8_lossy(&buf[..end]).to_string())
 }
-
-/// Face attribute flags.
-const FACE_ATTR_PORTAL: u32 = 0x00000001;
-
-const FACE_ATTR_CLICKABLE: u32 = 0x02000000;
-const FACE_ATTR_INVISIBLE: u32 = 0x00002000;
 
 /// BLV header (136 bytes): 104 bytes padding, then size fields, then 16 bytes padding.
 #[derive(Debug)]
@@ -92,20 +86,42 @@ pub struct BlvFace {
 }
 
 impl BlvFace {
+    /// Get typed face attribute flags.
+    pub fn face_attributes(&self) -> FaceAttributes {
+        FaceAttributes::from_bits_truncate(self.attributes)
+    }
+
+    /// Get typed polygon type.
+    pub fn polygon_type_enum(&self) -> Option<PolygonType> {
+        PolygonType::from_u8(self.polygon_type)
+    }
+
     pub fn is_portal(&self) -> bool {
-        (self.attributes & FACE_ATTR_PORTAL) != 0
+        self.face_attributes().contains(FaceAttributes::PORTAL)
     }
 
     pub fn is_invisible(&self) -> bool {
-        (self.attributes & FACE_ATTR_INVISIBLE) != 0
+        self.face_attributes().contains(FaceAttributes::INVISIBLE)
     }
 
     pub fn is_clickable(&self) -> bool {
-        (self.attributes & FACE_ATTR_CLICKABLE) != 0
+        self.face_attributes().contains(FaceAttributes::CLICKABLE)
     }
 
     pub fn moves_by_door(&self) -> bool {
-        (self.attributes & 0x00010000) != 0
+        self.face_attributes().contains(FaceAttributes::MOVES_BY_DOOR)
+    }
+
+    pub fn is_fluid(&self) -> bool {
+        self.face_attributes().contains(FaceAttributes::FLUID)
+    }
+
+    pub fn is_lava(&self) -> bool {
+        self.face_attributes().contains(FaceAttributes::LAVA)
+    }
+
+    pub fn is_sky(&self) -> bool {
+        self.face_attributes().contains(FaceAttributes::SKY)
     }
 
     /// Get float normal in MM6 coordinates, converted from fixed-point 16.16.
@@ -147,13 +163,23 @@ pub struct BlvSector {
     pub face_ids: Vec<u16>,
 }
 
-/// A decoration in a BLV indoor map (32 bytes on disk + 28-byte name in MM6).
+/// A decoration/sprite in a BLV indoor map (28 bytes on disk + 28-byte name in MM6).
+/// Field layout from MMExtension MapSprite struct.
 #[derive(Debug)]
 pub struct BlvDecoration {
     pub decoration_desc_id: u16,
+    /// Instance flags (LevelDecorationFlags).
     pub flags: u16,
     pub position: [i32; 3],
     pub yaw: i32,
+    /// Event variable index (MM6 only, at offset 0x14).
+    pub event_variable: i16,
+    /// Event ID (links to EVT script).
+    pub event: i16,
+    /// Trigger radius for touch events.
+    pub trigger_radius: i16,
+    /// Direction in degrees (used if yaw is 0).
+    pub direction_degrees: i16,
     pub name: String,
 }
 
@@ -279,6 +305,13 @@ pub struct BlvDoor {
     pub delta_vs: Vec<i16>,
     /// Current door state.
     pub state: DoorState,
+}
+
+impl BlvDoor {
+    /// Get typed door attribute flags.
+    pub fn door_attributes(&self) -> DoorAttributes {
+        DoorAttributes::from_bits_truncate(self.attributes)
+    }
 }
 
 impl Blv {
@@ -654,7 +687,7 @@ impl Blv {
         }
     }
 
-    /// Read a decoration (32 bytes).
+    /// Read a decoration (28 bytes, MM6 MapSprite format).
     fn read_decoration(cursor: &mut Cursor<&[u8]>) -> Result<BlvDecoration, Box<dyn Error>> {
         let decoration_desc_id = cursor.read_u16::<LittleEndian>()?;
         let flags = cursor.read_u16::<LittleEndian>()?;
@@ -664,13 +697,19 @@ impl Blv {
             cursor.read_i32::<LittleEndian>()?,
         ];
         let yaw = cursor.read_i32::<LittleEndian>()?;
-        // Skip remaining 12 bytes (cog, eventID, triggerRange, field_1A, eventVarId, field_1E)
-        cursor.seek(std::io::SeekFrom::Current(12))?;
+        let event_variable = cursor.read_i16::<LittleEndian>()?;
+        let event = cursor.read_i16::<LittleEndian>()?;
+        let trigger_radius = cursor.read_i16::<LittleEndian>()?;
+        let direction_degrees = cursor.read_i16::<LittleEndian>()?;
         Ok(BlvDecoration {
             decoration_desc_id,
             flags,
             position,
             yaw,
+            event_variable,
+            event,
+            trigger_radius,
+            direction_degrees,
             name: String::new(),
         })
     }

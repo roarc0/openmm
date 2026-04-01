@@ -6,7 +6,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::utils::try_read_string_block;
+use crate::{enums::{ModelFaceAttributes, PolygonType}, utils::try_read_string_block};
 
 #[derive(Debug)]
 pub struct BSPModel {
@@ -97,6 +97,18 @@ pub struct BSPModelFace {
     pub shade_type: u8,
     pub visible: u8,
     pub padding: [u8; 2],
+}
+
+impl BSPModelFace {
+    /// Get typed face attribute flags.
+    pub fn face_attributes(&self) -> ModelFaceAttributes {
+        ModelFaceAttributes::from_bits_truncate(self.attributes)
+    }
+
+    /// Get typed polygon type.
+    pub fn polygon_type_enum(&self) -> Option<PolygonType> {
+        PolygonType::from_u8(self.polygon_type)
+    }
 }
 
 /// A per-texture mesh extracted from a BSP model, ready for rendering.
@@ -264,18 +276,7 @@ impl BSPModelFace {
     }
 }
 
-#[repr(C)]
-#[derive(Debug, Default)]
-pub enum PolygonType {
-    #[default]
-    Invalid = 0,
-    VerticalWall = 1,
-    Unknown = 2,
-    Floor = 3,
-    InBetweenFloorAndWall = 4,
-    Ceiling = 5,
-    InBetweenCeilingAndWall = 6,
-}
+// PolygonType is now in crate::enums — re-exported for backward compatibility.
 
 #[repr(C)]
 #[derive(Debug, Default)]
