@@ -139,14 +139,16 @@ impl Dtile {
 
         let mut cursor = Cursor::new(data);
         let tile_count = cursor.read_u32::<LittleEndian>()?;
-        let tile_size = std::mem::size_of::<Tile>();
-        let mut tiles = Vec::new();
+        let mut tiles = Vec::with_capacity(tile_count as usize);
         for _ in 0..tile_count {
-            let mut tile = Tile::default();
-            cursor.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(&mut tile as *mut _ as *mut u8, tile_size)
-            })?;
-            tiles.push(tile);
+            let mut name = [0u8; 16];
+            cursor.read_exact(&mut name)?;
+            let id = cursor.read_i16::<LittleEndian>()?;
+            let bitmap = cursor.read_i16::<LittleEndian>()?;
+            let tile_set = cursor.read_i16::<LittleEndian>()?;
+            let section = cursor.read_i16::<LittleEndian>()?;
+            let attributes = TileFlags::from_bits_truncate(cursor.read_u16::<LittleEndian>()?);
+            tiles.push(Tile { name, id, bitmap, tile_set, section, attributes });
         }
 
         Ok(Self { tiles })
