@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
@@ -9,12 +10,19 @@ use lod::odm::mm6_to_bevy;
 
 use crate::GameState;
 use crate::assets::GameAssets;
+use crate::game::party::Party;
+
+/// Bundles save + state transition to stay within Bevy's 16-param system limit.
+#[derive(SystemParam)]
+struct TransitionParams<'w> {
+    save_data: ResMut<'w, crate::save::GameSave>,
+    game_state: ResMut<'w, NextState<GameState>>,
+}
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
 use crate::game::map_name::MapName;
 use crate::game::world_state::GameVariables;
-use crate::save::GameSave;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::states::loading::LoadRequest;
 
@@ -171,12 +179,12 @@ fn set_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
         }
         EvtVariable::QBITS => {
             if value != 0 {
-                vars.quest_bits.insert(value);
+                vars.set_qbit(value);
             }
         }
         EvtVariable::AUTONOTES_BITS => {
             if value != 0 {
-                vars.autonotes.insert(value);
+                vars.add_autonote(value);
             }
         }
         _ => {
@@ -206,10 +214,10 @@ fn add_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
             info!("  Food += {} ({} -> {})", value, old, vars.food);
         }
         EvtVariable::QBITS => {
-            vars.quest_bits.insert(value);
+            vars.set_qbit(value);
         }
         EvtVariable::AUTONOTES_BITS => {
-            vars.autonotes.insert(value);
+            vars.add_autonote(value);
         }
         _ => {
             warn!("  add_variable: unhandled variable {} (0x{:02x}) += {}", var, var.0, value);
@@ -238,10 +246,10 @@ fn subtract_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
             info!("  Food -= {} ({} -> {})", value, old, vars.food);
         }
         EvtVariable::QBITS => {
-            vars.quest_bits.remove(&value);
+            vars.clear_qbit(value);
         }
         EvtVariable::AUTONOTES_BITS => {
-            vars.autonotes.remove(&value);
+            vars.remove_autonote(value);
         }
         _ => {
             warn!("  subtract_variable: unhandled variable {} (0x{:02x}) -= {}", var, var.0, value);
@@ -253,12 +261,12 @@ fn subtract_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
 fn evaluate_compare(vars: &GameVariables, var: EvtVariable, value: i32) -> bool {
     // Special cases: QBits and Autonotes check set membership
     if var == EvtVariable::QBITS {
-        let result = vars.quest_bits.contains(&value);
+        let result = vars.has_qbit(value);
         debug!("  Compare: QBit {} present? -> {}", value, result);
         return result;
     }
     if var == EvtVariable::AUTONOTES_BITS {
-        let result = vars.autonotes.contains(&value);
+        let result = vars.has_autonote(value);
         debug!("  Compare: Autonote {} present? -> {}", value, result);
         return result;
     }
@@ -282,11 +290,11 @@ fn process_events(
     mut hud_view: ResMut<HudView>,
     mut footer: ResMut<FooterText>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
-    mut save_data: ResMut<GameSave>,
-    mut game_state: ResMut<NextState<GameState>>,
+    mut transition: TransitionParams,
     mut blv_doors: Option<ResMut<crate::game::blv::BlvDoors>>,
     mut sound_events: bevy::ecs::message::MessageWriter<PlayUiSoundEvent>,
     mut world_state: ResMut<crate::game::world_state::WorldState>,
+    mut party: ResMut<Party>,
     time: Res<Time>,
     mut decoration_query: Query<(&DecorationInfo, &mut MeshMaterial3d<StandardMaterial>)>,
 ) {
@@ -356,22 +364,22 @@ fn process_events(
                     map_name, x, y, z, direction, pos, yaw.to_degrees());
 
                 if let MapName::Outdoor(ref odm) = target {
-                    save_data.map.map_x = odm.x;
-                    save_data.map.map_y = odm.y;
+                    transition.save_data.map.map_x = odm.x;
+                    transition.save_data.map.map_y = odm.y;
                     world_state.map.map_x = odm.x;
                     world_state.map.map_y = odm.y;
                 }
                 world_state.map.name = target.clone();
 
-                save_data.player.position = pos;
-                save_data.player.yaw = yaw;
+                transition.save_data.player.position = pos;
+                transition.save_data.player.yaw = yaw;
 
                 commands.insert_resource(LoadRequest {
                     map_name: target,
                     spawn_position: Some(pos),
                     spawn_yaw: Some(yaw),
                 });
-                game_state.set(GameState::Loading);
+                transition.game_state.set(GameState::Loading);
 
                 // Reset map vars on map transition
                 world_state.game_vars.map_vars = [0; 100];
@@ -438,11 +446,12 @@ fn process_events(
                 }
             }
             GameEvent::ForPartyMember { player } => {
-                let target = lod::enums::EvtTargetCharacter::from_u8(*player)
-                    .map(|t| format!("{:?}", t))
-                    .unwrap_or_else(|| format!("Unknown({})", player));
-                debug!("  ForPartyMember: target={} (stored, no party system yet)", target);
-                // TODO: Store active target character for subsequent operations
+                if let Some(target) = lod::enums::EvtTargetCharacter::from_u8(*player) {
+                    info!("  ForPartyMember: target = {:?}", target);
+                    party.active_target = target;
+                } else {
+                    warn!("  ForPartyMember: unknown player byte {}", player);
+                }
             }
 
             // ── Variable operations (NOW WORKING) ────────────────────
@@ -611,12 +620,18 @@ fn process_events(
                 }
             }
             GameEvent::CheckSkill { skill_id, skill_level, jump_step } => {
-                // TODO: check actual skill; for now, always fail (jump)
-                warn!("STUB CheckSkill: skill={} level={} -> failing, jumping to step {}", skill_id, skill_level, jump_step);
-                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                    pc = target_idx;
-                } else {
-                    return;
+                let var = EvtVariable(*skill_id);
+                let best = party.max_skill(party.active_target, var);
+                let pass = best >= *skill_level;
+                info!("  CheckSkill: {} level {} required, best={} target={:?} -> {}",
+                    var, skill_level, best, party.active_target,
+                    if pass { "pass" } else { "fail -> jump" });
+                if !pass {
+                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                        pc = target_idx;
+                    } else {
+                        return;
+                    }
                 }
             }
             GameEvent::CheckSeason { season, jump_step } => {
