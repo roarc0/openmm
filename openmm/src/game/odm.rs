@@ -192,6 +192,8 @@ fn check_map_boundary(
 
     commands.insert_resource(crate::states::loading::LoadRequest {
         map_name: world_state.map.name.clone(),
+        spawn_position: None,
+        spawn_yaw: None,
     });
     game_state.set(GameState::Loading);
 }

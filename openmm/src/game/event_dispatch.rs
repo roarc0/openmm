@@ -229,6 +229,8 @@ fn process_events(
             // Transition to loading immediately — clears the event queue
             commands.insert_resource(LoadRequest {
                 map_name: target,
+                spawn_position: Some(pos),
+                spawn_yaw: Some(yaw),
             });
             game_state.set(GameState::Loading);
 

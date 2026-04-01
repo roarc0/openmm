@@ -161,20 +161,11 @@ fn spawn_player(
 
     // Resolve spawn position
     let (start_x, start_y, start_z, start_yaw) = if let Some(ref indoor) = indoor {
-        // Indoor: use save_data position only if it's within reasonable range
-        // of the map's start point (i.e., set by MoveToMap, not stale outdoor coords).
-        let pos = save_data.player.position;
-        let sp = indoor.start_points.first().map(|s| s.position).unwrap_or(Vec3::ZERO);
-        let has_pos = pos[0] != 0.0 || pos[1] != 0.0 || pos[2] != 0.0;
-        // If save position is > 50000 units from start point, it's stale outdoor coords
-        let pos_vec = Vec3::new(pos[0], pos[1], pos[2]);
-        let close_enough = has_pos && pos_vec.distance(sp) < 10000.0;
-        info!("Indoor spawn: save_pos={:?} start_point={:?} close_enough={}",
-            pos, Some(sp), close_enough);
-        if close_enough {
-            (pos[0], pos[1] + settings.eye_height, pos[2], save_data.player.yaw)
-        } else if let Some(start) = indoor.start_points.first() {
-            (start.position.x, start.position.y + settings.eye_height, start.position.z, start.yaw)
+        // Indoor: always use start_points (set from LoadRequest.spawn_position
+        // for MoveToMap, or sector center fallback for console/direct load).
+        if let Some(sp) = indoor.start_points.first() {
+            info!("Indoor spawn: pos={:?} yaw={:.1}", sp.position, sp.yaw.to_degrees());
+            (sp.position.x, sp.position.y + settings.eye_height, sp.position.z, sp.yaw)
         } else {
             (0.0, settings.eye_height, 0.0, 0.0)
         }

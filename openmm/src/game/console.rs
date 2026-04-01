@@ -273,7 +273,7 @@ fn execute_command(
             ctx_world.write_to_save(ctx_save_data);
             ctx_state.push_output(format!("Reloading map: {}", target));
             ctx_state.open = false;
-            ctx_commands.insert_resource(LoadRequest { map_name: target });
+            ctx_commands.insert_resource(LoadRequest { map_name: target, spawn_position: None, spawn_yaw: None });
             ctx_game_state.set(GameState::Loading);
         }
         "load" | "map" => {
@@ -304,7 +304,7 @@ fn execute_command(
                         ctx_save_data.map.map_x = odm.x;
                         ctx_save_data.map.map_y = odm.y;
                     }
-                    ctx_commands.insert_resource(LoadRequest { map_name: target.clone() });
+                    ctx_commands.insert_resource(LoadRequest { map_name: target.clone(), spawn_position: None, spawn_yaw: None });
                     ctx_world.map.name = target;
                     ctx_game_state.set(GameState::Loading);
                 }

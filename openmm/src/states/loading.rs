@@ -38,6 +38,11 @@ struct InLoading;
 #[derive(Resource)]
 pub struct LoadRequest {
     pub map_name: MapName,
+    /// Optional spawn position override (Bevy coords). When set, this takes
+    /// priority over save_data for indoor spawn. Set by MoveToMap events.
+    pub spawn_position: Option<[f32; 3]>,
+    /// Optional spawn yaw override (radians).
+    pub spawn_yaw: Option<f32>,
 }
 
 /// Tracks which step of the loading pipeline we're on.
@@ -319,7 +324,7 @@ fn loading_setup(
     });
 
     // Keep the load request around as context
-    commands.insert_resource(LoadRequest { map_name });
+    commands.insert_resource(LoadRequest { map_name, spawn_position: None, spawn_yaw: None });
 
     // Spawn loading screen with loading.pcx background from LOD
     commands.spawn((Camera2d, InLoading));
@@ -630,27 +635,29 @@ fn loading_step(
                     position: Vec3::ZERO,
                     event_ids: vec![],
                 }];
-                // Pick the sector with the most floor faces as the spawn room.
-                // Sector 0 is typically the void; skip it. The sector with the most
-                // floors is likely the main entry hall.
-                let spawn_sector = blv.sectors.iter().skip(1)
-                    .max_by_key(|s| s.floor_count);
-                let spawn_pos = if let Some(sector) = spawn_sector {
-                    let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2) as i32;
-                    let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2) as i32;
-                    let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
-                    info!("Indoor spawn sector: floors={} bbox=({},{},{})..({},{},{})",
-                        sector.floor_count,
-                        sector.bbox_min[0], sector.bbox_min[1], sector.bbox_min[2],
-                        sector.bbox_max[0], sector.bbox_max[1], sector.bbox_max[2]);
-                    Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))
+                // Spawn position: prefer LoadRequest.spawn_position (set by MoveToMap),
+                // otherwise use the center of the sector with the most floors.
+                let (spawn_pos, spawn_yaw) = if let Some(pos) = load_request.spawn_position {
+                    info!("Indoor spawn from MoveToMap: pos={:?}", pos);
+                    (Vec3::from(pos), load_request.spawn_yaw.unwrap_or(0.0))
                 } else {
-                    Vec3::ZERO
+                    let spawn_sector = blv.sectors.iter().skip(1)
+                        .max_by_key(|s| s.floor_count);
+                    let pos = if let Some(sector) = spawn_sector {
+                        let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2) as i32;
+                        let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2) as i32;
+                        let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
+                        info!("Indoor spawn from sector center: floors={}", sector.floor_count);
+                        Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))
+                    } else {
+                        Vec3::ZERO
+                    };
+                    (pos, 0.0)
                 };
                 let start_points = vec![StartPoint {
-                    name: "sector_center".to_string(),
+                    name: "indoor_start".to_string(),
                     position: spawn_pos,
-                    yaw: 0.0,
+                    yaw: spawn_yaw,
                 }];
                 // Extract collision geometry from BLV faces
                 let (collision_walls, collision_floors, collision_ceilings) = extract_blv_collision(blv);
