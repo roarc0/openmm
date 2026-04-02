@@ -537,7 +537,7 @@ fn lazy_spawn(
     p.frames_elapsed += 1;
 
     let bb_len = p.billboard_order.len();
-    let actor_len = p.actors.as_ref().map(|a| a.get_actors().len()).unwrap_or(0);
+    let actor_len = p.actor_order.len();
     let monster_len = p.resolved_monsters.len();
     let mut bb_idx = p.idx.min(bb_len);
     let mut actor_idx = p.idx.saturating_sub(bb_len).min(actor_len);

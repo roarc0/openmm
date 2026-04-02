@@ -293,7 +293,7 @@ mod tests {
         let lod = LodManager::new(get_lod_path()).unwrap();
         let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
         // Every actor should have variant 1, 2, or 3 — never 0 (unless there is truly only one palette).
-        // The test checks that at least one actor has variant > 0 (proving the pass ran).
+        // The assertion checks that ALL actors have variant >= 1.
         // Actors with a unique standing_sprite will always be variant 1.
         let all_variants_nonzero = actors.get_actors().iter().all(|a| a.variant >= 1);
         assert!(all_variants_nonzero, "all actors should have variant >= 1 after pre-computation");
