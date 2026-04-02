@@ -452,7 +452,13 @@ fn player_movement(
                 let mut dest = from + movement;
 
                 // Terrain slope check — block movement if slope angle > ~35 degrees.
-                // Uses the actual angle (atan of height/distance) not just height diff.
+                // Skip entirely when the player is on BSP floor geometry (e.g. inside a castle):
+                // the terrain heightmap doesn't match the building floor and would wrongly block stairs.
+                let on_bsp_floor = colliders.as_ref().and_then(|c| {
+                    let feet_y = from.y - settings.eye_height;
+                    c.floor_height_at(from.x, from.z, feet_y)
+                }).is_some();
+                if !on_bsp_floor {
                 if let Some(ref hm) = height_map {
                     let current_ground = sample_terrain_height(&hm.heights, from.x, from.z);
                     let dest_ground = sample_terrain_height(&hm.heights, dest.x, dest.z);
@@ -479,6 +485,7 @@ fn player_movement(
                         }
                     }
                 }
+                } // !on_bsp_floor
 
                 // Water check
                 let can_enter_water = water_walking.as_ref().map_or(false, |w| w.0)

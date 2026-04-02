@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 
 /// Maximum height the player can step up onto a BSP floor.
-const MAX_STEP_UP: f32 = 50.0;
+/// MM6 castle stairs have large risers; 200 units matches the engine's own slope tolerance.
+const MAX_STEP_UP: f32 = 200.0;
 
 /// A collision triangle in Bevy coordinates, with precomputed AABB.
 /// Used for floor height sampling (point-in-triangle + barycentric interpolation).

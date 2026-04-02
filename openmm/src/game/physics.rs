@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use lod::enums::PolygonType;
+
 use crate::GameState;
 use crate::game::collision::{
     BuildingColliders, CollisionTriangle, CollisionWall, TerrainHeightMap, WaterMap, WaterWalking,
@@ -61,9 +63,19 @@ fn setup_collision_data(
             let nz = -face.plane.normal[1] as f32 / 65536.0;
             let normal = Vec3::new(nx, ny, nz);
 
-            let is_floor = ny > 0.5;
-            let is_ceiling = ny < -0.5;
-            let is_wall = ny.abs() < 0.7;
+            // Use the authoritative polygon_type from game data to classify faces.
+            // InBetweenFloorAndWall (stairs/ramps) is treated as walkable floor so
+            // floor_height_at can interpolate height across the slope surface.
+            let poly_type = face.polygon_type_enum();
+            let is_floor = matches!(
+                poly_type,
+                Some(PolygonType::Floor) | Some(PolygonType::InBetweenFloorAndWall)
+            );
+            let is_ceiling = matches!(
+                poly_type,
+                Some(PolygonType::Ceiling) | Some(PolygonType::InBetweenCeilingAndWall)
+            );
+            let is_wall = matches!(poly_type, Some(PolygonType::VerticalWall));
 
             let vert_count = face.vertices_count as usize;
             let verts: Vec<Vec3> = (0..vert_count)
