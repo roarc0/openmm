@@ -33,3 +33,50 @@ fn check_size(size: usize, expected_size: usize) -> Result<(), Box<dyn Error>> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use flate2::write::ZlibEncoder;
+    use flate2::Compression;
+    use std::io::Write;
+
+    fn zlib_compress(data: &[u8]) -> Vec<u8> {
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(data).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    #[test]
+    fn decompress_round_trips() {
+        let original = b"Hello, World! This is test data for zlib decompression.";
+        let compressed = zlib_compress(original);
+        let result = decompress(&compressed, compressed.len(), original.len()).unwrap();
+        assert_eq!(result, original);
+    }
+
+    #[test]
+    fn decompress_wrong_compressed_size_fails() {
+        let original = b"test data";
+        let compressed = zlib_compress(original);
+        let wrong_size = compressed.len() + 1;
+        let result = decompress(&compressed, wrong_size, original.len());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn decompress_wrong_uncompressed_size_fails() {
+        let original = b"test data";
+        let compressed = zlib_compress(original);
+        let result = decompress(&compressed, compressed.len(), 9999);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn decompress_empty_data() {
+        let original = b"";
+        let compressed = zlib_compress(original);
+        let result = decompress(&compressed, compressed.len(), 0).unwrap();
+        assert_eq!(result, original);
+    }
+}

@@ -92,3 +92,36 @@ impl TwoDEvents {
         Ok(TwoDEvents { houses })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{LodManager, get_lod_path};
+
+    #[test]
+    fn parse_loads_houses() {
+        let lod = LodManager::new(get_lod_path()).unwrap();
+        let events = TwoDEvents::parse(&lod).unwrap();
+        assert!(!events.houses.is_empty(), "2devents.txt should have house entries");
+    }
+
+    #[test]
+    fn house_id_1_has_valid_fields() {
+        let lod = LodManager::new(get_lod_path()).unwrap();
+        let events = TwoDEvents::parse(&lod).unwrap();
+        let house = events.houses.get(&1).expect("house id 1 should exist in MM6");
+        assert!(!house.building_type.is_empty(), "building_type should not be empty");
+        assert!(!house.name.is_empty(), "house name should not be empty");
+        assert_eq!(house.id, 1);
+    }
+
+    #[test]
+    fn house_ids_match_keys() {
+        let lod = LodManager::new(get_lod_path()).unwrap();
+        let events = TwoDEvents::parse(&lod).unwrap();
+        // Every entry's id field should match its map key
+        for (&key, entry) in &events.houses {
+            assert_eq!(key, entry.id, "house map key and id field should match");
+        }
+    }
+}
