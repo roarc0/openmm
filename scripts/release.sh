@@ -56,7 +56,7 @@ sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
 cargo check --workspace -q
 
 git add Cargo.toml Cargo.lock
-git commit --no-gpg-sign -m "chore: release v${VERSION}"
+git commit -m "release v${VERSION}"
 
 git tag -a "v${VERSION}" -m "Release v${VERSION}"
 
