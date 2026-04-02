@@ -326,74 +326,63 @@ fn spawn_indoor_world(
         InGame,
     ));
 
-    // Spawn NPC actors from DLV data
-    let npc_sprite_table = crate::game::odm::build_npc_sprite_table(&game_assets);
-    let npc_table = game_assets.game_lod().npc_table();
+    // Spawn NPC actors from DLV data using the pre-resolved Actors abstraction.
     let mut sprite_cache = sprites::SpriteCache::default();
 
-    for a in &prepared.actors {
-        if a.hp <= 0 { continue; }
+    if let Ok(actors) = lod::game::actors::Actors::from_raw_actors(
+        game_assets.lod_manager(),
+        &prepared.actors,
+        None,
+    ) {
+        for actor in actors.get_actors() {
+            let variant = actor.variant;
 
-        let Some(entry) = npc_sprite_table.get(&a.monlist_id) else {
-            info!("Indoor NPC '{}' monlist_id={} has no sprite in table — skipping", a.name, a.monlist_id);
-            continue;
-        };
-        // Compute palette variant
-        let base_pal = npc_sprite_table.values()
-            .filter(|e| e.standing_root == entry.standing_root)
-            .map(|e| e.palette_id)
-            .min()
-            .unwrap_or(entry.palette_id);
-        let variant = (entry.palette_id - base_pal + 1).min(3) as u8;
+            let (states, sw, sh) = sprites::load_entity_sprites(
+                &actor.standing_sprite, &actor.walking_sprite, game_assets.lod_manager(),
+                &mut images, &mut materials, &mut Some(&mut sprite_cache), variant, 0);
+            if states.is_empty() || states[0].is_empty() {
+                error!("Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
+                    actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite);
+                continue;
+            }
+            let initial_mat = states[0][0][0].clone();
+            let quad = meshes.add(Rectangle::new(sw, sh));
+            // Indoor actors use MM6 coordinates directly (no heightmap probing)
+            let [bx, by, bz] = mm6_to_bevy(actor.position[0], actor.position[1], actor.position[2]);
+            let pos = Vec3::new(bx, by + sh / 2.0, bz);
 
-        // Indoor NPCs use palette offset (no DSFT palette_id available)
-        let (states, sw, sh) = sprites::load_entity_sprites(
-            &entry.standing_root, &entry.walking_root, game_assets.lod_manager(),
-            &mut images, &mut materials, &mut Some(&mut sprite_cache), variant, 0);
-        if states.is_empty() || states[0].is_empty() {
-            error!("Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, entry.standing_root, entry.walking_root);
-            continue;
+            commands.spawn((
+                Name::new(format!("npc:{}", actor.name)),
+                Mesh3d(quad),
+                MeshMaterial3d(initial_mat),
+                Transform::from_translation(pos),
+                crate::game::entities::WorldEntity,
+                crate::game::entities::EntityKind::Npc,
+                crate::game::entities::AnimationState::Idle,
+                sprites::SpriteSheet::new(states, vec![(sw, sh)]),
+                actor::Actor {
+                    name: actor.name.clone(),
+                    hp: actor.hp,
+                    max_hp: actor.hp,
+                    move_speed: actor.move_speed as f32,
+                    initial_position: pos,
+                    guarding_position: pos,
+                    tether_distance: actor.tether_distance as f32,
+                    wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
+                    wander_target: pos,
+                    facing_yaw: 0.0,
+                    hostile: false,
+                },
+                crate::game::interaction::NpcInteractable {
+                    name: actor.name.clone(),
+                    position: pos,
+                    npc_id: actor.npc_id() as i16,
+                },
+                crate::game::entities::Billboard,
+                InGame,
+            ));
+            info!("Spawned indoor NPC '{}' at {:?}", actor.name, pos);
         }
-        let initial_mat = states[0][0][0].clone();
-        let quad = meshes.add(Rectangle::new(sw, sh));
-        // Indoor actors use MM6 coordinates directly (no heightmap probing)
-        let [bx, by, bz] = mm6_to_bevy(a.position[0] as i32, a.position[1] as i32, a.position[2] as i32);
-        let pos = Vec3::new(bx, by + sh / 2.0, bz);
-
-        commands.spawn((
-            Name::new(format!("npc:{}", a.name)),
-            Mesh3d(quad),
-            MeshMaterial3d(initial_mat),
-            Transform::from_translation(pos),
-            crate::game::entities::WorldEntity,
-            crate::game::entities::EntityKind::Npc,
-            crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet::new(states, vec![(sw, sh)]),
-            actor::Actor {
-                name: a.name.clone(),
-                hp: a.hp,
-                max_hp: a.hp,
-                move_speed: a.move_speed as f32,
-                initial_position: pos,
-                guarding_position: pos,
-                tether_distance: a.tether_distance as f32,
-                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
-                wander_target: pos,
-                facing_yaw: 0.0,
-                hostile: false,
-            },
-            crate::game::interaction::NpcInteractable {
-                name: npc_table.as_ref()
-                    .and_then(|t| t.npc_name(a.npc_id as i32))
-                    .unwrap_or(&a.name)
-                    .to_string(),
-                position: pos,
-                npc_id: a.npc_id,
-            },
-            crate::game::entities::Billboard,
-            InGame,
-        ));
-        info!("Spawned indoor NPC '{}' at {:?}", a.name, pos);
     }
 }
 

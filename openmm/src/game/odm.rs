@@ -25,11 +25,13 @@ struct PendingSpawns {
     sprite_cache: sprites::SpriteCache,
     /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
     billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
-    /// Cache for directional sprite detection: key = declist name, value = sprite root if directional
-    directional_cache: std::collections::HashMap<String, Option<String>>,
+    /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).
+    decorations: Option<lod::game::decorations::Decorations>,
+    /// Maps billboard_index → index in decorations.entries() for O(1) lookup during spawn.
+    dec_by_billboard: std::collections::HashMap<usize, usize>,
     resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
-    /// NPC sprite lookup: monlist_id → NPC sprite entry with type info from dmonlist.bin
-    npc_sprite_table: std::collections::HashMap<u8, NpcSpriteEntry>,
+    /// Pre-resolved DDM actors (NPCs and monsters) for this map.
+    actors: Option<lod::game::actors::Actors>,
     terrain_entity: Entity,
 }
 use crate::states::loading::PreparedWorld;
@@ -346,12 +348,35 @@ fn spawn_world(
         }
     }
 
+    // Pre-resolve decoration entries for all billboards on this map.
+    let (decorations, dec_by_billboard) = match lod::game::decorations::Decorations::new(
+        game_assets.lod_manager(),
+        &prepared.map.billboards,
+    ) {
+        Ok(decs) => {
+            let lookup: std::collections::HashMap<usize, usize> = decs
+                .entries()
+                .iter()
+                .enumerate()
+                .map(|(i, e)| (e.billboard_index, i))
+                .collect();
+            (Some(decs), lookup)
+        }
+        Err(e) => {
+            warn!("Failed to build decoration table: {}", e);
+            (None, std::collections::HashMap::new())
+        }
+    };
+
     // Resolve monsters from spawn points using current map (not save_data which may lag)
     let resolved_monsters = resolve_monsters(&prepared, &game_assets, &world_state.map.name);
 
-    // Build NPC sprite lookup from monlist — each DDM actor has a monlist_id
-    // that maps to a monlist entry with specific sprite names.
-    let npc_sprite_table = build_npc_sprite_table(&game_assets);
+    // Pre-resolve DDM actors (NPCs) for this map using the lod Actors abstraction.
+    let actors = lod::game::actors::Actors::new(
+        game_assets.lod_manager(),
+        &world_state.map.name.to_string(),
+        None,
+    ).ok();
 
     // Sort spawn order by distance from player (closest first)
     let player_spawn = Vec3::new(
@@ -362,8 +387,13 @@ fn spawn_world(
 
     let bb_order = sort_by_distance_vec3(&prepared.billboards, player_spawn, |bb| bb.position);
 
-    let actor_order = sort_by_distance_mm6(&prepared.actors, player_spawn,
-        |a| a.position[0] as f32, |a| a.position[1] as f32);
+    let actor_order = if let Some(ref a) = actors {
+        sort_by_distance_mm6(a.get_actors(), player_spawn,
+            |actor| actor.position[0] as f32,
+            |actor| actor.position[1] as f32)
+    } else {
+        Vec::new()
+    };
 
     let monster_order = sort_by_distance_mm6(&resolved_monsters, player_spawn,
         |m| m.position[0] as f32, |m| m.position[1] as f32);
@@ -384,9 +414,10 @@ fn spawn_world(
         frames_elapsed: 0,
         sprite_cache: prepared.sprite_cache.clone(),
         billboard_cache: prepared.billboard_cache.clone(),
-        directional_cache: std::collections::HashMap::new(),
+        decorations,
+        dec_by_billboard,
         resolved_monsters,
-        npc_sprite_table,
+        actors,
         terrain_entity,
     });
 }
@@ -402,7 +433,6 @@ fn resolve_monsters(
     let mut monsters = Vec::new();
     let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) else { return monsters };
     let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else { return monsters };
-    let Ok(dsft) = lod::dsft::DSFT::new(game_assets.lod_manager()) else { return monsters };
     let lod = game_assets.lod_manager();
 
     let map_config = mapstats.get(&map_name.to_string());
@@ -425,11 +455,11 @@ fn resolve_monsters(
             // (e.g. "lz2sta" → root "lzdsta", palette 246).
             let st_group = &desc.sprite_names[0];
             let wa_group = &desc.sprite_names[1];
-            let Some((st_root, palette_id)) = resolve_dsft_sprite(&dsft, st_group, lod) else {
+            let Some((st_root, palette_id)) = lod::game::monster::resolve_sprite_group(st_group, lod) else {
                 warn!("Monster '{}' standing sprite '{}' not found in DSFT — skipping", mon_name, st_group);
                 continue;
             };
-            let wa_root = resolve_dsft_sprite(&dsft, wa_group, lod)
+            let wa_root = lod::game::monster::resolve_sprite_group(wa_group, lod)
                 .map(|(n, _)| n)
                 .unwrap_or_else(|| st_root.clone());
 
@@ -453,101 +483,6 @@ fn resolve_monsters(
         }
     }
     monsters
-}
-
-/// Resolved sprite data for one monlist entry, enriched with type info from dmonlist.bin.
-pub struct NpcSpriteEntry {
-    pub standing_root: String,
-    pub walking_root: String,
-    pub palette_id: u16,
-    /// True if dmonlist.bin internal_name starts with "Peasant" (case-insensitive).
-    pub is_peasant: bool,
-    /// True if this is a female peasant (internal_name starts with "PeasantF").
-    pub is_female: bool,
-}
-
-/// Build a lookup table: monlist_id → NPC sprite entry from monlist + DSFT.
-/// Resolves monlist sprite group names through the DSFT to get actual sprite file
-/// names and palette IDs. Also carries peasant/gender flags derived from monlist
-/// internal_name so spawn code doesn't need hardcoded ranges.
-pub fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, NpcSpriteEntry> {
-    let mut table = std::collections::HashMap::new();
-    let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else {
-        return table;
-    };
-    let Ok(dsft) = lod::dsft::DSFT::new(game_assets.lod_manager()) else {
-        return table;
-    };
-    let lod = game_assets.lod_manager();
-
-    for (i, desc) in monlist.monsters.iter().enumerate() {
-        if i > 255 { break; }
-        let st_group = &desc.sprite_names[0];
-        let wa_group = &desc.sprite_names[1];
-        if st_group.is_empty() { continue; }
-
-        // Resolve standing sprite through DSFT: group name → (actual sprite file, palette_id)
-        let st_resolved = resolve_dsft_sprite(&dsft, st_group, lod);
-        let wa_resolved = resolve_dsft_sprite(&dsft, wa_group, lod);
-
-        if let Some((st_name, palette_id)) = st_resolved {
-            let wa_name = wa_resolved.map(|(n, _)| n).unwrap_or_else(|| st_name.clone());
-            let is_peasant = monlist.is_peasant(i as u8);
-            let is_female = monlist.is_female_peasant(i as u8);
-            table.insert(i as u8, NpcSpriteEntry {
-                standing_root: st_name,
-                walking_root: wa_name,
-                palette_id: palette_id as u16,
-                is_peasant,
-                is_female,
-            });
-        }
-    }
-    table
-}
-
-/// Resolve a monlist sprite group name through the DSFT to find the actual
-/// sprite file name and palette_id. Returns (sprite_root, palette_id).
-fn resolve_dsft_sprite(dsft: &lod::dsft::DSFT, group_name: &str, lod: &lod::LodManager) -> Option<(String, i16)> {
-    for frame in &dsft.frames {
-        if let Some(gname) = frame.group_name() {
-            if gname.eq_ignore_ascii_case(group_name) {
-                if let Some(sprite_name) = frame.sprite_name() {
-                    // DSFT sprite names include the frame letter (e.g., "fmpstaa" = root "fmpsta" + frame "a").
-                    // Strip trailing digits AND the frame letter to get the root that the
-                    // sprite loader expects (it appends frame letters a-f and direction digits 0-4).
-                    let without_digits = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
-                    // Strip the trailing frame letter (a-f)
-                    let root = if without_digits.len() > 1 {
-                        let last = without_digits.as_bytes()[without_digits.len() - 1];
-                        if last >= b'a' && last <= b'f' {
-                            &without_digits[..without_digits.len() - 1]
-                        } else {
-                            without_digits
-                        }
-                    } else {
-                        without_digits
-                    };
-                    let test = format!("sprites/{}a0", root.to_lowercase());
-                    if lod.try_get_bytes(&test).is_ok() {
-                        return Some((root.to_lowercase(), frame.palette_id));
-                    }
-                }
-                break;
-            }
-        }
-    }
-    // Fallback: try the group name directly
-    let root = group_name.trim_end_matches(|c: char| c.is_ascii_digit());
-    let mut try_root = root;
-    while try_root.len() >= 3 {
-        let test = format!("sprites/{}a0", try_root.to_lowercase());
-        if lod.try_get_bytes(&test).is_ok() {
-            return Some((try_root.to_lowercase(), 0));
-        }
-        try_root = &try_root[..try_root.len() - 1];
-    }
-    None
 }
 
 /// Sort indices by distance from player using Vec3 positions.
@@ -602,7 +537,7 @@ fn lazy_spawn(
     p.frames_elapsed += 1;
 
     let bb_len = p.billboard_order.len();
-    let actor_len = p.actor_order.len();
+    let actor_len = p.actors.as_ref().map(|a| a.get_actors().len()).unwrap_or(0);
     let monster_len = p.resolved_monsters.len();
     let mut bb_idx = p.idx.min(bb_len);
     let mut actor_idx = p.idx.saturating_sub(bb_len).min(actor_len);
@@ -618,17 +553,18 @@ fn lazy_spawn(
         let bb = &prepared.billboards[idx];
         let key = &bb.declist_name;
 
-        let directional = if let Some(cached) = p.directional_cache.get(key.as_str()) {
-            cached.clone()
-        } else {
-            let result = sprites::has_directional_sprites(key, game_assets.lod_manager());
-            p.directional_cache.insert(key.clone(), result.clone());
-            result
+        // Look up the pre-resolved decoration entry for this billboard.
+        // Entries filtered out by Decorations::new (invisible, marker, no-draw) are absent here.
+        let dec = p.dec_by_billboard.get(&bb.billboard_index)
+            .and_then(|&entry_idx| p.decorations.as_ref()?.entries().get(entry_idx));
+        let Some(dec) = dec else {
+            // Billboard was filtered out (invisible, marker, or no-draw) — skip it.
+            continue;
         };
 
-        if let Some(sprite_root) = directional {
+        if dec.is_directional {
             let (dirs, px_w, px_h) = sprites::load_decoration_directions(
-                &sprite_root, game_assets.lod_manager(),
+                &dec.sprite_name, game_assets.lod_manager(),
                 &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
             if px_w > 0.0 {
                 // Apply DSFT scale (fixed-point 16.16, same as BillboardSprite::dimensions)
@@ -724,88 +660,81 @@ fn lazy_spawn(
         let i = p.actor_order[actor_idx];
         actor_idx += 1;
         p.idx += 1;
-        let a = &prepared.actors[i];
-        if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
 
-        let Some(entry) = p.npc_sprite_table.get(&a.monlist_id) else {
-            error!("NPC '{}' monster_id={} has no sprite in DSFT table — skipping", a.name, a.monlist_id);
-            continue;
+        let actor = match p.actors.as_ref().and_then(|a| a.get_actors().get(i)) {
+            Some(a) => a,
+            None => continue,
         };
-        // Compute palette variant: base palette is the minimum among same-sprite entries.
-        let base_pal = p.npc_sprite_table.values()
-            .filter(|e| e.standing_root == entry.standing_root)
-            .map(|e| e.palette_id)
-            .min()
-            .unwrap_or(entry.palette_id);
-        let variant = (entry.palette_id - base_pal + 1).min(3) as u8;
+
+        let variant = actor.variant;
+
         let (s2, w2, h2) = sprites::load_entity_sprites(
-            &entry.standing_root, &entry.walking_root, game_assets.lod_manager(),
+            &actor.standing_sprite, &actor.walking_sprite, game_assets.lod_manager(),
             &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant, 0);
         if s2.is_empty() || s2[0].is_empty() {
-            error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, entry.standing_root, entry.walking_root);
+            error!("NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
+                actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite);
             continue;
         }
         // Apply DSFT scale (same as decorations — sprite group name lookup)
         let dsft_scale = bb_mgr.as_ref()
-            .map(|mgr| mgr.dsft_scale_for_group(&entry.standing_root))
+            .map(|mgr| mgr.dsft_scale_for_group(&actor.standing_sprite))
             .unwrap_or(1.0);
         let states = s2;
         let sw = w2 * dsft_scale;
         let sh = h2 * dsft_scale;
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
-        let wx = a.position[0] as f32;
-        let wz = -a.position[1] as f32;
+        let wx = actor.position[0] as f32;
+        let wz = -actor.position[1] as f32;
         let terrain_y = crate::game::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
         // Use DDM Z position when above terrain (e.g. NPC on a balcony/building).
-        // MM6 coords: Z is up. Bevy: Y is up. DDM Z needs HEIGHT_SCALE conversion.
-        let ddm_y = a.position[2] as f32;
+        // Both terrain_y and DDM position[2] are in raw game units — no extra scaling needed.
+        let ddm_y = actor.position[2] as f32;
         let gy = terrain_y.max(ddm_y);
         let pos = Vec3::new(wx, gy + sh / 2.0, wz);
 
-        // For peasant actors (detected from dmonlist.bin internal_name), assign a complete
-        // identity (name + portrait) from npcdata.txt peasant-profession entries.
-        // Gender is derived from monlist data; the sex-appropriate entry pool is used.
-        let (display_name, effective_npc_id) = if entry.is_peasant {
+        // Identity assignment: Actor already has name/portrait for named NPCs.
+        // For peasants, assign identity from npcdata.txt via map_events.
+        let (display_name, effective_npc_id) = if actor.is_peasant {
             let generated_id = 5000 + i as i32;
             // Pick a complete identity (name + portrait) from npcdata.txt peasant entries,
             // split by sex. Falls back to npcnames.txt name + generic portrait if unavailable.
             let (name, portrait) = map_events.as_ref()
                 .and_then(|me| me.npc_table.as_ref())
-                .and_then(|t| t.peasant_identity(entry.is_female, i))
+                .and_then(|t| t.peasant_identity(actor.is_female, i))
                 .map(|(n, p)| (n.to_string(), p))
                 .unwrap_or_else(|| {
                     let name = map_events.as_ref()
                         .and_then(|me| me.name_pool.as_ref())
-                        .map(|pool| pool.name_for(entry.is_female, i).to_string())
-                        .unwrap_or_else(|| a.name.clone());
+                        .map(|pool| pool.name_for(actor.is_female, i).to_string())
+                        .unwrap_or_else(|| actor.name.clone());
                     (name, 1)
                 });
             if let Some(ref mut me) = map_events {
-                me.generated_npcs.insert(generated_id, lod::game::npctable::GeneratedNpc {
+                me.generated_npcs.insert(generated_id, lod::game::npc::GeneratedNpc {
                     name: name.clone(), portrait,
                 });
             }
             (name, generated_id)
         } else {
-            let name = map_events.as_ref()
-                .and_then(|me| me.npc_table.as_ref())
-                .and_then(|t| t.npc_name(a.npc_id as i32))
-                .unwrap_or(&a.name)
-                .to_string();
-            (name, a.npc_id as i32)
+            // Named NPC: name already resolved in Actor
+            (actor.name.clone(), actor.npc_id() as i32)
         };
 
         commands.entity(terrain_entity).with_child((
-            Name::new(format!("npc:{}", a.name)), Mesh3d(quad), MeshMaterial3d(initial_mat),
+            Name::new(format!("npc:{}", actor.name)), Mesh3d(quad), MeshMaterial3d(initial_mat),
             Transform::from_translation(pos),
             crate::game::entities::WorldEntity, crate::game::entities::EntityKind::Npc,
             crate::game::entities::AnimationState::Idle,
             sprites::SpriteSheet::new(states, vec![(sw, sh)]),
             actor::Actor {
-                name: a.name.clone(), hp: a.hp, max_hp: a.hp, move_speed: a.move_speed as f32,
-                initial_position: pos, guarding_position: pos, tether_distance: a.tether_distance as f32,
-                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0, wander_target: pos, facing_yaw: 0.0, hostile: false,
+                name: actor.name.clone(), hp: actor.hp, max_hp: actor.hp,
+                move_speed: actor.move_speed as f32,
+                initial_position: pos, guarding_position: pos,
+                tether_distance: actor.tether_distance as f32,
+                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
+                wander_target: pos, facing_yaw: 0.0, hostile: false,
             },
             crate::game::interaction::NpcInteractable {
                 name: display_name,
