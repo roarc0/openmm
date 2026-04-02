@@ -53,7 +53,7 @@ impl Monsters {
         for sp in &odm.spawn_points {
             let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as usize;
             for g in 0..group_size {
-                let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs() + g as u32) as u32;
+                let seed = sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs() + g as u32;
                 let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else { continue };
                 let Some(desc) = monlist.find_by_name(mon_name, dif) else { continue };
 

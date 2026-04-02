@@ -172,6 +172,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `ddm.rs` — DDM file parser (actors/NPCs per map)
 - `monlist.rs` — Monster list (dmonlist.bin) with sprite name resolution
 - `mapstats.rs` — Map statistics (monster groups per map zone)
+- `game/monster.rs` — `Monster`/`Monsters`: per-map spawn resolution (MapStats + monlist + DSFT → one `Monster` per group member); also `resolve_entry()` and `resolve_sprite_group()` for DDM actor sprite resolution
 - `dsounds.rs` — Sound descriptor table (dsounds.bin): sound ID -> filename mapping
 - `snd.rs` — Audio.snd container reader: extracts/decompresses WAV files
 
