@@ -31,6 +31,10 @@ struct Cli {
     #[arg(long)]
     console: Option<bool>,
 
+    /// Show crosshair in the viewport
+    #[arg(long)]
+    crosshair: Option<bool>,
+
     /// Enable wireframe rendering
     #[arg(long)]
     wireframe: Option<bool>,
@@ -181,6 +185,7 @@ struct ConfigFile {
     skip_intro: Option<bool>,
     debug: Option<bool>,
     console: Option<bool>,
+    crosshair: Option<bool>,
     wireframe: Option<bool>,
     width: Option<u32>,
     height: Option<u32>,
@@ -230,6 +235,7 @@ pub struct GameConfig {
     pub debug: bool,
     /// Enable developer console (Tab key)
     pub console: bool,
+    pub crosshair: bool,
     pub wireframe: bool,
     /// Window width (MM6: width)
     pub width: u32,
@@ -304,6 +310,7 @@ impl Default for GameConfig {
             skip_intro: false,
             debug: false,
             console: true,
+            crosshair: true,
             wireframe: false,
             width: 2880,
             height: 2160,
@@ -394,6 +401,7 @@ impl GameConfig {
             skip_intro: resolve!(cli.skip_intro, file_cfg.skip_intro, d.skip_intro),
             debug: resolve!(cli.debug, file_cfg.debug, d.debug),
             console: resolve!(cli.console, file_cfg.console, d.console),
+            crosshair: resolve!(cli.crosshair, file_cfg.crosshair, d.crosshair),
             wireframe: resolve!(cli.wireframe, file_cfg.wireframe, d.wireframe),
             width: resolve!(cli.width, file_cfg.width, d.width),
             height: resolve!(cli.height, file_cfg.height, d.height),

@@ -119,7 +119,7 @@ impl Plugin for PlayerPlugin {
         let cfg = app.world().resource::<GameConfig>().clone();
         app.init_resource::<PlayerSettings>()
             .init_resource::<PlayerKeyBindings>()
-            .insert_resource(MouseLookEnabled(false))
+            .insert_resource(MouseLookEnabled(true))
             .insert_resource(MouseSensitivity {
                 x: cfg.mouse_sensitivity_x,
                 y: cfg.mouse_sensitivity_y,
@@ -135,7 +135,7 @@ impl Plugin for PlayerPlugin {
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
                     .run_if(resource_equals(crate::game::hud::HudView::World))
-                    .run_if(|console: Res<crate::game::console::ConsoleState>| !console.open),
+                    .run_if(|console: Res<crate::game::debug::console::ConsoleState>| !console.open),
             );
     }
 }
@@ -221,7 +221,7 @@ fn spawn_player(
             Camera3d::default(),
             SpatialListener::new(4.0),
             crate::bevy_config::camera_msaa(&cfg),
-            Transform::from_rotation(Quat::from_rotation_x(-8.0_f32.to_radians())),
+            Transform::from_rotation(Quat::from_rotation_x(10.0_f32.to_radians())),
             Projection::Perspective(PerspectiveProjection {
                 // MM6 FOV: 75 degrees outdoor, 60 degrees indoor (from OpenEnroth)
                 fov: if is_indoor { 60.0_f32.to_radians() } else { 75.0_f32.to_radians() },
@@ -405,10 +405,10 @@ fn player_movement(
         let right_flat = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
 
         let mut movement = Vec3::ZERO;
-        if keys.pressed(key_bindings.move_forward) {
+        if keys.pressed(key_bindings.move_forward) || keys.pressed(KeyCode::ArrowUp) {
             movement += forward_flat;
         }
-        if keys.pressed(key_bindings.move_backward) {
+        if keys.pressed(key_bindings.move_backward) || keys.pressed(KeyCode::ArrowDown) {
             movement -= forward_flat;
         }
         if keys.pressed(key_bindings.strafe_left) {

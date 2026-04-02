@@ -1,4 +1,5 @@
 mod borders;
+mod crosshair;
 mod footer;
 mod minimap;
 mod overlay;
@@ -24,6 +25,7 @@ use minimap::*;
 /// Marker for HUD UI entities.
 #[derive(Component)]
 pub(super) struct HudUI;
+
 
 /// Which view the HUD is currently displaying.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -55,6 +57,7 @@ impl Plugin for HudPlugin {
                     update_footer_text,
                     stats_bar::update_stats_bar,
                     update_viewport,
+                    crosshair::update_crosshair,
                     overlay::spawn_overlay,
                     overlay::despawn_overlay,
                     overlay::update_overlay_layout,
@@ -456,6 +459,8 @@ fn spawn_hud(
         commands.insert_resource(TapFrames(tap_handles));
     }
 
+    crosshair::spawn_crosshair(&mut commands, &cfg);
+
     // Set initial footer message
     footer_text.set("Welcome to New Sorpigal");
 }
@@ -699,3 +704,4 @@ fn update_hud_layout(
         node.height = Val::Px(d.compass_h);
     }
 }
+

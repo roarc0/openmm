@@ -85,12 +85,30 @@ fn debug_setup(
             DebugHud,
         ))
         .with_child((
-            TextSpan::new("\nPOS: --"),
+            TextSpan::new(""),
             TextFont {
                 font_size: 22.0,
                 ..default()
             },
-            TextColor(Color::WHITE),
+            TextColor(Color::srgb(0.3, 0.6, 1.0)), // blue — map name
+            MapNameSpan,
+        ))
+        .with_child((
+            TextSpan::new(""),
+            TextFont {
+                font_size: 22.0,
+                ..default()
+            },
+            TextColor(Color::srgb(1.0, 0.7, 0.2)), // orange — fly/walk mode
+            ModeSpan,
+        ))
+        .with_child((
+            TextSpan::new(""),
+            TextFont {
+                font_size: 22.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.85, 0.85, 0.85)), // light gray — coordinates
             PosSpan,
         ))
         .with_child((
@@ -387,6 +405,12 @@ fn fps_color(fps: f64) -> Color {
 pub struct FpsText;
 
 #[derive(Component)]
+struct MapNameSpan;
+
+#[derive(Component)]
+struct ModeSpan;
+
+#[derive(Component)]
 struct PosSpan;
 
 #[derive(Component)]
@@ -415,10 +439,15 @@ fn update_hud_text(
     prepared: Option<Res<PreparedWorld>>,
     mut fps_history: ResMut<FpsHistory>,
     mut fps_query: Query<(&mut Text, &mut TextColor), With<FpsText>>,
-    mut pos_query: Query<(&mut TextSpan, &mut TextColor), (With<PosSpan>, Without<FpsText>)>,
+    mut map_name_query: Query<(&mut TextSpan, &mut TextColor), (With<MapNameSpan>, Without<FpsText>)>,
+    mut mode_query: Query<(&mut TextSpan, &mut TextColor), (With<ModeSpan>, Without<FpsText>, Without<MapNameSpan>)>,
+    mut pos_query: Query<
+        (&mut TextSpan, &mut TextColor),
+        (With<PosSpan>, Without<FpsText>, Without<ModeSpan>, Without<MapNameSpan>),
+    >,
     mut tile_query: Query<
         (&mut TextSpan, &mut TextColor),
-        (With<TileSpan>, Without<FpsText>, Without<PosSpan>),
+        (With<TileSpan>, Without<FpsText>, Without<PosSpan>, Without<ModeSpan>, Without<MapNameSpan>),
     >,
     mut bar_query: Query<(&FpsChartBar, &mut Node, &mut BackgroundColor)>,
     mut max_label: Query<&mut Text, (With<ChartMaxLabel>, Without<FpsText>)>,
@@ -460,7 +489,8 @@ fn update_hud_text(
     };
 
     let map_name = world_state.map.name.to_string().to_uppercase();
-    let pos_str = if let Ok(transform) = player_query.single() {
+
+    let (mode_str, coords_str) = if let Ok(transform) = player_query.single() {
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
         let spawn_str = if cfg.debug
             && spawn_progress.total > 0
@@ -470,28 +500,35 @@ fn update_hud_text(
         } else {
             String::new()
         };
-        let mode_str = if world_state.player.fly_mode { "FLY" } else { "WALK" };
-        format!(
-            "\n{}  {}  X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
-            map_name,
-            mode_str,
+        let mode = if world_state.player.fly_mode { "  FLY" } else { "  WALK" };
+        let coords = format!(
+            "  X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
             transform.translation.x,
             transform.translation.y,
             transform.translation.z,
             yaw.to_degrees(),
             spawn_str,
-        )
+        );
+        (mode.to_string(), coords)
     } else {
-        format!("\n{}  POS: --", map_name)
+        ("  WALK".to_string(), "  POS: --".to_string())
     };
 
     for (mut text, mut tc) in &mut fps_query {
         **text = fps_str.clone();
         *tc = TextColor(color);
     }
+    for (mut span, mut tc) in &mut map_name_query {
+        **span = format!("\n{}", map_name);
+        *tc = TextColor(Color::srgb(0.3, 0.6, 1.0));
+    }
+    for (mut span, mut tc) in &mut mode_query {
+        **span = mode_str.clone();
+        *tc = TextColor(Color::srgb(1.0, 0.7, 0.2));
+    }
     for (mut span, mut tc) in &mut pos_query {
-        **span = pos_str.clone();
-        *tc = TextColor(Color::srgb(1.0, 0.3, 0.3));
+        **span = coords_str.clone();
+        *tc = TextColor(Color::srgb(0.85, 0.85, 0.85));
     }
 
     // Update tile type from terrain
