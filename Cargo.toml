@@ -3,6 +3,10 @@
 resolver = "2"
 members = ["lod", "openmm"]
 
+[workspace.package]
+version = "0.0.1"
+authors = ["Alessandro Rosetti <alessandro.rosetti@gmail.com>"]
+edition = "2024"
 
 # [profile.dev]
 # opt-level = 1
