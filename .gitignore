@@ -6,3 +6,4 @@
 *.bin
 *.txt
 openmm.toml
+.superpowers
