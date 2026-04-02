@@ -934,7 +934,7 @@ fn loading_step(
                                 queue.billboard_idx += 1;
                                 if dec.is_directional { continue; } // directional sprites loaded at spawn time
                                 if bb_cache.contains_key(&dec.sprite_name) { continue; }
-                                if let Some(sprite) = mgr.get(game_assets.lod_manager(), &dec.sprite_name, 0) {
+                                if let Some(sprite) = mgr.get(game_assets.lod_manager(), &dec.sprite_name, dec.declist_id) {
                                     let (w, h) = sprite.dimensions();
                                     let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
                                     let tex = images.add(bevy_img);

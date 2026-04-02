@@ -511,7 +511,7 @@ fn lazy_spawn(
                 (m.clone(), q.clone(), *h)
             } else {
                 let Some(ref mgr) = bb_mgr else { continue };
-                let sprite = match mgr.get(game_assets.lod_manager(), key, 0) {
+                let sprite = match mgr.get(game_assets.lod_manager(), key, dec.declist_id) {
                     Some(s) => s,
                     None => {
                         warn!("Billboard '{}' sprite not found, skipping", key);
