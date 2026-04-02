@@ -57,7 +57,7 @@ struct LoadingProgress {
     water_mask: Option<Image>,
     water_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
-    billboards: Option<Vec<PreparedBillboard>>,
+    decorations: Option<lod::game::decorations::Decorations>,
     actors: Option<Vec<DdmActor>>,
     start_points: Option<Vec<StartPoint>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
@@ -74,7 +74,7 @@ struct LoadingProgress {
 struct PreloadQueue {
     /// (sprite_root, variant) pairs to preload into SpriteCache.
     sprite_roots: Vec<(String, u8)>,
-    /// Billboard entries to preload (index into progress.billboards).
+    /// Index into progress.decorations.entries() for billboard preloading.
     billboard_idx: usize,
     /// Current position in sprite_roots.
     sprite_idx: usize,
@@ -164,22 +164,6 @@ pub struct PreparedSubMesh {
 }
 
 
-pub struct PreparedBillboard {
-    /// Position in Bevy coordinates.
-    pub position: Vec3,
-    /// Decoration name (for sprite lookup).
-    pub declist_name: String,
-    /// Declist ID for BillboardManager lookup.
-    pub declist_id: u16,
-    /// Sound ID from ddeclist (0 = no sound).
-    pub sound_id: u16,
-    /// Facing direction in radians (from map data direction_degrees).
-    pub facing_yaw: f32,
-    /// EVT event ID triggered on interaction (0 = no event).
-    pub event_id: i16,
-    /// Original index in the map's billboard array (for SetSprite targeting).
-    pub billboard_index: usize,
-}
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 enum LoadingStep {
@@ -235,7 +219,7 @@ pub struct PreparedWorld {
     pub water_mask: Option<Image>,
     pub water_texture: Option<Image>,
     pub models: Vec<PreparedModel>,
-    pub billboards: Vec<PreparedBillboard>,
+    pub decorations: lod::game::decorations::Decorations,
     pub actors: Vec<DdmActor>,
     pub start_points: Vec<StartPoint>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
@@ -306,7 +290,7 @@ fn loading_setup(
         water_mask: None,
         water_texture: None,
         models: None,
-        billboards: None,
+        decorations: None,
         actors: None,
         start_points: None,
         sprite_cache: None,
@@ -810,58 +794,41 @@ fn loading_step(
             }
         }
         LoadingStep::BuildBillboards => {
-            // Extract start/teleport points and filter out non-renderable decorations.
-            // Decorations with game_name containing "Start" are teleport markers
-            // (e.g., "Party Start", "North Start"). They should not render.
-            if let Some(odm) = &progress.odm {
+            if progress.odm.is_some() {
                 let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
                 let mut start_points = Vec::new();
-                let mut billboards = Vec::new();
 
-                for (bb_i, bb) in odm.billboards.iter().enumerate() {
-                    if bb.data.is_invisible() { continue; }
-
-                    let pos = Vec3::from(lod::odm::mm6_to_bevy(
-                        bb.data.position[0], bb.data.position[1], bb.data.position[2],
-                    ));
-                    let yaw = bb.data.direction_degrees as f32 * std::f32::consts::PI / 1024.0;
-
-                    // Check if this is a start/teleport marker
-                    let is_marker = bb_mgr.as_ref()
-                        .and_then(|mgr| mgr.get_declist_item(bb.data.declist_id))
-                        .map(|item| item.is_marker() || item.is_no_draw())
-                        .unwrap_or(false);
-
-                    let name_lower = bb.declist_name.to_lowercase();
-                    let is_start = name_lower.contains("start") || is_marker;
-
-                    if is_start {
-                        start_points.push(StartPoint {
-                            name: bb.declist_name.clone(),
-                            position: pos,
-                            yaw,
-                        });
-                        continue; // Don't render markers
+                // Extract start/teleport markers from raw billboard list (Decorations filters these out)
+                // Use a scoped block to release the immutable borrow before assigning to progress.
+                let decorations = {
+                    let odm = progress.odm.as_ref().unwrap();
+                    for bb in &odm.billboards {
+                        if bb.data.is_invisible() { continue; }
+                        let is_marker = bb_mgr.as_ref()
+                            .and_then(|mgr| mgr.get_declist_item(bb.data.declist_id))
+                            .map(|item| item.is_marker() || item.is_no_draw())
+                            .unwrap_or(false);
+                        let name_lower = bb.declist_name.to_lowercase();
+                        if name_lower.contains("start") || is_marker {
+                            let pos = Vec3::from(lod::odm::mm6_to_bevy(
+                                bb.data.position[0], bb.data.position[1], bb.data.position[2],
+                            ));
+                            let yaw = bb.data.direction_degrees as f32 * std::f32::consts::PI / 1024.0;
+                            start_points.push(StartPoint {
+                                name: bb.declist_name.clone(),
+                                position: pos,
+                                yaw,
+                            });
+                        }
                     }
-
-                    let sound_id = bb_mgr.as_ref()
-                        .and_then(|mgr| mgr.get_declist_item(bb.data.declist_id))
-                        .map(|item| item.sound_id)
-                        .unwrap_or(0);
-
-                    billboards.push(PreparedBillboard {
-                        position: pos,
-                        declist_name: bb.declist_name.clone(),
-                        declist_id: bb.data.declist_id,
-                        sound_id,
-                        facing_yaw: yaw,
-                        event_id: bb.data.event,
-                        billboard_index: bb_i,
-                    });
-                }
-
+                    // Decorations::new filters invisible/marker/no-draw entries automatically
+                    lod::game::decorations::Decorations::new(
+                        game_assets.lod_manager(),
+                        &odm.billboards,
+                    ).ok()
+                };
                 progress.start_points = Some(start_points);
-                progress.billboards = Some(billboards);
+                progress.decorations = decorations;
                 progress.step = progress.step.next();
             }
         }
@@ -955,17 +922,19 @@ fn loading_step(
                     >= progress.preload_queue.as_ref().unwrap().sprite_roots.len();
                 if sprites_done {
                     let mut bb_cache = progress.billboard_cache.take().unwrap_or_default();
-                    let billboards = progress.billboards.take();
                     let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
-                    if let Some(ref bbs) = billboards {
+                    // Take decorations to allow simultaneous mutable borrow of preload_queue
+                    let decorations = progress.decorations.take();
+                    if let Some(ref decs) = decorations {
                         let queue = progress.preload_queue.as_mut().unwrap();
                         if let Some(ref mgr) = bb_mgr {
-                            while queue.billboard_idx < bbs.len() {
+                            while queue.billboard_idx < decs.len() {
                                 if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS { break; }
-                                let bb = &bbs[queue.billboard_idx];
+                                let dec = &decs.entries()[queue.billboard_idx];
                                 queue.billboard_idx += 1;
-                                if bb_cache.contains_key(&bb.declist_name) { continue; }
-                                if let Some(sprite) = mgr.get(game_assets.lod_manager(), &bb.declist_name, bb.declist_id) {
+                                if dec.is_directional { continue; } // directional sprites loaded at spawn time
+                                if bb_cache.contains_key(&dec.sprite_name) { continue; }
+                                if let Some(sprite) = mgr.get(game_assets.lod_manager(), &dec.sprite_name, 0) {
                                     let (w, h) = sprite.dimensions();
                                     let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
                                     let tex = images.add(bevy_img);
@@ -977,20 +946,20 @@ fn loading_step(
                                         perceptual_roughness: 1.0, reflectance: 0.0, ..default()
                                     });
                                     let q = meshes.add(Rectangle::new(w, h));
-                                    bb_cache.insert(bb.declist_name.clone(), (m, q, h));
+                                    bb_cache.insert(dec.sprite_name.clone(), (m, q, h));
                                 }
                             }
                         }
                     }
-                    progress.billboards = billboards;
+                    progress.decorations = decorations;
                     progress.billboard_cache = Some(bb_cache);
                 }
             }
 
             // Check if all preloading is done
             let queue = progress.preload_queue.as_ref().unwrap();
-            let bb_len = progress.billboards.as_ref().map_or(0, |b| b.len());
-            if queue.sprite_idx >= queue.sprite_roots.len() && queue.billboard_idx >= bb_len {
+            let dec_len = progress.decorations.as_ref().map_or(0, |d| d.len());
+            if queue.sprite_idx >= queue.sprite_roots.len() && queue.billboard_idx >= dec_len {
                 progress.preload_queue = None;
                 progress.step = progress.step.next();
             }
@@ -1007,7 +976,6 @@ fn loading_step(
             {
                 let water_cells = progress.water_cells.take().unwrap_or_default();
                 let water_texture = progress.water_texture.take();
-                let billboards = progress.billboards.take().unwrap_or_default();
                 let actors = progress.actors.take().unwrap_or_default();
                 commands.insert_resource(PreparedWorld {
                     map,
@@ -1017,7 +985,8 @@ fn loading_step(
                     water_texture,
                     water_cells,
                     models,
-                    billboards,
+                    decorations: progress.decorations.take()
+                        .unwrap_or_else(lod::game::decorations::Decorations::empty),
                     actors,
                     start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),

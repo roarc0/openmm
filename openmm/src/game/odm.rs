@@ -26,9 +26,7 @@ struct PendingSpawns {
     /// Cached billboard materials: key = sprite name, value = (material, mesh, height)
     billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
     /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).
-    decorations: Option<lod::game::decorations::Decorations>,
-    /// Maps billboard_index → index in decorations.entries() for O(1) lookup during spawn.
-    dec_by_billboard: std::collections::HashMap<usize, usize>,
+    decorations: lod::game::decorations::Decorations,
     monsters: lod::game::monster::Monsters,
     /// Pre-resolved DDM actors (NPCs and monsters) for this map.
     actors: Option<lod::game::actors::Actors>,
@@ -348,25 +346,7 @@ fn spawn_world(
         }
     }
 
-    // Pre-resolve decoration entries for all billboards on this map.
-    let (decorations, dec_by_billboard) = match lod::game::decorations::Decorations::new(
-        game_assets.lod_manager(),
-        &prepared.map.billboards,
-    ) {
-        Ok(decs) => {
-            let lookup: std::collections::HashMap<usize, usize> = decs
-                .entries()
-                .iter()
-                .enumerate()
-                .map(|(i, e)| (e.billboard_index, i))
-                .collect();
-            (Some(decs), lookup)
-        }
-        Err(e) => {
-            warn!("Failed to build decoration table: {}", e);
-            (None, std::collections::HashMap::new())
-        }
-    };
+    let decorations = prepared.decorations.clone();
 
     // Resolve monsters from spawn points using current map (not save_data which may lag)
     let monsters = lod::game::monster::Monsters::new(
@@ -391,7 +371,8 @@ fn spawn_world(
         save_data.player.position[2],
     );
 
-    let bb_order = sort_by_distance_vec3(&prepared.billboards, player_spawn, |bb| bb.position);
+    let bb_order = sort_by_distance_mm6(decorations.entries(), player_spawn,
+        |d| d.position[0] as f32, |d| d.position[1] as f32);
 
     let actor_order = if let Some(ref a) = actors {
         sort_by_distance_mm6(a.get_actors(), player_spawn,
@@ -421,24 +402,12 @@ fn spawn_world(
         sprite_cache: prepared.sprite_cache.clone(),
         billboard_cache: prepared.billboard_cache.clone(),
         decorations,
-        dec_by_billboard,
         monsters,
         actors,
         terrain_entity,
     });
 }
 
-
-/// Sort indices by distance from player using Vec3 positions.
-fn sort_by_distance_vec3<T>(items: &[T], player: Vec3, pos: impl Fn(&T) -> Vec3) -> Vec<usize> {
-    let mut order: Vec<usize> = (0..items.len()).collect();
-    order.sort_by(|&a, &b| {
-        let da = player.distance_squared(pos(&items[a]));
-        let db = player.distance_squared(pos(&items[b]));
-        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-    });
-    order
-}
 
 /// Sort indices by distance from player using MM6 coords (works with i16 or i32).
 fn sort_by_distance_mm6<T>(items: &[T], player: Vec3, pos_x: impl Fn(&T) -> f32, pos_y: impl Fn(&T) -> f32) -> Vec<usize> {
@@ -491,36 +460,27 @@ fn lazy_spawn(
     // so they show the correct side based on camera angle.
     let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
     while bb_idx < bb_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
-        let idx = p.billboard_order[bb_idx];
+        let dec_idx = p.billboard_order[bb_idx];
         bb_idx += 1;
         p.idx += 1;
-        let bb = &prepared.billboards[idx];
-        let key = &bb.declist_name;
-
-        // Look up the pre-resolved decoration entry for this billboard.
-        // Entries filtered out by Decorations::new (invisible, marker, no-draw) are absent here.
-        let dec = p.dec_by_billboard.get(&bb.billboard_index)
-            .and_then(|&entry_idx| p.decorations.as_ref()?.entries().get(entry_idx));
-        let Some(dec) = dec else {
-            // Billboard was filtered out (invisible, marker, or no-draw) — skip it.
-            continue;
-        };
+        let dec = &p.decorations.entries()[dec_idx];
+        let key = &dec.sprite_name;
+        let dec_pos = Vec3::from(lod::odm::mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
 
         if dec.is_directional {
             let (dirs, px_w, px_h) = sprites::load_decoration_directions(
                 &dec.sprite_name, game_assets.lod_manager(),
                 &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
             if px_w > 0.0 {
-                // Apply DSFT scale (fixed-point 16.16, same as BillboardSprite::dimensions)
+                // Apply DSFT scale via sprite group name lookup
                 let dsft_scale = bb_mgr.as_ref()
-                    .and_then(|mgr| mgr.get_declist_item(bb.declist_id)
-                        .and_then(|item| mgr.get_dsft_scale(item)))
+                    .map(|mgr| mgr.dsft_scale_for_group(&dec.sprite_name))
                     .unwrap_or(1.0);
                 let sw = px_w * dsft_scale;
                 let sh = px_h * dsft_scale;
                 let initial_mat = dirs[0].clone();
                 let quad = meshes.add(Rectangle::new(sw, sh));
-                let pos = bb.position + Vec3::new(0.0, sh / 2.0, 0.0);
+                let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
                 // Single animation frame with 5 directional views
                 let states = vec![vec![dirs]];
                 let child_id = commands.spawn((
@@ -532,14 +492,14 @@ fn lazy_spawn(
                     crate::game::entities::Billboard,
                     crate::game::entities::AnimationState::Idle,
                     sprites::SpriteSheet::new(states, vec![(sw, sh)]),
-                    crate::game::entities::FacingYaw(bb.facing_yaw),
+                    crate::game::entities::FacingYaw(dec.facing_yaw),
                 )).id();
                 commands.entity(terrain_entity).add_child(child_id);
-                if bb.event_id > 0 {
+                if dec.event_id > 0 {
                     commands.entity(child_id).insert(crate::game::interaction::DecorationInfo {
-                        event_id: bb.event_id as u16,
+                        event_id: dec.event_id as u16,
                         position: pos,
-                        billboard_index: bb.billboard_index,
+                        billboard_index: dec.billboard_index,
                     });
                 }
                 spawned += 1;
@@ -551,10 +511,10 @@ fn lazy_spawn(
                 (m.clone(), q.clone(), *h)
             } else {
                 let Some(ref mgr) = bb_mgr else { continue };
-                let sprite = match mgr.get(game_assets.lod_manager(), key, bb.declist_id) {
+                let sprite = match mgr.get(game_assets.lod_manager(), key, 0) {
                     Some(s) => s,
                     None => {
-                        warn!("Billboard '{}' (declist={}) sprite not found, skipping", key, bb.declist_id);
+                        warn!("Billboard '{}' sprite not found, skipping", key);
                         continue;
                     }
                 };
@@ -572,7 +532,7 @@ fn lazy_spawn(
                 p.billboard_cache.insert(key.clone(), (m.clone(), q.clone(), h));
                 (m, q, h)
             };
-            let pos = bb.position + Vec3::new(0.0, h / 2.0, 0.0);
+            let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
             let child_id = commands.spawn((
                 Name::new("decoration"), Mesh3d(quad), MeshMaterial3d(mat),
                 Transform::from_translation(pos),
@@ -581,20 +541,20 @@ fn lazy_spawn(
                 crate::game::entities::Billboard,
             )).id();
             commands.entity(terrain_entity).add_child(child_id);
-            if bb.event_id > 0 {
+            if dec.event_id > 0 {
                 commands.entity(child_id).insert(crate::game::interaction::DecorationInfo {
-                    event_id: bb.event_id as u16,
+                    event_id: dec.event_id as u16,
                     position: pos,
-                    billboard_index: bb.billboard_index,
+                    billboard_index: dec.billboard_index,
                 });
             }
             spawned += 1;
         }
 
-        if bb.sound_id > 0 {
+        if dec.sound_id > 0 {
             sound_events.write(crate::game::sound::effects::PlaySoundEvent {
-                sound_id: bb.sound_id as u32,
-                position: bb.position,
+                sound_id: dec.sound_id as u32,
+                position: dec_pos,
             });
         }
     }
