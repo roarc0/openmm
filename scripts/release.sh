@@ -38,6 +38,17 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
     exit 1
 fi
 
+# Verify new version is strictly greater than the current one
+CURRENT="$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')"
+version_gt() {
+    # Returns 0 (true) if $1 > $2 using sort -V
+    [[ "$(printf '%s\n%s' "$1" "$2" | sort -V | tail -1)" == "$1" && "$1" != "$2" ]]
+}
+if ! version_gt "$VERSION" "$CURRENT"; then
+    echo "Error: new version ($VERSION) must be greater than current ($CURRENT)" >&2
+    exit 1
+fi
+
 # Update version in workspace Cargo.toml
 sed -i "s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml
 
