@@ -94,6 +94,23 @@ impl MonsterList {
         self.monsters.get(id)
     }
 
+    /// Returns true if the given 0-based monlist_id is a peasant type.
+    /// Checks the actual internal_name from dmonlist.bin for a "Peasant" prefix.
+    pub fn is_peasant(&self, monlist_id: u8) -> bool {
+        self.monsters.get(monlist_id as usize)
+            .is_some_and(|m| m.internal_name.to_ascii_lowercase().starts_with("peasant"))
+    }
+
+    /// Returns true if the given peasant monlist_id is female (PeasantF types).
+    /// Checks the internal_name for the "F" marker after "Peasant".
+    pub fn is_female_peasant(&self, monlist_id: u8) -> bool {
+        self.monsters.get(monlist_id as usize)
+            .is_some_and(|m| {
+                let lower = m.internal_name.to_ascii_lowercase();
+                lower.starts_with("peasantf")
+            })
+    }
+
     /// Find a monster by internal name prefix + difficulty (1=A, 2=B, 3=C).
     /// Tries the requested variant first, then falls back to A, B, C.
     pub fn find_by_name(&self, name: &str, difficulty: u8) -> Option<&MonsterDesc> {
@@ -154,6 +171,29 @@ impl MonsterList {
 mod tests {
     use crate::{get_lod_path, LodManager};
     use super::MonsterList;
+
+    /// Peasant detection and gender must be derived from monlist internal_name,
+    /// not from hardcoded ranges. Verifies against actual dmonlist.bin data.
+    #[test]
+    fn peasant_detection_from_monlist_data() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let monlist = MonsterList::new(&lod_manager).unwrap();
+
+        // PeasantF1A-C (ids 120-122) must be detected as female peasants
+        for id in 120..=122u8 {
+            assert!(monlist.is_peasant(id), "monlist_id={} should be peasant", id);
+            assert!(monlist.is_female_peasant(id), "monlist_id={} should be female", id);
+        }
+        // PeasantM1A-C (ids 132-134) must be detected as male peasants
+        for id in 132..=134u8 {
+            assert!(monlist.is_peasant(id), "monlist_id={} should be peasant", id);
+            assert!(!monlist.is_female_peasant(id), "monlist_id={} should be male", id);
+        }
+        // Non-peasant types (Goblin=0, Ooze=114, Rat=144) must NOT be peasants
+        for id in [0u8, 114, 144] {
+            assert!(!monlist.is_peasant(id), "monlist_id={} should NOT be peasant", id);
+        }
+    }
 
     /// Table-driven test: find_by_name must return the correct A/B/C variant.
     /// Each row is (monster_name, difficulty, expected_suffix).

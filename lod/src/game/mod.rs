@@ -7,8 +7,8 @@
 pub mod font;
 pub mod npctable;
 
-use ::image::DynamicImage;
 use crate::LodManager;
+use ::image::DynamicImage;
 
 /// High-level game-engine API: decoded assets ready for use in rendering and gameplay.
 /// Constructed via `LodManager::game()` or `GameAssets::game_lod()`.
@@ -23,7 +23,10 @@ impl<'a> GameLod<'a> {
 
     /// Load a sprite image from the sprites archive.
     pub fn sprite(&self, name: &str) -> Option<DynamicImage> {
-        let sprite = self.lod.try_get_bytes(format!("sprites/{}", name.to_lowercase())).ok()?;
+        let sprite = self
+            .lod
+            .try_get_bytes(format!("sprites/{}", name.to_lowercase()))
+            .ok()?;
         let palettes = self.lod.palettes().ok()?;
         let sprite = crate::image::Image::try_from((sprite, &palettes)).ok()?;
         sprite.to_image_buffer().ok()
@@ -31,7 +34,10 @@ impl<'a> GameLod<'a> {
 
     /// Load a sprite using a specific palette ID (for monster variant palette swaps).
     pub fn sprite_with_palette(&self, name: &str, palette_id: u16) -> Option<DynamicImage> {
-        let sprite_data = self.lod.try_get_bytes(format!("sprites/{}", name.to_lowercase())).ok()?;
+        let sprite_data = self
+            .lod
+            .try_get_bytes(format!("sprites/{}", name.to_lowercase()))
+            .ok()?;
         let palettes = self.lod.palettes().ok()?;
         let sprite = crate::image::Image::try_from_with_palette(sprite_data, &palettes, palette_id).ok()?;
         sprite.to_image_buffer().ok()
@@ -39,7 +45,10 @@ impl<'a> GameLod<'a> {
 
     /// Load a bitmap image from the bitmaps archive.
     pub fn bitmap(&self, name: &str) -> Option<DynamicImage> {
-        let bitmap = self.lod.try_get_bytes(format!("bitmaps/{}", name.to_lowercase())).ok()?;
+        let bitmap = self
+            .lod
+            .try_get_bytes(format!("bitmaps/{}", name.to_lowercase()))
+            .ok()?;
         let bitmap = crate::image::Image::try_from(bitmap).ok()?;
         bitmap.to_image_buffer().ok()
     }
@@ -61,15 +70,20 @@ impl<'a> GameLod<'a> {
 
     /// Load a bitmap font from the icons archive.
     pub fn font(&self, name: &str) -> Option<font::Font> {
-        let data = self.lod.get_decompressed(format!("icons/{}", name.to_lowercase())).ok()?;
+        let data = self
+            .lod
+            .get_decompressed(format!("icons/{}", name.to_lowercase()))
+            .ok()?;
         font::Font::parse(&data).ok()
     }
 
     /// List all .fnt font names available in the icons archive.
     pub fn font_names(&self) -> Vec<String> {
-        self.lod.files_in("icons")
+        self.lod
+            .files_in("icons")
             .map(|files| {
-                files.into_iter()
+                files
+                    .into_iter()
                     .filter(|f| f.ends_with(".fnt"))
                     .map(|f| f.strip_suffix(".fnt").unwrap_or(f).to_string())
                     .collect()
@@ -78,16 +92,26 @@ impl<'a> GameLod<'a> {
     }
 
     /// Load and parse the global NPC metadata table from `npcdata.txt`.
+    /// Cross-references with `npcnames.txt` to classify peasant NPCs by sex.
     pub fn npc_table(&self) -> Option<npctable::StreetNpcTable> {
         let data = self.lod.get_decompressed("icons/npcdata.txt").ok()?;
-        npctable::StreetNpcTable::parse(&data).ok()
+        let name_pool = self.npc_name_pool();
+        npctable::StreetNpcTable::parse(&data, name_pool.as_ref()).ok()
+    }
+
+    /// Load the NPC name pool from `npcnames.txt` for generating street NPC names.
+    pub fn npc_name_pool(&self) -> Option<npctable::NpcNamePool> {
+        let data = self.lod.get_decompressed("icons/npcnames.txt").ok()?;
+        npctable::NpcNamePool::parse(&data).ok()
     }
 }
 
 /// Decode a PCX image. Handles both 8-bit paletted (1 plane) and
 /// 24-bit RGB (3 planes) formats used in MM6.
 fn decode_pcx(data: &[u8]) -> Option<DynamicImage> {
-    if data.len() < 128 { return None; }
+    if data.len() < 128 {
+        return None;
+    }
     let encoding = data[2];
     let bpp = data[3];
     let x_min = u16::from_le_bytes([data[4], data[5]]) as u32;
@@ -99,7 +123,9 @@ fn decode_pcx(data: &[u8]) -> Option<DynamicImage> {
     let n_planes = data[65] as usize;
     let bytes_per_line = u16::from_le_bytes([data[66], data[67]]) as usize;
 
-    if bpp != 8 || encoding != 1 || width == 0 || height == 0 { return None; }
+    if bpp != 8 || encoding != 1 || width == 0 || height == 0 {
+        return None;
+    }
 
     // Decode RLE scanlines
     let scanline_len = bytes_per_line * n_planes;
@@ -107,10 +133,17 @@ fn decode_pcx(data: &[u8]) -> Option<DynamicImage> {
     let mut pixels = Vec::with_capacity(total);
     let mut i = 128;
     while pixels.len() < total && i < data.len() {
-        let byte = data[i]; i += 1;
+        let byte = data[i];
+        i += 1;
         if byte >= 0xC0 {
             let count = (byte & 0x3F) as usize;
-            let value = if i < data.len() { let v = data[i]; i += 1; v } else { 0 };
+            let value = if i < data.len() {
+                let v = data[i];
+                i += 1;
+                v
+            } else {
+                0
+            };
             pixels.extend(std::iter::repeat_n(value, count));
         } else {
             pixels.push(byte);

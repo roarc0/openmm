@@ -12,6 +12,11 @@ pub struct MapEvents {
     /// Global NPC metadata table (id → name, portrait, profession).
     /// Loaded from `npcdata.txt` in icons.lod; same for every map.
     pub npc_table: Option<lod::game::npctable::StreetNpcTable>,
+    /// Name pool for generating street NPC names (from `npcnames.txt`).
+    pub name_pool: Option<lod::game::npctable::NpcNamePool>,
+    /// Dynamically generated NPCs for peasant actors (npc_id ≥ 5000).
+    /// Populated at actor spawn time; keyed by the assigned npc_id.
+    pub generated_npcs: std::collections::HashMap<i32, lod::game::npctable::GeneratedNpc>,
 }
 
 /// Load event data for a map and insert the MapEvents resource.
@@ -80,5 +85,10 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
         }
     };
 
-    commands.insert_resource(MapEvents { evt, houses, npc_table });
+    let name_pool = match game_assets.game_lod().npc_name_pool() {
+        Some(p) => { info!("Loaded npcnames.txt: name pool ready"); Some(p) }
+        None => { warn!("Failed to load npcnames.txt"); None }
+    };
+
+    commands.insert_resource(MapEvents { evt, houses, npc_table, name_pool, generated_npcs: Default::default() });
 }

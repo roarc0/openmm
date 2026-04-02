@@ -334,24 +334,24 @@ fn spawn_indoor_world(
     for a in &prepared.actors {
         if a.hp <= 0 { continue; }
 
-        let Some((s, w, pal_id)) = npc_sprite_table.get(&a.monlist_id) else {
+        let Some(entry) = npc_sprite_table.get(&a.monlist_id) else {
             info!("Indoor NPC '{}' monlist_id={} has no sprite in table — skipping", a.name, a.monlist_id);
             continue;
         };
         // Compute palette variant
         let base_pal = npc_sprite_table.values()
-            .filter(|(ss, _, _)| ss == s)
-            .map(|(_, _, p)| *p)
+            .filter(|e| e.standing_root == entry.standing_root)
+            .map(|e| e.palette_id)
             .min()
-            .unwrap_or(*pal_id);
-        let variant = (pal_id - base_pal + 1).min(3) as u8;
+            .unwrap_or(entry.palette_id);
+        let variant = (entry.palette_id - base_pal + 1).min(3) as u8;
 
         // Indoor NPCs use palette offset (no DSFT palette_id available)
         let (states, sw, sh) = sprites::load_entity_sprites(
-            s, w, game_assets.lod_manager(),
+            &entry.standing_root, &entry.walking_root, game_assets.lod_manager(),
             &mut images, &mut materials, &mut Some(&mut sprite_cache), variant, 0);
         if states.is_empty() || states[0].is_empty() {
-            error!("Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, s, w);
+            error!("Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, entry.standing_root, entry.walking_root);
             continue;
         }
         let initial_mat = states[0][0][0].clone();

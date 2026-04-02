@@ -28,8 +28,8 @@ struct PendingSpawns {
     /// Cache for directional sprite detection: key = declist name, value = sprite root if directional
     directional_cache: std::collections::HashMap<String, Option<String>>,
     resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
-    /// NPC sprite lookup: monlist_id → (standing_root, walking_root, palette_id)
-    npc_sprite_table: std::collections::HashMap<u8, (String, String, u16)>,
+    /// NPC sprite lookup: monlist_id → NPC sprite entry with type info from dmonlist.bin
+    npc_sprite_table: std::collections::HashMap<u8, NpcSpriteEntry>,
     terrain_entity: Entity,
 }
 use crate::states::loading::PreparedWorld;
@@ -455,11 +455,22 @@ fn resolve_monsters(
     monsters
 }
 
-/// Build a lookup table: monlist_id → (standing_sprite, walking_sprite) from monlist.
+/// Resolved sprite data for one monlist entry, enriched with type info from dmonlist.bin.
+pub struct NpcSpriteEntry {
+    pub standing_root: String,
+    pub walking_root: String,
+    pub palette_id: u16,
+    /// True if dmonlist.bin internal_name starts with "Peasant" (case-insensitive).
+    pub is_peasant: bool,
+    /// True if this is a female peasant (internal_name starts with "PeasantF").
+    pub is_female: bool,
+}
+
+/// Build a lookup table: monlist_id → NPC sprite entry from monlist + DSFT.
 /// Resolves monlist sprite group names through the DSFT to get actual sprite file
-/// names and palette IDs. The DSFT is the authoritative mapping from monlist names
-/// to LOD sprite files.
-pub fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, (String, String, u16)> {
+/// names and palette IDs. Also carries peasant/gender flags derived from monlist
+/// internal_name so spawn code doesn't need hardcoded ranges.
+pub fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::HashMap<u8, NpcSpriteEntry> {
     let mut table = std::collections::HashMap::new();
     let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else {
         return table;
@@ -481,7 +492,15 @@ pub fn build_npc_sprite_table(game_assets: &GameAssets) -> std::collections::Has
 
         if let Some((st_name, palette_id)) = st_resolved {
             let wa_name = wa_resolved.map(|(n, _)| n).unwrap_or_else(|| st_name.clone());
-            table.insert(i as u8, (st_name, wa_name, palette_id as u16));
+            let is_peasant = monlist.is_peasant(i as u8);
+            let is_female = monlist.is_female_peasant(i as u8);
+            table.insert(i as u8, NpcSpriteEntry {
+                standing_root: st_name,
+                walking_root: wa_name,
+                palette_id: palette_id as u16,
+                is_peasant,
+                is_female,
+            });
         }
     }
     table
@@ -565,7 +584,7 @@ fn lazy_spawn(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlaySoundEvent>,
-    map_events: Option<Res<crate::game::events::MapEvents>>,
+    mut map_events: Option<ResMut<crate::game::events::MapEvents>>,
 ) {
     let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
         return;
@@ -708,27 +727,27 @@ fn lazy_spawn(
         let a = &prepared.actors[i];
         if a.hp <= 0 || a.position[0].abs() > 20000 || a.position[1].abs() > 20000 { continue; }
 
-        let Some((s, w, pal_id)) = p.npc_sprite_table.get(&a.monlist_id) else {
+        let Some(entry) = p.npc_sprite_table.get(&a.monlist_id) else {
             error!("NPC '{}' monster_id={} has no sprite in DSFT table — skipping", a.name, a.monlist_id);
             continue;
         };
         // Compute palette variant: base palette is the minimum among same-sprite entries.
         let base_pal = p.npc_sprite_table.values()
-            .filter(|(ss, _, _)| ss == s)
-            .map(|(_, _, p)| *p)
+            .filter(|e| e.standing_root == entry.standing_root)
+            .map(|e| e.palette_id)
             .min()
-            .unwrap_or(*pal_id);
-        let variant = (pal_id - base_pal + 1).min(3) as u8;
+            .unwrap_or(entry.palette_id);
+        let variant = (entry.palette_id - base_pal + 1).min(3) as u8;
         let (s2, w2, h2) = sprites::load_entity_sprites(
-            s, w, game_assets.lod_manager(),
+            &entry.standing_root, &entry.walking_root, game_assets.lod_manager(),
             &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant, 0);
         if s2.is_empty() || s2[0].is_empty() {
-            error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, s, w);
+            error!("NPC '{}' monster_id={} sprite '{}'/'{}'  failed to load", a.name, a.monlist_id, entry.standing_root, entry.walking_root);
             continue;
         }
         // Apply DSFT scale (same as decorations — sprite group name lookup)
         let dsft_scale = bb_mgr.as_ref()
-            .map(|mgr| mgr.dsft_scale_for_group(s))
+            .map(|mgr| mgr.dsft_scale_for_group(&entry.standing_root))
             .unwrap_or(1.0);
         let states = s2;
         let sw = w2 * dsft_scale;
@@ -737,8 +756,45 @@ fn lazy_spawn(
         let quad = meshes.add(Rectangle::new(sw, sh));
         let wx = a.position[0] as f32;
         let wz = -a.position[1] as f32;
-        let gy = crate::game::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
+        let terrain_y = crate::game::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
+        // Use DDM Z position when above terrain (e.g. NPC on a balcony/building).
+        // MM6 coords: Z is up. Bevy: Y is up. DDM Z needs HEIGHT_SCALE conversion.
+        let ddm_y = a.position[2] as f32;
+        let gy = terrain_y.max(ddm_y);
         let pos = Vec3::new(wx, gy + sh / 2.0, wz);
+
+        // For peasant actors (detected from dmonlist.bin internal_name), assign a complete
+        // identity (name + portrait) from npcdata.txt peasant-profession entries.
+        // Gender is derived from monlist data; the sex-appropriate entry pool is used.
+        let (display_name, effective_npc_id) = if entry.is_peasant {
+            let generated_id = 5000 + i as i32;
+            // Pick a complete identity (name + portrait) from npcdata.txt peasant entries,
+            // split by sex. Falls back to npcnames.txt name + generic portrait if unavailable.
+            let (name, portrait) = map_events.as_ref()
+                .and_then(|me| me.npc_table.as_ref())
+                .and_then(|t| t.peasant_identity(entry.is_female, i))
+                .map(|(n, p)| (n.to_string(), p))
+                .unwrap_or_else(|| {
+                    let name = map_events.as_ref()
+                        .and_then(|me| me.name_pool.as_ref())
+                        .map(|pool| pool.name_for(entry.is_female, i).to_string())
+                        .unwrap_or_else(|| a.name.clone());
+                    (name, 1)
+                });
+            if let Some(ref mut me) = map_events {
+                me.generated_npcs.insert(generated_id, lod::game::npctable::GeneratedNpc {
+                    name: name.clone(), portrait,
+                });
+            }
+            (name, generated_id)
+        } else {
+            let name = map_events.as_ref()
+                .and_then(|me| me.npc_table.as_ref())
+                .and_then(|t| t.npc_name(a.npc_id as i32))
+                .unwrap_or(&a.name)
+                .to_string();
+            (name, a.npc_id as i32)
+        };
 
         commands.entity(terrain_entity).with_child((
             Name::new(format!("npc:{}", a.name)), Mesh3d(quad), MeshMaterial3d(initial_mat),
@@ -752,13 +808,9 @@ fn lazy_spawn(
                 wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0, wander_target: pos, facing_yaw: 0.0, hostile: false,
             },
             crate::game::interaction::NpcInteractable {
-                name: map_events.as_ref()
-                    .and_then(|me| me.npc_table.as_ref())
-                    .and_then(|t| t.npc_name(a.npc_id as i32))
-                    .unwrap_or(&a.name)
-                    .to_string(),
+                name: display_name,
                 position: pos,
-                npc_id: a.npc_id,
+                npc_id: effective_npc_id as i16,
             },
         ));
         spawned += 1;

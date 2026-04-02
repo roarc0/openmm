@@ -40,59 +40,13 @@ Uses mold linker for fast linking (`.cargo/config.toml`). Install: `pacman -S mo
 
 Cargo workspace with two crates:
 
-- **`lod`** — Library for reading MM6 data formats: LOD archives, ODM (outdoor maps), BSP models, tile tables, palettes, sprites/billboards, images
+- **`lod`** — Library for reading MM6 data formats: LOD archives, ODM (outdoor maps), BSP models, tile tables, palettes, sprites/billboards, images. we should not include openmm here.
 - **`openmm`** — Bevy 0.18 game engine application
-
-### openmm crate structure
-
-```
-src/
-  main.rs              — App entry point
-  lib.rs               — GamePlugin, GameState enum (Splash -> Menu -> Loading -> Game)
-  config.rs            — BevyConfigPlugin (window, vsync, diagnostics)
-  assets/mod.rs        — GameAssets resource, shared image/sampler helpers
-  ui_assets.rs         — UiAssets resource (cached UI textures from LOD)
-  save.rs              — GameSave resource (player position, map state)
-  states/
-    mod.rs             — State plugins wiring
-    splash.rs          — SplashPlugin (1-second splash screen)
-    menu.rs            — MenuPlugin (main menu, settings)
-    loading.rs         — LoadingPlugin (step-based map loader with progress UI)
-  game/
-    mod.rs             — InGamePlugin, InGame marker component
-    world.rs           — WorldPlugin (sky, sun sub-plugins)
-    world/sky.rs       — Sky plane with bitmap texture
-    world/sun.rs       — Directional light + animated fake sun
-    odm.rs             — OdmPlugin (spawns terrain/models, lazy entity spawning)
-    player.rs          — PlayerPlugin (Player entity, terrain following, camera, controls)
-    blv.rs             — BlvPlugin (indoor map spawner, door entities, face interaction, door animation)
-    collision.rs       — Ground height probing, building colliders
-    interaction.rs     — InteractionPlugin (trigger-only: pushes events to queue, exit input, hover hints)
-    event_dispatch.rs  — EventDispatchPlugin, EventQueue, process_events system
-    dev.rs             — DevPlugin (wireframe, FPS/position HUD, debug map switching)
-    utils.rs           — Helpers (random_color)
-    hud/
-      mod.rs           — HudPlugin, HudView resource, freeze system
-      borders.rs       — Border layout, HudDimensions, letterbox, viewport_rect
-      minimap.rs       — Minimap, compass strip, tap frames
-      footer.rs        — FooterText resource + rendering
-      overlay.rs       — OverlayImage, viewport_inner_rect, overlay spawn/despawn
-    entities/
-      mod.rs           — EntitiesPlugin, shared components (WorldEntity, EntityKind, Billboard, AnimationState)
-      actor.rs         — Actor component (unified NPC/monster)
-      sprites.rs       — SpriteCache, SpriteSheet, directional sprite loading and animation
-      decoration.rs    — Decoration-related types
-    sound/
-      mod.rs             — SoundPlugin, SoundManager resource (DSounds + SndArchive + cache)
-      music.rs           — MusicPlugin, PlayMusicEvent, map music playback
-      effects.rs         — EffectsPlugin, PlaySoundEvent, PlayUiSoundEvent, spatial audio
-    terrain_material/  — Custom terrain shader with water extension
-```
 
 ## Useful Resources
 
-- Reference MMExtension from grayface that is just a modding engine for mm6, it can tell you much more accurately the data structures. You should find a copy too in that folder
-- Reference OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats but be careful because mm7 might be different. You should find a copy of that codebase in the target folder. Use it as a last resort because if we take the wrong path here we might introduce very nasty bugs. mm7 is different in many ways.
+- MMExtension from grayface that is just a modding engine for mm6, it can tell you much more accurately the data structures. You should find a copies of resources in the target folder.
+- OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats but be careful because mm7 are different. Use it as a last resort because if we take the wrong path here we might introduce very nasty bugs. mm7 is different in many ways. Only look at this resource if you are desperate.
 
 ### Rules
 
@@ -126,6 +80,7 @@ Add the complete details in the docs folder.
 ### Rule 6: Create tests instead of Examples
 
 Creating tests will help keeping the code working and enhances the confidence that our changes did not break the functionality.
+Once you understand something or know for sure some detail of some data asset from the game like npc_id to npc.name, sprite name, number of variants palette_id also for other entities, you must write a test that will ensure bugs will be caught right away.
 
 ### Coordinate conversion
 

@@ -45,6 +45,7 @@ pub const ENV_OPENMM_6_PATH: &str = "OPENMM_6_PATH";
 
 pub struct LodManager {
     lods: HashMap<String, Lod>,
+    game_dir: PathBuf,
 }
 
 impl LodManager {
@@ -52,9 +53,14 @@ impl LodManager {
     where
         P: AsRef<Path>,
     {
-        let lod_files = Self::list_lod_files(path)?;
+        let game_dir = path.as_ref().to_path_buf();
+        let lod_files = Self::list_lod_files(&game_dir)?;
         let lod_map = Self::create_lod_file_map(lod_files)?;
-        Ok(Self { lods: lod_map })
+        Ok(Self { lods: lod_map, game_dir })
+    }
+
+    pub fn game_dir(&self) -> &Path {
+        &self.game_dir
     }
 
     fn list_lod_files<P>(path: P) -> Result<Vec<PathBuf>, std::io::Error>

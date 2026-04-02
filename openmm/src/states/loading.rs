@@ -904,8 +904,8 @@ fn loading_step(
                 if let Some(actors) = &progress.actors {
                     for a in actors {
                         if a.hp <= 0 { continue; }
-                        if let Some((st, wa, _pal)) = npc_table.get(&a.monlist_id) {
-                            for root in [st.clone(), wa.clone()] {
+                        if let Some(entry) = npc_table.get(&a.monlist_id) {
+                            for root in [entry.standing_root.clone(), entry.walking_root.clone()] {
                                 if seen.insert(root.clone()) {
                                     sprite_roots.push((root, 0));
                                 }

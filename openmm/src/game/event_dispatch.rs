@@ -576,15 +576,26 @@ fn process_events(
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
-                // Resolve portrait name from npcdata.txt (Pic column), fallback to npc_id
-                let portrait_name = map_events.as_ref()
-                    .and_then(|me| me.npc_table.as_ref())
-                    .and_then(|t| t.portrait_name(*npc_id))
-                    .unwrap_or_else(|| format!("NPC{:03}", npc_id));
-                let npc_display_name = map_events.as_ref()
-                    .and_then(|me| me.npc_table.as_ref())
-                    .and_then(|t| t.npc_name(*npc_id))
-                    .map(|s| s.to_string());
+                // For peasant NPCs (npc_id >= 5000), look up the generated data.
+                // For quest NPCs (npc_id < 5000), look up npcdata.txt.
+                let (portrait_name, npc_display_name) = if *npc_id >= 5000 {
+                    let entry = map_events.as_ref()
+                        .and_then(|me| me.generated_npcs.get(npc_id));
+                    let portrait = entry
+                        .map(|g| format!("NPC{:03}", g.portrait))
+                        .unwrap_or_else(|| format!("NPC{:03}", npc_id));
+                    let name = entry.map(|g| g.name.clone());
+                    (portrait, name)
+                } else {
+                    let portrait = map_events.as_ref()
+                        .and_then(|me| me.npc_table.as_ref())
+                        .and_then(|t| t.portrait_name(*npc_id))
+                        .unwrap_or_else(|| format!("NPC{:03}", npc_id));
+                    let name = map_events.as_ref()
+                        .and_then(|me| me.npc_table.as_ref())
+                        .and_then(|t| t.npc_name(*npc_id).map(str::to_string));
+                    (portrait, name)
+                };
 
                 info!("SpeakNPC: npc_id={} portrait='{}' name={:?}", npc_id, portrait_name, npc_display_name);
 
@@ -596,9 +607,6 @@ fn process_events(
                     bevy_img.sampler = bevy::image::ImageSampler::nearest();
                     let handle = images.add(bevy_img);
                     commands.insert_resource(crate::game::hud::NpcPortrait { image: handle, size });
-                    if let Some(name) = npc_display_name {
-                        footer.set_status(&name, 5.0, time.elapsed_secs_f64());
-                    }
                     *hud_view = HudView::NpcDialogue;
                     grab_cursor(&mut cursor_query, false);
                 } else {

@@ -5,7 +5,7 @@ use crate::GameState;
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
-use crate::game::player::{Player, PlayerCamera};
+use crate::game::player::PlayerCamera;
 
 // --- Components & Resources ---
 
@@ -38,8 +38,11 @@ pub struct NpcInteractable {
 
 const INTERACT_RANGE: f32 = 250.0;
 const RAYCAST_RANGE: f32 = 2000.0;
-/// Decorations use a tighter perpendicular distance threshold for raycast hits.
-const DECORATION_RAY_PERP: f32 = 150.0;
+/// Tangent of the targeting cone half-angle used for all entity types (~7 degrees).
+/// At 500 units: ~60 unit radius. At 2000 units: ~240 unit radius.
+const RAY_ANGLE_TAN: f32 = 0.12;
+/// Minimum perpendicular threshold for very close objects.
+const RAY_MIN_PERP: f32 = 60.0;
 
 // --- Plugin ---
 
@@ -85,41 +88,39 @@ fn check_interact_input(
     (key, click, gamepad)
 }
 
+/// Find the nearest entity position within the camera ray's angular cone.
+/// Returns `(entity_ref, along_ray_distance)` for the closest hit.
+fn raycast_nearest<T>(
+    cam_global: &GlobalTransform,
+    items: impl Iterator<Item = (T, Vec3)>,
+) -> Option<(T, f32)> {
+    let ray_origin = cam_global.translation();
+    let ray_dir = cam_global.forward().as_vec3();
+    let mut nearest: Option<(T, f32)> = None;
+
+    for (item, position) in items {
+        let to_item = position - ray_origin;
+        let along_ray = to_item.dot(ray_dir);
+        if along_ray < 0.0 || along_ray > RAYCAST_RANGE { continue; }
+        let closest_point = ray_origin + ray_dir * along_ray;
+        let perp_dist = closest_point.distance(position);
+        let threshold = (along_ray * RAY_ANGLE_TAN).max(RAY_MIN_PERP);
+        if perp_dist < threshold {
+            if nearest.is_none() || along_ray < nearest.as_ref().unwrap().1 {
+                nearest = Some((item, along_ray));
+            }
+        }
+    }
+
+    nearest
+}
+
 fn find_nearest_building<'a>(
-    player_pos: Vec3,
     cam_global: &GlobalTransform,
     buildings: &'a Query<(&BuildingInfo, &GlobalTransform)>,
-    use_raycast: bool,
 ) -> Option<&'a BuildingInfo> {
-    let mut nearest: Option<(&BuildingInfo, f32)> = None;
-
-    for (info, _) in buildings.iter() {
-        let dist = player_pos.distance(info.position);
-        if dist < INTERACT_RANGE {
-            if nearest.is_none() || dist < nearest.unwrap().1 {
-                nearest = Some((info, dist));
-            }
-        }
-    }
-
-    if use_raycast {
-        let ray_origin = cam_global.translation();
-        let ray_dir = cam_global.forward().as_vec3();
-        for (info, _) in buildings.iter() {
-            let to_building = info.position - ray_origin;
-            let along_ray = to_building.dot(ray_dir);
-            if along_ray < 0.0 || along_ray > RAYCAST_RANGE { continue; }
-            let closest_point = ray_origin + ray_dir * along_ray;
-            let perp_dist = closest_point.distance(info.position);
-            if perp_dist < 500.0 {
-                if nearest.is_none() || along_ray < nearest.unwrap().1 {
-                    nearest = Some((info, along_ray));
-                }
-            }
-        }
-    }
-
-    nearest.map(|(info, _)| info)
+    raycast_nearest(cam_global, buildings.iter().map(|(info, _)| (info, info.position)))
+        .map(|(info, _)| info)
 }
 
 fn check_exit_input(keys: &ButtonInput<KeyCode>, gamepads: &Query<&Gamepad>) -> bool {
@@ -139,14 +140,12 @@ fn interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
-    player_query: Query<&Transform, With<Player>>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     buildings: Query<(&BuildingInfo, &GlobalTransform)>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok(player_tf) = player_query.single() else { return };
     let Ok((cam_global, _)) = camera_query.single() else { return };
 
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
@@ -156,8 +155,7 @@ fn interact_system(
         .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
     if click && !cursor_grabbed { return; }
 
-    let use_raycast = click || gamepad;
-    let Some(info) = find_nearest_building(player_tf.translation, cam_global, &buildings, use_raycast) else {
+    let Some(info) = find_nearest_building(cam_global, &buildings) else {
         return;
     };
 
@@ -243,24 +241,8 @@ fn find_nearest_decoration<'a>(
     cam_global: &GlobalTransform,
     decorations: &'a Query<&DecorationInfo>,
 ) -> Option<&'a DecorationInfo> {
-    let ray_origin = cam_global.translation();
-    let ray_dir = cam_global.forward().as_vec3();
-    let mut nearest: Option<(&DecorationInfo, f32)> = None;
-
-    for info in decorations.iter() {
-        let to_deco = info.position - ray_origin;
-        let along_ray = to_deco.dot(ray_dir);
-        if along_ray < 0.0 || along_ray > RAYCAST_RANGE { continue; }
-        let closest_point = ray_origin + ray_dir * along_ray;
-        let perp_dist = closest_point.distance(info.position);
-        if perp_dist < DECORATION_RAY_PERP {
-            if nearest.is_none() || along_ray < nearest.unwrap().1 {
-                nearest = Some((info, along_ray));
-            }
-        }
-    }
-
-    nearest.map(|(info, _)| info)
+    raycast_nearest(cam_global, decorations.iter().map(|info| (info, info.position)))
+        .map(|(info, _)| info)
 }
 
 /// Resolve a human-readable name for a decoration from its event data.
@@ -328,24 +310,8 @@ fn find_nearest_npc<'a>(
     cam_global: &GlobalTransform,
     npcs: &'a Query<&NpcInteractable>,
 ) -> Option<&'a NpcInteractable> {
-    let ray_origin = cam_global.translation();
-    let ray_dir = cam_global.forward().as_vec3();
-    let mut nearest: Option<(&NpcInteractable, f32)> = None;
-
-    for info in npcs.iter() {
-        let to_npc = info.position - ray_origin;
-        let along_ray = to_npc.dot(ray_dir);
-        if along_ray < 0.0 || along_ray > RAYCAST_RANGE { continue; }
-        let closest_point = ray_origin + ray_dir * along_ray;
-        let perp_dist = closest_point.distance(info.position);
-        if perp_dist < DECORATION_RAY_PERP {
-            if nearest.is_none() || along_ray < nearest.unwrap().1 {
-                nearest = Some((info, along_ray));
-            }
-        }
-    }
-
-    nearest.map(|(info, _)| info)
+    raycast_nearest(cam_global, npcs.iter().map(|info| (info, info.position)))
+        .map(|(info, _)| info)
 }
 
 /// Detect click on an NPC and push a SpeakNPC event to open the dialogue UI.
@@ -373,7 +339,6 @@ fn npc_interact_system(
 
 /// Show the name of the nearest interactive building, decoration, or NPC in the footer bar.
 fn hover_hint_system(
-    player_query: Query<&Transform, With<Player>>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     buildings: Query<(&BuildingInfo, &GlobalTransform)>,
     decorations: Query<&DecorationInfo>,
@@ -381,31 +346,28 @@ fn hover_hint_system(
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
-    let Ok(player_tf) = player_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else { return };
 
-    // Proximity check for buildings
-    if let Some(info) = find_nearest_building(player_tf.translation, &GlobalTransform::default(), &buildings, false) {
+    // All entity types use camera-ray targeting consistently
+    if let Some(info) = find_nearest_building(cam_global, &buildings) {
         if let Some(name) = resolve_building_name(info, &map_events) {
             footer.set(&name);
             return;
         }
     }
 
-    // Raycast check for decorations and NPCs
-    if let Ok((cam_global, _)) = camera_query.single() {
-        if let Some(info) = find_nearest_decoration(cam_global, &decorations) {
-            if let Some(name) = resolve_decoration_name(info.event_id, &map_events) {
-                footer.set(&name);
-                return;
-            }
-        }
-
-        if let Some(info) = find_nearest_npc(cam_global, &npcs) {
-            footer.set(&info.name);
+    if let Some(info) = find_nearest_decoration(cam_global, &decorations) {
+        if let Some(name) = resolve_decoration_name(info.event_id, &map_events) {
+            footer.set(&name);
             return;
         }
     }
 
-    // Nothing nearby — clear footer
+    if let Some(info) = find_nearest_npc(cam_global, &npcs) {
+        footer.set(&info.name);
+        return;
+    }
+
+    // Nothing in crosshair — clear
     footer.clear();
 }
