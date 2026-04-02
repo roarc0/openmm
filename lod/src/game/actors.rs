@@ -7,6 +7,7 @@
 use std::error::Error;
 use crate::LodManager;
 use super::monster;
+use super::global::GameData;
 
 /// Stub for future map-state persistence. When populated, actors whose index
 /// is in `dead_actor_ids` are excluded from the returned roster.
@@ -73,16 +74,16 @@ pub struct Actors {
 
 impl Actors {
     /// Load and fully resolve all actors for the given map.
-    /// Internally loads: MonsterList, DSFT (via monster::resolve_entry),
-    /// StreetNpcs, NpcNamePool, Ddm.
+    /// Uses pre-loaded `GameData` — no per-call LOD reads for sprites or NPC tables.
     /// Actors at indices in `state.dead_actor_ids` are excluded.
     pub fn new(
         lod: &LodManager,
         map_name: &str,
         state: Option<&MapStateSnapshot>,
+        game_data: &GameData,
     ) -> Result<Self, Box<dyn Error>> {
         let ddm = crate::ddm::Ddm::new(lod, map_name)?;
-        let street_npcs = lod.game().npc_table();
+        let street_npcs = game_data.street_npcs.as_ref();
 
         let dead_ids: &[u16] = state
             .map(|s| s.dead_actor_ids.as_slice())
@@ -97,19 +98,19 @@ impl Actors {
             if raw.hp <= 0 { continue; }
             if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 { continue; }
 
-            let Some(entry) = monster::resolve_entry(raw.monlist_id, lod) else {
+            let Some(entry) = monster::resolve_entry(raw.monlist_id, game_data, lod) else {
                 log::warn!("Actor '{}' monlist_id={} has no DSFT sprite — skipping",
                     raw.name, raw.monlist_id);
                 continue;
             };
 
             let (portrait_name, profession_id, name) = if raw.npc_id > 0 {
-                let portrait = street_npcs.as_ref()
+                let portrait = street_npcs
                     .and_then(|t| t.portrait_name(raw.npc_id as i32));
-                let prof = street_npcs.as_ref()
+                let prof = street_npcs
                     .and_then(|t| t.get(raw.npc_id as i32))
                     .map(|e| e.profession_id as u8);
-                let name = street_npcs.as_ref()
+                let name = street_npcs
                     .and_then(|t| t.npc_name(raw.npc_id as i32))
                     .unwrap_or(&raw.name)
                     .to_string();
@@ -153,8 +154,9 @@ impl Actors {
         lod: &LodManager,
         raw_actors: &[crate::ddm::DdmActor],
         state: Option<&MapStateSnapshot>,
+        game_data: &GameData,
     ) -> Result<Self, Box<dyn Error>> {
-        let street_npcs = lod.game().npc_table();
+        let street_npcs = game_data.street_npcs.as_ref();
 
         let dead_ids: &[u16] = state
             .map(|s| s.dead_actor_ids.as_slice())
@@ -169,19 +171,19 @@ impl Actors {
             if raw.hp <= 0 { continue; }
             if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 { continue; }
 
-            let Some(entry) = monster::resolve_entry(raw.monlist_id, lod) else {
+            let Some(entry) = monster::resolve_entry(raw.monlist_id, game_data, lod) else {
                 log::warn!("Actor '{}' monlist_id={} has no DSFT sprite — skipping",
                     raw.name, raw.monlist_id);
                 continue;
             };
 
             let (portrait_name, profession_id, name) = if raw.npc_id > 0 {
-                let portrait = street_npcs.as_ref()
+                let portrait = street_npcs
                     .and_then(|t| t.portrait_name(raw.npc_id as i32));
-                let prof = street_npcs.as_ref()
+                let prof = street_npcs
                     .and_then(|t| t.get(raw.npc_id as i32))
                     .map(|e| e.profession_id as u8);
-                let name = street_npcs.as_ref()
+                let name = street_npcs
                     .and_then(|t| t.npc_name(raw.npc_id as i32))
                     .unwrap_or(&raw.name)
                     .to_string();
@@ -234,18 +236,25 @@ impl Actors {
 mod tests {
     use super::*;
     use crate::{get_lod_path, LodManager};
+    use super::super::global::GameData;
+
+    fn game_data(lod: &LodManager) -> GameData {
+        GameData::new(lod).expect("GameData::new failed")
+    }
 
     #[test]
     fn actors_loads_oute3() {
         let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let gd = game_data(&lod);
+        let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
         assert!(!actors.get_actors().is_empty(), "oute3 should have actors");
     }
 
     #[test]
     fn get_npcs_all_have_sprites() {
         let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let gd = game_data(&lod);
+        let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
         for npc in actors.get_npcs() {
             assert!(npc.is_npc());
             assert!(!npc.standing_sprite.is_empty(),
@@ -256,7 +265,8 @@ mod tests {
     #[test]
     fn get_npcs_returns_only_npcs() {
         let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let gd = game_data(&lod);
+        let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
         for npc in actors.get_npcs() {
             assert!(npc.is_npc(), "get_npcs() should not return monsters");
         }
@@ -268,7 +278,8 @@ mod tests {
     #[test]
     fn npc_portrait_name_format() {
         let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let gd = game_data(&lod);
+        let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
         for npc in actors.get_npcs() {
             if let Some(portrait) = &npc.portrait_name {
                 assert!(portrait.starts_with("NPC"), "portrait '{}' should start with NPC", portrait);
@@ -280,10 +291,11 @@ mod tests {
     #[test]
     fn state_snapshot_empty_filters_nothing() {
         let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors_all = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let gd = game_data(&lod);
+        let actors_all = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
         let all_count = actors_all.get_actors().len();
         let snapshot = MapStateSnapshot { dead_actor_ids: vec![] };
-        let actors_with_state = Actors::new(&lod, "oute3.odm", Some(&snapshot)).unwrap();
+        let actors_with_state = Actors::new(&lod, "oute3.odm", Some(&snapshot), &gd).unwrap();
         assert_eq!(actors_with_state.get_actors().len(), all_count,
             "empty snapshot should not filter anything");
     }
@@ -291,7 +303,8 @@ mod tests {
     #[test]
     fn variant_is_precomputed() {
         let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let gd = game_data(&lod);
+        let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
         // Every actor should have variant 1, 2, or 3 — never 0 (unless there is truly only one palette).
         // The assertion checks that ALL actors have variant >= 1.
         // Actors with a unique standing_sprite will always be variant 1.

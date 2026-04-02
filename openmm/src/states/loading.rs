@@ -801,7 +801,7 @@ fn loading_step(
         }
         LoadingStep::BuildBillboards => {
             if progress.odm.is_some() {
-                let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+                let bb_mgr = game_assets.billboard_manager();
                 let mut start_points = Vec::new();
 
                 // Extract start/teleport markers from raw billboard list (Decorations filters these out)
@@ -810,8 +810,7 @@ fn loading_step(
                     let odm = progress.odm.as_ref().unwrap();
                     for bb in &odm.billboards {
                         if bb.data.is_invisible() { continue; }
-                        let is_marker = bb_mgr.as_ref()
-                            .and_then(|mgr| mgr.get_declist_item(bb.data.declist_id))
+                        let is_marker = bb_mgr.get_declist_item(bb.data.declist_id)
                             .map(|item| item.is_marker() || item.is_no_draw())
                             .unwrap_or(false);
                         let name_lower = bb.declist_name.to_lowercase();
@@ -854,6 +853,7 @@ fn loading_step(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
                     None,
+                    game_assets.game_data(),
                 ).ok();
                 if let Some(ref actors) = lod_actors {
                     for actor in actors.get_actors() {
@@ -870,6 +870,7 @@ fn loading_step(
                 let resolved_monsters = lod::game::monster::Monsters::new(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
+                    game_assets.game_data(),
                 ).ok();
                 if let Some(ref monsters) = resolved_monsters {
                     for m in monsters.iter() {
@@ -896,10 +897,8 @@ fn loading_step(
                 let queue = progress.preload_queue.as_mut().unwrap();
                 if !queue.music_resolved {
                     queue.music_resolved = true;
-                    if let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) {
-                        if let Some(cfg) = mapstats.get(&load_request.map_name.to_string()) {
-                            progress.music_track = cfg.music_track;
-                        }
+                    if let Some(cfg) = game_assets.game_data().mapstats.get(&load_request.map_name.to_string()) {
+                        progress.music_track = cfg.music_track;
                     }
                 }
             }
@@ -923,19 +922,19 @@ fn loading_step(
                     >= progress.preload_queue.as_ref().unwrap().sprite_roots.len();
                 if sprites_done {
                     let mut bb_cache = progress.billboard_cache.take().unwrap_or_default();
-                    let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+                    let bb_mgr = game_assets.billboard_manager();
                     // Take decorations to allow simultaneous mutable borrow of preload_queue
                     let decorations = progress.decorations.take();
                     if let Some(ref decs) = decorations {
                         let queue = progress.preload_queue.as_mut().unwrap();
-                        if let Some(ref mgr) = bb_mgr {
+                        {
                             while queue.billboard_idx < decs.len() {
                                 if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS { break; }
                                 let dec = &decs.entries()[queue.billboard_idx];
                                 queue.billboard_idx += 1;
                                 if dec.is_directional { continue; } // directional sprites loaded at spawn time
                                 if bb_cache.contains_key(&dec.sprite_name) { continue; }
-                                if let Some(sprite) = mgr.get(game_assets.lod_manager(), &dec.sprite_name, dec.declist_id) {
+                                if let Some(sprite) = bb_mgr.get(game_assets.lod_manager(), &dec.sprite_name, dec.declist_id) {
                                     let (w, h) = sprite.dimensions();
                                     let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
                                     let tex = images.add(bevy_img);

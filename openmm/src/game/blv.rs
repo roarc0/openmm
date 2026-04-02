@@ -333,6 +333,7 @@ fn spawn_indoor_world(
         game_assets.lod_manager(),
         &prepared.actors,
         None,
+        game_assets.game_data(),
     ) {
         for actor in actors.get_actors() {
             let variant = actor.variant;

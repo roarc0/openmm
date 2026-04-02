@@ -7,6 +7,7 @@
 pub mod actors;
 pub mod decorations;
 pub mod font;
+pub mod global;
 pub mod monster;
 pub mod npc;
 

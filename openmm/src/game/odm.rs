@@ -447,7 +447,7 @@ fn lazy_spawn(
 
     // Billboards — directional decorations (e.g. ships) get SpriteSheet + FacingYaw
     // so they show the correct side based on camera angle.
-    let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+    let bb_mgr = game_assets.billboard_manager();
     while bb_idx < bb_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
         let dec_idx = p.billboard_order[bb_idx];
         bb_idx += 1;
@@ -462,9 +462,7 @@ fn lazy_spawn(
                 &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
             if px_w > 0.0 {
                 // Apply DSFT scale via sprite group name lookup
-                let dsft_scale = bb_mgr.as_ref()
-                    .map(|mgr| mgr.dsft_scale_for_group(&dec.sprite_name))
-                    .unwrap_or(1.0);
+                let dsft_scale = bb_mgr.dsft_scale_for_group(&dec.sprite_name);
                 let sw = px_w * dsft_scale;
                 let sh = px_h * dsft_scale;
                 let initial_mat = dirs[0].clone();
@@ -499,8 +497,7 @@ fn lazy_spawn(
             let (mat, quad, h) = if let Some((m, q, h)) = p.billboard_cache.get(key) {
                 (m.clone(), q.clone(), *h)
             } else {
-                let Some(ref mgr) = bb_mgr else { continue };
-                let sprite = match mgr.get(game_assets.lod_manager(), key, dec.declist_id) {
+                let sprite = match bb_mgr.get(game_assets.lod_manager(), key, dec.declist_id) {
                     Some(s) => s,
                     None => {
                         warn!("Billboard '{}' sprite not found, skipping", key);
@@ -570,9 +567,7 @@ fn lazy_spawn(
             continue;
         }
         // Apply DSFT scale (same as decorations — sprite group name lookup)
-        let dsft_scale = bb_mgr.as_ref()
-            .map(|mgr| mgr.dsft_scale_for_group(&actor.standing_sprite))
-            .unwrap_or(1.0);
+        let dsft_scale = bb_mgr.dsft_scale_for_group(&actor.standing_sprite);
         let states = s2;
         let sw = w2 * dsft_scale;
         let sh = h2 * dsft_scale;
@@ -651,9 +646,7 @@ fn lazy_spawn(
             continue;
         }
         // Apply DSFT scale (same as decorations — sprite group name lookup)
-        let dsft_scale = bb_mgr.as_ref()
-            .map(|mgr| mgr.dsft_scale_for_group(&m.standing_sprite))
-            .unwrap_or(1.0);
+        let dsft_scale = bb_mgr.dsft_scale_for_group(&m.standing_sprite);
         let sw = raw_w * dsft_scale;
         let sh = raw_h * dsft_scale;
         let initial_mat = states[0][0][0].clone();

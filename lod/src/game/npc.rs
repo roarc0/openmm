@@ -31,6 +31,7 @@ pub struct GeneratedNpc {
 
 /// Pool of first names from `npcnames.txt` for dynamic NPC generation.
 /// The file has a "Male\tFemale" header then one pair per line.
+#[derive(Clone)]
 pub struct NpcNamePool {
     male: Vec<String>,
     female: Vec<String>,
@@ -91,7 +92,7 @@ pub struct NpcEntry {
 
 /// The complete NPC data table parsed from `npcdata.txt`.
 /// Keyed by NPC id (1-based).
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct StreetNpcs {
     pub npcs: HashMap<u32, NpcEntry>,
     /// Peasant-profession entries split by sex for deterministic identity assignment.

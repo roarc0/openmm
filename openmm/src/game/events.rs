@@ -74,21 +74,8 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
             }
         }
     }
-    let npc_table = match game_assets.game_lod().npc_table() {
-        Some(t) => {
-            info!("Loaded npcdata.txt: {} NPC entries", t.npcs.len());
-            Some(t)
-        }
-        None => {
-            warn!("Failed to load npcdata.txt");
-            None
-        }
-    };
-
-    let name_pool = match game_assets.game_lod().npc_name_pool() {
-        Some(p) => { info!("Loaded npcnames.txt: name pool ready"); Some(p) }
-        None => { warn!("Failed to load npcnames.txt"); None }
-    };
+    let npc_table = game_assets.game_data().street_npcs.clone();
+    let name_pool = game_assets.game_data().name_pool.clone();
 
     commands.insert_resource(MapEvents { evt, houses, npc_table, name_pool, generated_npcs: Default::default() });
 }

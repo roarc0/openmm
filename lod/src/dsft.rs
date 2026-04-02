@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{enums::SpriteFrameFlags, lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{LodManager, enums::SpriteFrameFlags, lod_data::LodData, utils::try_read_name};
 
 pub struct DSFT {
     pub frames: Vec<DSFTFrame>,
@@ -133,9 +133,8 @@ impl DSFT {
 
         for _ in 0..frame_count {
             let mut frame = DSFTFrame::default();
-            cursor.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(&mut frame as *mut _ as *mut u8, frame_size)
-            })?;
+            cursor
+                .read_exact(unsafe { std::slice::from_raw_parts_mut(&mut frame as *mut _ as *mut u8, frame_size) })?;
             frames.push(frame);
         }
 
@@ -151,7 +150,7 @@ impl DSFT {
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     use super::DSFT;
 
@@ -170,11 +169,9 @@ mod tests {
 
     /// Helper: find the first DSFT frame matching a group name (case-insensitive).
     fn find_frame_by_group<'a>(dsft: &'a DSFT, group: &str) -> Option<&'a super::DSFTFrame> {
-        dsft.frames.iter().find(|f| {
-            f.group_name()
-                .map(|g| g.eq_ignore_ascii_case(group))
-                .unwrap_or(false)
-        })
+        dsft.frames
+            .iter()
+            .find(|f| f.group_name().map(|g| g.eq_ignore_ascii_case(group)).unwrap_or(false))
     }
 
     /// Goblin variants A/B/C must resolve to different DSFT palette IDs.
@@ -248,8 +245,14 @@ mod tests {
             root
         };
         let test_name = format!("{}a0", root);
-        let img = lod_manager.game().sprite_with_palette(&test_name, frame.palette_id as u16);
-        assert!(img.is_some(), "should load ghost sprite with DSFT palette {}", frame.palette_id);
+        let img = lod_manager
+            .game()
+            .sprite_with_palette(&test_name, frame.palette_id as u16);
+        assert!(
+            img.is_some(),
+            "should load ghost sprite with DSFT palette {}",
+            frame.palette_id
+        );
     }
 
     /// Monster variants A/B/C must resolve through monlist → DSFT → LOD sprite files.
@@ -269,17 +272,21 @@ mod tests {
         // (monster_name, variants_to_test, expect_distinct_palettes)
         // expect_distinct_palettes: if true, variant B/C must have different palette_id than A
         let test_cases: &[(&str, &[u8], bool)] = &[
-            ("Goblin",   &[1, 2, 3], true),
-            ("Ghost",    &[1, 2, 3], true),
+            ("Goblin", &[1, 2, 3], true),
+            ("Ghost", &[1, 2, 3], true),
             ("Skeleton", &[1, 2, 3], true),
-            ("Spider",   &[1, 2, 3], false),
+            ("Spider", &[1, 2, 3], false),
         ];
 
         for &(monster_name, variants, expect_distinct) in test_cases {
             let mut palette_ids: Vec<(u8, i16)> = Vec::new();
 
             for &dif in variants {
-                let variant_letter = match dif { 1 => "A", 2 => "B", _ => "C" };
+                let variant_letter = match dif {
+                    1 => "A",
+                    2 => "B",
+                    _ => "C",
+                };
                 let desc = match monlist.find_by_name(monster_name, dif) {
                     Some(d) => d,
                     None => {
@@ -293,14 +300,18 @@ mod tests {
                 assert!(
                     desc.internal_name.ends_with(expected_suffix),
                     "{} difficulty {} should return variant {}, got '{}'",
-                    monster_name, dif, expected_suffix, desc.internal_name
+                    monster_name,
+                    dif,
+                    expected_suffix,
+                    desc.internal_name
                 );
 
                 let st_group = &desc.sprite_names[0];
                 assert!(
                     !st_group.is_empty(),
                     "{} {} standing sprite should be non-empty",
-                    monster_name, variant_letter
+                    monster_name,
+                    variant_letter
                 );
 
                 // DSFT must have a frame for this group
@@ -330,7 +341,10 @@ mod tests {
                 assert!(
                     lod_manager.try_get_bytes(&test).is_ok(),
                     "{} {} sprite '{}' (from DSFT group '{}') should exist in LOD",
-                    monster_name, variant_letter, test, st_group
+                    monster_name,
+                    variant_letter,
+                    test,
+                    st_group
                 );
             }
 
@@ -341,10 +355,14 @@ mod tests {
                     if dif > 1 {
                         if let Some(a_pal) = a_palette {
                             assert_ne!(
-                                a_pal, pal,
+                                a_pal,
+                                pal,
                                 "{} variant {} palette_id ({}) should differ from variant A ({})",
                                 monster_name,
-                                match dif { 2 => "B", _ => "C" },
+                                match dif {
+                                    2 => "B",
+                                    _ => "C",
+                                },
                                 pal,
                                 a_pal
                             );
