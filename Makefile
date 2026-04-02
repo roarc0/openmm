@@ -29,6 +29,7 @@ clippy:
 fix:
 	cargo clippy --fix --allow-dirty --workspace -- -W clippy::all
 	cargo fmt --all
+	cargo clippy --workspace -- -W clippy::all
 
 fmt:
 	cargo fmt --all
