@@ -80,7 +80,7 @@ impl NpcNamePool {
 
 /// Metadata for one street NPC from npcdata.txt.
 #[derive(Debug, Clone)]
-pub struct StreetNpcEntry {
+pub struct NpcEntry {
     pub id: u32,
     pub name: String,
     /// Index for the portrait image: portrait=81 → "NPC081".
@@ -92,8 +92,8 @@ pub struct StreetNpcEntry {
 /// The complete NPC data table parsed from `npcdata.txt`.
 /// Keyed by NPC id (1-based).
 #[derive(Debug, Default)]
-pub struct StreetNpcTable {
-    pub npcs: HashMap<u32, StreetNpcEntry>,
+pub struct StreetNpcs {
+    pub npcs: HashMap<u32, NpcEntry>,
     /// Peasant-profession entries split by sex for deterministic identity assignment.
     /// Each entry is a (name, portrait) pair from npcdata.txt with profession 52-77.
     /// Sex is determined by cross-referencing the NPC's first name against npcnames.txt pools.
@@ -104,7 +104,7 @@ pub struct StreetNpcTable {
     pub peasant_portraits: Vec<u32>,
 }
 
-impl StreetNpcTable {
+impl StreetNpcs {
     /// Parse raw bytes from `npcdata.txt`.
     /// The file is Latin-1 (Windows-1252) encoded, not UTF-8.
     /// If `name_pool` is provided, peasant-profession entries are split by sex
@@ -136,7 +136,7 @@ impl StreetNpcTable {
             let portrait: u32 = cols[2].trim().parse().unwrap_or(0);
             let profession_id: u32 = cols.get(7).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
 
-            npcs.insert(id, StreetNpcEntry { id, name, portrait, profession_id });
+            npcs.insert(id, NpcEntry { id, name, portrait, profession_id });
         }
 
         // Collect portrait IDs from peasant-profession entries (52-77) for
@@ -155,7 +155,7 @@ impl StreetNpcTable {
         let mut peasant_female = Vec::new();
 
         // Collect peasant entries sorted by id for deterministic ordering
-        let mut peasant_entries: Vec<&StreetNpcEntry> = npcs.values()
+        let mut peasant_entries: Vec<&NpcEntry> = npcs.values()
             .filter(|e| (52..=77).contains(&e.profession_id) && e.portrait > 0)
             .collect();
         peasant_entries.sort_by_key(|e| e.id);
@@ -183,7 +183,7 @@ impl StreetNpcTable {
     }
 
     /// Look up an entry by NPC id.
-    pub fn get(&self, npc_id: i32) -> Option<&StreetNpcEntry> {
+    pub fn get(&self, npc_id: i32) -> Option<&NpcEntry> {
         if npc_id <= 0 {
             return None;
         }
@@ -268,7 +268,7 @@ mod tests {
         let data = b"# header row 1\nid\tname\tpic\tstate\tfame\trep\tmap\tprof\n\
             1\tJohn Smith\t42\t0\t0\t0\t0\t52\n\
             2\tJane Doe\t81\t0\t0\t0\t0\t53\n";
-        let table = StreetNpcTable::parse(data, None).unwrap();
+        let table = StreetNpcs::parse(data, None).unwrap();
         assert_eq!(table.npcs.len(), 2);
 
         let e1 = table.get(1).unwrap();
@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn street_npc_table_get_invalid_id_returns_none() {
         let data = b"h1\nh2\n1\tFoo\t10\t0\t0\t0\t0\t52\n";
-        let table = StreetNpcTable::parse(data, None).unwrap();
+        let table = StreetNpcs::parse(data, None).unwrap();
         assert!(table.get(0).is_none());  // id must be > 0
         assert!(table.get(-1).is_none()); // negative id
         assert!(table.get(99).is_none()); // non-existent
@@ -296,7 +296,7 @@ mod tests {
             1\tAlice\t42\t0\t0\t0\t0\t52\n\
             2\tBob\t81\t0\t0\t0\t0\t55\n\
             3\tCarol\t42\t0\t0\t0\t0\t60\n"; // portrait 42 duplicate
-        let table = StreetNpcTable::parse(data, None).unwrap();
+        let table = StreetNpcs::parse(data, None).unwrap();
         // dedup'd: [42, 81]
         assert_eq!(table.peasant_portraits, vec![42, 81]);
     }
@@ -306,7 +306,7 @@ mod tests {
         let data = b"h1\nh2\n\
             1\tAlice\t10\t0\t0\t0\t0\t52\n\
             2\tBob\t20\t0\t0\t0\t0\t55\n";
-        let table = StreetNpcTable::parse(data, None).unwrap();
+        let table = StreetNpcs::parse(data, None).unwrap();
         assert_eq!(table.peasant_portrait(0), Some(10));
         assert_eq!(table.peasant_portrait(1), Some(20));
         assert_eq!(table.peasant_portrait(2), Some(10)); // wraps
@@ -317,7 +317,7 @@ mod tests {
         let lod = LodManager::new(get_lod_path()).unwrap();
         // npcdata.txt may be zlib-compressed in the LOD archive
         let raw = lod.get_decompressed("icons/npcdata.txt").unwrap();
-        let table = StreetNpcTable::parse(&raw, None).unwrap();
+        let table = StreetNpcs::parse(&raw, None).unwrap();
         assert!(!table.npcs.is_empty(), "npcdata.txt should have entries");
         // NPC id 1 should exist in MM6
         let npc1 = table.get(1).expect("NPC id 1 should exist");
@@ -329,7 +329,7 @@ mod tests {
     fn street_npc_table_portrait_name_format() {
         let lod = LodManager::new(get_lod_path()).unwrap();
         let raw = lod.get_decompressed("icons/npcdata.txt").unwrap();
-        let table = StreetNpcTable::parse(&raw, None).unwrap();
+        let table = StreetNpcs::parse(&raw, None).unwrap();
         // portrait_name should format as "NPC###" with 3-digit zero-padded number
         if let Some(name) = table.portrait_name(1) {
             assert!(name.starts_with("NPC"), "portrait name should start with NPC");

@@ -11,12 +11,12 @@ pub struct MapEvents {
     pub houses: Option<lod::twodevents::TwoDEvents>,
     /// Global NPC metadata table (id → name, portrait, profession).
     /// Loaded from `npcdata.txt` in icons.lod; same for every map.
-    pub npc_table: Option<lod::game::npctable::StreetNpcTable>,
+    pub npc_table: Option<lod::game::npc::StreetNpcs>,
     /// Name pool for generating street NPC names (from `npcnames.txt`).
-    pub name_pool: Option<lod::game::npctable::NpcNamePool>,
+    pub name_pool: Option<lod::game::npc::NpcNamePool>,
     /// Dynamically generated NPCs for peasant actors (npc_id ≥ 5000).
     /// Populated at actor spawn time; keyed by the assigned npc_id.
-    pub generated_npcs: std::collections::HashMap<i32, lod::game::npctable::GeneratedNpc>,
+    pub generated_npcs: std::collections::HashMap<i32, lod::game::npc::GeneratedNpc>,
 }
 
 /// Load event data for a map and insert the MapEvents resource.

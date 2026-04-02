@@ -455,27 +455,6 @@ pub fn direction_for_angle(facing_yaw: f32, camera_angle: f32) -> (usize, bool) 
     }
 }
 
-/// Check if a decoration sprite has directional frames in the LOD.
-/// Decoration sprites use `{root}{direction}` naming (e.g. "shp0", "shp1")
-/// unlike NPC sprites which use `{root}{frame}{direction}` (e.g. "fmpstaa0").
-/// Returns the root name if at least directions 0 and 1 exist.
-pub fn has_directional_sprites(name: &str, lod_manager: &lod::LodManager) -> Option<String> {
-    let root = name.trim_end_matches(|c: char| c.is_ascii_digit());
-    let mut try_root = root;
-    while try_root.len() >= 3 {
-        let lower = try_root.to_lowercase();
-        let test0 = format!("sprites/{}0", lower);
-        let test1 = format!("sprites/{}1", lower);
-        if lod_manager.try_get_bytes(&test0).is_ok()
-            && lod_manager.try_get_bytes(&test1).is_ok()
-        {
-            return Some(lower);
-        }
-        try_root = &try_root[..try_root.len() - 1];
-    }
-    None
-}
-
 /// Load decoration directional sprites (e.g. "shp0"-"shp4").
 /// Unlike NPC sprites, decoration directions use `{root}{direction}` naming
 /// with no frame letters or animation — just 5 pre-rendered views.
@@ -669,21 +648,4 @@ mod tests {
         }
     }
 
-    #[test]
-    fn has_directional_sprites_with_lod() {
-        let lod_path = lod::get_lod_path();
-        let Ok(lod_manager) = lod::LodManager::new(lod_path) else {
-            eprintln!("Skipping test: LOD data not available");
-            return;
-        };
-
-        // Ship sprite should have directional frames (shp0, shp1, etc.)
-        let result = has_directional_sprites("shp", &lod_manager);
-        assert!(result.is_some(), "ship 'shp' should have directional sprites");
-        assert_eq!(result.unwrap(), "shp");
-
-        // Non-directional decorations should return None
-        let result = has_directional_sprites("pending", &lod_manager);
-        assert!(result.is_none(), "'pending' should not have directional sprites");
-    }
 }

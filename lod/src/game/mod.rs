@@ -4,8 +4,11 @@
 //! `GameLod` wraps a `LodManager` reference and provides decoded, game-ready data:
 //! sprites, bitmaps, icons, fonts, and NPC tables.
 
+pub mod actors;
+pub mod decorations;
 pub mod font;
-pub mod npctable;
+pub mod monster;
+pub mod npc;
 
 use crate::LodManager;
 use ::image::DynamicImage;
@@ -93,16 +96,16 @@ impl<'a> GameLod<'a> {
 
     /// Load and parse the global NPC metadata table from `npcdata.txt`.
     /// Cross-references with `npcnames.txt` to classify peasant NPCs by sex.
-    pub fn npc_table(&self) -> Option<npctable::StreetNpcTable> {
+    pub fn npc_table(&self) -> Option<npc::StreetNpcs> {
         let data = self.lod.get_decompressed("icons/npcdata.txt").ok()?;
         let name_pool = self.npc_name_pool();
-        npctable::StreetNpcTable::parse(&data, name_pool.as_ref()).ok()
+        npc::StreetNpcs::parse(&data, name_pool.as_ref()).ok()
     }
 
     /// Load the NPC name pool from `npcnames.txt` for generating street NPC names.
-    pub fn npc_name_pool(&self) -> Option<npctable::NpcNamePool> {
+    pub fn npc_name_pool(&self) -> Option<npc::NpcNamePool> {
         let data = self.lod.get_decompressed("icons/npcnames.txt").ok()?;
-        npctable::NpcNamePool::parse(&data).ok()
+        npc::NpcNamePool::parse(&data).ok()
     }
 }
 
