@@ -117,7 +117,7 @@ impl MonsterList {
         let preferred = match difficulty {
             1 => "A",
             2 => "B",
-            3 | _ => "C",
+            _ => "C",
         };
         // Try preferred variant first, then all variants
         for suffix in &[preferred, "A", "B", "C"] {
@@ -144,7 +144,7 @@ impl MonsterList {
         let preferred = match difficulty {
             1 => "A",
             2 => "B",
-            3 | _ => "C",
+            _ => "C",
         };
         for suffix in &[preferred, "A", "B", "C"] {
             let target = format!("{}{}", name, suffix);

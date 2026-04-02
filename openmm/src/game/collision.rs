@@ -2,8 +2,13 @@ use bevy::prelude::*;
 
 use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 
-/// Maximum height the player can step up onto a BSP floor.
-const MAX_STEP_UP: f32 = 80.0;
+/// Maximum height the player can step up onto a BSP floor (e.g. climbing stairs).
+pub const MAX_STEP_UP: f32 = 70.0;
+
+/// Maximum wall height that is silently stepped over (like a low curb).
+/// Walls taller than this are treated as solid obstacles in resolve_movement.
+/// Kept small so fountain/statue walls are not silently bypassed.
+const MAX_WALL_STEP: f32 = 24.0;
 
 /// A collision triangle in Bevy coordinates, with precomputed AABB.
 /// Used for floor height sampling (point-in-triangle + barycentric interpolation).
@@ -154,7 +159,7 @@ impl BuildingColliders {
                     continue;
                 }
                 let wall_height = wall.max_y - wall.min_y;
-                if wall.max_y < feet_y + MAX_STEP_UP && wall_height < MAX_STEP_UP {
+                if wall.max_y < feet_y + MAX_WALL_STEP && wall_height < MAX_WALL_STEP {
                     continue;
                 }
 
@@ -183,9 +188,10 @@ impl BuildingColliders {
         result
     }
 
-    /// Sample the best BSP floor height at XZ, only considering floors
-    /// the player could actually step onto.
-    pub fn floor_height_at(&self, x: f32, z: f32, feet_y: f32) -> Option<f32> {
+    /// Sample the best BSP floor height at XZ, only considering floors within `max_step`
+    /// above `feet_y`. Pass `MAX_STEP_UP` when already on BSP geometry; `TERRAIN_ENTRY_STEP`
+    /// when on outdoor terrain to avoid stepping onto elevated outdoor objects.
+    pub fn floor_height_at(&self, x: f32, z: f32, feet_y: f32, max_step: f32) -> Option<f32> {
         let mut best: Option<f32> = None;
         let point = Vec2::new(x, z);
 
@@ -193,7 +199,7 @@ impl BuildingColliders {
             if !floor.near_xz(x, z, 0.0) {
                 continue;
             }
-            if floor.min_y > feet_y + MAX_STEP_UP {
+            if floor.min_y > feet_y + max_step {
                 continue;
             }
             let a = Vec2::new(floor.v0.x, floor.v0.z);
@@ -202,7 +208,7 @@ impl BuildingColliders {
             if point_in_triangle_2d(point, a, b, c) {
                 let (u, v, w) = barycentric_2d(point, a, b, c);
                 let h = u * floor.v0.y + v * floor.v1.y + w * floor.v2.y;
-                if h <= feet_y + MAX_STEP_UP {
+                if h <= feet_y + max_step {
                     best = Some(best.map_or(h, |prev: f32| prev.max(h)));
                 }
             }

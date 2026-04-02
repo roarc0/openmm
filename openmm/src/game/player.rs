@@ -13,7 +13,9 @@ use crate::GameState;
 pub struct PlayerInputSet;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height};
+use crate::game::collision::{
+    BuildingColliders, MAX_STEP_UP, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
+};
 use crate::save::GameSave;
 use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
@@ -477,7 +479,7 @@ fn player_movement(
                     .as_ref()
                     .and_then(|c| {
                         let feet_y = from.y - settings.eye_height;
-                        c.floor_height_at(from.x, from.z, feet_y)
+                        c.floor_height_at(from.x, from.z, feet_y, MAX_STEP_UP)
                     })
                     .is_some();
                 if !on_bsp_floor && let Some(ref hm) = height_map {
@@ -519,7 +521,7 @@ fn player_movement(
                     let feet_y = from.y - settings.eye_height;
                     let on_bridge = colliders
                         .as_ref()
-                        .and_then(|c| c.floor_height_at(dest.x, dest.z, feet_y))
+                        .and_then(|c| c.floor_height_at(dest.x, dest.z, feet_y, MAX_STEP_UP))
                         .is_some();
                     if !on_bridge {
                         dest = from;

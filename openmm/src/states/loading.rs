@@ -678,8 +678,8 @@ fn loading_step(
                         // Final fallback: center of sector with most floors
                         let spawn_sector = blv.sectors.iter().skip(1).max_by_key(|s| s.floor_count);
                         let pos = if let Some(sector) = spawn_sector {
-                            let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2);
-                            let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2);
+                            let cx = (sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2;
+                            let cy = (sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2;
                             let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
                             info!("Indoor spawn from sector center: floors={}", sector.floor_count);
                             Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))

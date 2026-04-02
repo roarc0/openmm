@@ -52,7 +52,7 @@ impl Actor {
 
 /// Compute palette variant for each actor based on the minimum palette_id of actors
 /// sharing the same standing_sprite root.
-fn compute_variants(actors: &mut Vec<Actor>) {
+fn compute_variants(actors: &mut [Actor]) {
     use std::collections::HashMap;
 
     let mut base_pals: HashMap<&str, u16> = HashMap::new();

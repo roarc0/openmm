@@ -827,8 +827,7 @@ impl Blv {
 
                 // Check no other vertex is inside this triangle.
                 let mut contains_point = false;
-                for j in 0..len {
-                    let idx = indices[j];
+                for &idx in indices.iter().take(len) {
                     if idx == prev || idx == curr || idx == next {
                         continue;
                     }

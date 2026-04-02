@@ -131,24 +131,6 @@ const SLOPE_SLIDE_SPEED: f32 = 4000.0;
 /// Sample offset for terrain gradient calculation.
 const SLOPE_SAMPLE_DIST: f32 = 32.0;
 
-/// Apply gravity, ground clamping, slope sliding, and fly mode vertical behavior.
-/// Compute effective ground height from terrain heightmap and/or BSP floor colliders.
-fn effective_ground_y(
-    height_map: Option<&TerrainHeightMap>,
-    colliders: Option<&BuildingColliders>,
-    x: f32,
-    z: f32,
-    feet_y: f32,
-) -> f32 {
-    let terrain_h = height_map
-        .map(|hm| sample_terrain_height(&hm.heights, x, z))
-        .unwrap_or(f32::MIN);
-    let floor_h = colliders
-        .and_then(|c| c.floor_height_at(x, z, feet_y))
-        .unwrap_or(f32::MIN);
-    terrain_h.max(floor_h)
-}
-
 fn gravity_system(
     time: Res<Time>,
     height_map: Option<Res<TerrainHeightMap>>,
@@ -166,13 +148,23 @@ fn gravity_system(
 
     for (mut transform, mut physics) in query.iter_mut() {
         let feet_y = transform.translation.y - settings.eye_height;
-        let ground_y = effective_ground_y(
-            height_map.as_deref(),
-            colliders.as_deref(),
-            transform.translation.x,
-            transform.translation.z,
-            feet_y,
-        ) + settings.eye_height;
+
+        let terrain_h = height_map
+            .as_deref()
+            .map(|hm| sample_terrain_height(&hm.heights, transform.translation.x, transform.translation.z))
+            .unwrap_or(f32::MIN);
+        let bsp_floor_h = colliders
+            .as_deref()
+            .and_then(|c| {
+                c.floor_height_at(
+                    transform.translation.x,
+                    transform.translation.z,
+                    feet_y,
+                    crate::game::collision::MAX_STEP_UP,
+                )
+            })
+            .unwrap_or(f32::MIN);
+        let ground_y = terrain_h.max(bsp_floor_h) + settings.eye_height;
 
         // Ceiling clamp: prevent player from going above the lowest ceiling
         let ceiling_y = colliders
