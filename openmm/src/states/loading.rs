@@ -59,7 +59,6 @@ struct LoadingProgress {
     models: Option<Vec<PreparedModel>>,
     billboards: Option<Vec<PreparedBillboard>>,
     actors: Option<Vec<DdmActor>>,
-    monsters: Option<Vec<PreparedMonster>>,
     start_points: Option<Vec<StartPoint>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>>,
@@ -164,23 +163,6 @@ pub struct PreparedSubMesh {
     pub texture: Option<Image>,
 }
 
-/// A monster to spawn from a spawn point, with resolved sprite names.
-pub struct PreparedMonster {
-    /// Position in MM6 coordinates.
-    pub position: [i32; 3],
-    pub radius: u16,
-    /// DSFT-resolved sprite root names (not raw monlist group names).
-    pub standing_sprite: String,
-    pub walking_sprite: String,
-    pub height: u16,
-    pub move_speed: u16,
-    pub hostile: bool,
-    /// Difficulty variant: 1=A (base), 2=B, 3=C.
-    pub variant: u8,
-    /// DSFT palette_id for this variant. Used directly for palette swap
-    /// (sprite file header palettes use a different numbering system).
-    pub palette_id: u16,
-}
 
 pub struct PreparedBillboard {
     /// Position in Bevy coordinates.
@@ -255,7 +237,6 @@ pub struct PreparedWorld {
     pub models: Vec<PreparedModel>,
     pub billboards: Vec<PreparedBillboard>,
     pub actors: Vec<DdmActor>,
-    pub monsters: Vec<PreparedMonster>,
     pub start_points: Vec<StartPoint>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
@@ -327,7 +308,6 @@ fn loading_setup(
         models: None,
         billboards: None,
         actors: None,
-        monsters: None,
         start_points: None,
         sprite_cache: None,
         billboard_cache: None,
@@ -427,9 +407,6 @@ fn loading_step(
                                 .map(|ddm| ddm.actors)
                                 .unwrap_or_default();
                             progress.actors = Some(actors);
-
-                            // Store raw spawn data — monsters resolved lazily
-                            progress.monsters = Some(Vec::new());
 
                             progress.tile_table = Some(tile_table);
                             progress.odm = Some(odm);
@@ -900,15 +877,15 @@ fn loading_step(
                 let mut seen = std::collections::HashSet::new();
 
                 // NPC sprites: only for actors actually on this map
-                let npc_table = crate::game::odm::build_npc_sprite_table(&game_assets);
-                if let Some(actors) = &progress.actors {
-                    for a in actors {
-                        if a.hp <= 0 { continue; }
-                        if let Some(entry) = npc_table.get(&a.monlist_id) {
-                            for root in [entry.standing_root.clone(), entry.walking_root.clone()] {
-                                if seen.insert(root.clone()) {
-                                    sprite_roots.push((root, 0));
-                                }
+                if let Ok(lod_actors) = lod::game::actors::Actors::new(
+                    game_assets.lod_manager(),
+                    &load_request.map_name.to_string(),
+                    None,
+                ) {
+                    for actor in lod_actors.get_actors() {
+                        for root in [actor.standing_sprite.clone(), actor.walking_sprite.clone()] {
+                            if seen.insert(root.clone()) {
+                                sprite_roots.push((root, 0));
                             }
                         }
                     }
@@ -1042,7 +1019,6 @@ fn loading_step(
                     models,
                     billboards,
                     actors,
-                    monsters: progress.monsters.take().unwrap_or_default(),
                     start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
                     billboard_cache: progress.billboard_cache.take().unwrap_or_default(),

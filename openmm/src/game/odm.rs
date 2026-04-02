@@ -29,7 +29,7 @@ struct PendingSpawns {
     decorations: Option<lod::game::decorations::Decorations>,
     /// Maps billboard_index → index in decorations.entries() for O(1) lookup during spawn.
     dec_by_billboard: std::collections::HashMap<usize, usize>,
-    resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
+    monsters: lod::game::monster::Monsters,
     /// Pre-resolved DDM actors (NPCs and monsters) for this map.
     actors: Option<lod::game::actors::Actors>,
     terrain_entity: Entity,
@@ -369,7 +369,13 @@ fn spawn_world(
     };
 
     // Resolve monsters from spawn points using current map (not save_data which may lag)
-    let resolved_monsters = resolve_monsters(&prepared, &game_assets, &world_state.map.name);
+    let monsters = lod::game::monster::Monsters::new(
+        game_assets.lod_manager(),
+        &world_state.map.name.to_string(),
+    ).unwrap_or_else(|e| {
+        warn!("Failed to resolve monsters for {}: {}", world_state.map.name, e);
+        lod::game::monster::Monsters::default_empty()
+    });
 
     // Pre-resolve DDM actors (NPCs) for this map using the lod Actors abstraction.
     let actors = lod::game::actors::Actors::new(
@@ -395,8 +401,8 @@ fn spawn_world(
         Vec::new()
     };
 
-    let monster_order = sort_by_distance_mm6(&resolved_monsters, player_spawn,
-        |m| m.position[0] as f32, |m| m.position[1] as f32);
+    let monster_order = sort_by_distance_mm6(monsters.entries(), player_spawn,
+        |m| m.spawn_position[0] as f32, |m| m.spawn_position[1] as f32);
 
     let total = bb_order.len() + actor_order.len() + monster_order.len();
     // Play map music
@@ -416,74 +422,12 @@ fn spawn_world(
         billboard_cache: prepared.billboard_cache.clone(),
         decorations,
         dec_by_billboard,
-        resolved_monsters,
+        monsters,
         actors,
         terrain_entity,
     });
 }
 
-/// Resolve monsters from spawn points using mapstats + monlist.
-/// Sprite group names from monlist are resolved through DSFT to get actual
-/// sprite file roots (e.g. "lz2sta" → "lzdsta" with palette 246).
-fn resolve_monsters(
-    prepared: &PreparedWorld,
-    game_assets: &GameAssets,
-    map_name: &crate::game::map_name::MapName,
-) -> Vec<crate::states::loading::PreparedMonster> {
-    let mut monsters = Vec::new();
-    let Ok(mapstats) = lod::mapstats::MapStats::new(game_assets.lod_manager()) else { return monsters };
-    let Ok(monlist) = lod::monlist::MonsterList::new(game_assets.lod_manager()) else { return monsters };
-    let lod = game_assets.lod_manager();
-
-    let map_config = mapstats.get(&map_name.to_string());
-    let Some(cfg) = map_config else { return monsters };
-
-    for sp in &prepared.map.spawn_points {
-        let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as i32;
-        for g in 0..group_size {
-            // Each monster in the group gets its own A/B/C roll (matching original engine).
-            // Seed is per-monster (position + group index) for deterministic results.
-            let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs() + g as u32) as u32;
-            let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else { continue };
-            // Use find_by_name (not find_with_sprite) — the sprite existence check in
-            // find_with_sprite uses raw file names, but variant B/C sprite names are DSFT
-            // group names that need resolution. DSFT resolution below handles finding files.
-            let Some(desc) = monlist.find_by_name(mon_name, dif) else { continue };
-
-            // Resolve monlist group names through DSFT to get actual sprite file roots.
-            // Variant B/C sprites share base files with A but use different palettes
-            // (e.g. "lz2sta" → root "lzdsta", palette 246).
-            let st_group = &desc.sprite_names[0];
-            let wa_group = &desc.sprite_names[1];
-            let Some((st_root, palette_id)) = lod::game::monster::resolve_sprite_group(st_group, lod) else {
-                warn!("Monster '{}' standing sprite '{}' not found in DSFT — skipping", mon_name, st_group);
-                continue;
-            };
-            let wa_root = lod::game::monster::resolve_sprite_group(wa_group, lod)
-                .map(|(n, _)| n)
-                .unwrap_or_else(|| st_root.clone());
-
-            let angle = g as f32 * 2.094;
-            let spread = sp.radius.max(200) as f32 * 0.5;
-            monsters.push(crate::states::loading::PreparedMonster {
-                position: [
-                    sp.position[0] + (angle.cos() * spread * g as f32) as i32,
-                    sp.position[1] + (angle.sin() * spread * g as f32) as i32,
-                    sp.position[2],
-                ],
-                radius: sp.radius.max(300),
-                standing_sprite: st_root,
-                walking_sprite: wa_root,
-                height: desc.height,
-                move_speed: desc.move_speed,
-                hostile: true,
-                variant: dif,
-                palette_id: palette_id as u16,
-            });
-        }
-    }
-    monsters
-}
 
 /// Sort indices by distance from player using Vec3 positions.
 fn sort_by_distance_vec3<T>(items: &[T], player: Vec3, pos: impl Fn(&T) -> Vec3) -> Vec<usize> {
@@ -538,7 +482,7 @@ fn lazy_spawn(
 
     let bb_len = p.billboard_order.len();
     let actor_len = p.actor_order.len();
-    let monster_len = p.resolved_monsters.len();
+    let monster_len = p.monster_order.len();
     let mut bb_idx = p.idx.min(bb_len);
     let mut actor_idx = p.idx.saturating_sub(bb_len).min(actor_len);
     let mut monster_idx = p.idx.saturating_sub(bb_len + actor_len).min(monster_len);
@@ -747,7 +691,7 @@ fn lazy_spawn(
 
     // Monsters
     while monster_idx < monster_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
-        let m = &p.resolved_monsters[p.monster_order[monster_idx]];
+        let m = &p.monsters.entries()[p.monster_order[monster_idx]];
         monster_idx += 1;
         p.idx += 1;
         let (states, raw_w, raw_h) = sprites::load_entity_sprites(
@@ -765,8 +709,11 @@ fn lazy_spawn(
         let sh = raw_h * dsft_scale;
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
-        let wx = m.position[0] as f32;
-        let wz = -m.position[1] as f32;
+        // Compute spread position (was done inside resolve_monsters, now done here)
+        let angle = m.group_index as f32 * 2.094;
+        let spread = m.spawn_radius as f32 * 0.5;
+        let wx = m.spawn_position[0] as f32 + angle.cos() * spread * m.group_index as f32;
+        let wz = -(m.spawn_position[1] as f32 + angle.sin() * spread * m.group_index as f32);
         let gy = crate::game::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
         let pos = Vec3::new(wx, gy + sh / 2.0, wz);
 
