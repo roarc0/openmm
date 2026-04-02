@@ -95,16 +95,16 @@ pub struct PlayerKeyBindings {
 impl Default for PlayerKeyBindings {
     fn default() -> Self {
         Self {
-            move_forward: KeyCode::ArrowUp,
-            move_backward: KeyCode::ArrowDown,
+            move_forward: KeyCode::KeyW,
+            move_backward: KeyCode::KeyS,
             strafe_left: KeyCode::KeyA,
             strafe_right: KeyCode::KeyD,
             rotate_left: KeyCode::ArrowLeft,
             rotate_right: KeyCode::ArrowRight,
             jump: KeyCode::Space,
-            fly_up: KeyCode::PageUp,
-            fly_down: KeyCode::PageDown,
-            toggle_fly: KeyCode::F2,
+            fly_up: KeyCode::Insert,
+            fly_down: KeyCode::PageUp,
+            toggle_fly: KeyCode::Home,
             toggle_grab_cursor: KeyCode::Escape,
         }
     }
@@ -119,7 +119,7 @@ impl Plugin for PlayerPlugin {
         let cfg = app.world().resource::<GameConfig>().clone();
         app.init_resource::<PlayerSettings>()
             .init_resource::<PlayerKeyBindings>()
-            .insert_resource(MouseLookEnabled(cfg.mouse_look))
+            .insert_resource(MouseLookEnabled(false))
             .insert_resource(MouseSensitivity {
                 x: cfg.mouse_sensitivity_x,
                 y: cfg.mouse_sensitivity_y,
@@ -130,7 +130,7 @@ impl Plugin for PlayerPlugin {
             )
             .add_systems(
                 Update,
-                (toggle_fly_mode, toggle_mouse_look, adjust_sensitivity, player_movement, player_look, cursor_grab, log_gamepads)
+                (toggle_fly_mode, toggle_mouse_look, player_movement, player_look, cursor_grab, log_gamepads)
                     .chain()
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
@@ -315,8 +315,8 @@ fn toggle_fly_mode(
 ) {
     let gamepad_toggle = gamepads.iter().any(|gp| gp.just_pressed(GamepadButton::Select));
     if keys.just_pressed(key_bindings.toggle_fly) || gamepad_toggle {
-        world_state.player.fly_mode = !world_state.player.fly_mode;
-        info!("Fly mode: {}", if world_state.player.fly_mode { "ON" } else { "OFF" });
+        world_state.player.fly_mode = false;
+        info!("Fly mode: OFF");
     }
 }
 
@@ -331,23 +331,6 @@ fn toggle_mouse_look(
     }
 }
 
-/// Home/End adjust mouse sensitivity at runtime.
-fn adjust_sensitivity(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut sens: ResMut<MouseSensitivity>,
-) {
-    let step = 5.0;
-    if keys.just_pressed(KeyCode::Home) {
-        sens.x = (sens.x + step).min(200.0);
-        sens.y = (sens.y + step).min(200.0);
-        info!("Mouse sensitivity: {:.0}/{:.0}", sens.x, sens.y);
-    }
-    if keys.just_pressed(KeyCode::End) {
-        sens.x = (sens.x - step).max(1.0);
-        sens.y = (sens.y - step).max(1.0);
-        info!("Mouse sensitivity: {:.0}/{:.0}", sens.x, sens.y);
-    }
-}
 
 fn player_movement(
     keys: Res<ButtonInput<KeyCode>>,
@@ -572,6 +555,7 @@ fn player_movement(
 // --- Camera look ---
 
 fn player_look(
+    keys: Res<ButtonInput<KeyCode>>,
     settings: Res<PlayerSettings>,
     mouse_sens: Res<MouseSensitivity>,
     mouse_look: Res<MouseLookEnabled>,
@@ -621,6 +605,8 @@ fn player_look(
         }
     }
 
+    const PITCH_STEP: f32 = 10.0 * std::f32::consts::PI / 180.0;
+
     for mut transform in camera_query.iter_mut() {
         let (_, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
         // Mouse pitch
@@ -630,6 +616,16 @@ fn player_look(
         // Gamepad pitch (right stick Y) — reduced sensitivity, pitch isn't critical
         if gp_look.y.abs() > 0.0 {
             pitch += gp_look.y * settings.rotation_speed * 0.3 * time.delta_secs();
+        }
+        // Keyboard pitch: PageDown = look up, Delete = look down, End = reset to level
+        if keys.just_pressed(KeyCode::PageDown) {
+            pitch += PITCH_STEP;
+        }
+        if keys.just_pressed(KeyCode::Delete) {
+            pitch -= PITCH_STEP;
+        }
+        if keys.just_pressed(KeyCode::End) {
+            pitch = 0.0;
         }
         pitch = pitch.clamp(-1.54, 1.54);
         transform.rotation = Quat::from_axis_angle(Vec3::X, pitch);
