@@ -29,9 +29,9 @@ The goal is to reproduce original MM6 gameplay — movement, combat, dialogue, q
 - **Might and Magic VI game data files** (you must own a copy of the original game)
 - Rust toolchain (see Build section)
 - System dependencies:
-  - **Linux**: libasound2-dev, libudev-dev, pkg-config
-  - **macOS**: No additional dependencies
-  - **Windows**: No additional dependencies
+  - **All platforms**: Rust toolchain [rustup](https://rustup.rs/)
+  - **Linux**: libasound2-dev, libudev-dev, pkg-config, libwayland-dev, libxkbcommon-dev
+  - **macOS / Windows**: No additional system dependencies
 
 ## Installation
 
@@ -75,12 +75,12 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 **Linux (Debian/Ubuntu):**
 ```bash
-sudo apt-get install libasound2-dev libudev-dev pkg-config
+sudo apt-get install libasound2-dev libudev-dev pkg-config libwayland-dev libxkbcommon-dev
 ```
 
 **Linux (Arch):**
 ```bash
-sudo pacman -S alsa-lib systemd-libs pkg-config
+sudo pacman -S alsa-lib systemd-libs pkg-config wayland libxkbcommon
 ```
 
 **Optional: Install mold linker for faster builds (Linux only):**
