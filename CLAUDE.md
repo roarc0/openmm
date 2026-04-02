@@ -120,11 +120,12 @@ The test: if you can describe the new file in one sentence with a clear noun —
 
 ### Rule 10: Review before you ship
 
-Before marking a task done, re-read the diff with fresh eyes:
+Before committing, run `make fix` — this auto-applies clippy suggestions and formats the code. Then verify `make lint` passes cleanly. These steps are mandatory, not optional.
+
+Re-read the diff with fresh eyes:
 - Does every public function and type have a name that explains what it does without a comment?
 - Is there dead code, unused imports, or `todo!()` left behind?
-- Did you `cargo clippy` and address all warnings?
-- Does `make lint` pass cleanly?
+- Did you run `make fix` and does `make lint` pass cleanly?
 
 A clean diff is a sign of respect for the next person who reads it — which is often you, six months later.
 
