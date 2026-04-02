@@ -59,6 +59,8 @@ struct LoadingProgress {
     models: Option<Vec<PreparedModel>>,
     decorations: Option<lod::game::decorations::Decorations>,
     actors: Option<Vec<DdmActor>>,
+    resolved_actors: Option<lod::game::actors::Actors>,
+    resolved_monsters: Option<lod::game::monster::Monsters>,
     start_points: Option<Vec<StartPoint>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>>,
@@ -221,6 +223,8 @@ pub struct PreparedWorld {
     pub models: Vec<PreparedModel>,
     pub decorations: lod::game::decorations::Decorations,
     pub actors: Vec<DdmActor>,
+    pub resolved_actors: Option<lod::game::actors::Actors>,
+    pub resolved_monsters: Option<lod::game::monster::Monsters>,
     pub start_points: Vec<StartPoint>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
@@ -292,6 +296,8 @@ fn loading_setup(
         models: None,
         decorations: None,
         actors: None,
+        resolved_actors: None,
+        resolved_monsters: None,
         start_points: None,
         sprite_cache: None,
         billboard_cache: None,
@@ -843,13 +849,14 @@ fn loading_step(
                 let mut sprite_roots: Vec<(String, u8)> = Vec::new();
                 let mut seen = std::collections::HashSet::new();
 
-                // NPC sprites: only for actors actually on this map
-                if let Ok(lod_actors) = lod::game::actors::Actors::new(
+                // NPC sprites: resolve once, cache for spawn_world reuse
+                let lod_actors = lod::game::actors::Actors::new(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
                     None,
-                ) {
-                    for actor in lod_actors.get_actors() {
+                ).ok();
+                if let Some(ref actors) = lod_actors {
+                    for actor in actors.get_actors() {
                         for root in [actor.standing_sprite.clone(), actor.walking_sprite.clone()] {
                             if seen.insert(root.clone()) {
                                 sprite_roots.push((root, 0));
@@ -857,30 +864,24 @@ fn loading_step(
                         }
                     }
                 }
+                progress.resolved_actors = lod_actors;
 
-                // Monster sprites for this map's spawn points
-                if let (Ok(mapstats), Ok(monlist)) = (
-                    lod::mapstats::MapStats::new(game_assets.lod_manager()),
-                    lod::monlist::MonsterList::new(game_assets.lod_manager()),
-                ) {
-                    if let Some(cfg) = mapstats.get(&load_request.map_name.to_string()) {
-                        if let Some(odm) = &progress.odm {
-                            for sp in &odm.spawn_points {
-                                let seed = (sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) as u32;
-                                if let Some((mon_name, variant)) = cfg.monster_for_index(sp.monster_index, seed) {
-                                    if let Some(desc) = monlist.find_by_name(mon_name, variant) {
-                                        for name in &desc.sprite_names[..2] {
-                                            let key = format!("{}@v{}", name, variant);
-                                            if seen.insert(key) {
-                                                sprite_roots.push((name.clone(), variant));
-                                            }
-                                        }
-                                    }
-                                }
+                // Monster sprites: use Monsters::new() for exact same seeds as spawn_world
+                let resolved_monsters = lod::game::monster::Monsters::new(
+                    game_assets.lod_manager(),
+                    &load_request.map_name.to_string(),
+                ).ok();
+                if let Some(ref monsters) = resolved_monsters {
+                    for m in monsters.iter() {
+                        for root in [m.standing_sprite.clone(), m.walking_sprite.clone()] {
+                            let key = format!("{}@v{}", root, m.variant);
+                            if seen.insert(key) {
+                                sprite_roots.push((root, m.variant));
                             }
                         }
                     }
                 }
+                progress.resolved_monsters = resolved_monsters;
 
                 progress.preload_queue = Some(PreloadQueue {
                     sprite_roots,
@@ -988,6 +989,8 @@ fn loading_step(
                     decorations: progress.decorations.take()
                         .unwrap_or_else(lod::game::decorations::Decorations::empty),
                     actors,
+                    resolved_actors: progress.resolved_actors.take(),
+                    resolved_monsters: progress.resolved_monsters.take(),
                     start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
                     billboard_cache: progress.billboard_cache.take().unwrap_or_default(),

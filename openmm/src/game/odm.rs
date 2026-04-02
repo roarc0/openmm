@@ -204,14 +204,14 @@ fn spawn_world(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
-    prepared: Option<Res<PreparedWorld>>,
+    mut prepared: Option<ResMut<PreparedWorld>>,
     game_assets: Res<GameAssets>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
     world_state: Res<crate::game::world_state::WorldState>,
     mut music_events: bevy::ecs::message::MessageWriter<crate::game::sound::music::PlayMusicEvent>,
 ) {
-    let Some(prepared) = prepared else {
+    let Some(prepared) = prepared.as_mut() else {
         // No outdoor PreparedWorld — this is an indoor map, skip outdoor spawning
         return;
     };
@@ -348,21 +348,10 @@ fn spawn_world(
 
     let decorations = prepared.decorations.clone();
 
-    // Resolve monsters from spawn points using current map (not save_data which may lag)
-    let monsters = lod::game::monster::Monsters::new(
-        game_assets.lod_manager(),
-        &world_state.map.name.to_string(),
-    ).unwrap_or_else(|e| {
-        warn!("Failed to resolve monsters for {}: {}", world_state.map.name, e);
-        lod::game::monster::Monsters::default_empty()
-    });
-
-    // Pre-resolve DDM actors (NPCs) for this map using the lod Actors abstraction.
-    let actors = lod::game::actors::Actors::new(
-        game_assets.lod_manager(),
-        &world_state.map.name.to_string(),
-        None,
-    ).ok();
+    // Reuse Actors and Monsters resolved during preloading — avoids duplicate LOD parsing.
+    let monsters = prepared.resolved_monsters.take()
+        .unwrap_or_else(lod::game::monster::Monsters::default_empty);
+    let actors = prepared.resolved_actors.take();
 
     // Sort spawn order by distance from player (closest first)
     let player_spawn = Vec3::new(
