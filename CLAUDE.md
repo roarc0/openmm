@@ -96,6 +96,8 @@ This project will be maintained and extended over years. Taking shortcuts now me
 
 Always separate concerns: `lod` owns data parsing, `openmm` owns rendering and gameplay. Within `openmm`, each plugin owns one system (rendering, AI, input, audio). Avoid monolithic systems that do too much. If a system needs many unrelated resources, it is doing too much.
 
+Bevy-specific: systems communicate via `Commands`, events, and resources — not by reaching directly into unrelated entities or calling other systems. Parsing logic in `lod` must be pure (same input → same output, no side effects). Prefer `Result`/`Option` over panicking in library code; `unwrap()` is only acceptable when the case is truly unreachable and a comment explains why. Avoid `unsafe` unless there is no alternative; document the invariant it relies on.
+
 ### Rule 7: Logging is cheap, use it
 
 Logging debug/info/warn/error is fine and encouraged — the logger level can be adjusted. Logs are invaluable for diagnosing gameplay issues without a debugger attached.
@@ -103,6 +105,28 @@ Logging debug/info/warn/error is fine and encouraged — the logger level can be
 ### Rule 8: Document engine findings
 
 Document what each file and format does, how it is structured in raw LOD data, and what each field means. Add details to the `docs/` folder. Once a field is understood, lock it down with a test.
+
+### Rule 9: Know when to create a new file
+
+Before adding significant code to an existing file, ask: does this belong here, or does it deserve its own module? A new `.rs` file is warranted when:
+- The new type or system has a distinct responsibility not already represented in the file (e.g. a new `minimap.rs` rather than appending minimap logic to `hud.rs`)
+- The code is reusable and might be imported from multiple places — shared utilities, data types, or helpers should be isolated, not buried
+- The existing file would grow large enough that finding things becomes difficult (rough heuristic: >300 lines is a signal worth noticing)
+- The code enforces a different abstraction boundary (e.g. a new parser in `lod/` rather than tacking it onto an unrelated module)
+
+Conversely, do **not** create a file just to have one. A 20-line helper that is only used in one place belongs in that file, not in its own module. Premature splitting fragments context and makes the codebase harder to navigate.
+
+The test: if you can describe the new file in one sentence with a clear noun — "manages door animation state", "parses the NPC name table" — it probably earns its own file. If the description is vague or just "helpers", keep it inline.
+
+### Rule 10: Review before you ship
+
+Before marking a task done, re-read the diff with fresh eyes:
+- Does every public function and type have a name that explains what it does without a comment?
+- Is there dead code, unused imports, or `todo!()` left behind?
+- Did you `cargo clippy` and address all warnings?
+- Does `make lint` pass cleanly?
+
+A clean diff is a sign of respect for the next person who reads it — which is often you, six months later.
 
 ### Coordinate conversion
 
