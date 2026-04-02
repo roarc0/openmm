@@ -1,4 +1,4 @@
-.PHONY: build run release check clippy fmt test lint clean dump_assets dump_sounds
+j.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds
 
 # --- Build ---
 
@@ -25,6 +25,10 @@ check:
 
 clippy:
 	cargo clippy --workspace -- -W clippy::all
+
+fix:
+	cargo clippy --fix --allow-dirty --workspace -- -W clippy::all
+	cargo fmt --all
 
 fmt:
 	cargo fmt --all

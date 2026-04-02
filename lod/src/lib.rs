@@ -27,10 +27,10 @@ pub mod doverlay;
 pub mod dsft;
 pub mod dsounds;
 pub mod enums;
+pub mod image;
 pub mod snd;
 pub mod terrain;
 pub mod tft;
-pub mod image;
 
 // ── Game-engine API (decoded, game-ready assets) ──────────────────────────
 pub mod game;
@@ -56,7 +56,10 @@ impl LodManager {
         let game_dir = path.as_ref().to_path_buf();
         let lod_files = Self::list_lod_files(&game_dir)?;
         let lod_map = Self::create_lod_file_map(lod_files)?;
-        Ok(Self { lods: lod_map, game_dir })
+        Ok(Self {
+            lods: lod_map,
+            game_dir,
+        })
     }
 
     pub fn game_dir(&self) -> &Path {
@@ -73,19 +76,17 @@ impl LodManager {
         for entry in entries {
             let entry = entry?;
             let file_name = entry.file_name();
-            if let Some(name) = file_name.to_str() {
-                if name.to_lowercase().ends_with(".lod") {
-                    lod_files.push(Path::join(path.as_ref(), name));
-                }
+            if let Some(name) = file_name.to_str()
+                && name.to_lowercase().ends_with(".lod")
+            {
+                lod_files.push(Path::join(path.as_ref(), name));
             }
         }
 
         Ok(lod_files)
     }
 
-    fn create_lod_file_map(
-        lod_files: Vec<PathBuf>,
-    ) -> Result<HashMap<String, Lod>, Box<dyn Error>> {
+    fn create_lod_file_map(lod_files: Vec<PathBuf>) -> Result<HashMap<String, Lod>, Box<dyn Error>> {
         let mut lod_file_map: HashMap<String, Lod> = HashMap::new();
 
         for path in lod_files.iter() {
@@ -118,10 +119,9 @@ impl LodManager {
             .ok_or("invalid lod entry")?
             .to_string_lossy()
             .to_string();
-        let lod_data = lod.try_get_bytes(&lod_entry).ok_or(format!(
-            "unable to open lod entry {:?}",
-            path.as_ref().to_str()
-        ))?;
+        let lod_data = lod
+            .try_get_bytes(&lod_entry)
+            .ok_or(format!("unable to open lod entry {:?}", path.as_ref().to_str()))?;
         Ok(lod_data)
     }
 
@@ -135,10 +135,7 @@ impl LodManager {
     }
 
     pub fn palettes(&self) -> Result<Palettes, Box<dyn Error>> {
-        let bitmaps_lod = self
-            .lods
-            .get("bitmaps")
-            .ok_or("expected to have bitmaps.lod")?;
+        let bitmaps_lod = self.lods.get("bitmaps").ok_or("expected to have bitmaps.lod")?;
         let palettes = palette::Palettes::try_from(bitmaps_lod)?;
         Ok(palettes)
     }
@@ -209,6 +206,28 @@ fn default_lod_path() -> String {
     "./target/mm6/data".into()
 }
 
+/// Returns `Some(LodManager)` when MM6 game data is present, or `None` otherwise.
+/// Tests that call this and get `None` should return early — the data is simply not
+/// available in this environment (e.g. CI). This is the standard way to write
+/// game-data-dependent tests in this crate.
+///
+/// ```ignore
+/// #[test]
+/// fn my_test() {
+///     let Some(lod) = test_lod() else { return; };
+///     // ... use lod
+/// }
+/// ```
+#[cfg(test)]
+pub(crate) fn test_lod() -> Option<LodManager> {
+    let path = get_lod_path();
+    if !Path::new(&path).exists() {
+        eprintln!("test: MM6 game data not found at '{path}' — skipping");
+        return None;
+    }
+    LodManager::new(path).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,24 +285,36 @@ mod tests {
         let st_group = &ghost_b.sprite_names[0];
 
         // Find DSFT palette_id for this group
-        let frame = dsft.frames.iter().find(|f| {
-            f.group_name().map(|g| g.eq_ignore_ascii_case(st_group)).unwrap_or(false)
-        }).expect("DSFT frame for ghost B");
+        let frame = dsft
+            .frames
+            .iter()
+            .find(|f| {
+                f.group_name()
+                    .map(|g| g.eq_ignore_ascii_case(st_group))
+                    .unwrap_or(false)
+            })
+            .expect("DSFT frame for ghost B");
         assert!(frame.palette_id > 0, "ghost B should have non-zero DSFT palette");
 
         // Derive the sprite root from DSFT sprite name
         let sprite_name = frame.sprite_name().unwrap();
         let root = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
-        let root = if root.len() > 1 && root.as_bytes()[root.len() - 1] >= b'a' && root.as_bytes()[root.len() - 1] <= b'f' {
-            &root[..root.len() - 1]
-        } else {
-            root
-        };
+        let root =
+            if root.len() > 1 && root.as_bytes()[root.len() - 1] >= b'a' && root.as_bytes()[root.len() - 1] <= b'f' {
+                &root[..root.len() - 1]
+            } else {
+                root
+            };
         let test_sprite = format!("{}a0", root);
 
         // Load with default palette and DSFT palette
-        let default_img = lod_manager.game().sprite(&test_sprite).expect("ghost sprite with default palette");
-        let dsft_img = lod_manager.game().sprite_with_palette(&test_sprite, frame.palette_id as u16)
+        let default_img = lod_manager
+            .game()
+            .sprite(&test_sprite)
+            .expect("ghost sprite with default palette");
+        let dsft_img = lod_manager
+            .game()
+            .sprite_with_palette(&test_sprite, frame.palette_id as u16)
             .expect("ghost sprite with DSFT palette");
 
         // Both should be the same dimensions

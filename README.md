@@ -142,19 +142,66 @@ After building, run the executable:
 
 ## Developer Console
 
-Press **Tab** to open the console. Available commands:
+Press **Tab** to open the console (requires `console = true` in `openmm.toml`).
+
+**Navigation**
 
 | Command | Description |
 |---------|-------------|
 | `load <map>` | Load an outdoor map (`oute3`, `outb2`, …) or indoor dungeon (`d01`–`d20`, and more) |
-| `msaa <0\|2\|4\|8>` | Set MSAA sample count |
+| `reload` | Reload the current map |
+| `go <north\|south\|east\|west>` | Move to the adjacent outdoor zone |
+| `pos` | Print current position and yaw |
+
+**Player**
+
+| Command | Description |
+|---------|-------------|
+| `fly` | Toggle fly mode (no gravity, free vertical movement) |
+| `speed <value>` | Set movement speed (default 2048) |
+| `sensitivity <value>` | Set mouse sensitivity |
+
+**Rendering**
+
+| Command | Description |
+|---------|-------------|
 | `lighting <enhanced\|flat>` | Toggle PBR / unlit rendering |
 | `fog <start> <end>` | Set fog distances |
+| `draw_distance <value>` | Set entity draw distance |
+| `msaa <off\|2\|4\|8>` | Set MSAA sample count |
+| `wireframe` | Toggle wireframe mode |
+| `shadows` | Toggle shadows |
+| `bloom` | Toggle bloom |
+| `ssao` | Toggle ambient occlusion |
+| `filtering <nearest\|linear>` | Set global texture filtering |
+| `tonemapping <none\|aces\|agx\|…>` | Set tonemapping operator |
+| `exposure <value>` | Set camera exposure |
+
+**Audio**
+
+| Command | Description |
+|---------|-------------|
 | `music <vol>` | Set music volume (0.0–1.0) |
-| `sfx <vol>` | Set sound effects volume |
-| `fullscreen` | Toggle fullscreen |
-| `borderless` | Toggle borderless window |
+| `sfx <vol>` | Set sound effects volume (0.0–1.0) |
+| `mute` | Mute all audio |
+| `unmute` | Unmute all audio |
+
+**Window**
+
+| Command | Description |
+|---------|-------------|
+| `fullscreen` | Switch to fullscreen |
+| `borderless` | Switch to borderless fullscreen |
 | `windowed` | Switch to windowed mode |
+| `vsync <on\|off\|fast>` | Set vsync mode |
+
+**Debug / Misc**
+
+| Command | Description |
+|---------|-------------|
+| `debug` | Toggle debug HUD overlay |
+| `clear` | Clear console output |
+| `help` | List all available commands |
 | `exit` | Quit the game |
 
 Type `help` in-game for the current full list.
