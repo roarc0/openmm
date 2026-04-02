@@ -46,8 +46,10 @@ impl GameFonts {
         for name in lod.font_names() {
             let fnt_file = format!("{}.fnt", name);
             if let Some(font) = lod.font(&fnt_file) {
-                info!("Loaded font '{}' (height={}, chars={}..{})",
-                    name, font.height, font.first_char, font.last_char);
+                info!(
+                    "Loaded font '{}' (height={}, chars={}..{})",
+                    name, font.height, font.first_char, font.last_char
+                );
                 fonts.insert(name, font);
             }
         }
@@ -62,10 +64,7 @@ impl GameFonts {
     /// Measure the pixel width of a text string using the named font.
     /// Returns 0 if the font is not found.
     pub fn measure(&self, text: &str, font_name: &str) -> i32 {
-        self.fonts
-            .get(font_name)
-            .map(|f| f.measure(text))
-            .unwrap_or(0)
+        self.fonts.get(font_name).map(|f| f.measure(text)).unwrap_or(0)
     }
 
     /// Render text to a Bevy `Image` handle using the named font.

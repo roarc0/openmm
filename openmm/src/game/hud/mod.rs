@@ -26,7 +26,6 @@ use minimap::*;
 #[derive(Component)]
 pub(super) struct HudUI;
 
-
 /// Which view the HUD is currently displaying.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HudView {
@@ -73,10 +72,7 @@ impl Plugin for HudPlugin {
 
 /// Pause/unpause virtual time based on HudView.
 /// Runs every frame to enforce the invariant (not just on change).
-fn freeze_system(
-    view: Res<HudView>,
-    mut time: ResMut<Time<Virtual>>,
-) {
+fn freeze_system(view: Res<HudView>, mut time: ResMut<Time<Virtual>>) {
     if matches!(*view, HudView::World) {
         time.unpause();
     } else {
@@ -114,10 +110,20 @@ fn spawn_hud(
     let border3 = ui_assets.get_or_load("border3", &game_assets, &mut images, &cfg);
     let border4 = ui_assets.get_or_load("border4", &game_assets, &mut images, &cfg);
     let border5 = ui_assets.get_or_load_transformed(
-        "border5", "border5_transparent", &game_assets, &mut images, &cfg, make_black_transparent,
+        "border5",
+        "border5_transparent",
+        &game_assets,
+        &mut images,
+        &cfg,
+        make_black_transparent,
     );
     let border6 = ui_assets.get_or_load_transformed(
-        "border6", "border6_transparent", &game_assets, &mut images, &cfg, make_black_transparent,
+        "border6",
+        "border6_transparent",
+        &game_assets,
+        &mut images,
+        &cfg,
+        make_black_transparent,
     );
     let footer = ui_assets.get_or_load("footer", &game_assets, &mut images, &cfg);
 
@@ -127,14 +133,7 @@ fn spawn_hud(
         .filter_map(|i| {
             let name = format!("tap{}", i);
             let key = format!("{}_transparent", name);
-            ui_assets.get_or_load_transformed(
-                &name,
-                &key,
-                &game_assets,
-                &mut images,
-                &cfg,
-                make_tap_key_transparent,
-            )
+            ui_assets.get_or_load_transformed(&name, &key, &game_assets, &mut images, &cfg, make_tap_key_transparent)
         })
         .collect();
     let tap_frame = tap_handles.first().cloned();
@@ -152,14 +151,7 @@ fn spawn_hud(
         .filter_map(|i| {
             let name = format!("mapdir{}", i);
             let key = format!("{}_transparent", name);
-            ui_assets.get_or_load_transformed(
-                &name,
-                &key,
-                &game_assets,
-                &mut images,
-                &cfg,
-                make_black_transparent,
-            )
+            ui_assets.get_or_load_transformed(&name, &key, &game_assets, &mut images, &cfg, make_black_transparent)
         })
         .collect();
     let default_arrow = arrow_handles.first().cloned();
@@ -585,7 +577,7 @@ fn update_hud_layout(
 ) {
     let Ok(window) = windows.single() else { return };
     let sf = window.scale_factor();
-    let (_, _, lpw, lph) = letterbox_rect(&window, &cfg);
+    let (_, _, lpw, lph) = letterbox_rect(window, &cfg);
     let lw = lpw as f32 / sf;
     let lh = lph as f32 / sf;
     let d = hud_dimensions(lw, lh, &ui_assets);
@@ -704,4 +696,3 @@ fn update_hud_layout(
         node.height = Val::Px(d.compass_h);
     }
 }
-

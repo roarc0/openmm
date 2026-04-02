@@ -5,9 +5,7 @@ use crate::config::GameConfig;
 use crate::ui_assets::UiAssets;
 
 use super::HudView;
-use super::borders::{
-    FOOTER_EXPOSED_H, hud_dimensions, letterbox_rect,
-};
+use super::borders::{FOOTER_EXPOSED_H, hud_dimensions, letterbox_rect};
 
 /// Resource holding the image to display as a fullscreen overlay in the viewport area.
 /// Insert this resource (and set HudView to a non-World variant) to show an overlay.
@@ -73,7 +71,7 @@ pub(super) fn spawn_overlay(
     }
     let Ok(window) = windows.single() else { return };
 
-    let (left, top, width, height) = viewport_inner_rect(&window, &cfg, &ui_assets);
+    let (left, top, width, height) = viewport_inner_rect(window, &cfg, &ui_assets);
 
     commands.spawn((
         Name::new("overlay_ui"),
@@ -114,7 +112,7 @@ pub(super) fn update_overlay_layout(
     mut query: Query<&mut Node, With<OverlayUI>>,
 ) {
     let Ok(window) = windows.single() else { return };
-    let (left, top, width, height) = viewport_inner_rect(&window, &cfg, &ui_assets);
+    let (left, top, width, height) = viewport_inner_rect(window, &cfg, &ui_assets);
 
     for mut node in query.iter_mut() {
         node.left = Val::Px(left);
@@ -139,7 +137,7 @@ pub(super) fn spawn_npc_portrait(
     }
     let Some(portrait) = portrait else { return };
     let Ok(window) = windows.single() else { return };
-    let (left, top, _, _) = viewport_inner_rect(&window, &cfg, &ui_assets);
+    let (left, top, _, _) = viewport_inner_rect(window, &cfg, &ui_assets);
 
     // Display at 2× native size so the portrait is readable
     let w = portrait.size.x * 2.0;

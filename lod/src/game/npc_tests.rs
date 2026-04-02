@@ -18,7 +18,7 @@ fn npc_name_pool_classify_name() {
     let data = b"Male\tFemale\nJohn\tJane\nBob\tAlice\n";
     let pool = NpcNamePool::parse(data).unwrap();
     assert_eq!(pool.classify_name("John"), Some(false)); // male
-    assert_eq!(pool.classify_name("Jane"), Some(true));  // female
+    assert_eq!(pool.classify_name("Jane"), Some(true)); // female
     assert_eq!(pool.classify_name("Unknown"), None);
     // Case insensitive
     assert_eq!(pool.classify_name("JOHN"), Some(false));
@@ -55,7 +55,7 @@ fn street_npc_table_parse_synthetic() {
 fn street_npc_table_get_invalid_id_returns_none() {
     let data = b"h1\nh2\n1\tFoo\t10\t0\t0\t0\t0\t52\n";
     let table = StreetNpcs::parse(data, None).unwrap();
-    assert!(table.get(0).is_none());  // id must be > 0
+    assert!(table.get(0).is_none()); // id must be > 0
     assert!(table.get(-1).is_none()); // negative id
     assert!(table.get(99).is_none()); // non-existent
 }

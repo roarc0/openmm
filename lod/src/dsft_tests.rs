@@ -176,9 +176,9 @@ fn monster_variants_resolve_through_dsft() {
             palette_ids.push((dif, frame.palette_id));
 
             // The DSFT sprite_name should resolve to a real file in the LOD
-            let sprite_name = frame.sprite_name().unwrap_or_else(|| {
-                panic!("{} {} DSFT frame should have sprite name", monster_name, variant_letter)
-            });
+            let sprite_name = frame
+                .sprite_name()
+                .unwrap_or_else(|| panic!("{} {} DSFT frame should have sprite name", monster_name, variant_letter));
             let root = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
             let root = if root.ends_with(|c: char| c >= 'a' && c <= 'f') {
                 &root[..root.len() - 1]

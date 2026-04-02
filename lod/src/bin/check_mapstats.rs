@@ -6,8 +6,15 @@ fn main() {
 
     println!("All maps with music tracks:");
     for map in &mapstats.maps {
-        println!("  {:20} {:20} track={} lock={} trap={} treasure={} encounter={}%",
-            map.filename, map.name, map.music_track, map.lock, map.trap_d20_count,
-            map.treasure_level, map.encounter_chance);
+        println!(
+            "  {:20} {:20} track={} lock={} trap={} treasure={} encounter={}%",
+            map.filename,
+            map.name,
+            map.music_track,
+            map.lock,
+            map.trap_d20_count,
+            map.treasure_level,
+            map.encounter_chance
+        );
     }
 }

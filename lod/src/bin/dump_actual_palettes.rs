@@ -1,25 +1,22 @@
+use byteorder::{LittleEndian, ReadBytesExt};
 use lod::LodManager;
 use std::io::{Cursor, Seek};
-use byteorder::{LittleEndian, ReadBytesExt};
 
 fn main() {
     let lod_path = lod::get_lod_path();
     let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
-    
+
     let sprite_names = vec![
         // Goblins (all variants share the same sprites!)
-        "gobsta0", "gobwaa0", "gobata0",
-        // Barbarians
-        "bar1sta0", "bar1waa0", "bar1ata0",
-        "bar2sta0", "bar2waa0", "bar2ata0",
-        "bar3sta0", "bar3waa0", "bar3ata0",
+        "gobsta0", "gobwaa0", "gobata0", // Barbarians
+        "bar1sta0", "bar1waa0", "bar1ata0", "bar2sta0", "bar2waa0", "bar2ata0", "bar3sta0", "bar3waa0", "bar3ata0",
     ];
-    
+
     println!("Actual Sprite Palette IDs:");
     println!();
-    
+
     for name in sprite_names {
-        match lod_manager.try_get_bytes(&format!("sprites/{}", name)) {
+        match lod_manager.try_get_bytes(format!("sprites/{}", name)) {
             Ok(data) => {
                 if data.len() > 28 {
                     let mut cursor = Cursor::new(data);

@@ -7,12 +7,7 @@ use bevy::{
 use std::collections::HashMap;
 
 use crate::{
-    assets::GameAssets,
-    config::GameConfig,
-    despawn_all,
-    game::map_name::MapName,
-    game::odm::OdmName,
-    GameState,
+    GameState, assets::GameAssets, config::GameConfig, despawn_all, game::map_name::MapName, game::odm::OdmName,
 };
 use lod::{
     blv::Blv,
@@ -165,8 +160,6 @@ pub struct PreparedSubMesh {
     pub texture: Option<Image>,
 }
 
-
-
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 enum LoadingStep {
     #[default]
@@ -266,15 +259,20 @@ fn loading_setup(
     let (map_name, spawn_position, spawn_yaw) = if let Some(r) = load_request {
         (r.map_name.clone(), r.spawn_position, r.spawn_yaw)
     } else {
-        let name = cfg.map.as_ref().and_then(|m| {
-            MapName::try_from(m.as_str())
-                .inspect_err(|e| eprintln!("warning: invalid map in config: {e}"))
-                .ok()
-        })
-        .unwrap_or_else(|| MapName::Outdoor(OdmName {
-            x: save_data.map.map_x,
-            y: save_data.map.map_y,
-        }));
+        let name = cfg
+            .map
+            .as_ref()
+            .and_then(|m| {
+                MapName::try_from(m.as_str())
+                    .inspect_err(|e| eprintln!("warning: invalid map in config: {e}"))
+                    .ok()
+            })
+            .unwrap_or_else(|| {
+                MapName::Outdoor(OdmName {
+                    x: save_data.map.map_x,
+                    y: save_data.map.map_y,
+                })
+            });
         (name, None, None)
     };
 
@@ -302,14 +300,18 @@ fn loading_setup(
         sprite_cache: None,
         billboard_cache: None,
         water_cells: None,
-            terrain_lookup: None,
+        terrain_lookup: None,
         music_track: 0,
         blv: None,
         preload_queue: None,
     });
 
     // Keep the load request around as context (preserve spawn position from MoveToMap)
-    commands.insert_resource(LoadRequest { map_name, spawn_position, spawn_yaw });
+    commands.insert_resource(LoadRequest {
+        map_name,
+        spawn_position,
+        spawn_yaw,
+    });
 
     // Spawn loading screen with loading.pcx background from LOD
     commands.spawn((Camera2d, InLoading));
@@ -384,13 +386,10 @@ fn loading_step(
                         Ok(tile_table) => {
                             // Build water map from tile data
                             if let Ok(dtile) = Dtile::new(game_assets.lod_manager()) {
-                                let water_cells: Vec<bool> = odm.tile_map.iter()
-                                    .map(|&idx| dtile.is_deep_water_tile(idx))
-                                    .collect();
+                                let water_cells: Vec<bool> =
+                                    odm.tile_map.iter().map(|&idx| dtile.is_deep_water_tile(idx)).collect();
                                 progress.water_cells = Some(water_cells);
-                                progress.terrain_lookup = Some(
-                                    lod::terrain::TerrainLookup::new(&dtile, odm.tile_data)
-                                );
+                                progress.terrain_lookup = Some(lod::terrain::TerrainLookup::new(&dtile, odm.tile_data));
                             }
                             // Load actors from DDM
                             let actors = Ddm::new(game_assets.lod_manager(), &map_name)
@@ -404,23 +403,18 @@ fn loading_step(
                         }
                         Err(e) => {
                             error!("Failed to load tile table: {}", e);
-                            return;
                         }
                     }
                 }
                 Err(e) => {
                     error!("Failed to parse map {}: {}", map_name, e);
-                    return;
                 }
             }
         }
         LoadingStep::BuildTerrain => {
             if let (Some(odm), Some(tile_table)) = (&progress.odm, &progress.tile_table) {
                 let odm_data = OdmData::new(odm, tile_table);
-                let mut mesh = Mesh::new(
-                    PrimitiveTopology::TriangleList,
-                    RenderAssetUsages::RENDER_WORLD,
-                );
+                let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
                 mesh.insert_indices(Indices::U32(odm_data.indices.clone()));
                 mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, odm_data.positions.clone());
                 mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, odm_data.normals.clone());
@@ -442,20 +436,16 @@ fn loading_step(
                         progress.water_mask = Some(crate::assets::dynamic_to_bevy_image(mask));
 
                         // Load water texture
-                        progress.water_texture = game_assets
-                            .game_lod()
-                            .bitmap("wtrtyl")
-                            .map(|img| {
-                                let mut water_img = crate::assets::dynamic_to_bevy_image(img);
-                                water_img.sampler = crate::assets::repeat_sampler();
-                                water_img
-                            });
+                        progress.water_texture = game_assets.game_lod().bitmap("wtrtyl").map(|img| {
+                            let mut water_img = crate::assets::dynamic_to_bevy_image(img);
+                            water_img.sampler = crate::assets::repeat_sampler();
+                            water_img
+                        });
 
                         progress.step = progress.step.next();
                     }
                     Err(e) => {
                         error!("Failed to build atlas: {}", e);
-                        return;
                     }
                 }
             }
@@ -465,7 +455,9 @@ fn loading_step(
                 // Indoor: build meshes from BLV faces
                 let mut texture_sizes: HashMap<String, (u32, u32)> = HashMap::new();
                 for name in &blv.texture_names {
-                    if name.is_empty() || texture_sizes.contains_key(name) { continue; }
+                    if name.is_empty() || texture_sizes.contains_key(name) {
+                        continue;
+                    }
                     if let Some(img) = game_assets.game_lod().bitmap(name) {
                         texture_sizes.insert(name.clone(), (img.width(), img.height()));
                     }
@@ -477,14 +469,8 @@ fn loading_step(
                     blv.door_count,
                     blv.doors_data_size,
                 );
-                let dlv_actors = dlv_result
-                    .as_ref()
-                    .map(|d| d.actors.clone())
-                    .unwrap_or_default();
-                let mut dlv_doors = dlv_result
-                    .as_ref()
-                    .map(|d| d.doors.clone())
-                    .unwrap_or_default();
+                let dlv_actors = dlv_result.as_ref().map(|d| d.actors.clone()).unwrap_or_default();
+                let mut dlv_doors = dlv_result.as_ref().map(|d| d.doors.clone()).unwrap_or_default();
 
                 // Fill in any doors missing face/vertex data from BLV geometry.
                 // Some DLV files have fully populated door data; others need
@@ -513,12 +499,11 @@ fn loading_step(
                         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, dfm.uvs);
                         // Skip generate_tangents — door vertices are animated and
                         // tangents would become stale. Not needed for flat surfaces.
-                        let texture = game_assets.game_lod().bitmap(&dfm.texture_name)
-                            .map(|img| {
-                                let mut image = crate::assets::dynamic_to_bevy_image(img);
-                                image.sampler = crate::assets::repeat_sampler();
-                                image
-                            });
+                        let texture = game_assets.game_lod().bitmap(&dfm.texture_name).map(|img| {
+                            let mut image = crate::assets::dynamic_to_bevy_image(img);
+                            image.sampler = crate::assets::repeat_sampler();
+                            image
+                        });
                         PreparedDoorFace {
                             face_index: dfm.face_index,
                             door_index: dfm.door_index,
@@ -544,18 +529,23 @@ fn loading_step(
                     .collect();
 
                 // Collect clickable faces
-                let clickable_faces: Vec<ClickableFaceData> = blv.faces.iter().enumerate()
+                let clickable_faces: Vec<ClickableFaceData> = blv
+                    .faces
+                    .iter()
+                    .enumerate()
                     .filter(|(_, f)| f.is_clickable() && f.event_id != 0 && f.num_vertices >= 3)
                     .filter_map(|(i, face)| {
-                        let verts: Vec<Vec3> = face.vertex_ids.iter()
+                        let verts: Vec<Vec3> = face
+                            .vertex_ids
+                            .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(lod::odm::mm6_to_bevy(
-                                    v.x as i32, v.y as i32, v.z as i32,
-                                )))
+                                Some(Vec3::from(lod::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                             })
                             .collect();
-                        if verts.len() < 3 { return None; }
+                        if verts.len() < 3 {
+                            return None;
+                        }
                         let mm6n = face.normal_f32();
                         let normal = Vec3::new(mm6n[0], mm6n[2], -mm6n[1]);
                         let plane_dist = normal.dot(verts[0]);
@@ -570,18 +560,23 @@ fn loading_step(
                     .collect();
 
                 // Collect touch-triggered faces (EVENT_BY_TOUCH flag)
-                let touch_trigger_faces: Vec<TouchTriggerFaceData> = blv.faces.iter().enumerate()
+                let touch_trigger_faces: Vec<TouchTriggerFaceData> = blv
+                    .faces
+                    .iter()
+                    .enumerate()
                     .filter(|(_, f)| f.is_touch_trigger() && f.event_id != 0 && f.num_vertices >= 3)
                     .filter_map(|(i, face)| {
-                        let verts: Vec<Vec3> = face.vertex_ids.iter()
+                        let verts: Vec<Vec3> = face
+                            .vertex_ids
+                            .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(lod::odm::mm6_to_bevy(
-                                    v.x as i32, v.y as i32, v.z as i32,
-                                )))
+                                Some(Vec3::from(lod::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                             })
                             .collect();
-                        if verts.len() < 3 { return None; }
+                        if verts.len() < 3 {
+                            return None;
+                        }
                         let center = verts.iter().copied().sum::<Vec3>() / verts.len() as f32;
                         // Use half bounding box diagonal as trigger radius
                         let min = verts.iter().copied().reduce(|a, b| a.min(b))?;
@@ -597,36 +592,35 @@ fn loading_step(
                     .collect();
 
                 let models = vec![PreparedModel {
-                    sub_meshes: textured.into_iter().map(|tm| {
-                        let mut mesh = Mesh::new(
-                            PrimitiveTopology::TriangleList,
-                            RenderAssetUsages::RENDER_WORLD,
-                        );
-                        mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, tm.positions);
-                        mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, tm.normals);
-                        mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, tm.uvs);
-                        _ = mesh.generate_tangents();
-                        let texture = game_assets.game_lod().bitmap(&tm.texture_name)
-                            .map(|img| {
+                    sub_meshes: textured
+                        .into_iter()
+                        .map(|tm| {
+                            let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
+                            mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, tm.positions);
+                            mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, tm.normals);
+                            mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, tm.uvs);
+                            _ = mesh.generate_tangents();
+                            let texture = game_assets.game_lod().bitmap(&tm.texture_name).map(|img| {
                                 let mut image = crate::assets::dynamic_to_bevy_image(img);
                                 image.sampler = crate::assets::repeat_sampler();
                                 image
                             });
-                        PreparedSubMesh {
-                            mesh,
-                            material: StandardMaterial {
-                                base_color: Color::WHITE,
-                                alpha_mode: AlphaMode::Opaque,
-                                cull_mode: None,
-                                double_sided: true,
-                                perceptual_roughness: 1.0,
-                                reflectance: 0.0,
-                                metallic: 0.0,
-                                ..default()
-                            },
-                            texture,
-                        }
-                    }).collect(),
+                            PreparedSubMesh {
+                                mesh,
+                                material: StandardMaterial {
+                                    base_color: Color::WHITE,
+                                    alpha_mode: AlphaMode::Opaque,
+                                    cull_mode: None,
+                                    double_sided: true,
+                                    perceptual_roughness: 1.0,
+                                    reflectance: 0.0,
+                                    metallic: 0.0,
+                                    ..default()
+                                },
+                                texture,
+                            }
+                        })
+                        .collect(),
                     name: "blv_faces".to_string(),
                     position: Vec3::ZERO,
                     event_ids: vec![],
@@ -649,32 +643,43 @@ fn loading_step(
                         .flat_map(|c| (1..=3).map(move |n| format!("out{}{}", c, n)))
                         .collect();
                     let evt_entry = outdoor_bases.iter().find_map(|base| {
-                        lod::evt::EvtFile::parse(game_assets.lod_manager(), base).ok().and_then(|evt| {
-                            evt.events.values().flatten().find_map(|s| {
-                                if let lod::evt::GameEvent::MoveToMap { x, y, z, direction, map_name } = &s.event {
-                                    if map_name.eq_ignore_ascii_case(&blv_name) {
-                                        Some((*x, *y, *z, *direction))
+                        lod::evt::EvtFile::parse(game_assets.lod_manager(), base)
+                            .ok()
+                            .and_then(|evt| {
+                                evt.events.values().flatten().find_map(|s| {
+                                    if let lod::evt::GameEvent::MoveToMap {
+                                        x,
+                                        y,
+                                        z,
+                                        direction,
+                                        map_name,
+                                    } = &s.event
+                                    {
+                                        if map_name.eq_ignore_ascii_case(&blv_name) {
+                                            Some((*x, *y, *z, *direction))
+                                        } else {
+                                            None
+                                        }
                                     } else {
                                         None
                                     }
-                                } else {
-                                    None
-                                }
+                                })
                             })
-                        })
                     });
                     if let Some((x, y, z, dir)) = evt_entry {
                         let pos = Vec3::from(lod::odm::mm6_to_bevy(x, y, z));
                         let yaw = (dir as f32) * std::f32::consts::TAU / 65536.0;
-                        info!("Indoor spawn from EVT self-MoveToMap: mm6=({},{},{}) dir={}", x, y, z, dir);
+                        info!(
+                            "Indoor spawn from EVT self-MoveToMap: mm6=({},{},{}) dir={}",
+                            x, y, z, dir
+                        );
                         (pos, yaw)
                     } else {
                         // Final fallback: center of sector with most floors
-                        let spawn_sector = blv.sectors.iter().skip(1)
-                            .max_by_key(|s| s.floor_count);
+                        let spawn_sector = blv.sectors.iter().skip(1).max_by_key(|s| s.floor_count);
                         let pos = if let Some(sector) = spawn_sector {
-                            let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2) as i32;
-                            let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2) as i32;
+                            let cx = ((sector.bbox_min[0] as i32 + sector.bbox_max[0] as i32) / 2);
+                            let cy = ((sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2);
                             let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
                             info!("Indoor spawn from sector center: floors={}", sector.floor_count);
                             Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))
@@ -692,8 +697,7 @@ fn loading_step(
                 // Extract collision geometry from BLV faces, excluding animated door faces.
                 // Door face geometry is animated separately; their collision would block
                 // the player even after a door opens.
-                let (collision_walls, collision_floors, collision_ceilings) =
-                    extract_blv_collision(blv, &door_faces);
+                let (collision_walls, collision_floors, collision_ceilings) = extract_blv_collision(blv, &door_faces);
                 let map_base = match &load_request.map_name {
                     crate::game::map_name::MapName::Indoor(name) => name.clone(),
                     _ => load_request.map_name.to_string().replace(".blv", ""),
@@ -721,11 +725,10 @@ fn loading_step(
                 let mut texture_sizes: HashMap<String, (u32, u32)> = HashMap::new();
                 for b in &odm.bsp_models {
                     for name in &b.texture_names {
-                        if !texture_sizes.contains_key(name) {
-                            if let Some(img) = game_assets.game_lod().bitmap(name) {
-                                texture_sizes
-                                    .insert(name.clone(), (img.width(), img.height()));
-                            }
+                        if !texture_sizes.contains_key(name)
+                            && let Some(img) = game_assets.game_lod().bitmap(name)
+                        {
+                            texture_sizes.insert(name.clone(), (img.width(), img.height()));
                         }
                     }
                 }
@@ -738,26 +741,18 @@ fn loading_step(
                         let sub_meshes = textured
                             .into_iter()
                             .map(|tm| {
-                                let mut mesh = Mesh::new(
-                                    PrimitiveTopology::TriangleList,
-                                    RenderAssetUsages::RENDER_WORLD,
-                                );
-                                mesh.insert_attribute(
-                                    Mesh::ATTRIBUTE_POSITION,
-                                    tm.positions,
-                                );
+                                let mut mesh =
+                                    Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
+                                mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, tm.positions);
                                 mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, tm.normals);
                                 mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, tm.uvs);
                                 _ = mesh.generate_tangents();
 
-                                let texture = game_assets
-                                    .game_lod()
-                                    .bitmap(&tm.texture_name)
-                                    .map(|img| {
-                                        let mut image = crate::assets::dynamic_to_bevy_image(img);
-                                        image.sampler = crate::assets::repeat_sampler();
-                                        image
-                                    });
+                                let texture = game_assets.game_lod().bitmap(&tm.texture_name).map(|img| {
+                                    let mut image = crate::assets::dynamic_to_bevy_image(img);
+                                    image.sampler = crate::assets::repeat_sampler();
+                                    image
+                                });
 
                                 let material = StandardMaterial {
                                     base_color: Color::srgb(1.8, 1.8, 1.8),
@@ -777,13 +772,18 @@ fn loading_step(
                                 }
                             })
                             .collect();
-                        let pos = lod::odm::mm6_to_bevy(
-                            b.header.position[0],
-                            b.header.position[1],
-                            b.header.position[2],
-                        );
-                        let mut event_ids: Vec<u16> = b.faces.iter()
-                            .filter_map(|f| if f.cog_trigger_id > 0 { Some(f.cog_trigger_id) } else { None })
+                        let pos =
+                            lod::odm::mm6_to_bevy(b.header.position[0], b.header.position[1], b.header.position[2]);
+                        let mut event_ids: Vec<u16> = b
+                            .faces
+                            .iter()
+                            .filter_map(|f| {
+                                if f.cog_trigger_id > 0 {
+                                    Some(f.cog_trigger_id)
+                                } else {
+                                    None
+                                }
+                            })
                             .collect();
                         event_ids.sort_unstable();
                         event_ids.dedup();
@@ -809,14 +809,19 @@ fn loading_step(
                 let decorations = {
                     let odm = progress.odm.as_ref().unwrap();
                     for bb in &odm.billboards {
-                        if bb.data.is_invisible() { continue; }
-                        let is_marker = bb_mgr.get_declist_item(bb.data.declist_id)
+                        if bb.data.is_invisible() {
+                            continue;
+                        }
+                        let is_marker = bb_mgr
+                            .get_declist_item(bb.data.declist_id)
                             .map(|item| item.is_marker() || item.is_no_draw())
                             .unwrap_or(false);
                         let name_lower = bb.declist_name.to_lowercase();
                         if name_lower.contains("start") || is_marker {
                             let pos = Vec3::from(lod::odm::mm6_to_bevy(
-                                bb.data.position[0], bb.data.position[1], bb.data.position[2],
+                                bb.data.position[0],
+                                bb.data.position[1],
+                                bb.data.position[2],
                             ));
                             let yaw = bb.data.direction_degrees as f32 * std::f32::consts::PI / 1024.0;
                             start_points.push(StartPoint {
@@ -827,10 +832,7 @@ fn loading_step(
                         }
                     }
                     // Decorations::new filters invisible/marker/no-draw entries automatically
-                    lod::game::decorations::Decorations::new(
-                        game_assets.lod_manager(),
-                        &odm.billboards,
-                    ).ok()
+                    lod::game::decorations::Decorations::new(game_assets.lod_manager(), &odm.billboards).ok()
                 };
                 progress.start_points = Some(start_points);
                 progress.decorations = decorations;
@@ -854,7 +856,8 @@ fn loading_step(
                     &load_request.map_name.to_string(),
                     None,
                     game_assets.game_data(),
-                ).ok();
+                )
+                .ok();
                 if let Some(ref actors) = lod_actors {
                     for actor in actors.get_actors() {
                         for root in [actor.standing_sprite.clone(), actor.walking_sprite.clone()] {
@@ -872,7 +875,8 @@ fn loading_step(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
                     game_assets.game_data(),
-                ).ok();
+                )
+                .ok();
                 if let Some(ref monsters) = resolved_monsters {
                     for m in monsters.iter() {
                         for root in [m.standing_sprite.clone(), m.walking_sprite.clone()] {
@@ -909,9 +913,16 @@ fn loading_step(
                 let mut cache = progress.sprite_cache.take().unwrap_or_default();
                 let queue = progress.preload_queue.as_mut().unwrap();
                 while queue.sprite_idx < queue.sprite_roots.len() {
-                    if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS { break; }
+                    if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS {
+                        break;
+                    }
                     let (root, variant, palette_id) = &queue.sprite_roots[queue.sprite_idx];
-                    cache.preload(&[(root.as_str(), *variant, *palette_id)], game_assets.lod_manager(), &mut images, &mut materials);
+                    cache.preload(
+                        &[(root.as_str(), *variant, *palette_id)],
+                        game_assets.lod_manager(),
+                        &mut images,
+                        &mut materials,
+                    );
                     queue.sprite_idx += 1;
                 }
                 progress.sprite_cache = Some(cache);
@@ -930,12 +941,20 @@ fn loading_step(
                         let queue = progress.preload_queue.as_mut().unwrap();
                         {
                             while queue.billboard_idx < decs.len() {
-                                if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS { break; }
+                                if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS {
+                                    break;
+                                }
                                 let dec = &decs.entries()[queue.billboard_idx];
                                 queue.billboard_idx += 1;
-                                if dec.is_directional { continue; } // directional sprites loaded at spawn time
-                                if bb_cache.contains_key(&dec.sprite_name) { continue; }
-                                if let Some(sprite) = bb_mgr.get(game_assets.lod_manager(), &dec.sprite_name, dec.declist_id) {
+                                if dec.is_directional {
+                                    continue;
+                                } // directional sprites loaded at spawn time
+                                if bb_cache.contains_key(&dec.sprite_name) {
+                                    continue;
+                                }
+                                if let Some(sprite) =
+                                    bb_mgr.get(game_assets.lod_manager(), &dec.sprite_name, dec.declist_id)
+                                {
                                     let (w, h) = sprite.dimensions();
                                     let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
                                     let tex = images.add(bevy_img);
@@ -943,8 +962,11 @@ fn loading_step(
                                         base_color_texture: Some(tex),
                                         alpha_mode: AlphaMode::Mask(0.5),
                                         unlit: true,
-                                        cull_mode: None, double_sided: true,
-                                        perceptual_roughness: 1.0, reflectance: 0.0, ..default()
+                                        cull_mode: None,
+                                        double_sided: true,
+                                        perceptual_roughness: 1.0,
+                                        reflectance: 0.0,
+                                        ..default()
                                     });
                                     let q = meshes.add(Rectangle::new(w, h));
                                     bb_cache.insert(dec.sprite_name.clone(), (m, q, h));
@@ -972,9 +994,7 @@ fn loading_step(
             let terrain_texture = progress.terrain_texture.take();
             let models = progress.models.take();
 
-            if let (Some(map), Some(mesh), Some(texture), Some(models)) =
-                (odm, terrain_mesh, terrain_texture, models)
-            {
+            if let (Some(map), Some(mesh), Some(texture), Some(models)) = (odm, terrain_mesh, terrain_texture, models) {
                 let water_cells = progress.water_cells.take().unwrap_or_default();
                 let water_texture = progress.water_texture.take();
                 let actors = progress.actors.take().unwrap_or_default();
@@ -986,7 +1006,9 @@ fn loading_step(
                     water_texture,
                     water_cells,
                     models,
-                    decorations: progress.decorations.take()
+                    decorations: progress
+                        .decorations
+                        .take()
                         .unwrap_or_else(lod::game::decorations::Decorations::empty),
                     actors,
                     resolved_actors: progress.resolved_actors.take(),
@@ -994,8 +1016,10 @@ fn loading_step(
                     start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
                     billboard_cache: progress.billboard_cache.take().unwrap_or_default(),
-                    terrain_lookup: progress.terrain_lookup.take()
-                        .unwrap_or_else(|| lod::terrain::TerrainLookup::empty()),
+                    terrain_lookup: progress
+                        .terrain_lookup
+                        .take()
+                        .unwrap_or_else(lod::terrain::TerrainLookup::empty),
                     music_track: progress.music_track,
                 });
                 commands.remove_resource::<LoadingProgress>();
@@ -1012,7 +1036,11 @@ fn loading_step(
 fn extract_blv_collision(
     blv: &Blv,
     door_faces: &std::collections::HashSet<usize>,
-) -> (Vec<crate::game::collision::CollisionWall>, Vec<crate::game::collision::CollisionTriangle>, Vec<crate::game::collision::CollisionTriangle>) {
+) -> (
+    Vec<crate::game::collision::CollisionWall>,
+    Vec<crate::game::collision::CollisionTriangle>,
+    Vec<crate::game::collision::CollisionTriangle>,
+) {
     use crate::game::collision::{CollisionTriangle, CollisionWall};
     use lod::odm::mm6_to_bevy;
 
@@ -1038,7 +1066,9 @@ fn extract_blv_collision(
         let is_wall = normal.y.abs() < 0.7;
 
         // Collect vertices in Bevy coords
-        let verts: Vec<Vec3> = face.vertex_ids.iter()
+        let verts: Vec<Vec3> = face
+            .vertex_ids
+            .iter()
             .filter_map(|&vid| {
                 let v = blv.vertices.get(vid as usize)?;
                 Some(Vec3::from(mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
@@ -1055,9 +1085,7 @@ fn extract_blv_collision(
 
         if is_floor || is_ceiling {
             for i in 0..verts.len().saturating_sub(2) {
-                let tri = CollisionTriangle::new(
-                    verts[0], verts[i + 1], verts[i + 2], normal,
-                );
+                let tri = CollisionTriangle::new(verts[0], verts[i + 1], verts[i + 2], normal);
                 if is_floor {
                     floors.push(tri.clone());
                 }
@@ -1070,4 +1098,3 @@ fn extract_blv_collision(
 
     (walls, floors, ceilings)
 }
-

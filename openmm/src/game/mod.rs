@@ -13,12 +13,12 @@ pub(crate) mod interaction;
 pub(crate) mod lighting;
 pub(crate) mod map_name;
 pub(crate) mod odm;
+pub(crate) mod party;
 pub(crate) mod physics;
 pub(crate) mod player;
 pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod terrain_material;
-pub(crate) mod party;
 pub(crate) mod world_state;
 
 /// Marker component for all entities spawned during the Game state.

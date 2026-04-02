@@ -36,10 +36,7 @@ impl SoundManager {
         let wav_bytes = self.snd_archive.get(&name)?;
 
         // Validate WAV: RIFF header + PCM format
-        if wav_bytes.len() < 44
-            || &wav_bytes[0..4] != b"RIFF"
-            || &wav_bytes[8..12] != b"WAVE"
-        {
+        if wav_bytes.len() < 44 || &wav_bytes[0..4] != b"RIFF" || &wav_bytes[8..12] != b"WAVE" {
             warn!("Sound '{}' (id={}) is not a valid WAV", name, sound_id);
             return None;
         }
@@ -68,9 +65,9 @@ impl Plugin for SoundPlugin {
     fn build(&self, app: &mut App) {
         // MM6 world units are large (512 per tile). Scale so ~2 tiles = normal attenuation distance.
         app.add_plugins((music::MusicPlugin, effects::EffectsPlugin, footsteps::FootstepsPlugin))
-            .insert_resource(bevy::audio::DefaultSpatialScale(
-                bevy::audio::SpatialScale::new(1.0 / 1000.0),
-            ))
+            .insert_resource(bevy::audio::DefaultSpatialScale(bevy::audio::SpatialScale::new(
+                1.0 / 1000.0,
+            )))
             .add_systems(Startup, init_sound_manager);
     }
 }
@@ -86,12 +83,9 @@ fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
 
     let data_path = lod::get_data_path();
     let base = Path::new(&data_path);
-    let snd_path = [
-        base.join("../Sounds/Audio.snd"),
-        base.join("Sounds/Audio.snd"),
-    ]
-    .into_iter()
-    .find(|p| p.exists());
+    let snd_path = [base.join("../Sounds/Audio.snd"), base.join("Sounds/Audio.snd")]
+        .into_iter()
+        .find(|p| p.exists());
 
     let Some(snd_path) = snd_path else {
         warn!("Audio.snd not found — sound effects disabled");

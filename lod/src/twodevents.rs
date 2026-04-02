@@ -37,7 +37,8 @@ pub struct TwoDEvents {
 impl TwoDEvents {
     /// Parse 2devents.txt from the LOD archive.
     pub fn parse(lod: &LodManager) -> Result<Self, Box<dyn Error>> {
-        let raw = lod.try_get_bytes("icons/2devents.txt")
+        let raw = lod
+            .try_get_bytes("icons/2devents.txt")
             .or_else(|_| lod.try_get_bytes("new/2devents.txt"))?;
 
         // Decompress if zlib-compressed (LOD entries may have a header before zlib data)
@@ -75,18 +76,27 @@ impl TwoDEvents {
             let map = cols[3].trim().trim_matches('"').to_string();
             let picture_id: u16 = cols[4].trim().parse().unwrap_or(0);
             let name = cols[5].trim().trim_matches('"').to_string();
-            let proprietor = cols.get(6).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default();
-            let title = cols.get(7).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default();
+            let proprietor = cols
+                .get(6)
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .unwrap_or_default();
+            let title = cols
+                .get(7)
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .unwrap_or_default();
 
-            houses.insert(id, HouseEntry {
+            houses.insert(
                 id,
-                building_type,
-                map,
-                picture_id,
-                name,
-                proprietor,
-                title,
-            });
+                HouseEntry {
+                    id,
+                    building_type,
+                    map,
+                    picture_id,
+                    name,
+                    proprietor,
+                    title,
+                },
+            );
         }
 
         Ok(TwoDEvents { houses })

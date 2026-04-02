@@ -6,10 +6,10 @@ use std::{
 use image::{DynamicImage, GenericImageView};
 
 use crate::{
-    ddeclist::{DDecList, DDecListItem},
-    dsft::{DSFTFrame, DSFT},
-    utils::try_read_string_block,
     LodManager,
+    ddeclist::{DDecList, DDecListItem},
+    dsft::{DSFT, DSFTFrame},
+    utils::try_read_string_block,
 };
 
 #[repr(C)]
@@ -61,18 +61,13 @@ pub struct Billboard {
     pub data: BillboardData,
 }
 
-pub(super) fn read_billboards(
-    cursor: &mut Cursor<&[u8]>,
-    count: usize,
-) -> Result<Vec<Billboard>, Box<dyn Error>> {
+pub(super) fn read_billboards(cursor: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<Billboard>, Box<dyn Error>> {
     let mut billboards_data = Vec::new();
 
     for _i in 0..count {
         let size = std::mem::size_of::<BillboardData>();
         let mut entity_data = BillboardData::default();
-        cursor.read_exact(unsafe {
-            std::slice::from_raw_parts_mut(&mut entity_data as *mut _ as *mut u8, size)
-        })?;
+        cursor.read_exact(unsafe { std::slice::from_raw_parts_mut(&mut entity_data as *mut _ as *mut u8, size) })?;
         billboards_data.push(entity_data);
     }
 
@@ -151,18 +146,15 @@ impl BillboardManager {
         self.d_sft.scale_for_group(group)
     }
 
-    pub fn get(
-        &self,
-        lod_manager: &LodManager,
-        name: &str,
-        declist_id: u16,
-    ) -> Option<BillboardSprite> {
+    pub fn get(&self, lod_manager: &LodManager, name: &str, declist_id: u16) -> Option<BillboardSprite> {
         let declist_item = self.d_declist.items.get(declist_id as usize)?;
         let sft_frame = self.d_sft.frames.get(declist_item.sft_index() as usize)?;
 
         let dec_name = declist_item.name().unwrap_or_default();
         let sft_name = sft_frame.sprite_name().unwrap_or_default();
-        let image = lod_manager.game().sprite(&dec_name)
+        let image = lod_manager
+            .game()
+            .sprite(&dec_name)
             .or_else(|| lod_manager.game().sprite(&sft_name))
             .or_else(|| lod_manager.game().sprite(name))
             // Directional sprites use frame suffixes (e.g. shp0, shp1). Try frame 0.

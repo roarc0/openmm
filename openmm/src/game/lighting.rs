@@ -71,11 +71,7 @@ fn sun_from_time(tod: f32) -> (Transform, Color, f32) {
     // Illuminance in lux — matches Bevy's default scale (EV100 9.7)
     // Bevy default DirectionalLight is 10,000 lux (AMBIENT_DAYLIGHT)
     let is_day = tod > 0.22 && tod < 0.78;
-    let illuminance = if is_day {
-        300.0 + 900.0 * elevation
-    } else {
-        0.0
-    };
+    let illuminance = if is_day { 300.0 + 900.0 * elevation } else { 0.0 };
 
     (transform, color, illuminance)
 }
@@ -103,7 +99,10 @@ fn ambient_from_time(tod: f32) -> (Color, f32) {
 
     let brightness = 1500.0 + 2500.0 * day_amount;
 
-    (Color::srgb(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)), brightness)
+    (
+        Color::srgb(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)),
+        brightness,
+    )
 }
 
 fn animate_day_cycle(
@@ -125,14 +124,14 @@ fn animate_day_cycle(
 
         let mut toggled = std::collections::HashSet::new();
         for mat_handle in model_query.iter() {
-            if toggled.insert(mat_handle.id()) {
-                if let Some(mat) = std_materials.get_mut(mat_handle.id()) {
-                    mat.unlit = unlit;
-                    if unlit {
-                        mat.base_color = Color::srgb(0.69, 0.69, 0.69);
-                    } else {
-                        mat.base_color = Color::srgb(1.4, 1.4, 1.4);
-                    }
+            if toggled.insert(mat_handle.id())
+                && let Some(mat) = std_materials.get_mut(mat_handle.id())
+            {
+                mat.unlit = unlit;
+                if unlit {
+                    mat.base_color = Color::srgb(0.69, 0.69, 0.69);
+                } else {
+                    mat.base_color = Color::srgb(1.4, 1.4, 1.4);
                 }
             }
         }
@@ -186,4 +185,3 @@ fn animate_day_cycle(
 struct LightingState {
     last_mode: String,
 }
-

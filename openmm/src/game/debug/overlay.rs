@@ -32,7 +32,6 @@ impl Default for DebugKeyBindings {
     }
 }
 
-
 fn debug_setup(
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
@@ -447,18 +446,17 @@ fn update_hud_text(
     >,
     mut tile_query: Query<
         (&mut TextSpan, &mut TextColor),
-        (With<TileSpan>, Without<FpsText>, Without<PosSpan>, Without<ModeSpan>, Without<MapNameSpan>),
+        (
+            With<TileSpan>,
+            Without<FpsText>,
+            Without<PosSpan>,
+            Without<ModeSpan>,
+            Without<MapNameSpan>,
+        ),
     >,
     mut bar_query: Query<(&FpsChartBar, &mut Node, &mut BackgroundColor)>,
     mut max_label: Query<&mut Text, (With<ChartMaxLabel>, Without<FpsText>)>,
-    mut min_label: Query<
-        &mut Text,
-        (
-            With<ChartMinLabel>,
-            Without<FpsText>,
-            Without<ChartMaxLabel>,
-        ),
-    >,
+    mut min_label: Query<&mut Text, (With<ChartMinLabel>, Without<FpsText>, Without<ChartMaxLabel>)>,
 ) {
     let fps_val = diagnostics
         .get(&FrameTimeDiagnosticsPlugin::FPS)
@@ -482,20 +480,13 @@ fn update_hud_text(
         "FPS: --".into()
     };
 
-    let color = if avg > 0.0 {
-        fps_color(avg)
-    } else {
-        Color::WHITE
-    };
+    let color = if avg > 0.0 { fps_color(avg) } else { Color::WHITE };
 
     let map_name = world_state.map.name.to_string().to_uppercase();
 
     let (mode_str, coords_str) = if let Ok(transform) = player_query.single() {
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-        let spawn_str = if cfg.debug
-            && spawn_progress.total > 0
-            && spawn_progress.done < spawn_progress.total
-        {
+        let spawn_str = if cfg.debug && spawn_progress.total > 0 && spawn_progress.done < spawn_progress.total {
             format!("  SPAWN: {}/{}", spawn_progress.done, spawn_progress.total)
         } else {
             String::new()
@@ -535,9 +526,7 @@ fn update_hud_text(
     let tileset = player_query
         .single()
         .ok()
-        .and_then(|tf| {
-            prepared.as_ref()?.terrain_at(tf.translation.x, tf.translation.z)
-        });
+        .and_then(|tf| prepared.as_ref()?.terrain_at(tf.translation.x, tf.translation.z));
     for (mut span, mut tc) in &mut tile_query {
         if let Some(ts) = tileset {
             **span = format!("  {ts}");
@@ -580,29 +569,29 @@ fn debug_log(
 ) {
     let timer = timer.get_or_insert_with(|| Timer::from_seconds(3.0, TimerMode::Repeating));
     timer.tick(time.delta());
-    if timer.just_finished() {
-        if let Ok(transform) = player_query.single() {
-            let (yaw, pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
-            let cur = (
-                (transform.translation.x * 0.1).round(),
-                (transform.translation.y * 0.1).round(),
-                (transform.translation.z * 0.1).round(),
-                (yaw.to_degrees() * 10.0).round(),
-                (pitch.to_degrees() * 10.0).round(),
-            );
-            if last_pos.as_ref() == Some(&cur) {
-                return;
-            }
-            *last_pos = Some(cur);
-            info!(
-                "pos=({:.0}, {:.0}, {:.0}) yaw={:.1}deg pitch={:.1}deg",
-                transform.translation.x,
-                transform.translation.y,
-                transform.translation.z,
-                yaw.to_degrees(),
-                pitch.to_degrees(),
-            );
+    if timer.just_finished()
+        && let Ok(transform) = player_query.single()
+    {
+        let (yaw, pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
+        let cur = (
+            (transform.translation.x * 0.1).round(),
+            (transform.translation.y * 0.1).round(),
+            (transform.translation.z * 0.1).round(),
+            (yaw.to_degrees() * 10.0).round(),
+            (pitch.to_degrees() * 10.0).round(),
+        );
+        if last_pos.as_ref() == Some(&cur) {
+            return;
         }
+        *last_pos = Some(cur);
+        info!(
+            "pos=({:.0}, {:.0}, {:.0}) yaw={:.1}deg pitch={:.1}deg",
+            transform.translation.x,
+            transform.translation.y,
+            transform.translation.z,
+            yaw.to_degrees(),
+            pitch.to_degrees(),
+        );
     }
 }
 
@@ -631,9 +620,7 @@ fn debug_screenshot(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
                 .as_millis()
         );
         info!("Saving screenshot to {}", path);
-        commands
-            .spawn(Screenshot::primary_window())
-            .observe(save_to_disk(path));
+        commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
     }
 }
 

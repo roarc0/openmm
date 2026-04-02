@@ -376,7 +376,10 @@ impl GameConfig {
                     }
                     match std::fs::write(&config_path, &contents) {
                         Ok(()) => eprintln!("info: wrote default config to {}", config_path.display()),
-                        Err(e) => eprintln!("warning: failed to write default config to {}: {e}", config_path.display()),
+                        Err(e) => eprintln!(
+                            "warning: failed to write default config to {}: {e}",
+                            config_path.display()
+                        ),
                     }
                 }
                 Err(e) => eprintln!("warning: failed to serialize default config: {e}"),
@@ -416,13 +419,25 @@ impl GameConfig {
             sfx_volume: resolve!(cli.sfx_volume, file_cfg.sfx_volume, d.sfx_volume),
             always_run: resolve!(cli.always_run, file_cfg.always_run, d.always_run),
             mouse_look: resolve!(cli.mouse_look, file_cfg.mouse_look, d.mouse_look),
-            mouse_sensitivity_x: resolve!(cli.mouse_sensitivity_x, file_cfg.mouse_sensitivity_x, d.mouse_sensitivity_x),
-            mouse_sensitivity_y: resolve!(cli.mouse_sensitivity_y, file_cfg.mouse_sensitivity_y, d.mouse_sensitivity_y),
+            mouse_sensitivity_x: resolve!(
+                cli.mouse_sensitivity_x,
+                file_cfg.mouse_sensitivity_x,
+                d.mouse_sensitivity_x
+            ),
+            mouse_sensitivity_y: resolve!(
+                cli.mouse_sensitivity_y,
+                file_cfg.mouse_sensitivity_y,
+                d.mouse_sensitivity_y
+            ),
             always_strafe: resolve!(cli.always_strafe, file_cfg.always_strafe, d.always_strafe),
             turn_speed: resolve!(cli.turn_speed, file_cfg.turn_speed, d.turn_speed),
             mouse_look_fly: resolve!(cli.mouse_look_fly, file_cfg.mouse_look_fly, d.mouse_look_fly),
             mouse_wheel_fly: resolve!(cli.mouse_wheel_fly, file_cfg.mouse_wheel_fly, d.mouse_wheel_fly),
-            capslock_toggle_mouse_look: resolve!(cli.capslock_toggle_mouse_look, file_cfg.capslock_toggle_mouse_look, d.capslock_toggle_mouse_look),
+            capslock_toggle_mouse_look: resolve!(
+                cli.capslock_toggle_mouse_look,
+                file_cfg.capslock_toggle_mouse_look,
+                d.capslock_toggle_mouse_look
+            ),
             hud_filtering: resolve!(cli.hud_filtering, file_cfg.hud_filtering, d.hud_filtering),
             terrain_filtering: resolve!(cli.terrain_filtering, file_cfg.terrain_filtering, d.terrain_filtering),
             models_filtering: resolve!(cli.models_filtering, file_cfg.models_filtering, d.models_filtering),
@@ -444,8 +459,7 @@ impl GameConfig {
 
     /// Save current config to disk.
     pub fn save(&self) -> Result<(), String> {
-        let contents = toml::to_string_pretty(self)
-            .map_err(|e| format!("Failed to serialize config: {e}"))?;
+        let contents = toml::to_string_pretty(self).map_err(|e| format!("Failed to serialize config: {e}"))?;
         if let Some(parent) = self.config_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -467,7 +481,10 @@ impl GameConfig {
             warn!("Unknown hud_filtering '{}' — using 'nearest'", self.hud_filtering);
         }
         if !matches!(self.terrain_filtering.as_str(), "nearest" | "linear") {
-            warn!("Unknown terrain_filtering '{}' — using 'linear'", self.terrain_filtering);
+            warn!(
+                "Unknown terrain_filtering '{}' — using 'linear'",
+                self.terrain_filtering
+            );
         }
         if !matches!(self.models_filtering.as_str(), "nearest" | "linear") {
             warn!("Unknown models_filtering '{}' — using 'linear'", self.models_filtering);
@@ -475,10 +492,16 @@ impl GameConfig {
         if !matches!(self.lighting.as_str(), "classic" | "enhanced") {
             warn!("Unknown lighting '{}' — using 'classic'", self.lighting);
         }
-        if !matches!(self.antialiasing.as_str(), "msaa2" | "msaa4" | "msaa8" | "fxaa" | "smaa" | "taa" | "off") {
+        if !matches!(
+            self.antialiasing.as_str(),
+            "msaa2" | "msaa4" | "msaa8" | "fxaa" | "smaa" | "taa" | "off"
+        ) {
             warn!("Unknown antialiasing '{}' — using 'msaa4'", self.antialiasing);
         }
-        if !matches!(self.tonemapping.as_str(), "none" | "reinhard" | "aces" | "blender_filmic" | "agx") {
+        if !matches!(
+            self.tonemapping.as_str(),
+            "none" | "reinhard" | "aces" | "blender_filmic" | "agx"
+        ) {
             warn!("Unknown tonemapping '{}' — using 'agx'", self.tonemapping);
         }
         // Warn about incompatible combos

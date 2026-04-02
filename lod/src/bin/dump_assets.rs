@@ -21,10 +21,7 @@ fn main() {
         if let Some(mut files) = lod_manager.files_in(archive) {
             files.sort();
             total += files.len();
-            assets.insert(
-                archive.to_string(),
-                files.iter().map(|s| s.to_string()).collect(),
-            );
+            assets.insert(archive.to_string(), files.iter().map(|s| s.to_string()).collect());
         }
     }
 
@@ -32,7 +29,12 @@ fn main() {
     let json = serde_json_minimal(&assets);
     let json_path = out_dir.join("assets.json");
     fs::write(&json_path, &json).expect("failed to write assets.json");
-    println!("Wrote {} ({} archives, {} files total)", json_path.display(), archives.len(), total);
+    println!(
+        "Wrote {} ({} archives, {} files total)",
+        json_path.display(),
+        archives.len(),
+        total
+    );
 
     for (archive, files) in &assets {
         println!("  {}: {} files", archive, files.len());

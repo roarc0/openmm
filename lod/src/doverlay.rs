@@ -6,7 +6,7 @@ use std::io::Cursor;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, LodManager};
+use crate::{LodManager, lod_data::LodData};
 
 #[derive(Debug)]
 pub struct OverlayDesc {
@@ -52,7 +52,7 @@ impl OverlayList {
 #[cfg(test)]
 mod tests {
     use super::OverlayList;
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     #[test]
     fn parse_doverlay() {
@@ -61,10 +61,7 @@ mod tests {
         assert!(!overlaylist.overlays.is_empty(), "should have overlays");
         println!("doverlay: {} entries", overlaylist.overlays.len());
         for o in overlaylist.overlays.iter().take(5) {
-            println!(
-                "  id={} type={} sft_index={}",
-                o.id, o.overlay_type, o.sft_index
-            );
+            println!("  id={} type={} sft_index={}", o.id, o.overlay_type, o.sft_index);
         }
     }
 }

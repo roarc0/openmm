@@ -1004,7 +1004,7 @@ impl EvtVariable {
             0x66 => "CondPetrified",
             0x67 => "CondEradicated",
             0x68 => "CondMain",
-            0x69..=0xCC => return "MapVar",  // caller should subtract 0x69 for index
+            0x69..=0xCC => "MapVar", // caller should subtract 0x69 for index
             0xCD => "AutonotesBits",
             0xCE => "IsMightMoreThanBase",
             0xCF => "IsIntellectMoreThanBase",
@@ -1038,11 +1038,7 @@ impl EvtVariable {
 
     /// For map variables, returns the index (0-99).
     pub fn map_var_index(self) -> Option<u8> {
-        if self.is_map_var() {
-            Some(self.0 - 0x69)
-        } else {
-            None
-        }
+        if self.is_map_var() { Some(self.0 - 0x69) } else { None }
     }
 
     /// Returns true if this variable ID refers to a skill (SkillStaff..SkillMisc).
@@ -1052,11 +1048,7 @@ impl EvtVariable {
 
     /// For skill variables, returns the skill index (0 = Staff, 30 = Misc).
     pub fn skill_index(self) -> Option<u8> {
-        if self.is_skill() {
-            Some(self.0 - 0x38)
-        } else {
-            None
-        }
+        if self.is_skill() { Some(self.0 - 0x38) } else { None }
     }
 }
 

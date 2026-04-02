@@ -1,4 +1,3 @@
-
 use bevy::{
     asset::RenderAssetUsages,
     mesh::{Indices, PrimitiveTopology},
@@ -37,7 +36,6 @@ impl Material for SkyMaterial {
     fn alpha_mode(&self) -> AlphaMode {
         AlphaMode::Blend
     }
-
 }
 
 pub struct SkyPlugin;
@@ -83,7 +81,9 @@ fn spawn_sky(
     info!("Sky: loading texture '{}'", sky_name);
 
     // Load sky texture from LOD
-    let sky_img = game_assets.game_lod().bitmap(sky_name)
+    let sky_img = game_assets
+        .game_lod()
+        .bitmap(sky_name)
         .or_else(|| game_assets.game_lod().bitmap("plansky1"));
     info!("Sky: texture loaded = {}", sky_img.is_some());
 
@@ -124,22 +124,12 @@ fn build_sky_plane(size: f32, uv_repeat: f32) -> Mesh {
     let half = size / 2.0;
     let positions = vec![
         [-half, 0.0, -half],
-        [ half, 0.0, -half],
-        [ half, 0.0,  half],
-        [-half, 0.0,  half],
+        [half, 0.0, -half],
+        [half, 0.0, half],
+        [-half, 0.0, half],
     ];
-    let normals = vec![
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, -1.0, 0.0],
-    ];
-    let uvs = vec![
-        [0.0, 0.0],
-        [uv_repeat, 0.0],
-        [uv_repeat, uv_repeat],
-        [0.0, uv_repeat],
-    ];
+    let normals = vec![[0.0, -1.0, 0.0], [0.0, -1.0, 0.0], [0.0, -1.0, 0.0], [0.0, -1.0, 0.0]];
+    let uvs = vec![[0.0, 0.0], [uv_repeat, 0.0], [uv_repeat, uv_repeat], [0.0, uv_repeat]];
     // Both windings so the plane is visible from both sides
     let indices = vec![0u32, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2];
 
@@ -169,10 +159,7 @@ fn follow_camera(
 
 /// Update the clear color (sky background) based on time of day.
 /// This fills the area below the sky cylinder.
-fn update_sky_color(
-    mut clear_color: ResMut<ClearColor>,
-    world_state: Res<crate::game::world_state::WorldState>,
-) {
+fn update_sky_color(mut clear_color: ResMut<ClearColor>, world_state: Res<crate::game::world_state::WorldState>) {
     let tod = world_state.time_of_day;
 
     let day_amount = 1.0 - (tod * 2.0 - 1.0).abs();
@@ -188,18 +175,11 @@ fn update_sky_color(
     let g: f32 = 0.10 + 0.33 * day_amount + 0.18 * dawn_dusk;
     let b: f32 = 0.14 + 0.38 * day_amount - 0.08 * dawn_dusk;
 
-    clear_color.0 = Color::srgb(
-        r.clamp(0.06, 0.80),
-        g.clamp(0.06, 0.70),
-        b.clamp(0.08, 0.65),
-    );
+    clear_color.0 = Color::srgb(r.clamp(0.06, 0.80), g.clamp(0.06, 0.70), b.clamp(0.08, 0.65));
 }
 
 /// Keep fog color in sync with the sky so distant objects fade into the horizon.
-fn sync_fog_to_sky(
-    clear_color: Res<ClearColor>,
-    mut fog_query: Query<&mut DistanceFog>,
-) {
+fn sync_fog_to_sky(clear_color: Res<ClearColor>, mut fog_query: Query<&mut DistanceFog>) {
     let sky = clear_color.0;
     for mut fog in fog_query.iter_mut() {
         fog.color = sky;

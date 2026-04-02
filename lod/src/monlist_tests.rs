@@ -1,5 +1,5 @@
-use crate::{get_lod_path, LodManager};
 use super::MonsterList;
+use crate::{LodManager, get_lod_path};
 
 /// Peasant detection and gender must be derived from monlist internal_name,
 /// not from hardcoded ranges. Verifies against actual dmonlist.bin data.
@@ -34,26 +34,30 @@ fn find_by_name_returns_correct_variant() {
 
     let test_cases: &[(&str, u8, &str)] = &[
         // (monster_name, difficulty, expected_internal_name_suffix)
-        ("Goblin",   1, "A"),
-        ("Goblin",   2, "B"),
-        ("Goblin",   3, "C"),
-        ("Ghost",    1, "A"),
-        ("Ghost",    2, "B"),
-        ("Ghost",    3, "C"),
+        ("Goblin", 1, "A"),
+        ("Goblin", 2, "B"),
+        ("Goblin", 3, "C"),
+        ("Ghost", 1, "A"),
+        ("Ghost", 2, "B"),
+        ("Ghost", 3, "C"),
         ("Skeleton", 1, "A"),
         ("Skeleton", 2, "B"),
         ("Skeleton", 3, "C"),
-        ("Spider",   1, "A"),
-        ("Spider",   2, "B"),
+        ("Spider", 1, "A"),
+        ("Spider", 2, "B"),
     ];
 
     for &(name, dif, expected_suffix) in test_cases {
-        let desc = monlist.find_by_name(name, dif)
+        let desc = monlist
+            .find_by_name(name, dif)
             .unwrap_or_else(|| panic!("{} difficulty {} should exist", name, dif));
         assert!(
             desc.internal_name.ends_with(expected_suffix),
             "{} difficulty {} should return variant {}, got '{}'",
-            name, dif, expected_suffix, desc.internal_name
+            name,
+            dif,
+            expected_suffix,
+            desc.internal_name
         );
     }
 }
@@ -67,22 +71,22 @@ fn variants_have_distinct_sprite_groups() {
     let monlist = MonsterList::new(&lod_manager).unwrap();
 
     // (monster_name, variants that must have distinct sprite groups)
-    let test_cases: &[(&str, &[u8])] = &[
-        ("Goblin",   &[1, 2, 3]),
-        ("Ghost",    &[1, 2, 3]),
-        ("Skeleton", &[1, 2, 3]),
-    ];
+    let test_cases: &[(&str, &[u8])] = &[("Goblin", &[1, 2, 3]), ("Ghost", &[1, 2, 3]), ("Skeleton", &[1, 2, 3])];
 
     for &(name, variants) in test_cases {
-        let descs: Vec<_> = variants.iter()
+        let descs: Vec<_> = variants
+            .iter()
             .filter_map(|&dif| monlist.find_by_name(name, dif))
             .collect();
 
         // All requested variants should exist
         assert_eq!(
-            descs.len(), variants.len(),
+            descs.len(),
+            variants.len(),
             "{} should have {} variants, found {}",
-            name, variants.len(), descs.len()
+            name,
+            variants.len(),
+            descs.len()
         );
 
         // Standing sprite groups should all differ
@@ -108,7 +112,9 @@ fn ghost_walking_and_standing_palette_match() {
     let lod = LodManager::new(get_lod_path()).unwrap();
     let gd = crate::game::global::GameData::new(&lod).unwrap();
     for dif in 1..=3u8 {
-        let desc = gd.monlist.find_by_name("Ghost", dif)
+        let desc = gd
+            .monlist
+            .find_by_name("Ghost", dif)
             .unwrap_or_else(|| panic!("Ghost variant {} should exist", dif));
         let st_group = &desc.sprite_names[0];
         let wa_group = &desc.sprite_names[1];
@@ -131,7 +137,8 @@ fn ghost_walking_and_standing_palette_match() {
             assert!(
                 st.1 > 0,
                 "Ghost {} DSFT palette_id should be non-zero (got {}), otherwise sprite-header offset path is used instead",
-                dif, st.1
+                dif,
+                st.1
             );
         }
     }

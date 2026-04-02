@@ -48,11 +48,15 @@ impl NpcNamePool {
             let cols: Vec<&str> = line.split('\t').collect();
             if let Some(m) = cols.first() {
                 let m = m.trim();
-                if !m.is_empty() { male.push(m.to_string()); }
+                if !m.is_empty() {
+                    male.push(m.to_string());
+                }
             }
             if let Some(f) = cols.get(1) {
                 let f = f.trim();
-                if !f.is_empty() { female.push(f.to_string()); }
+                if !f.is_empty() {
+                    female.push(f.to_string());
+                }
             }
         }
         Ok(Self { male, female })
@@ -61,7 +65,9 @@ impl NpcNamePool {
     /// Pick a name deterministically from the pool using `seed` as the index.
     pub fn name_for(&self, is_female: bool, seed: usize) -> &str {
         let pool = if is_female { &self.female } else { &self.male };
-        if pool.is_empty() { return "Peasant"; }
+        if pool.is_empty() {
+            return "Peasant";
+        }
         &pool[seed % pool.len()]
     }
 
@@ -72,9 +78,9 @@ impl NpcNamePool {
         let in_female = self.female.iter().any(|n| n.to_ascii_lowercase() == lower);
         let in_male = self.male.iter().any(|n| n.to_ascii_lowercase() == lower);
         match (in_female, in_male) {
-            (true, false) => Some(true),   // female
-            (false, true) => Some(false),  // male
-            _ => None,                     // ambiguous or not found
+            (true, false) => Some(true),  // female
+            (false, true) => Some(false), // male
+            _ => None,                    // ambiguous or not found
         }
     }
 }
@@ -137,12 +143,21 @@ impl StreetNpcs {
             let portrait: u32 = cols[2].trim().parse().unwrap_or(0);
             let profession_id: u32 = cols.get(7).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
 
-            npcs.insert(id, NpcEntry { id, name, portrait, profession_id });
+            npcs.insert(
+                id,
+                NpcEntry {
+                    id,
+                    name,
+                    portrait,
+                    profession_id,
+                },
+            );
         }
 
         // Collect portrait IDs from peasant-profession entries (52-77) for
         // deterministic portrait assignment to generated street NPCs.
-        let mut peasant_portraits: Vec<u32> = npcs.values()
+        let mut peasant_portraits: Vec<u32> = npcs
+            .values()
             .filter(|e| (52..=77).contains(&e.profession_id) && e.portrait > 0)
             .map(|e| e.portrait)
             .collect();
@@ -156,7 +171,8 @@ impl StreetNpcs {
         let mut peasant_female = Vec::new();
 
         // Collect peasant entries sorted by id for deterministic ordering
-        let mut peasant_entries: Vec<&NpcEntry> = npcs.values()
+        let mut peasant_entries: Vec<&NpcEntry> = npcs
+            .values()
             .filter(|e| (52..=77).contains(&e.profession_id) && e.portrait > 0)
             .collect();
         peasant_entries.sort_by_key(|e| e.id);
@@ -175,12 +191,21 @@ impl StreetNpcs {
                 None => {
                     // Unknown sex: skip rather than pollute gendered pools.
                     // ~40% of peasant-profession names aren't in npcnames.txt.
-                    log::debug!("peasant NPC '{}' (pic={}) sex unknown, skipping", entry.name, entry.portrait);
+                    log::debug!(
+                        "peasant NPC '{}' (pic={}) sex unknown, skipping",
+                        entry.name,
+                        entry.portrait
+                    );
                 }
             }
         }
 
-        Ok(Self { npcs, peasant_male, peasant_female, peasant_portraits })
+        Ok(Self {
+            npcs,
+            peasant_male,
+            peasant_female,
+            peasant_portraits,
+        })
     }
 
     /// Look up an entry by NPC id.
@@ -218,7 +243,11 @@ impl StreetNpcs {
     /// Uses a npcdata.txt entry with peasant profession, deterministically selected by `seed`.
     /// Returns (name, portrait_number).
     pub fn peasant_identity(&self, is_female: bool, seed: usize) -> Option<(&str, u32)> {
-        let pool = if is_female { &self.peasant_female } else { &self.peasant_male };
+        let pool = if is_female {
+            &self.peasant_female
+        } else {
+            &self.peasant_male
+        };
         if pool.is_empty() {
             return None;
         }

@@ -18,7 +18,7 @@ fn main() {
         print!("Actor {} '{}': ", i, name);
         for off in (0..actor_stride - 1).step_by(2) {
             let val = u16::from_le_bytes([actor_data[off], actor_data[off + 1]]);
-            if val >= 115 && val <= 170 {
+            if (115..=170).contains(&val) {
                 print!("@0x{:02x}={} ", off, val);
             }
         }
@@ -47,7 +47,9 @@ fn main() {
     for off in (0x2C..0x74).step_by(2) {
         let val = u16::from_le_bytes([actor_data[off], actor_data[off + 1]]);
         print!("  0x{:02x}: {:5}", off, val);
-        if (off - 0x2C) % 16 == 14 { println!(); }
+        if (off - 0x2C) % 16 == 14 {
+            println!();
+        }
     }
     println!();
 }

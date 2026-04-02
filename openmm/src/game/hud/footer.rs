@@ -71,12 +71,12 @@ impl FooterText {
 
     /// Call every frame to expire locked text.
     pub fn tick(&mut self, now: f64) {
-        if let Some(until) = self.lock_until {
-            if now >= until {
-                self.lock_until = None;
-                self.text.clear();
-                self.generation += 1;
-            }
+        if let Some(until) = self.lock_until
+            && now >= until
+        {
+            self.lock_until = None;
+            self.text.clear();
+            self.generation += 1;
         }
     }
 
@@ -136,23 +136,18 @@ pub(super) fn update_footer_text(
     for (mut img_node, mut vis, mut node) in query.iter_mut() {
         if footer.text.is_empty() {
             *vis = Visibility::Hidden;
-        } else if let Some(handle) = game_fonts.render(
-            &footer.text,
-            &footer.font,
-            footer.color,
-            &mut images,
-        ) {
+        } else if let Some(handle) = game_fonts.render(&footer.text, &footer.font, footer.color, &mut images) {
             // Center the text: account for scaling (height constrains the image,
             // width scales proportionally)
             let text_px_w = game_fonts.measure(&footer.text, &footer.font) as f32;
-            if let Some(vp_w) = vp_w {
-                if let Some(font) = game_fonts.get(&footer.font) {
-                    let native_h = font.height as f32;
-                    if let Val::Px(display_h) = node.height {
-                        let scale = display_h / native_h;
-                        let display_w = text_px_w * scale;
-                        node.left = Val::Px((vp_w - display_w) / 2.0);
-                    }
+            if let Some(vp_w) = vp_w
+                && let Some(font) = game_fonts.get(&footer.font)
+            {
+                let native_h = font.height as f32;
+                if let Val::Px(display_h) = node.height {
+                    let scale = display_h / native_h;
+                    let display_w = text_px_w * scale;
+                    node.left = Val::Px((vp_w - display_w) / 2.0);
                 }
             }
             img_node.image = handle;

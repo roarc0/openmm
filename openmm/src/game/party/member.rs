@@ -16,12 +16,12 @@ pub enum CharacterClass {
 impl std::fmt::Display for CharacterClass {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            Self::Knight   => "Knight",
-            Self::Paladin  => "Paladin",
-            Self::Archer   => "Archer",
-            Self::Cleric   => "Cleric",
+            Self::Knight => "Knight",
+            Self::Paladin => "Paladin",
+            Self::Archer => "Archer",
+            Self::Cleric => "Cleric",
             Self::Sorcerer => "Sorcerer",
-            Self::Druid    => "Druid",
+            Self::Druid => "Druid",
         };
         write!(f, "{}", s)
     }
@@ -56,8 +56,6 @@ impl PartyMember {
 
     /// Get skill level for a given EvtVariable (0 if not a skill variable).
     pub fn get_skill(&self, var: EvtVariable) -> u8 {
-        var.skill_index()
-            .map(|idx| self.skills[idx as usize])
-            .unwrap_or(0)
+        var.skill_index().map(|idx| self.skills[idx as usize]).unwrap_or(0)
     }
 }

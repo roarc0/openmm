@@ -3,7 +3,7 @@ use bevy::{app::AppExit, ecs::message::MessageWriter, prelude::*};
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::ui_assets::{UiAssets, make_black_transparent};
-use crate::{despawn_all, GameState};
+use crate::{GameState, despawn_all};
 
 pub struct MenuPlugin;
 
@@ -43,9 +43,13 @@ struct OnScreen;
 #[derive(Component)]
 enum MenuAction {
     // Title
-    NewGame, LoadGame, Credits, Exit,
+    NewGame,
+    LoadGame,
+    Credits,
+    Exit,
     // Segue
-    CreateParty, QuickStart,
+    CreateParty,
+    QuickStart,
     // Party creation
     StartGame,
     // Load game
@@ -68,27 +72,52 @@ fn title_setup(
 ) {
     commands.spawn((Camera2d, OnScreen));
     // Use title.pcx (with buttons baked in) as background
-    let bg = ui.get_or_load("title.pcx", &game_assets, &mut images, &game_cfg)
+    let bg = ui
+        .get_or_load("title.pcx", &game_assets, &mut images, &game_cfg)
         .or_else(|| ui.get_or_load("mm6title.pcx", &game_assets, &mut images, &game_cfg));
 
-    commands.spawn((
-        fullscreen_bg(bg),
-        OnScreen,
-    )).with_children(|p| {
+    commands.spawn((fullscreen_bg(bg), OnScreen)).with_children(|p| {
         // Hover button images (mmnew1=NEW, mmloa1=LOAD, mmcre1=CREDITS, mmesc1=EXIT)
-        let hover_new = ui.get_or_load_transformed("mmnew1", "mmnew1_t", &game_assets, &mut images, &game_cfg, make_black_transparent);
-        let hover_load = ui.get_or_load_transformed("mmloa1", "mmloa1_t", &game_assets, &mut images, &game_cfg, make_black_transparent);
-        let hover_credits = ui.get_or_load_transformed("mmcre1", "mmcre1_t", &game_assets, &mut images, &game_cfg, make_black_transparent);
-        let hover_exit = ui.get_or_load_transformed("mmesc1", "mmesc1_t", &game_assets, &mut images, &game_cfg, make_black_transparent);
+        let hover_new = ui.get_or_load_transformed(
+            "mmnew1",
+            "mmnew1_t",
+            &game_assets,
+            &mut images,
+            &game_cfg,
+            make_black_transparent,
+        );
+        let hover_load = ui.get_or_load_transformed(
+            "mmloa1",
+            "mmloa1_t",
+            &game_assets,
+            &mut images,
+            &game_cfg,
+            make_black_transparent,
+        );
+        let hover_credits = ui.get_or_load_transformed(
+            "mmcre1",
+            "mmcre1_t",
+            &game_assets,
+            &mut images,
+            &game_cfg,
+            make_black_transparent,
+        );
+        let hover_exit = ui.get_or_load_transformed(
+            "mmesc1",
+            "mmesc1_t",
+            &game_assets,
+            &mut images,
+            &game_cfg,
+            make_black_transparent,
+        );
 
         // Button positions matched to hover images (135×45px, x=482, y step=62)
-        title_btn(p, 482.0,   9.0, 135.0, 45.0, MenuAction::NewGame, hover_new);
-        title_btn(p, 482.0,  71.0, 135.0, 45.0, MenuAction::LoadGame, hover_load);
+        title_btn(p, 482.0, 9.0, 135.0, 45.0, MenuAction::NewGame, hover_new);
+        title_btn(p, 482.0, 71.0, 135.0, 45.0, MenuAction::LoadGame, hover_load);
         title_btn(p, 482.0, 133.0, 135.0, 45.0, MenuAction::Credits, hover_credits);
         title_btn(p, 482.0, 195.0, 135.0, 45.0, MenuAction::Exit, hover_exit);
     });
 }
-
 
 // ── Segue screen (segue_bg.pcx) ─────────────────────────
 
@@ -102,10 +131,7 @@ fn segue_setup(
     commands.spawn((Camera2d, OnScreen));
     let bg = ui.get_or_load("segue_bg.pcx", &game_assets, &mut images, &game_cfg);
 
-    commands.spawn((
-        fullscreen_bg(bg),
-        OnScreen,
-    )).with_children(|p| {
+    commands.spawn((fullscreen_bg(bg), OnScreen)).with_children(|p| {
         menu_btn(p, 16.0, 441.0, 170.0, 35.0, MenuAction::CreateParty);
         menu_btn(p, 451.0, 441.0, 170.0, 35.0, MenuAction::QuickStart);
     });
@@ -123,10 +149,7 @@ fn party_setup(
     commands.spawn((Camera2d, OnScreen));
     let bg = ui.get_or_load("makeme.pcx", &game_assets, &mut images, &game_cfg);
 
-    commands.spawn((
-        fullscreen_bg(bg),
-        OnScreen,
-    )).with_children(|p| {
+    commands.spawn((fullscreen_bg(bg), OnScreen)).with_children(|p| {
         // OK button (580, 431) from OpenEnroth
         menu_btn(p, 580.0, 431.0, 51.0, 39.0, MenuAction::StartGame);
     });
@@ -144,10 +167,7 @@ fn load_game_setup(
     commands.spawn((Camera2d, OnScreen));
     let bg = ui.get_or_load("lsave640.pcx", &game_assets, &mut images, &game_cfg);
 
-    commands.spawn((
-        fullscreen_bg(bg),
-        OnScreen,
-    )).with_children(|p| {
+    commands.spawn((fullscreen_bg(bg), OnScreen)).with_children(|p| {
         // X/close button — top-right area of the load dialog
         menu_btn(p, 545.0, 399.0, 50.0, 40.0, MenuAction::Back);
         // Check/load button
@@ -167,10 +187,7 @@ fn credits_setup(
     commands.spawn((Camera2d, OnScreen));
     let bg = ui.get_or_load("mm6title.pcx", &game_assets, &mut images, &game_cfg);
 
-    commands.spawn((
-        fullscreen_bg(bg),
-        OnScreen,
-    )).with_children(|p| {
+    commands.spawn((fullscreen_bg(bg), OnScreen)).with_children(|p| {
         // Click anywhere to go back
         p.spawn((
             Button,
@@ -183,10 +200,14 @@ fn credits_setup(
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
             MenuAction::Back,
-        )).with_children(|btn| {
+        ))
+        .with_children(|btn| {
             btn.spawn((
                 Text::new("Credits - Click to return"),
-                TextFont { font_size: 32.0, ..default() },
+                TextFont {
+                    font_size: 32.0,
+                    ..default()
+                },
                 TextColor(Color::WHITE),
             ));
         });
@@ -209,7 +230,10 @@ fn fullscreen_bg(tex: Option<Handle<Image>>) -> (Node, ImageNode) {
 /// Title screen button with hover image overlay.
 fn title_btn(
     parent: &mut ChildSpawnerCommands,
-    x: f32, y: f32, w: f32, h: f32,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
     action: MenuAction,
     hover_img: Option<Handle<Image>>,
 ) {
@@ -274,7 +298,11 @@ fn button_hover(
         let show = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
         for child in children.iter() {
             if let Ok(mut vis) = hover_query.get_mut(child) {
-                *vis = if show { Visibility::Inherited } else { Visibility::Hidden };
+                *vis = if show {
+                    Visibility::Inherited
+                } else {
+                    Visibility::Hidden
+                };
             }
         }
     }
@@ -294,7 +322,9 @@ fn menu_action(
             MenuAction::NewGame => menu_screen.set(MenuScreen::Segue),
             MenuAction::LoadGame => menu_screen.set(MenuScreen::LoadGame),
             MenuAction::Credits => menu_screen.set(MenuScreen::Credits),
-            MenuAction::Exit => { exit_writer.write(AppExit::Success); }
+            MenuAction::Exit => {
+                exit_writer.write(AppExit::Success);
+            }
             MenuAction::CreateParty => menu_screen.set(MenuScreen::PartyCreation),
             MenuAction::QuickStart | MenuAction::StartGame | MenuAction::LoadSlot => {
                 game_state.set(GameState::Loading);

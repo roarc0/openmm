@@ -11,8 +11,8 @@ use image::{DynamicImage, GenericImageView, RgbaImage};
 
 use lod::LodManager;
 
-use crate::game::entities::{AnimationState, FacingYaw};
 use crate::game::entities::actor::Actor;
+use crate::game::entities::{AnimationState, FacingYaw};
 use crate::game::player::PlayerCamera;
 
 /// Cache for loaded sprite materials to avoid duplicate texture loading.
@@ -35,7 +35,17 @@ impl SpriteCache {
         materials: &mut Assets<StandardMaterial>,
     ) {
         for &(root, variant, palette_id) in roots {
-            load_sprite_frames(root, lod_manager, images, materials, &mut Some(self), variant, 0, 0, palette_id);
+            load_sprite_frames(
+                root,
+                lod_manager,
+                images,
+                materials,
+                &mut Some(self),
+                variant,
+                0,
+                0,
+                palette_id,
+            );
         }
     }
 }
@@ -48,12 +58,12 @@ fn cache_key(root: &str, variant: u8, min_w: u32, min_h: u32, palette_id: u16) -
     let has_variant = variant > 1;
     let has_palette = has_variant && palette_id > 0;
     match (has_size, has_variant, has_palette) {
-        (false, false, _)      => root.to_string(),
-        (false, true,  false)  => format!("{}@v{}", root, variant),
-        (false, true,  true)   => format!("{}@v{}p{}", root, variant, palette_id),
-        (true,  false, _)      => format!("{}@{}x{}", root, min_w, min_h),
-        (true,  true,  false)  => format!("{}@{}x{}@v{}", root, min_w, min_h, variant),
-        (true,  true,  true)   => format!("{}@{}x{}@v{}p{}", root, min_w, min_h, variant, palette_id),
+        (false, false, _) => root.to_string(),
+        (false, true, false) => format!("{}@v{}", root, variant),
+        (false, true, true) => format!("{}@v{}p{}", root, variant, palette_id),
+        (true, false, _) => format!("{}@{}x{}", root, min_w, min_h),
+        (true, true, false) => format!("{}@{}x{}@v{}", root, min_w, min_h, variant),
+        (true, true, true) => format!("{}@{}x{}@v{}p{}", root, min_w, min_h, variant, palette_id),
     }
 }
 
@@ -74,10 +84,7 @@ pub struct SpriteSheet {
 }
 
 impl SpriteSheet {
-    pub fn new(
-        states: Vec<Vec<[Handle<StandardMaterial>; 5]>>,
-        state_dimensions: Vec<(f32, f32)>,
-    ) -> Self {
+    pub fn new(states: Vec<Vec<[Handle<StandardMaterial>; 5]>>, state_dimensions: Vec<(f32, f32)>) -> Self {
         Self {
             states,
             state_dimensions,
@@ -108,12 +115,29 @@ pub fn load_entity_sprites(
 ) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, f32, f32) {
     // Load walking first (usually wider) to get target dimensions
     let (walking, ww, wh) = load_sprite_frames(
-        walking_root, lod_manager, images, materials, cache, variant, 0, 0, palette_id);
+        walking_root,
+        lod_manager,
+        images,
+        materials,
+        cache,
+        variant,
+        0,
+        0,
+        palette_id,
+    );
 
     // Load standing, padded to at least walking dimensions
     let (standing, sw, sh) = load_sprite_frames(
-        standing_root, lod_manager, images, materials, cache, variant,
-        ww as u32, wh as u32, palette_id);
+        standing_root,
+        lod_manager,
+        images,
+        materials,
+        cache,
+        variant,
+        ww as u32,
+        wh as u32,
+        palette_id,
+    );
     if standing.is_empty() {
         return (Vec::new(), 0.0, 0.0);
     }
@@ -124,8 +148,16 @@ pub fn load_entity_sprites(
     // If standing is larger than walking, reload walking padded to match
     let walking = if !walking.is_empty() && (sw > ww || sh > wh) {
         let (padded, _, _) = load_sprite_frames(
-            walking_root, lod_manager, images, materials, cache, variant,
-            qw as u32, qh as u32, palette_id);
+            walking_root,
+            lod_manager,
+            images,
+            materials,
+            cache,
+            variant,
+            qw as u32,
+            qh as u32,
+            palette_id,
+        );
         padded
     } else {
         walking
@@ -159,12 +191,12 @@ pub fn load_sprite_frames(
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
     let key = cache_key(root, variant, min_w, min_h, palette_id);
 
-    if let Some(c) = cache.as_ref() {
-        if let Some(&(w, h)) = c.dimensions.get(&key) {
-            let frames = rebuild_from_cache(&key, c);
-            if !frames.is_empty() {
-                return (frames, w, h);
-            }
+    if let Some(c) = cache.as_ref()
+        && let Some(&(w, h)) = c.dimensions.get(&key)
+    {
+        let frames = rebuild_from_cache(&key, c);
+        if !frames.is_empty() {
+            return (frames, w, h);
         }
     }
 
@@ -172,7 +204,15 @@ pub fn load_sprite_frames(
     let mut try_root = root;
     while try_root.len() >= 3 {
         let (frames, w, h) = decode_sprite_frames(
-            try_root, lod_manager, images, materials, variant, min_w, min_h, palette_id);
+            try_root,
+            lod_manager,
+            images,
+            materials,
+            variant,
+            min_w,
+            min_h,
+            palette_id,
+        );
         if !frames.is_empty() {
             store_in_cache(&key, &frames, w, h, cache);
             return (frames, w, h);
@@ -185,7 +225,8 @@ pub fn load_sprite_frames(
 fn store_in_cache(
     key: &str,
     frames: &[[Handle<StandardMaterial>; 5]],
-    w: f32, h: f32,
+    w: f32,
+    h: f32,
     cache: &mut Option<&mut SpriteCache>,
 ) {
     if let Some(cache) = cache.as_mut() {
@@ -200,10 +241,7 @@ fn store_in_cache(
     }
 }
 
-fn rebuild_from_cache(
-    key: &str,
-    cache: &SpriteCache,
-) -> Vec<[Handle<StandardMaterial>; 5]> {
+fn rebuild_from_cache(key: &str, cache: &SpriteCache) -> Vec<[Handle<StandardMaterial>; 5]> {
     let mut frames = Vec::new();
     for fi in 0..6 {
         let frame_letter = (b'a' + fi) as char;
@@ -245,8 +283,7 @@ fn decode_sprite_frames(
         let test0 = format!("{}{}0", root, frame_letter);
         let test_nodir = format!("{}{}", root, frame_letter);
 
-        let has_frame = lod_manager.game().sprite(&test0).is_some()
-            || lod_manager.game().sprite(&test_nodir).is_some();
+        let has_frame = lod_manager.game().sprite(&test0).is_some() || lod_manager.game().sprite(&test_nodir).is_some();
         if !has_frame {
             break;
         }
@@ -256,16 +293,25 @@ fn decode_sprite_frames(
             let name = format!("{}{}{}", root, frame_letter, dir);
             let img = if variant > 1 && palette_id > 0 {
                 // Use DSFT palette directly (sprite header palettes differ in numbering)
-                let sprite_name = if lod_manager.try_get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
+                let sprite_name = if lod_manager
+                    .try_get_bytes(format!("sprites/{}", name.to_lowercase()))
+                    .is_ok()
+                {
                     &name
-                } else { &test_nodir };
-                lod_manager.game().sprite_with_palette(sprite_name, palette_id)
+                } else {
+                    &test_nodir
+                };
+                lod_manager
+                    .game()
+                    .sprite_with_palette(sprite_name, palette_id)
                     .or_else(|| lod_manager.game().sprite(sprite_name))
             } else if variant > 1 {
                 let pal_offset = (variant - 1) as u16;
                 load_sprite_with_palette_offset(lod_manager, &name, &test_nodir, pal_offset)
             } else {
-                lod_manager.game().sprite(&name)
+                lod_manager
+                    .game()
+                    .sprite(&name)
                     .or_else(|| lod_manager.game().sprite(&test_nodir))
             };
             if let Some(ref i) = img {
@@ -335,22 +381,34 @@ fn load_sprite_with_palette_offset(
     palette_offset: u16,
 ) -> Option<DynamicImage> {
     // Try the primary name first, then the fallback (no-direction variant)
-    let sprite_name = if lod_manager.try_get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
+    let sprite_name = if lod_manager
+        .try_get_bytes(format!("sprites/{}", name.to_lowercase()))
+        .is_ok()
+    {
         name
-    } else if lod_manager.try_get_bytes(format!("sprites/{}", fallback.to_lowercase())).is_ok() {
+    } else if lod_manager
+        .try_get_bytes(format!("sprites/{}", fallback.to_lowercase()))
+        .is_ok()
+    {
         fallback
     } else {
         return None;
     };
 
     // Read the base palette_id from the sprite header (offset 20, u16 LE)
-    let sprite_data = lod_manager.try_get_bytes(format!("sprites/{}", sprite_name.to_lowercase())).ok()?;
-    if sprite_data.len() < 22 { return None; }
+    let sprite_data = lod_manager
+        .try_get_bytes(format!("sprites/{}", sprite_name.to_lowercase()))
+        .ok()?;
+    if sprite_data.len() < 22 {
+        return None;
+    }
     let base_palette_id = u16::from_le_bytes([sprite_data[20], sprite_data[21]]);
     let variant_palette_id = base_palette_id + palette_offset;
 
     // Try with variant palette, fall back to normal decode
-    lod_manager.game().sprite_with_palette(sprite_name, variant_palette_id)
+    lod_manager
+        .game()
+        .sprite_with_palette(sprite_name, variant_palette_id)
         .or_else(|| lod_manager.game().sprite(sprite_name))
 }
 
@@ -393,8 +451,7 @@ pub fn update_sprite_sheets(
         }
 
         let state_idx = match anim_state {
-            AnimationState::Walking
-                if sprites.states.len() > 1 && !sprites.states[1].is_empty() => 1,
+            AnimationState::Walking if sprites.states.len() > 1 && !sprites.states[1].is_empty() => 1,
             _ => 0,
         };
         let frame_count = sprites.states[state_idx].len();
@@ -418,7 +475,8 @@ pub fn update_sprite_sheets(
 
         // Pick directional frame based on camera angle relative to entity facing.
         // Actors use Actor.facing_yaw (updated by wander), decorations use FacingYaw (fixed from map).
-        let entity_yaw = actor.map(|a| a.facing_yaw)
+        let entity_yaw = actor
+            .map(|a| a.facing_yaw)
             .or_else(|| facing_yaw.map(|f| f.0))
             .unwrap_or(0.0);
         let dir_to_camera = cam_pos - actor_pos;
@@ -444,8 +502,7 @@ pub fn update_sprite_sheets(
 /// 1-4=rotations). Octants 5-7 mirror views 3-1 via negative X scale.
 pub fn direction_for_angle(facing_yaw: f32, camera_angle: f32) -> (usize, bool) {
     let relative = (facing_yaw - camera_angle).rem_euclid(std::f32::consts::TAU);
-    let octant = ((relative + std::f32::consts::FRAC_PI_8)
-        / std::f32::consts::FRAC_PI_4) as usize % 8;
+    let octant = ((relative + std::f32::consts::FRAC_PI_8) / std::f32::consts::FRAC_PI_4) as usize % 8;
     match octant {
         0 => (0, false),
         1 => (1, false),
@@ -471,22 +528,22 @@ pub fn load_decoration_directions(
     cache: &mut Option<&mut SpriteCache>,
 ) -> ([Handle<StandardMaterial>; 5], f32, f32) {
     let key = format!("dec:{}", root);
-    if let Some(c) = cache.as_ref() {
-        if let Some(&(w, h)) = c.dimensions.get(&key) {
-            let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
-            let mut found = true;
-            for di in 0..5 {
-                let mat_key = format!("{}a{}", key, di);
-                if let Some(mat) = c.materials.get(&mat_key) {
-                    dirs[di] = mat.clone();
-                } else {
-                    found = false;
-                    break;
-                }
+    if let Some(c) = cache.as_ref()
+        && let Some(&(w, h)) = c.dimensions.get(&key)
+    {
+        let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+        let mut found = true;
+        for di in 0..5 {
+            let mat_key = format!("{}a{}", key, di);
+            if let Some(mat) = c.materials.get(&mat_key) {
+                dirs[di] = mat.clone();
+            } else {
+                found = false;
+                break;
             }
-            if found {
-                return (dirs, w, h);
-            }
+        }
+        if found {
+            return (dirs, w, h);
         }
     }
 

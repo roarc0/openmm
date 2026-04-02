@@ -1,7 +1,7 @@
 //! Terrain type queries for outdoor maps.
 
 use crate::dtile::{Dtile, Tileset};
-use crate::odm::{Odm, ODM_SIZE, ODM_TILE_SCALE};
+use crate::odm::{ODM_SIZE, ODM_TILE_SCALE, Odm};
 
 /// Precomputed terrain lookup for a specific map.
 /// Built once from Dtile + Odm tile_data, maps tile_map values (0-255) to Tileset.

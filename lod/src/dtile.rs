@@ -1,4 +1,4 @@
-use crate::{enums::TileFlags, image::get_atlas, lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{LodManager, enums::TileFlags, image::get_atlas, lod_data::LodData, utils::try_read_name};
 
 /// Terrain tileset types from MM6 dtile.bin.
 /// Raw tile_set values: 0=grass, 1=snow, 2=sand, 3=volcanic, 4=dirt,
@@ -40,11 +40,11 @@ impl Tileset {
             0 => Some(Self::Grass),
             1 => Some(Self::Snow),
             2 => Some(Self::Desert),
-            3 => Some(Self::Volcanic),      // voltyl
+            3 => Some(Self::Volcanic), // voltyl
             4 => Some(Self::Dirt),
             5 => Some(Self::Water),
-            6 => Some(Self::CrackedSwamp),  // crktyl
-            7 => Some(Self::Swamp),         // swmtyl
+            6 => Some(Self::CrackedSwamp), // crktyl
+            7 => Some(Self::Swamp),        // swmtyl
             8..=255 => Some(Self::Road),
             _ => None,
         }
@@ -148,7 +148,14 @@ impl Dtile {
             let tile_set = cursor.read_i16::<LittleEndian>()?;
             let section = cursor.read_i16::<LittleEndian>()?;
             let attributes = TileFlags::from_bits_truncate(cursor.read_u16::<LittleEndian>()?);
-            tiles.push(Tile { name, id, bitmap, tile_set, section, attributes });
+            tiles.push(Tile {
+                name,
+                id,
+                bitmap,
+                tile_set,
+                section,
+                attributes,
+            });
         }
 
         Ok(Self { tiles })
@@ -163,7 +170,8 @@ impl Dtile {
 
     /// Get name and tile_set for a dtile entry (for debugging).
     pub fn tile_info(&self, index: usize) -> (String, i16) {
-        self.tiles.get(index)
+        self.tiles
+            .get(index)
             .map(|t| (t.name().unwrap_or("?".into()), t.tile_set))
             .unwrap_or(("OOB".into(), -1))
     }
@@ -284,24 +292,14 @@ impl TileTable {
         for i in 0..=255 {
             self.coordinates_table[i] = self.index_to_coordinate(
                 set.iter()
-                    .find_map(|v| {
-                        if *v.1 == self.names_table[i] {
-                            Some(v.0)
-                        } else {
-                            None
-                        }
-                    })
+                    .find_map(|v| if *v.1 == self.names_table[i] { Some(v.0) } else { None })
                     .unwrap_or(set.len() - 1) as u8,
             );
         }
     }
 
     fn names_set(name_table: &[String; 256]) -> Vec<String> {
-        let mut set: Vec<String> = name_table
-            .iter()
-            .filter(|&d| !d.starts_with("drr"))
-            .cloned()
-            .collect();
+        let mut set: Vec<String> = name_table.iter().filter(|&d| !d.starts_with("drr")).cloned().collect();
         set.sort_by(|a, b| {
             if a == "pending" {
                 std::cmp::Ordering::Greater

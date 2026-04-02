@@ -1,6 +1,6 @@
-use super::*;
-use crate::{get_lod_path, LodManager};
 use super::super::global::GameData;
+use super::*;
+use crate::{LodManager, get_lod_path};
 
 fn game_data(lod: &LodManager) -> GameData {
     GameData::new(lod).expect("GameData::new failed")
@@ -20,8 +20,10 @@ fn monsters_all_have_sprites() {
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     for m in monsters.iter() {
-        assert!(!m.standing_sprite.is_empty(),
-            "every monster should have a standing sprite");
+        assert!(
+            !m.standing_sprite.is_empty(),
+            "every monster should have a standing sprite"
+        );
     }
 }
 
@@ -31,8 +33,11 @@ fn monsters_variant_in_range() {
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     for m in monsters.iter() {
-        assert!(m.variant >= 1 && m.variant <= 3,
-            "variant should be 1-3, got {}", m.variant);
+        assert!(
+            m.variant >= 1 && m.variant <= 3,
+            "variant should be 1-3, got {}",
+            m.variant
+        );
     }
 }
 
@@ -43,8 +48,7 @@ fn monsters_group_index_within_group_size() {
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     // group_size is 3..=5, so group_index must be < 6
     for m in monsters.iter() {
-        assert!(m.group_index < 6,
-            "group_index {} seems too large", m.group_index);
+        assert!(m.group_index < 6, "group_index {} seems too large", m.group_index);
     }
 }
 

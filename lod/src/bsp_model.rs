@@ -6,7 +6,10 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{enums::{ModelFaceAttributes, PolygonType}, utils::try_read_string_block};
+use crate::{
+    enums::{ModelFaceAttributes, PolygonType},
+    utils::try_read_string_block,
+};
 
 #[derive(Debug)]
 pub struct BSPModel {
@@ -148,10 +151,7 @@ impl BSPModel {
                 continue;
             };
 
-            let (tex_w, tex_h) = texture_sizes
-                .get(tex_name)
-                .copied()
-                .unwrap_or((128, 128));
+            let (tex_w, tex_h) = texture_sizes.get(tex_name).copied().unwrap_or((128, 128));
 
             let tex_w_f = tex_w as f32;
             let tex_h_f = tex_h as f32;
@@ -290,10 +290,7 @@ pub struct BSPNode {
 const MODEL_NAME_MAX_SIZE: usize = 32;
 const TEXTURE_NAME_MAX_SIZE: usize = 10;
 
-pub(super) fn read_bsp_models(
-    cursor: &mut Cursor<&[u8]>,
-    count: usize,
-) -> Result<Vec<BSPModel>, Box<dyn Error>> {
+pub(super) fn read_bsp_models(cursor: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<BSPModel>, Box<dyn Error>> {
     let mut models: Vec<BSPModel> = Vec::with_capacity(count);
     for header in read_bsp_model_headers(cursor, count)? {
         models.push(read_bsp_model(cursor, header)?);
@@ -301,10 +298,7 @@ pub(super) fn read_bsp_models(
     Ok(models)
 }
 
-fn read_bsp_model(
-    cursor: &mut Cursor<&[u8]>,
-    header: BSPModelHeader,
-) -> Result<BSPModel, Box<dyn Error>> {
+fn read_bsp_model(cursor: &mut Cursor<&[u8]>, header: BSPModelHeader) -> Result<BSPModel, Box<dyn Error>> {
     let mut model = BSPModel {
         vertices: Vec::with_capacity(header.vertex_count as usize),
         faces: Vec::with_capacity(header.faces_count as usize),
@@ -322,10 +316,7 @@ fn read_bsp_model(
     for _i in 0..model.header.faces_count {
         let mut face = BSPModelFace::default();
         cursor.read_exact(unsafe {
-            std::slice::from_raw_parts_mut(
-                &mut face as *mut _ as *mut u8,
-                std::mem::size_of::<BSPModelFace>(),
-            )
+            std::slice::from_raw_parts_mut(&mut face as *mut _ as *mut u8, std::mem::size_of::<BSPModelFace>())
         })?;
         model.faces.push(face);
     }
@@ -351,10 +342,7 @@ fn read_bsp_model(
     Ok(model)
 }
 
-fn read_bsp_model_headers(
-    cursor: &mut Cursor<&[u8]>,
-    count: usize,
-) -> Result<Vec<BSPModelHeader>, Box<dyn Error>> {
+fn read_bsp_model_headers(cursor: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<BSPModelHeader>, Box<dyn Error>> {
     let mut headers = Vec::with_capacity(count);
     for _i in 0..count {
         headers.push(read_bsp_model_header(cursor)?);
@@ -413,7 +401,7 @@ fn decode_vertices(input: Vec<f32>) -> Vec<[f32; 3]> {
 }
 
 fn decode_indices(model: &BSPModel) -> Vec<u32> {
-    let indices = model
+    model
         .faces
         .iter()
         .flat_map(|f| {
@@ -427,13 +415,12 @@ fn decode_indices(model: &BSPModel) -> Vec<u32> {
                 })
                 .collect::<Vec<_>>()
         })
-        .collect();
-    indices
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_lod_path, odm::Odm, LodManager};
+    use crate::{LodManager, get_lod_path, odm::Odm};
 
     #[test]
     fn get_map_works() {

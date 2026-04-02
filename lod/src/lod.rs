@@ -55,10 +55,10 @@ impl Lod {
                 if let Err(e) = sprite.save(path.join(format!("{}.png", file_name))) {
                     println!("Error saving sprite {} : {}", file_name, e)
                 }
-            } else if let Ok(lod_data) = LodData::try_from(data) {
-                if let Err(e) = lod_data.dump(path.join(file_name)) {
-                    println!("Error saving lod data {} : {}", file_name, e)
-                }
+            } else if let Ok(lod_data) = LodData::try_from(data)
+                && let Err(e) = lod_data.dump(path.join(file_name))
+            {
+                println!("Error saving lod data {} : {}", file_name, e)
             }
         }
         Ok(())
@@ -198,13 +198,10 @@ mod tests {
         let palettes = palette::Palettes::try_from(&bitmaps_lod).unwrap();
 
         let sprites_lod = Lod::open(lod_path.join("SPRITES.LOD")).unwrap();
-        let goblin_image = crate::image::Image::try_from((
-            sprites_lod.try_get_bytes("gobfia0").unwrap(),
-            &palettes,
-        ))
-        .unwrap()
-        .to_image_buffer()
-        .unwrap();
+        let goblin_image = crate::image::Image::try_from((sprites_lod.try_get_bytes("gobfia0").unwrap(), &palettes))
+            .unwrap()
+            .to_image_buffer()
+            .unwrap();
         assert_eq!(goblin_image.width(), 355);
         assert_eq!(goblin_image.height(), 289);
     }

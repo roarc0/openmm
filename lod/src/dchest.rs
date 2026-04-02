@@ -6,7 +6,7 @@ use std::io::{Cursor, Read};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, LodManager};
+use crate::{LodManager, lod_data::LodData};
 
 #[derive(Debug)]
 pub struct ChestDesc {
@@ -56,7 +56,7 @@ impl ChestList {
 #[cfg(test)]
 mod tests {
     use super::ChestList;
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     #[test]
     fn parse_dchest() {

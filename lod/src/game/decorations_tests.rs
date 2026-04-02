@@ -1,5 +1,5 @@
 use super::*;
-use crate::{get_lod_path, LodManager};
+use crate::{LodManager, get_lod_path};
 
 fn load_oute3_decorations() -> Decorations {
     let lod = LodManager::new(get_lod_path()).unwrap();
@@ -45,10 +45,7 @@ fn directional_entries_have_zero_dimensions() {
 fn non_directional_entries_have_dimensions() {
     let dec = load_oute3_decorations();
     let non_dir: Vec<_> = dec.iter().filter(|e| !e.is_directional).collect();
-    assert!(
-        !non_dir.is_empty(),
-        "oute3 should have non-directional decorations"
-    );
+    assert!(!non_dir.is_empty(), "oute3 should have non-directional decorations");
     for entry in non_dir {
         assert!(
             entry.width > 0.0,

@@ -22,9 +22,9 @@ use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
 use crate::game::map_name::MapName;
-use crate::game::world_state::GameVariables;
-use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::sound::SoundManager;
+use crate::game::sound::effects::PlayUiSoundEvent;
+use crate::game::world_state::GameVariables;
 use crate::states::loading::LoadRequest;
 
 /// Bundles audio writer + SoundManager to stay within Bevy's 16-param limit.
@@ -50,12 +50,10 @@ pub struct EventQueue {
 impl EventQueue {
     /// Enqueue all steps for a given event_id from the EvtFile as a single sequence.
     pub fn push_all(&mut self, event_id: u16, evt: &EvtFile) {
-        if let Some(steps) = evt.events.get(&event_id) {
-            if !steps.is_empty() {
-                self.sequences.push_back(EventSequence {
-                    steps: steps.clone(),
-                });
-            }
+        if let Some(steps) = evt.events.get(&event_id)
+            && !steps.is_empty()
+        {
+            self.sequences.push_back(EventSequence { steps: steps.clone() });
         }
     }
 
@@ -82,10 +80,7 @@ pub struct EventDispatchPlugin;
 impl Plugin for EventDispatchPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EventQueue>()
-            .add_systems(
-                Update,
-                process_events.run_if(in_state(GameState::Game)),
-            );
+            .add_systems(Update, process_events.run_if(in_state(GameState::Game)));
     }
 }
 
@@ -108,17 +103,12 @@ fn building_background(building_type: &str) -> &'static str {
 }
 
 /// Load an icon from the LOD archive as a Bevy Image handle with nearest-neighbor sampling.
-fn load_icon(
-    name: &str,
-    game_assets: &GameAssets,
-    images: &mut Assets<Image>,
-) -> Option<Handle<Image>> {
+fn load_icon(name: &str, game_assets: &GameAssets, images: &mut Assets<Image>) -> Option<Handle<Image>> {
     let img = game_assets.game_lod().icon(name)?;
     let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
     bevy_img.sampler = bevy::image::ImageSampler::nearest();
     Some(images.add(bevy_img))
 }
-
 
 /// Resolve the background image for a building interaction.
 fn resolve_building_image(
@@ -127,14 +117,14 @@ fn resolve_building_image(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
 ) -> Option<Handle<Image>> {
-    if let Some(houses) = map_events.houses.as_ref() {
-        if let Some(entry) = houses.houses.get(&house_id) {
-            let pic_name = format!("evt{:02}", entry.picture_id);
-            if let Some(handle) = load_icon(&pic_name, game_assets, images) {
-                return Some(handle);
-            }
-            return load_icon(building_background(&entry.building_type), game_assets, images);
+    if let Some(houses) = map_events.houses.as_ref()
+        && let Some(entry) = houses.houses.get(&house_id)
+    {
+        let pic_name = format!("evt{:02}", entry.picture_id);
+        if let Some(handle) = load_icon(&pic_name, game_assets, images) {
+            return Some(handle);
         }
+        return load_icon(building_background(&entry.building_type), game_assets, images);
     }
     load_icon("evt02", game_assets, images)
 }
@@ -163,10 +153,13 @@ fn get_variable(vars: &GameVariables, var: EvtVariable) -> i32 {
         EvtVariable::GOLD => vars.gold,
         EvtVariable::FOOD => vars.food,
         EvtVariable::REPUTATION_IS => vars.reputation,
-        EvtVariable::QBITS => 0, // compare uses contains check, handled separately
+        EvtVariable::QBITS => 0,          // compare uses contains check, handled separately
         EvtVariable::AUTONOTES_BITS => 0, // compare uses contains check
         _ => {
-            debug!("get_variable: unhandled variable {} (0x{:02x}), returning 0", var, var.0);
+            debug!(
+                "get_variable: unhandled variable {} (0x{:02x}), returning 0",
+                var, var.0
+            );
             0
         }
     }
@@ -204,7 +197,10 @@ fn set_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
             }
         }
         _ => {
-            warn!("  set_variable: unhandled variable {} (0x{:02x}) = {}", var, var.0, value);
+            warn!(
+                "  set_variable: unhandled variable {} (0x{:02x}) = {}",
+                var, var.0, value
+            );
         }
     }
 }
@@ -236,7 +232,10 @@ fn add_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
             vars.add_autonote(value);
         }
         _ => {
-            warn!("  add_variable: unhandled variable {} (0x{:02x}) += {}", var, var.0, value);
+            warn!(
+                "  add_variable: unhandled variable {} (0x{:02x}) += {}",
+                var, var.0, value
+            );
         }
     }
 }
@@ -268,7 +267,10 @@ fn subtract_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
             vars.remove_autonote(value);
         }
         _ => {
-            warn!("  subtract_variable: unhandled variable {} (0x{:02x}) -= {}", var, var.0, value);
+            warn!(
+                "  subtract_variable: unhandled variable {} (0x{:02x}) -= {}",
+                var, var.0, value
+            );
         }
     }
 }
@@ -333,7 +335,10 @@ fn process_events(
     while pc < steps.len() {
         iterations += 1;
         if iterations > MAX_ITERATIONS {
-            warn!("Event script exceeded {} iterations, aborting (infinite loop?)", MAX_ITERATIONS);
+            warn!(
+                "Event script exceeded {} iterations, aborting (infinite loop?)",
+                MAX_ITERATIONS
+            );
             break;
         }
 
@@ -361,10 +366,10 @@ fn process_events(
             GameEvent::OpenChest { .. } => {
                 if let Some(image) = load_icon("chest01", &game_assets, &mut images) {
                     // Play chest-open sound if available
-                    if let Some(ref sm) = audio.sound_manager {
-                        if let Some(id) = sm.chest_open_sound_id {
-                            audio.ui_sound.write(PlayUiSoundEvent { sound_id: id });
-                        }
+                    if let Some(ref sm) = audio.sound_manager
+                        && let Some(id) = sm.chest_open_sound_id
+                    {
+                        audio.ui_sound.write(PlayUiSoundEvent { sound_id: id });
                     }
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Chest;
@@ -372,7 +377,11 @@ fn process_events(
                 }
             }
             GameEvent::MoveToMap {
-                x, y, z, direction, map_name,
+                x,
+                y,
+                z,
+                direction,
+                map_name,
             } => {
                 let Ok(target) = MapName::try_from(map_name.as_str()) else {
                     warn!("MoveToMap: invalid map name '{}'", map_name);
@@ -382,8 +391,16 @@ fn process_events(
                 let pos = mm6_to_bevy(*x, *y, *z);
                 let yaw = (*direction as f32) * std::f32::consts::TAU / 65536.0;
 
-                debug!("MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg",
-                    map_name, x, y, z, direction, pos, yaw.to_degrees());
+                debug!(
+                    "MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg",
+                    map_name,
+                    x,
+                    y,
+                    z,
+                    direction,
+                    pos,
+                    yaw.to_degrees()
+                );
 
                 if let MapName::Outdoor(ref odm) = target {
                     transition.save_data.map.map_x = odm.x;
@@ -500,7 +517,10 @@ fn process_events(
             GameEvent::SetTexture { face_id, texture_name } => {
                 warn!("STUB SetTexture: face={} tex='{}'", face_id, texture_name);
             }
-            GameEvent::SetSprite { decoration_id, sprite_name } => {
+            GameEvent::SetSprite {
+                decoration_id,
+                sprite_name,
+            } => {
                 info!("SetSprite: deco={} sprite='{}'", decoration_id, sprite_name);
                 // Find the decoration entity by billboard_index and replace its material
                 let target_idx = *decoration_id as usize;
@@ -531,7 +551,10 @@ fn process_events(
                     }
                 }
                 if !found {
-                    debug!("SetSprite: decoration {} not found (may not have DecorationInfo)", target_idx);
+                    debug!(
+                        "SetSprite: decoration {} not found (may not have DecorationInfo)",
+                        target_idx
+                    );
                 }
             }
             GameEvent::ToggleIndoorLight { light_id, on } => {
@@ -539,25 +562,57 @@ fn process_events(
             }
 
             // ── Combat / items ───────────────────────────────────────
-            GameEvent::SummonMonsters { monster_id, count, x, y, z } => {
-                warn!("STUB SummonMonsters: id={} count={} pos=({},{},{})", monster_id, count, x, y, z);
+            GameEvent::SummonMonsters {
+                monster_id,
+                count,
+                x,
+                y,
+                z,
+            } => {
+                warn!(
+                    "STUB SummonMonsters: id={} count={} pos=({},{},{})",
+                    monster_id, count, x, y, z
+                );
             }
-            GameEvent::CastSpell { spell_id, skill_level, skill_mastery, from_x, from_y, from_z, to_x, to_y, to_z } => {
-                warn!("STUB CastSpell: spell={} level={} mastery={} from=({},{},{}) to=({},{},{})",
-                    spell_id, skill_level, skill_mastery, from_x, from_y, from_z, to_x, to_y, to_z);
+            GameEvent::CastSpell {
+                spell_id,
+                skill_level,
+                skill_mastery,
+                from_x,
+                from_y,
+                from_z,
+                to_x,
+                to_y,
+                to_z,
+            } => {
+                warn!(
+                    "STUB CastSpell: spell={} level={} mastery={} from=({},{},{}) to=({},{},{})",
+                    spell_id, skill_level, skill_mastery, from_x, from_y, from_z, to_x, to_y, to_z
+                );
             }
             GameEvent::ReceiveDamage { damage_type, amount } => {
                 warn!("STUB ReceiveDamage: type={} amount={}", damage_type, amount);
             }
-            GameEvent::GiveItem { strength, item_type, item_id } => {
+            GameEvent::GiveItem {
+                strength,
+                item_type,
+                item_id,
+            } => {
                 warn!("STUB GiveItem: str={} type={} id={}", strength, item_type, item_id);
             }
             GameEvent::SummonItem { item_id, x, y, z } => {
                 warn!("STUB SummonItem: id={} pos=({},{},{})", item_id, x, y, z);
             }
-            GameEvent::CheckItemsCount { item_id, count, jump_step } => {
+            GameEvent::CheckItemsCount {
+                item_id,
+                count,
+                jump_step,
+            } => {
                 // TODO: check actual inventory count; for now, always fail (jump)
-                warn!("STUB CheckItemsCount: item={} count={} -> failing, jumping to step {}", item_id, count, jump_step);
+                warn!(
+                    "STUB CheckItemsCount: item={} count={} -> failing, jumping to step {}",
+                    item_id, count, jump_step
+                );
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                     pc = target_idx;
                 } else {
@@ -569,8 +624,15 @@ fn process_events(
             }
 
             // ── NPC operations ───────────────────────────────────────
-            GameEvent::SetNPCTopic { npc_id, topic_index, event_id } => {
-                warn!("STUB SetNPCTopic: npc={} topic={} event={}", npc_id, topic_index, event_id);
+            GameEvent::SetNPCTopic {
+                npc_id,
+                topic_index,
+                event_id,
+            } => {
+                warn!(
+                    "STUB SetNPCTopic: npc={} topic={} event={}",
+                    npc_id, topic_index, event_id
+                );
             }
             GameEvent::MoveNPC { npc_id, map_id } => {
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
@@ -579,27 +641,33 @@ fn process_events(
                 // For peasant NPCs (npc_id >= 5000), look up the generated data.
                 // For quest NPCs (npc_id < 5000), look up npcdata.txt.
                 let (portrait_name, npc_display_name) = if *npc_id >= 5000 {
-                    let entry = map_events.as_ref()
-                        .and_then(|me| me.generated_npcs.get(npc_id));
+                    let entry = map_events.as_ref().and_then(|me| me.generated_npcs.get(npc_id));
                     let portrait = entry
                         .map(|g| format!("NPC{:03}", g.portrait))
                         .unwrap_or_else(|| format!("NPC{:03}", npc_id));
                     let name = entry.map(|g| g.name.clone());
                     (portrait, name)
                 } else {
-                    let portrait = map_events.as_ref()
+                    let portrait = map_events
+                        .as_ref()
                         .and_then(|me| me.npc_table.as_ref())
                         .and_then(|t| t.portrait_name(*npc_id))
                         .unwrap_or_else(|| format!("NPC{:03}", npc_id));
-                    let name = map_events.as_ref()
+                    let name = map_events
+                        .as_ref()
                         .and_then(|me| me.npc_table.as_ref())
                         .and_then(|t| t.npc_name(*npc_id).map(str::to_string));
                     (portrait, name)
                 };
 
-                info!("SpeakNPC: npc_id={} portrait='{}' name={:?}", npc_id, portrait_name, npc_display_name);
+                info!(
+                    "SpeakNPC: npc_id={} portrait='{}' name={:?}",
+                    npc_id, portrait_name, npc_display_name
+                );
 
-                let portrait_img = game_assets.game_lod().icon(&portrait_name)
+                let portrait_img = game_assets
+                    .game_lod()
+                    .icon(&portrait_name)
                     .or_else(|| game_assets.game_lod().icon("npc001"));
                 if let Some(portrait_img) = portrait_img {
                     let size = Vec2::new(portrait_img.width() as f32, portrait_img.height() as f32);
@@ -610,7 +678,10 @@ fn process_events(
                     *hud_view = HudView::NpcDialogue;
                     grab_cursor(&mut cursor_query, false);
                 } else {
-                    warn!("SpeakNPC: no portrait found for npc_id={} portrait='{}'", npc_id, portrait_name);
+                    warn!(
+                        "SpeakNPC: no portrait found for npc_id={} portrait='{}'",
+                        npc_id, portrait_name
+                    );
                 }
             }
             GameEvent::ChangeEvent { target, new_event_id } => {
@@ -644,8 +715,11 @@ fn process_events(
             }
 
             // ── Timer / conditional hooks ────────────────────────────
-            GameEvent::OnTimer { .. } | GameEvent::OnLongTimer { .. } |
-            GameEvent::OnDateTimer { .. } | GameEvent::OnMapReload | GameEvent::OnMapLeave => {
+            GameEvent::OnTimer { .. }
+            | GameEvent::OnLongTimer { .. }
+            | GameEvent::OnDateTimer { .. }
+            | GameEvent::OnMapReload
+            | GameEvent::OnMapLeave => {
                 // These are lifecycle hooks, not dispatched via the queue
             }
             GameEvent::EnableDateTimer { timer_id, on } => {
@@ -667,22 +741,38 @@ fn process_events(
             }
 
             // ── Skills / kill / condition checks ─────────────────────
-            GameEvent::IsActorKilled { actor_group, count, jump_step } => {
+            GameEvent::IsActorKilled {
+                actor_group,
+                count,
+                jump_step,
+            } => {
                 // TODO: check actual kill count; for now, always fail (jump)
-                warn!("STUB IsActorKilled: group={} count={} -> failing, jumping to step {}", actor_group, count, jump_step);
+                warn!(
+                    "STUB IsActorKilled: group={} count={} -> failing, jumping to step {}",
+                    actor_group, count, jump_step
+                );
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                     pc = target_idx;
                 } else {
                     return;
                 }
             }
-            GameEvent::CheckSkill { skill_id, skill_level, jump_step } => {
+            GameEvent::CheckSkill {
+                skill_id,
+                skill_level,
+                jump_step,
+            } => {
                 let var = EvtVariable(*skill_id);
                 let best = party.max_skill(party.active_target, var);
                 let pass = best >= *skill_level;
-                info!("  CheckSkill: {} level {} required, best={} target={:?} -> {}",
-                    var, skill_level, best, party.active_target,
-                    if pass { "pass" } else { "fail -> jump" });
+                info!(
+                    "  CheckSkill: {} level {} required, best={} target={:?} -> {}",
+                    var,
+                    skill_level,
+                    best,
+                    party.active_target,
+                    if pass { "pass" } else { "fail -> jump" }
+                );
                 if !pass {
                     if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                         pc = target_idx;
@@ -693,9 +783,16 @@ fn process_events(
             }
             GameEvent::CheckSeason { season, jump_step } => {
                 let name = match season {
-                    0 => "Winter", 1 => "Spring", 2 => "Summer", 3 => "Autumn", _ => "Unknown",
+                    0 => "Winter",
+                    1 => "Spring",
+                    2 => "Summer",
+                    3 => "Autumn",
+                    _ => "Unknown",
                 };
-                warn!("STUB CheckSeason: {}({}) -> failing, jumping to step {}", name, season, jump_step);
+                warn!(
+                    "STUB CheckSeason: {}({}) -> failing, jumping to step {}",
+                    name, season, jump_step
+                );
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                     pc = target_idx;
                 } else {
@@ -704,7 +801,10 @@ fn process_events(
             }
             GameEvent::IsNPCInParty { npc_id, jump_step } => {
                 // Always fail for now (NPC not in party)
-                warn!("STUB IsNPCInParty: npc={} -> failing, jumping to step {}", npc_id, jump_step);
+                warn!(
+                    "STUB IsNPCInParty: npc={} -> failing, jumping to step {}",
+                    npc_id, jump_step
+                );
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                     pc = target_idx;
                 } else {
@@ -712,7 +812,10 @@ fn process_events(
                 }
             }
             GameEvent::IsTotalBountyHuntingAwardInRange { min, max, jump_step } => {
-                warn!("STUB IsTotalBountyHuntingAwardInRange: min={} max={} -> failing, jumping to step {}", min, max, jump_step);
+                warn!(
+                    "STUB IsTotalBountyHuntingAwardInRange: min={} max={} -> failing, jumping to step {}",
+                    min, max, jump_step
+                );
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                     pc = target_idx;
                 } else {
@@ -731,7 +834,10 @@ fn process_events(
                 warn!("STUB ChangeGroupAlly: group={} ally={}", group_id, ally_group);
             }
             GameEvent::ToggleActorGroupFlag { group_id, flag, on } => {
-                warn!("STUB ToggleActorGroupFlag: group={} flag=0x{:x} on={}", group_id, flag, on);
+                warn!(
+                    "STUB ToggleActorGroupFlag: group={} flag=0x{:x} on={}",
+                    group_id, flag, on
+                );
             }
             GameEvent::SetActorItem { actor_id, item_id, on } => {
                 warn!("STUB SetActorItem: actor={} item={} on={}", actor_id, item_id, on);
@@ -746,8 +852,15 @@ fn process_events(
                 warn!("STUB SpecialJump: value={}", jump_value);
             }
 
-            GameEvent::Unhandled { opcode, opcode_name, params } => {
-                warn!("Unhandled opcode: 0x{:02x} ({}) params={:02x?}", opcode, opcode_name, params);
+            GameEvent::Unhandled {
+                opcode,
+                opcode_name,
+                params,
+            } => {
+                warn!(
+                    "Unhandled opcode: 0x{:02x} ({}) params={:02x?}",
+                    opcode, opcode_name, params
+                );
             }
         }
     }

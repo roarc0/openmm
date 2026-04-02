@@ -65,14 +65,8 @@ pub(super) fn update_stats_bar(
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
     mut images: ResMut<Assets<Image>>,
-    mut gold_q: Query<
-        (&mut ImageNode, &mut Visibility, &mut Node),
-        (With<HudGoldText>, Without<HudFoodText>),
-    >,
-    mut food_q: Query<
-        (&mut ImageNode, &mut Visibility, &mut Node),
-        (With<HudFoodText>, Without<HudGoldText>),
-    >,
+    mut gold_q: Query<(&mut ImageNode, &mut Visibility, &mut Node), (With<HudGoldText>, Without<HudFoodText>)>,
+    mut food_q: Query<(&mut ImageNode, &mut Visibility, &mut Node), (With<HudFoodText>, Without<HudGoldText>)>,
 ) {
     let Some(ws) = world_state else { return };
     let gold = ws.game_vars.gold;

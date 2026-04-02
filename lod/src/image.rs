@@ -1,5 +1,5 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use image::{imageops, DynamicImage, GenericImageView, ImageBuffer, Rgba};
+use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba, imageops};
 use std::{
     error::Error,
     io::{Cursor, Seek},
@@ -44,8 +44,7 @@ impl TryFrom<&[u8]> for Image {
         }
 
         let compressed_data = &data[BITMAP_HEADER_SIZE..data.len() - PALETTE_SIZE];
-        let uncompressed_data =
-            zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
+        let uncompressed_data = zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
 
         let palette_slice = &data[data.len() - PALETTE_SIZE..];
         let palette: [u8; PALETTE_SIZE] = palette_slice.try_into()?;
@@ -92,11 +91,9 @@ impl TryFrom<(&[u8], &Palettes)> for Image {
         let table = &data[SPRITE_HEADER_SIZE..(SPRITE_HEADER_SIZE + table_size)];
 
         let compressed_data = &data[SPRITE_HEADER_SIZE + table_size..];
-        let uncompressed_data =
-            super::zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
+        let uncompressed_data = super::zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
 
-        let processed_data =
-            process_sprite_data(uncompressed_data.as_slice(), table, width, height)?;
+        let processed_data = process_sprite_data(uncompressed_data.as_slice(), table, width, height)?;
 
         Ok(Self {
             height,
@@ -111,7 +108,11 @@ impl TryFrom<(&[u8], &Palettes)> for Image {
 impl Image {
     /// Decode a sprite using a specific palette ID instead of the one in the sprite header.
     /// Used for monster variant palette swaps (e.g., GoblinB uses pal226 instead of pal225).
-    pub fn try_from_with_palette(data: &[u8], palettes: &Palettes, override_palette_id: u16) -> Result<Self, Box<dyn Error>> {
+    pub fn try_from_with_palette(
+        data: &[u8],
+        palettes: &Palettes,
+        override_palette_id: u16,
+    ) -> Result<Self, Box<dyn Error>> {
         let mut cursor = Cursor::new(data);
         cursor.seek(std::io::SeekFrom::Start(12))?;
 
@@ -135,10 +136,8 @@ impl Image {
 
         let table = &data[SPRITE_HEADER_SIZE..(SPRITE_HEADER_SIZE + table_size)];
         let compressed_data = &data[SPRITE_HEADER_SIZE + table_size..];
-        let uncompressed_data =
-            super::zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
-        let processed_data =
-            process_sprite_data(uncompressed_data.as_slice(), table, width, height)?;
+        let uncompressed_data = super::zlib::decompress(compressed_data, compressed_size, uncompressed_size)?;
+        let processed_data = process_sprite_data(uncompressed_data.as_slice(), table, width, height)?;
 
         Ok(Self {
             height,
@@ -150,12 +149,7 @@ impl Image {
     }
 }
 
-fn process_sprite_data(
-    data: &[u8],
-    table: &[u8],
-    width: usize,
-    height: usize,
-) -> Result<Vec<u8>, Box<dyn Error>> {
+fn process_sprite_data(data: &[u8], table: &[u8], width: usize, height: usize) -> Result<Vec<u8>, Box<dyn Error>> {
     let img_size = width * height;
     let mut img: Vec<u8> = vec![0; img_size];
     let mut current: usize = 0;
@@ -297,11 +291,7 @@ fn join_images_in_grid(
     DynamicImage::ImageRgba8(combined_image)
 }
 
-pub fn get_atlas(
-    lod_manager: &LodManager,
-    names: &[&str],
-    row_size: usize,
-) -> Result<DynamicImage, Box<dyn Error>> {
+pub fn get_atlas(lod_manager: &LodManager, names: &[&str], row_size: usize) -> Result<DynamicImage, Box<dyn Error>> {
     let mut images: Vec<DynamicImage> = Vec::with_capacity(names.len());
 
     for name in names {
@@ -319,12 +309,7 @@ pub fn get_atlas(
 
         let mut image = lod_manager.game().bitmap(name).ok_or("image not found")?;
         if image.dimensions() != (128, 128) {
-            image = DynamicImage::ImageRgba8(imageops::resize(
-                &image,
-                128,
-                128,
-                imageops::FilterType::Triangle,
-            ));
+            image = DynamicImage::ImageRgba8(imageops::resize(&image, 128, 128, imageops::FilterType::Triangle));
         }
         images.push(image);
     }
@@ -380,15 +365,17 @@ pub fn tint_variant(image: &mut DynamicImage, variant: u8) {
     // Channel mixing matrix — visible but not garish.
     let (rr, rg, rb, gr, gg, gb, br, bg, bb) = if variant == 2 {
         // Blue tint: strong blue, muted red/green
-        (0.35f32, 0.1, 0.15,  0.1, 0.45, 0.25,  0.2, 0.25, 0.9)
+        (0.35f32, 0.1, 0.15, 0.1, 0.45, 0.25, 0.2, 0.25, 0.9)
     } else {
         // Red tint: strong red, muted blue/green
-        (0.9f32, 0.25, 0.15,  0.2, 0.45, 0.1,  0.15, 0.1, 0.35)
+        (0.9f32, 0.25, 0.15, 0.2, 0.45, 0.1, 0.15, 0.1, 0.35)
     };
 
     for pixel in rgba.pixels_mut() {
         let [r, g, b, a] = pixel.0;
-        if a == 0 { continue; }
+        if a == 0 {
+            continue;
+        }
 
         let rf = r as f32;
         let gf = g as f32;
@@ -403,8 +390,8 @@ pub fn tint_variant(image: &mut DynamicImage, variant: u8) {
 
 #[cfg(test)]
 mod test {
-    use super::{get_atlas, ATLAS_TILE_PAD};
-    use crate::{get_lod_path, LodManager};
+    use super::{ATLAS_TILE_PAD, get_atlas};
+    use crate::{LodManager, get_lod_path};
     use image::GenericImageView;
 
     #[test]
@@ -412,12 +399,7 @@ mod test {
         let lod_path = get_lod_path();
         let lod_manager = LodManager::new(lod_path).unwrap();
 
-        let atlas_image = get_atlas(
-            &lod_manager,
-            &["grastyl", "dirttyl", "voltyl", "wtrtyl", "pending"],
-            2,
-        )
-        .unwrap();
+        let atlas_image = get_atlas(&lod_manager, &["grastyl", "dirttyl", "voltyl", "wtrtyl", "pending"], 2).unwrap();
         let slot = 128 + 2 * ATLAS_TILE_PAD;
         assert_eq!(atlas_image.dimensions(), (slot * 2, slot * 3));
     }

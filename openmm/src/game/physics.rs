@@ -99,9 +99,7 @@ fn setup_collision_data(
 
             if is_floor || is_ceiling {
                 for i in 0..verts.len().saturating_sub(2) {
-                    let tri = CollisionTriangle::new(
-                        verts[0], verts[i + 1], verts[i + 2], normal,
-                    );
+                    let tri = CollisionTriangle::new(verts[0], verts[i + 1], verts[i + 2], normal);
                     if is_floor {
                         floors.push(tri.clone());
                     }
@@ -112,7 +110,11 @@ fn setup_collision_data(
             }
         }
     }
-    commands.insert_resource(BuildingColliders { walls, floors, ceilings });
+    commands.insert_resource(BuildingColliders {
+        walls,
+        floors,
+        ceilings,
+    });
 
     // Water map (outdoor only)
     commands.insert_resource(WaterMap {
@@ -134,7 +136,9 @@ const SLOPE_SAMPLE_DIST: f32 = 32.0;
 fn effective_ground_y(
     height_map: Option<&TerrainHeightMap>,
     colliders: Option<&BuildingColliders>,
-    x: f32, z: f32, feet_y: f32,
+    x: f32,
+    z: f32,
+    feet_y: f32,
 ) -> f32 {
     let terrain_h = height_map
         .map(|hm| sample_terrain_height(&hm.heights, x, z))
@@ -171,10 +175,16 @@ fn gravity_system(
         ) + settings.eye_height;
 
         // Ceiling clamp: prevent player from going above the lowest ceiling
-        let ceiling_y = colliders.as_deref()
-            .and_then(|c| c.ceiling_height_at(
-                transform.translation.x, transform.translation.z,
-                transform.translation.y, feet_y))
+        let ceiling_y = colliders
+            .as_deref()
+            .and_then(|c| {
+                c.ceiling_height_at(
+                    transform.translation.x,
+                    transform.translation.z,
+                    transform.translation.y,
+                    feet_y,
+                )
+            })
             .unwrap_or(f32::MAX);
 
         if world_state.player.fly_mode {
@@ -209,25 +219,25 @@ fn gravity_system(
             }
 
             // Slope sliding: only on outdoor terrain
-            if physics.on_ground {
-                if let Some(ref hm) = height_map {
-                    let px = transform.translation.x;
-                    let pz = transform.translation.z;
-                    let h_xp = sample_terrain_height(&hm.heights, px + SLOPE_SAMPLE_DIST, pz);
-                    let h_xn = sample_terrain_height(&hm.heights, px - SLOPE_SAMPLE_DIST, pz);
-                    let h_zp = sample_terrain_height(&hm.heights, px, pz + SLOPE_SAMPLE_DIST);
-                    let h_zn = sample_terrain_height(&hm.heights, px, pz - SLOPE_SAMPLE_DIST);
+            if physics.on_ground
+                && let Some(ref hm) = height_map
+            {
+                let px = transform.translation.x;
+                let pz = transform.translation.z;
+                let h_xp = sample_terrain_height(&hm.heights, px + SLOPE_SAMPLE_DIST, pz);
+                let h_xn = sample_terrain_height(&hm.heights, px - SLOPE_SAMPLE_DIST, pz);
+                let h_zp = sample_terrain_height(&hm.heights, px, pz + SLOPE_SAMPLE_DIST);
+                let h_zn = sample_terrain_height(&hm.heights, px, pz - SLOPE_SAMPLE_DIST);
 
-                    let grad_x = (h_xp - h_xn) / (2.0 * SLOPE_SAMPLE_DIST);
-                    let grad_z = (h_zp - h_zn) / (2.0 * SLOPE_SAMPLE_DIST);
-                    let slope = (grad_x * grad_x + grad_z * grad_z).sqrt();
+                let grad_x = (h_xp - h_xn) / (2.0 * SLOPE_SAMPLE_DIST);
+                let grad_z = (h_zp - h_zn) / (2.0 * SLOPE_SAMPLE_DIST);
+                let slope = (grad_x * grad_x + grad_z * grad_z).sqrt();
 
-                    if slope > MAX_SLOPE_ANGLE.tan() {
-                        let slide_strength = (slope - MAX_SLOPE_ANGLE.tan()) * SLOPE_SLIDE_SPEED * dt;
-                        let grad_len = slope.max(0.001);
-                        transform.translation.x -= (grad_x / grad_len) * slide_strength;
-                        transform.translation.z -= (grad_z / grad_len) * slide_strength;
-                    }
+                if slope > MAX_SLOPE_ANGLE.tan() {
+                    let slide_strength = (slope - MAX_SLOPE_ANGLE.tan()) * SLOPE_SLIDE_SPEED * dt;
+                    let grad_len = slope.max(0.001);
+                    transform.translation.x -= (grad_x / grad_len) * slide_strength;
+                    transform.translation.z -= (grad_z / grad_len) * slide_strength;
                 }
             }
         }

@@ -19,7 +19,11 @@ impl GameAssets {
         let lod_manager = LodManager::new(path)?;
         let game_data = lod::game::global::GameData::new(&lod_manager)?;
         let billboard_manager = lod::billboard::BillboardManager::new(&lod_manager)?;
-        Ok(Self { lod_manager, game_data, billboard_manager })
+        Ok(Self {
+            lod_manager,
+            game_data,
+            billboard_manager,
+        })
     }
 
     pub fn lod_manager(&self) -> &LodManager {
@@ -69,7 +73,11 @@ pub fn repeat_sampler() -> bevy::image::ImageSampler {
 
 /// Select sampler based on filtering mode string ("nearest" or "linear").
 pub fn sampler_for_filtering(mode: &str) -> bevy::image::ImageSampler {
-    if mode == "nearest" { nearest_sampler() } else { repeat_linear_sampler() }
+    if mode == "nearest" {
+        nearest_sampler()
+    } else {
+        repeat_linear_sampler()
+    }
 }
 
 /// Image sampler using nearest-neighbor filtering (no interpolation).

@@ -7,7 +7,12 @@ use std::{
 use byteorder::{LittleEndian, ReadBytesExt};
 use log::info;
 
-use crate::{enums::{FaceAttributes, DoorAttributes, PolygonType}, LodManager, lod_data::LodData, odm::mm6_to_bevy};
+use crate::{
+    LodManager,
+    enums::{DoorAttributes, FaceAttributes, PolygonType},
+    lod_data::LodData,
+    odm::mm6_to_bevy,
+};
 
 /// Read a fixed-size string block, using lossy UTF-8 conversion for non-ASCII bytes.
 fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, Box<dyn Error>> {
@@ -905,19 +910,24 @@ impl Blv {
             let vertex_ids: Vec<u16> = vertex_id_set.into_iter().collect();
 
             // Base offsets = BLV vertex positions (the "open"/state-0 positions)
-            let x_offsets: Vec<i16> = vertex_ids.iter()
+            let x_offsets: Vec<i16> = vertex_ids
+                .iter()
                 .map(|&vid| self.vertices.get(vid as usize).map(|v| v.x).unwrap_or(0))
                 .collect();
-            let y_offsets: Vec<i16> = vertex_ids.iter()
+            let y_offsets: Vec<i16> = vertex_ids
+                .iter()
                 .map(|&vid| self.vertices.get(vid as usize).map(|v| v.y).unwrap_or(0))
                 .collect();
-            let z_offsets: Vec<i16> = vertex_ids.iter()
+            let z_offsets: Vec<i16> = vertex_ids
+                .iter()
                 .map(|&vid| self.vertices.get(vid as usize).map(|v| v.z).unwrap_or(0))
                 .collect();
 
             info!(
                 "InitializeDoors fallback: door_id={} faces={} verts={}",
-                door.door_id, face_ids.len(), vertex_ids.len()
+                door.door_id,
+                face_ids.len(),
+                vertex_ids.len()
             );
 
             door.face_ids = face_ids;
@@ -967,9 +977,7 @@ impl Blv {
         // Solve for texture gradient vectors using metric tensor on the face plane:
         // gradient_u · e1 = du1, gradient_u · e2 = du2
         // gradient_u = a1*e1 + a2*e2
-        let dot = |a: &[f32; 3], b: &[f32; 3]| -> f32 {
-            a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-        };
+        let dot = |a: &[f32; 3], b: &[f32; 3]| -> f32 { a[0] * b[0] + a[1] * b[1] + a[2] * b[2] };
 
         let g11 = dot(&e1, &e1);
         let g12 = dot(&e1, &e2);
@@ -1091,9 +1099,7 @@ impl Blv {
 
             // Compute UV rate: how much U and V change per unit of door displacement.
             // Only used for reveal/frame faces (some vertices fixed, some moving).
-            let uv_rate = Self::compute_face_uv_rate(
-                face, &self.vertices, &door.direction, tex_w_f, tex_h_f,
-            );
+            let uv_rate = Self::compute_face_uv_rate(face, &self.vertices, &door.direction, tex_w_f, tex_h_f);
 
             let mut mesh = BlvDoorFaceMesh {
                 face_index: face_idx,
@@ -1262,7 +1268,10 @@ mod tests {
         println!("  bsp_nodes: {}", blv.bsp_nodes.len());
         println!("  spawn_points: {}", blv.spawn_points.len());
         for (i, sp) in blv.spawn_points.iter().enumerate() {
-            println!("    sp[{}]: pos={:?} type={} monster={} radius={} attrs=0x{:04x}", i, sp.position, sp.spawn_type, sp.monster_index, sp.radius, sp.attributes);
+            println!(
+                "    sp[{}]: pos={:?} type={} monster={} radius={} attrs=0x{:04x}",
+                i, sp.position, sp.spawn_type, sp.monster_index, sp.radius, sp.attributes
+            );
         }
         println!("  map_outlines: {}", blv.map_outlines.len());
         println!("  door_count: {}", blv.door_count);
@@ -1479,14 +1488,23 @@ mod tests {
         let dlv = crate::dlv::Dlv::new(&lod_manager, "d01.blv", blv.door_count, blv.doors_data_size).unwrap();
 
         // Check cog_numbers on all faces
-        let faces_with_cog: Vec<_> = blv.faces.iter().enumerate()
+        let faces_with_cog: Vec<_> = blv
+            .faces
+            .iter()
+            .enumerate()
             .filter(|(_, f)| f.cog_number != 0)
             .collect();
         println!("Faces with non-zero cog_number: {}", faces_with_cog.len());
         for (i, f) in faces_with_cog.iter().take(20) {
             let tex = blv.texture_names.get(*i).map(|s| s.as_str()).unwrap_or("?");
-            println!("  face[{}]: cog={} attrs=0x{:08X} tex={} moves_by_door={}",
-                i, f.cog_number, f.attributes, tex, f.moves_by_door());
+            println!(
+                "  face[{}]: cog={} attrs=0x{:08X} tex={} moves_by_door={}",
+                i,
+                f.cog_number,
+                f.attributes,
+                tex,
+                f.moves_by_door()
+            );
         }
 
         // Check MOVES_BY_DOOR flag
@@ -1496,9 +1514,13 @@ mod tests {
         // Dump DLV door data for first non-empty door
         println!("\nDLV door data (non-empty):");
         for (i, d) in dlv.doors.iter().enumerate() {
-            if d.face_ids.is_empty() { continue; }
-            println!("  door[{}]: id={} dir={:?} move_len={} speed=({},{})",
-                i, d.door_id, d.direction, d.move_length, d.open_speed, d.close_speed);
+            if d.face_ids.is_empty() {
+                continue;
+            }
+            println!(
+                "  door[{}]: id={} dir={:?} move_len={} speed=({},{})",
+                i, d.door_id, d.direction, d.move_length, d.open_speed, d.close_speed
+            );
             println!("    face_ids: {:?}", &d.face_ids);
             println!("    vertex_ids: {:?}", &d.vertex_ids);
             println!("    x_offsets: {:?}", &d.x_offsets);
@@ -1508,26 +1530,44 @@ mod tests {
             for (vi, &vid) in d.vertex_ids.iter().enumerate() {
                 if let Some(v) = blv.vertices.get(vid as usize) {
                     let matches = d.x_offsets[vi] == v.x && d.y_offsets[vi] == v.y && d.z_offsets[vi] == v.z;
-                    println!("    vert[{}] id={}: blv=({},{},{}) offset=({},{},{}) match={}",
-                        vi, vid, v.x, v.y, v.z, d.x_offsets[vi], d.y_offsets[vi], d.z_offsets[vi], matches);
+                    println!(
+                        "    vert[{}] id={}: blv=({},{},{}) offset=({},{},{}) match={}",
+                        vi, vid, v.x, v.y, v.z, d.x_offsets[vi], d.y_offsets[vi], d.z_offsets[vi], matches
+                    );
                 }
             }
-            if i > 5 { break; }  // Limit output
+            if i > 5 {
+                break;
+            } // Limit output
         }
 
         // Verify door_face_set includes ALL faces from door face_ids
         // (no filtering — the original engine moves all door-referenced faces)
         let door_set = Blv::door_face_set(&dlv.doors, &blv.faces);
-        let all_face_ids: std::collections::HashSet<u16> = dlv.doors.iter()
-            .flat_map(|d| d.face_ids.iter().copied())
-            .collect();
-        let included = all_face_ids.iter().filter(|&&fid| door_set.contains(&(fid as usize))).count();
-        println!("\nDoor face set: {} included out of {} total door face_ids",
-            included, all_face_ids.len());
-        // All faces with non-empty vertex_ids should be included
-        let faces_with_vids = all_face_ids.iter()
-            .filter(|&&fid| blv.faces.get(fid as usize).map(|f| !f.vertex_ids.is_empty()).unwrap_or(false))
+        let all_face_ids: std::collections::HashSet<u16> =
+            dlv.doors.iter().flat_map(|d| d.face_ids.iter().copied()).collect();
+        let included = all_face_ids
+            .iter()
+            .filter(|&&fid| door_set.contains(&(fid as usize)))
             .count();
-        assert_eq!(included, faces_with_vids, "all door faces with vertex data should be included");
+        println!(
+            "\nDoor face set: {} included out of {} total door face_ids",
+            included,
+            all_face_ids.len()
+        );
+        // All faces with non-empty vertex_ids should be included
+        let faces_with_vids = all_face_ids
+            .iter()
+            .filter(|&&fid| {
+                blv.faces
+                    .get(fid as usize)
+                    .map(|f| !f.vertex_ids.is_empty())
+                    .unwrap_or(false)
+            })
+            .count();
+        assert_eq!(
+            included, faces_with_vids,
+            "all door faces with vertex data should be included"
+        );
     }
 }

@@ -22,7 +22,9 @@ fn main() {
     let format = find_arg(&args, "-f").unwrap_or("json".into());
     let filter = find_arg(&args, "--filter").map(|s| s.to_lowercase());
     // Positional arg after -n value (for map name etc.)
-    let extra = args.iter().position(|a| a == "-n")
+    let extra = args
+        .iter()
+        .position(|a| a == "-n")
         .and_then(|i| args.get(i + 2))
         .filter(|a| !a.starts_with('-'))
         .cloned();
@@ -34,27 +36,41 @@ fn main() {
         "ddeclist" => dump_ddeclist(&lod_manager, &filter),
         "dsounds" => dump_dsounds(&lod_manager, &filter),
         "billboards" | "bb" => {
-            let map = extra.unwrap_or_else(|| { eprintln!("Need map name: lod_dump -n billboards oute3.odm"); std::process::exit(1) });
+            let map = extra.unwrap_or_else(|| {
+                eprintln!("Need map name: lod_dump -n billboards oute3.odm");
+                std::process::exit(1)
+            });
             dump_billboards(&lod_manager, &map, &filter);
         }
         "odm" => {
-            let map = extra.unwrap_or_else(|| { eprintln!("Need map name: lod_dump -n odm oute3.odm"); std::process::exit(1) });
+            let map = extra.unwrap_or_else(|| {
+                eprintln!("Need map name: lod_dump -n odm oute3.odm");
+                std::process::exit(1)
+            });
             dump_odm(&lod_manager, &map);
         }
         "raw" => {
-            let path = extra.unwrap_or_else(|| { eprintln!("Need path: lod_dump -n raw icons/dsounds.bin"); std::process::exit(1) });
+            let path = extra.unwrap_or_else(|| {
+                eprintln!("Need path: lod_dump -n raw icons/dsounds.bin");
+                std::process::exit(1)
+            });
             dump_raw(&lod_manager, &path, &format);
         }
         "archives" => dump_archives(&lod_manager),
         _ => {
-            eprintln!("Unknown data type: '{}'. Available: dsft, ddeclist, dsounds, billboards, odm, raw, archives", name);
+            eprintln!(
+                "Unknown data type: '{}'. Available: dsft, ddeclist, dsounds, billboards, odm, raw, archives",
+                name
+            );
             std::process::exit(1);
         }
     }
 }
 
 fn find_arg(args: &[String], flag: &str) -> Option<String> {
-    args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1).cloned())
+    args.iter()
+        .position(|a| a == flag)
+        .and_then(|i| args.get(i + 1).cloned())
 }
 
 fn usage() {
@@ -78,9 +94,13 @@ fn dump_dsft(lod: &lod::LodManager, filter: &Option<String>) {
     for (i, frame) in dsft.frames.iter().enumerate() {
         let group = frame.group_name().unwrap_or_default();
         let sprite = frame.sprite_name().unwrap_or_default();
-        if !matches_filter(filter, &[&group, &sprite]) { continue; }
+        if !matches_filter(filter, &[&group, &sprite]) {
+            continue;
+        }
 
-        if !first { println!(","); }
+        if !first {
+            println!(",");
+        }
         first = false;
         print!(
             "  {{ \"index\": {}, \"group\": \"{}\", \"sprite\": \"{}\", \"scale\": {}, \"time\": {}, \"palette_id\": {}, \"light_radius\": {}, \"attrs\": \"0x{:04x}\" }}",
@@ -98,14 +118,26 @@ fn dump_ddeclist(lod: &lod::LodManager, filter: &Option<String>) {
     for (i, item) in ddeclist.items.iter().enumerate() {
         let name = item.name().unwrap_or_default();
         let game_name = item.game_name().unwrap_or_default();
-        if !matches_filter(filter, &[&name, &game_name]) { continue; }
+        if !matches_filter(filter, &[&name, &game_name]) {
+            continue;
+        }
 
-        if !first { println!(","); }
+        if !first {
+            println!(",");
+        }
         first = false;
         print!(
             "  {{ \"id\": {}, \"name\": \"{}\", \"game_name\": \"{}\", \"type\": {}, \"height\": {}, \"radius\": {}, \"light_radius\": {}, \"sft_index\": {}, \"sound_id\": {}, \"attrs\": \"0x{:04x}\" }}",
-            i, name, game_name, item.dec_type, item.height, item.radius,
-            item.light_radius, item.sft_index(), item.sound_id, item.attributes
+            i,
+            name,
+            game_name,
+            item.dec_type,
+            item.height,
+            item.radius,
+            item.light_radius,
+            item.sft_index(),
+            item.sound_id,
+            item.attributes
         );
     }
     println!("\n]");
@@ -118,13 +150,22 @@ fn dump_dsounds(lod: &lod::LodManager, filter: &Option<String>) {
     let mut first = true;
     for (i, item) in dsounds.items.iter().enumerate() {
         let name = item.name().unwrap_or_default();
-        if !matches_filter(filter, &[&name]) { continue; }
+        if !matches_filter(filter, &[&name]) {
+            continue;
+        }
 
-        if !first { println!(","); }
+        if !first {
+            println!(",");
+        }
         first = false;
         print!(
             "  {{ \"index\": {}, \"name\": \"{}\", \"sound_id\": {}, \"type\": {}, \"attrs\": \"0x{:04x}\", \"is_3d\": {} }}",
-            i, name, item.sound_id, item.sound_type, item.attributes, item.is_3d()
+            i,
+            name,
+            item.sound_id,
+            item.sound_type,
+            item.attributes,
+            item.is_3d()
         );
     }
     println!("\n]");
@@ -137,14 +178,22 @@ fn dump_billboards(lod: &lod::LodManager, map: &str, filter: &Option<String>) {
     let mut first = true;
     for (i, bb) in odm.billboards.iter().enumerate() {
         let name = &bb.declist_name;
-        if !matches_filter(filter, &[&name.to_lowercase()]) { continue; }
+        if !matches_filter(filter, &[&name.to_lowercase()]) {
+            continue;
+        }
 
-        if !first { println!(","); }
+        if !first {
+            println!(",");
+        }
         first = false;
         print!(
             "  {{ \"index\": {}, \"name\": \"{}\", \"declist_id\": {}, \"pos\": [{}, {}, {}], \"direction\": {} }}",
-            i, name, bb.data.declist_id,
-            bb.data.position[0], bb.data.position[1], bb.data.position[2],
+            i,
+            name,
+            bb.data.declist_id,
+            bb.data.position[0],
+            bb.data.position[1],
+            bb.data.position[2],
             bb.data.direction_degrees
         );
     }
@@ -176,11 +225,22 @@ fn dump_raw(lod: &lod::LodManager, path: &str, format: &str) {
             // Hex dump
             for (i, chunk) in data.chunks(16).enumerate() {
                 print!("{:08x}  ", i * 16);
-                for b in chunk { print!("{:02x} ", b); }
-                for _ in 0..16 - chunk.len() { print!("   "); }
+                for b in chunk {
+                    print!("{:02x} ", b);
+                }
+                for _ in 0..16 - chunk.len() {
+                    print!("   ");
+                }
                 print!(" |");
                 for &b in chunk {
-                    print!("{}", if b.is_ascii_graphic() || b == b' ' { b as char } else { '.' });
+                    print!(
+                        "{}",
+                        if b.is_ascii_graphic() || b == b' ' {
+                            b as char
+                        } else {
+                            '.'
+                        }
+                    );
                 }
                 println!("|");
             }

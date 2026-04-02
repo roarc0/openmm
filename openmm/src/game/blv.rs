@@ -4,21 +4,21 @@
 //! spawns the face-based geometry, door entities, and ambient lighting.
 //! Also handles indoor face interaction (click/Enter) and door animation.
 
-use bevy::prelude::*;
 use bevy::mesh::VertexAttributeValues;
+use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use lod::blv::DoorState;
 use lod::odm::mm6_to_bevy;
 
+use crate::GameState;
+use crate::game::InGame;
 use crate::game::entities::{actor, sprites};
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::HudView;
 use crate::game::player::PlayerCamera;
-use crate::game::InGame;
 use crate::states::loading::PreparedIndoorWorld;
-use crate::GameState;
 
 // --- Components ---
 
@@ -97,8 +97,10 @@ impl DoorColliders {
                     continue;
                 }
                 // Check if player is within the face's XZ footprint
-                if result.x + radius < wall.min_x || result.x - radius > wall.max_x
-                    || result.z + radius < wall.min_z || result.z - radius > wall.max_z
+                if result.x + radius < wall.min_x
+                    || result.x - radius > wall.max_x
+                    || result.z + radius < wall.min_z
+                    || result.z - radius > wall.max_z
                 {
                     continue;
                 }
@@ -159,7 +161,11 @@ impl Plugin for BlvPlugin {
         app.add_systems(OnEnter(GameState::Game), spawn_indoor_world)
             .add_systems(
                 Update,
-                (indoor_interact_system, indoor_touch_trigger_system, door_animation_system)
+                (
+                    indoor_interact_system,
+                    indoor_touch_trigger_system,
+                    door_animation_system,
+                )
                     .run_if(in_state(GameState::Game))
                     .run_if(resource_equals(HudView::World)),
             );
@@ -249,9 +255,7 @@ fn spawn_indoor_world(
         })
         .collect();
 
-    commands.insert_resource(BlvDoors {
-        doors: door_runtimes,
-    });
+    commands.insert_resource(BlvDoors { doors: door_runtimes });
 
     // Build DoorColliders from door face data for dynamic collision.
     // Each door face that is a wall (normal mostly horizontal) contributes
@@ -262,14 +266,18 @@ fn spawn_indoor_world(
         // Reconstruct polygon vertices from the triangle mesh base_positions.
         // Door faces are small enough that using all triangle vertices works.
         let n = df.base_positions.len();
-        if n < 3 { continue; }
+        if n < 3 {
+            continue;
+        }
 
         // Compute face normal from first triangle
         let p0 = Vec3::from(df.base_positions[0]);
         let p1 = Vec3::from(df.base_positions[1]);
         let p2 = Vec3::from(df.base_positions[2]);
         let normal = (p1 - p0).cross(p2 - p0).normalize_or_zero();
-        if normal.y.abs() > 0.7 { continue; } // Skip floors/ceilings
+        if normal.y.abs() > 0.7 {
+            continue;
+        } // Skip floors/ceilings
 
         door_collision_faces.push(DoorCollisionFace {
             door_index: df.door_index,
@@ -339,11 +347,20 @@ fn spawn_indoor_world(
             let variant = actor.variant;
 
             let (states, sw, sh) = sprites::load_entity_sprites(
-                &actor.standing_sprite, &actor.walking_sprite, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut sprite_cache), variant, actor.palette_id);
+                &actor.standing_sprite,
+                &actor.walking_sprite,
+                game_assets.lod_manager(),
+                &mut images,
+                &mut materials,
+                &mut Some(&mut sprite_cache),
+                variant,
+                actor.palette_id,
+            );
             if states.is_empty() || states[0].is_empty() {
-                error!("Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
-                    actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite);
+                error!(
+                    "Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
+                    actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite
+                );
                 continue;
             }
             let initial_mat = states[0][0][0].clone();
@@ -377,7 +394,7 @@ fn spawn_indoor_world(
                 crate::game::interaction::NpcInteractable {
                     name: actor.name.clone(),
                     position: pos,
-                    npc_id: actor.npc_id() as i16,
+                    npc_id: actor.npc_id(),
                 },
                 crate::game::entities::Billboard,
                 InGame,
@@ -483,7 +500,9 @@ fn indoor_interact_system(
     // Check input
     let key = keys.just_pressed(KeyCode::KeyE) || keys.just_pressed(KeyCode::Enter);
     let click = mouse.just_pressed(MouseButton::Left);
-    let gamepad = gamepads.iter().any(|gp| gp.just_pressed(bevy::input::gamepad::GamepadButton::East));
+    let gamepad = gamepads
+        .iter()
+        .any(|gp| gp.just_pressed(bevy::input::gamepad::GamepadButton::East));
     if !key && !click && !gamepad {
         return;
     }
@@ -499,7 +518,9 @@ fn indoor_interact_system(
         }
     }
 
-    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else {
+        return;
+    };
     let ray_origin = cam_global.translation();
     let ray_dir = cam_global.forward().as_vec3();
 
@@ -511,10 +532,10 @@ fn indoor_interact_system(
                 continue;
             }
             let hit_point = ray_origin + ray_dir * t;
-            if point_in_polygon(hit_point, &face.vertices, face.normal) {
-                if nearest_hit.is_none() || t < nearest_hit.unwrap().0 {
-                    nearest_hit = Some((t, face.event_id));
-                }
+            if point_in_polygon(hit_point, &face.vertices, face.normal)
+                && (nearest_hit.is_none() || t < nearest_hit.unwrap().0)
+            {
+                nearest_hit = Some((t, face.event_id));
             }
         }
     }
@@ -530,7 +551,11 @@ fn indoor_interact_system(
             return;
         };
         if let Some(steps) = evt.events.get(&event_id) {
-            info!("Indoor interact: dispatching {} steps for event_id={}", steps.len(), event_id);
+            info!(
+                "Indoor interact: dispatching {} steps for event_id={}",
+                steps.len(),
+                event_id
+            );
         } else {
             info!("Indoor interact: no actions found for event_id={}", event_id);
         }
@@ -548,23 +573,27 @@ fn indoor_touch_trigger_system(
     mut event_queue: ResMut<EventQueue>,
 ) {
     let Some(ref mut triggers) = touch_triggers else { return };
-    if triggers.faces.is_empty() { return; }
+    if triggers.faces.is_empty() {
+        return;
+    }
     let Ok(player_tf) = player_query.single() else { return };
     let player_pos = player_tf.translation;
 
     // Collect events to fire (avoids borrow conflict with fired set)
-    let to_fire: Vec<u16> = triggers.faces.iter()
+    let to_fire: Vec<u16> = triggers
+        .faces
+        .iter()
         .filter(|f| !triggers.fired.contains(&f.event_id))
         .filter(|f| player_pos.distance(f.center) <= f.radius)
         .map(|f| f.event_id)
         .collect();
 
-    if let Some(me) = map_events.as_ref() {
-        if let Some(evt) = me.evt.as_ref() {
-            for eid in &to_fire {
-                info!("Touch trigger: event_id={}", eid);
-                event_queue.push_all(*eid, evt);
-            }
+    if let Some(me) = map_events.as_ref()
+        && let Some(evt) = me.evt.as_ref()
+    {
+        for eid in &to_fire {
+            info!("Touch trigger: event_id={}", eid);
+            event_queue.push_all(*eid, evt);
         }
     }
     for eid in to_fire {
@@ -572,7 +601,9 @@ fn indoor_touch_trigger_system(
     }
 
     // Reset fired events when player moves away (allows re-triggering)
-    let still_near: std::collections::HashSet<u16> = triggers.faces.iter()
+    let still_near: std::collections::HashSet<u16> = triggers
+        .faces
+        .iter()
         .filter(|f| triggers.fired.contains(&f.event_id) && player_pos.distance(f.center) <= f.radius * 1.5)
         .map(|f| f.event_id)
         .collect();
@@ -739,25 +770,29 @@ fn door_animation_system(
 
     // Second pass: update mesh positions for all door faces
     for (face, mesh_handle) in door_faces.iter() {
-        let Some(door) = doors.doors.get(face.door_index) else { continue };
+        let Some(door) = doors.doors.get(face.door_index) else {
+            continue;
+        };
 
         let distance = door_slide_distance(door);
 
         // Convert MM6 direction to Bevy coords: mm6(x,y,z) → bevy(x,z,-y)
         let dir = [door.direction[0], door.direction[2], -door.direction[1]];
 
-        let Some(mesh) = meshes.get_mut(&mesh_handle.0) else { continue };
+        let Some(mesh) = meshes.get_mut(&mesh_handle.0) else {
+            continue;
+        };
 
         // Update vertex positions using stored base positions (Bevy coords).
         // base_positions are the open/retracted positions; closed = base + dir * distance.
-        if let Some(VertexAttributeValues::Float32x3(positions)) =
-            mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
-        {
+        if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION) {
             for (vi, pos) in positions.iter_mut().enumerate() {
                 if !face.is_moving_vertex.get(vi).copied().unwrap_or(false) {
                     continue;
                 }
-                let Some(base) = face.base_positions.get(vi) else { continue };
+                let Some(base) = face.base_positions.get(vi) else {
+                    continue;
+                };
                 pos[0] = base[0] + dir[0] * distance;
                 pos[1] = base[1] + dir[1] * distance;
                 pos[2] = base[2] + dir[2] * distance;
@@ -771,17 +806,16 @@ fn door_animation_system(
         // OpenEnroth formula: textureDelta = -dot(direction, axis) * distance + baseDelta
         // Our per-vertex equivalent: scroll moving vertex UVs opposite to geometric movement
         // to keep the texture aligned with the face plane as it deforms.
-        if face.moves_by_door && face.uv_rate != [0.0, 0.0] {
-            if let Some(VertexAttributeValues::Float32x2(uvs)) =
-                mesh.attribute_mut(Mesh::ATTRIBUTE_UV_0)
-            {
-                for (vi, uv) in uvs.iter_mut().enumerate() {
-                    if face.is_moving_vertex.get(vi).copied().unwrap_or(false) {
-                        if let Some(base) = face.base_uvs.get(vi) {
-                            uv[0] = base[0] - face.uv_rate[0] * distance;
-                            uv[1] = base[1] - face.uv_rate[1] * distance;
-                        }
-                    }
+        if face.moves_by_door
+            && face.uv_rate != [0.0, 0.0]
+            && let Some(VertexAttributeValues::Float32x2(uvs)) = mesh.attribute_mut(Mesh::ATTRIBUTE_UV_0)
+        {
+            for (vi, uv) in uvs.iter_mut().enumerate() {
+                if face.is_moving_vertex.get(vi).copied().unwrap_or(false)
+                    && let Some(base) = face.base_uvs.get(vi)
+                {
+                    uv[0] = base[0] - face.uv_rate[0] * distance;
+                    uv[1] = base[1] - face.uv_rate[1] * distance;
                 }
             }
         }
@@ -792,20 +826,23 @@ fn door_animation_system(
         // Build new walls into a temporary vec to avoid borrow conflict
         let mut new_walls = Vec::new();
         for cf in &colliders.face_data {
-            let Some(door) = doors.doors.get(cf.door_index) else { continue };
+            let Some(door) = doors.doors.get(cf.door_index) else {
+                continue;
+            };
 
             // Only block when the door is not fully open
             let distance = door_slide_distance(door);
-            if distance < 1.0 { continue; } // Fully open — no collision
+            if distance < 1.0 {
+                continue;
+            } // Fully open — no collision
 
-            let dir_bevy = Vec3::new(
-                door.direction[0],
-                door.direction[2],
-                -door.direction[1],
-            );
+            let dir_bevy = Vec3::new(door.direction[0], door.direction[2], -door.direction[1]);
 
             // Compute current vertex positions (applying door displacement to moving verts)
-            let current_verts: Vec<Vec3> = cf.base_positions.iter().enumerate()
+            let current_verts: Vec<Vec3> = cf
+                .base_positions
+                .iter()
+                .enumerate()
                 .map(|(vi, base)| {
                     if cf.is_moving.get(vi).copied().unwrap_or(false) {
                         *base + dir_bevy * distance
@@ -815,7 +852,9 @@ fn door_animation_system(
                 })
                 .collect();
 
-            if current_verts.len() < 3 { continue; }
+            if current_verts.len() < 3 {
+                continue;
+            }
 
             // Deduplicate vertices (triangulated meshes have duplicates)
             let mut unique_verts: Vec<Vec3> = Vec::new();
@@ -825,12 +864,16 @@ fn door_animation_system(
                     unique_verts.push(*v);
                 }
             }
-            if unique_verts.len() < 3 { continue; }
+            if unique_verts.len() < 3 {
+                continue;
+            }
 
             let plane_dist = cf.normal.dot(unique_verts[0]);
-            new_walls.push(
-                crate::game::collision::CollisionWall::new(cf.normal, plane_dist, &unique_verts)
-            );
+            new_walls.push(crate::game::collision::CollisionWall::new(
+                cf.normal,
+                plane_dist,
+                &unique_verts,
+            ));
         }
         colliders.walls = new_walls;
     }

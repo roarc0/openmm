@@ -20,10 +20,7 @@ pub(super) fn try_read_name(name: &[u8]) -> Option<String> {
     try_read_string(&mut cursor).map(|s| s.to_lowercase()).ok()
 }
 
-pub(super) fn try_read_string_block(
-    cursor: &mut Cursor<&[u8]>,
-    size: usize,
-) -> Result<String, Box<dyn Error>> {
+pub(super) fn try_read_string_block(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, Box<dyn Error>> {
     let pos = cursor.position();
     let s = try_read_string(cursor)?;
     cursor.seek(std::io::SeekFrom::Start(pos + size as u64))?;

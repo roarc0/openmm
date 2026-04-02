@@ -160,12 +160,12 @@ mod tests;
 /// Weighted odds for A/B/C variant selection per difficulty level.
 /// From OpenEnroth word_4E8152: [A%, B%, C%] for each difficulty 0-5.
 const VARIANT_ODDS: [[u8; 3]; 6] = [
-    [100, 0, 0],   // difficulty 0: all A
-    [90, 8, 2],    // difficulty 1: mostly A
-    [70, 20, 10],  // difficulty 2
-    [50, 30, 20],  // difficulty 3
-    [30, 40, 30],  // difficulty 4
-    [10, 50, 40],  // difficulty 5: mostly B/C
+    [100, 0, 0],  // difficulty 0: all A
+    [90, 8, 2],   // difficulty 1: mostly A
+    [70, 20, 10], // difficulty 2
+    [50, 30, 20], // difficulty 3
+    [30, 40, 30], // difficulty 4
+    [10, 50, 40], // difficulty 5: mostly B/C
 ];
 
 impl MapInfo {
@@ -181,7 +181,9 @@ impl MapInfo {
     /// The `difficulty` here encodes: 1=A, 2=B, 3=C for forced variants,
     /// or the random roll result for indices 1-3.
     pub fn monster_for_index(&self, index: u16, seed: u32) -> Option<(&str, u8)> {
-        if index == 0 || index > 12 { return None; }
+        if index == 0 || index > 12 {
+            return None;
+        }
 
         let idx0 = (index - 1) as usize;
         let slot = idx0 % 3; // 0=Mon1, 1=Mon2, 2=Mon3
@@ -198,9 +200,13 @@ impl MapInfo {
                 let odds = &VARIANT_ODDS[dif];
                 let h = seed.wrapping_mul(2654435761);
                 let roll = ((h >> 16) % 100) as u8;
-                if roll < odds[0] { 1 }
-                else if roll < odds[0] + odds[1] { 2 }
-                else { 3 }
+                if roll < odds[0] {
+                    1
+                } else if roll < odds[0] + odds[1] {
+                    2
+                } else {
+                    3
+                }
             }
             1 => 1, // forced A
             2 => 2, // forced B

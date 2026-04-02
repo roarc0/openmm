@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::config::GameConfig;
-use crate::{despawn_all, GameState};
+use crate::{GameState, despawn_all};
 
 // This plugin will display a splash screen for 1 second before switching to the menu
 pub struct SplashPlugin;

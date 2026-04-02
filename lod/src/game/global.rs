@@ -4,8 +4,8 @@
 //! Pass `&GameData` to `Monsters::new`, `Actors::new`, and related functions to avoid
 //! repeated LOD reads and binary/text parsing on every map load.
 
-use std::error::Error;
 use crate::LodManager;
+use std::error::Error;
 
 pub struct GameData {
     /// Sprite-frame table (icons/dsft.bin) — 6 455 frames, ~568 KB parsed.
@@ -27,11 +27,21 @@ impl GameData {
         let monlist = crate::monlist::MonsterList::new(lod)?;
         let mapstats = crate::mapstats::MapStats::new(lod)?;
 
-        let name_pool = lod.get_decompressed("icons/npcnames.txt").ok()
+        let name_pool = lod
+            .get_decompressed("icons/npcnames.txt")
+            .ok()
             .and_then(|d| crate::game::npc::NpcNamePool::parse(&d).ok());
-        let street_npcs = lod.get_decompressed("icons/npcdata.txt").ok()
+        let street_npcs = lod
+            .get_decompressed("icons/npcdata.txt")
+            .ok()
             .and_then(|d| crate::game::npc::StreetNpcs::parse(&d, name_pool.as_ref()).ok());
 
-        Ok(Self { dsft, monlist, mapstats, street_npcs, name_pool })
+        Ok(Self {
+            dsft,
+            monlist,
+            mapstats,
+            street_npcs,
+            name_pool,
+        })
     }
 }

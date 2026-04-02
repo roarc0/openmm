@@ -1,8 +1,8 @@
 //! Monster sprite resolution — maps DSFT group names to sprite file roots.
 
-use std::error::Error;
-use crate::LodManager;
 use super::global::GameData;
+use crate::LodManager;
+use std::error::Error;
 
 /// A single resolved monster spawn entry for a map.
 /// One entry per group member. Spread position is computed by the caller using
@@ -46,20 +46,31 @@ impl Monsters {
     pub fn new(lod: &LodManager, map_name: &str, game_data: &GameData) -> Result<Self, Box<dyn Error>> {
         let odm = crate::odm::Odm::new(lod, map_name)?;
         let map_name_lower = map_name.to_lowercase();
-        let cfg = game_data.mapstats.get(&map_name_lower).ok_or("map not found in mapstats")?;
+        let cfg = game_data
+            .mapstats
+            .get(&map_name_lower)
+            .ok_or("map not found in mapstats")?;
 
         let mut entries = Vec::new();
         for sp in &odm.spawn_points {
             let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as usize;
             for g in 0..group_size {
                 let seed = sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs() + g as u32;
-                let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else { continue };
-                let Some(desc) = game_data.monlist.find_by_name(mon_name, dif) else { continue };
+                let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else {
+                    continue;
+                };
+                let Some(desc) = game_data.monlist.find_by_name(mon_name, dif) else {
+                    continue;
+                };
 
                 let st_group = &desc.sprite_names[0];
                 let wa_group = &desc.sprite_names[1];
                 let Some((st_root, palette_id)) = resolve_sprite_group(st_group, &game_data.dsft, lod) else {
-                    log::warn!("Monster '{}' standing sprite '{}' not found in DSFT — skipping", mon_name, st_group);
+                    log::warn!(
+                        "Monster '{}' standing sprite '{}' not found in DSFT — skipping",
+                        mon_name,
+                        st_group
+                    );
                     continue;
                 };
                 let wa_root = resolve_sprite_group(wa_group, &game_data.dsft, lod)
@@ -84,11 +95,21 @@ impl Monsters {
         Ok(Monsters { entries })
     }
 
-    pub fn default_empty() -> Self { Monsters { entries: Vec::new() } }
-    pub fn entries(&self) -> &[Monster] { &self.entries }
-    pub fn iter(&self) -> impl Iterator<Item = &Monster> { self.entries.iter() }
-    pub fn len(&self) -> usize { self.entries.len() }
-    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn default_empty() -> Self {
+        Monsters { entries: Vec::new() }
+    }
+    pub fn entries(&self) -> &[Monster] {
+        &self.entries
+    }
+    pub fn iter(&self) -> impl Iterator<Item = &Monster> {
+        self.entries.iter()
+    }
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 }
 
 /// Resolved sprite data for one monlist entry.
@@ -107,27 +128,27 @@ pub fn resolve_sprite_group(group_name: &str, dsft: &crate::dsft::DSFT, lod: &Lo
         return None;
     }
     for frame in &dsft.frames {
-        if let Some(gname) = frame.group_name() {
-            if gname.eq_ignore_ascii_case(group_name) {
-                if let Some(sprite_name) = frame.sprite_name() {
-                    let without_digits = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
-                    let root = if without_digits.len() > 1 {
-                        let last = without_digits.as_bytes()[without_digits.len() - 1];
-                        if last >= b'a' && last <= b'f' {
-                            &without_digits[..without_digits.len() - 1]
-                        } else {
-                            without_digits
-                        }
+        if let Some(gname) = frame.group_name()
+            && gname.eq_ignore_ascii_case(group_name)
+        {
+            if let Some(sprite_name) = frame.sprite_name() {
+                let without_digits = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
+                let root = if without_digits.len() > 1 {
+                    let last = without_digits.as_bytes()[without_digits.len() - 1];
+                    if (b'a'..=b'f').contains(&last) {
+                        &without_digits[..without_digits.len() - 1]
                     } else {
                         without_digits
-                    };
-                    let test = format!("sprites/{}a0", root.to_lowercase());
-                    if lod.try_get_bytes(&test).is_ok() {
-                        return Some((root.to_lowercase(), frame.palette_id));
                     }
+                } else {
+                    without_digits
+                };
+                let test = format!("sprites/{}a0", root.to_lowercase());
+                if lod.try_get_bytes(&test).is_ok() {
+                    return Some((root.to_lowercase(), frame.palette_id));
                 }
-                break;
             }
+            break;
         }
     }
     // Fallback: try the group name directly with progressively shorter prefixes

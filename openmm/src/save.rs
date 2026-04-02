@@ -40,10 +40,7 @@ impl Default for GameSave {
     fn default() -> Self {
         Self {
             version: 1,
-            map: MapState {
-                map_x: 'e',
-                map_y: '3',
-            },
+            map: MapState { map_x: 'e', map_y: '3' },
             player: PlayerState {
                 position: [-10178.0, 340.0, 11206.0],
                 yaw: -38.7_f32.to_radians(),

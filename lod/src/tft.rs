@@ -7,7 +7,7 @@ use std::io::{Cursor, Read};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, LodManager};
+use crate::{LodManager, lod_data::LodData};
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,9 +66,10 @@ impl TextureFrameTable {
 
     /// Find the animation group for a texture name.
     pub fn find_group(&self, texture_name: &str) -> Option<&[TFTEntry]> {
-        let start = self.entries.iter().position(|e| {
-            e.name.eq_ignore_ascii_case(texture_name) && e.flags.contains(TFTFlags::GROUP_START)
-        })?;
+        let start = self
+            .entries
+            .iter()
+            .position(|e| e.name.eq_ignore_ascii_case(texture_name) && e.flags.contains(TFTFlags::GROUP_START))?;
         let end = self.entries[start..]
             .iter()
             .position(|e| !e.flags.contains(TFTFlags::NOT_GROUP_END))?
@@ -81,7 +82,7 @@ impl TextureFrameTable {
 #[cfg(test)]
 mod tests {
     use super::TextureFrameTable;
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     #[test]
     fn parse_dtft() {
@@ -90,10 +91,7 @@ mod tests {
         assert!(!tft.entries.is_empty(), "should have TFT entries");
         println!("dtft: {} entries", tft.entries.len());
         for e in tft.entries.iter().take(10) {
-            println!(
-                "  {} idx={} time={} flags={:?}",
-                e.name, e.index, e.time, e.flags
-            );
+            println!("  {} idx={} time={} flags={:?}", e.name, e.index, e.time, e.flags);
         }
     }
 }

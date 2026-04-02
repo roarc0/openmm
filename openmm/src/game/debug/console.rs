@@ -5,8 +5,8 @@
 
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
-use bevy::pbr::wireframe::WireframeConfig;
 use bevy::pbr::FogFalloff;
+use bevy::pbr::wireframe::WireframeConfig;
 use bevy::prelude::*;
 use bevy::window::{PrimaryWindow, WindowMode};
 
@@ -14,10 +14,10 @@ use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::debug::DebugHud;
+use crate::game::hud::viewport_inner_rect;
 use crate::game::map_name::MapName;
 use crate::game::odm::{OdmName, PLAY_WIDTH};
 use crate::game::world_state::WorldState;
-use crate::game::hud::viewport_inner_rect;
 use crate::save::GameSave;
 use crate::states::loading::LoadRequest;
 use crate::ui_assets::UiAssets;
@@ -62,13 +62,18 @@ pub struct ConsolePlugin;
 
 impl Plugin for ConsolePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ConsoleState>()
-            .add_systems(
-                Update,
-                (toggle_console, console_input, update_console_ui, toggle_debug_hud, sync_config_to_scene)
-                    .chain()
-                    .run_if(in_state(GameState::Game)),
-            );
+        app.init_resource::<ConsoleState>().add_systems(
+            Update,
+            (
+                toggle_console,
+                console_input,
+                update_console_ui,
+                toggle_debug_hud,
+                sync_config_to_scene,
+            )
+                .chain()
+                .run_if(in_state(GameState::Game)),
+        );
     }
 }
 
@@ -90,7 +95,7 @@ fn toggle_console(
 
     if state.open {
         let Ok(window) = windows.single() else { return };
-        let (left, top, vp_w, vp_h) = viewport_inner_rect(&window, &cfg, &ui_assets);
+        let (left, top, vp_w, vp_h) = viewport_inner_rect(window, &cfg, &ui_assets);
         let console_h = vp_h * CONSOLE_HEIGHT_FRACTION;
 
         commands
@@ -117,15 +122,25 @@ fn toggle_console(
                 parent.spawn((
                     Name::new("console_output"),
                     Text::new(""),
-                    TextFont { font_size: FONT_SIZE, ..default() },
+                    TextFont {
+                        font_size: FONT_SIZE,
+                        ..default()
+                    },
                     TextColor(Color::srgba(0.7, 0.9, 0.7, 0.9)),
-                    Node { flex_grow: 1.0, overflow: Overflow::clip_y(), ..default() },
+                    Node {
+                        flex_grow: 1.0,
+                        overflow: Overflow::clip_y(),
+                        ..default()
+                    },
                     ConsoleOutput,
                 ));
                 parent.spawn((
                     Name::new("console_prompt"),
                     Text::new("> _"),
-                    TextFont { font_size: FONT_SIZE, ..default() },
+                    TextFont {
+                        font_size: FONT_SIZE,
+                        ..default()
+                    },
                     TextColor(Color::WHITE),
                     ConsolePrompt,
                 ));
@@ -172,9 +187,15 @@ fn console_input(
                     state.history_index = None;
                     state.saved_input.clear();
                     execute_command(
-                        &cmd, &mut state, &mut exit, &mut world_state,
-                        &mut save_data, &mut commands, &mut game_state,
-                        &mut cfg, &mut wireframe_config,
+                        &cmd,
+                        &mut state,
+                        &mut exit,
+                        &mut world_state,
+                        &mut save_data,
+                        &mut commands,
+                        &mut game_state,
+                        &mut cfg,
+                        &mut wireframe_config,
                     );
                     state.input.clear();
                 }
@@ -215,7 +236,10 @@ fn console_input(
             k if (keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight)) => {
                 let changed = match k {
                     // Ctrl+U: kill line (clear all)
-                    KeyCode::KeyU => { state.input.clear(); true }
+                    KeyCode::KeyU => {
+                        state.input.clear();
+                        true
+                    }
                     // Ctrl+W: kill word (delete last word)
                     KeyCode::KeyW => {
                         let trimmed = state.input.trim_end().len();
@@ -228,12 +252,20 @@ fn console_input(
                         true
                     }
                     // Ctrl+A: move to start (clear — no cursor in this console)
-                    KeyCode::KeyA => { state.input.clear(); true }
+                    KeyCode::KeyA => {
+                        state.input.clear();
+                        true
+                    }
                     // Ctrl+K: kill to end (same as clear since no cursor)
-                    KeyCode::KeyK => { state.input.clear(); true }
+                    KeyCode::KeyK => {
+                        state.input.clear();
+                        true
+                    }
                     _ => false,
                 };
-                if changed { state.generation += 1; }
+                if changed {
+                    state.generation += 1;
+                }
             }
             _ => {
                 if let Some(ref text) = event.text {
@@ -273,7 +305,11 @@ fn execute_command(
             ctx_world.write_to_save(ctx_save_data);
             ctx_state.push_output(format!("Reloading map: {}", target));
             ctx_state.open = false;
-            ctx_commands.insert_resource(LoadRequest { map_name: target, spawn_position: None, spawn_yaw: None });
+            ctx_commands.insert_resource(LoadRequest {
+                map_name: target,
+                spawn_position: None,
+                spawn_yaw: None,
+            });
             ctx_game_state.set(GameState::Loading);
         }
         "load" | "map" => {
@@ -282,10 +318,34 @@ fn execute_command(
                 return;
             }
             let resolved = match arg {
-                "north" | "n" => resolve_direction(&ctx_world.map.name, ctx_world.player.position, OdmName::go_north, 0.0, PLAY_WIDTH),
-                "south" | "s" => resolve_direction(&ctx_world.map.name, ctx_world.player.position, OdmName::go_south, 0.0, -PLAY_WIDTH),
-                "east" | "e" => resolve_direction(&ctx_world.map.name, ctx_world.player.position, OdmName::go_east, -PLAY_WIDTH, 0.0),
-                "west" | "w" => resolve_direction(&ctx_world.map.name, ctx_world.player.position, OdmName::go_west, PLAY_WIDTH, 0.0),
+                "north" | "n" => resolve_direction(
+                    &ctx_world.map.name,
+                    ctx_world.player.position,
+                    OdmName::go_north,
+                    0.0,
+                    PLAY_WIDTH,
+                ),
+                "south" | "s" => resolve_direction(
+                    &ctx_world.map.name,
+                    ctx_world.player.position,
+                    OdmName::go_south,
+                    0.0,
+                    -PLAY_WIDTH,
+                ),
+                "east" | "e" => resolve_direction(
+                    &ctx_world.map.name,
+                    ctx_world.player.position,
+                    OdmName::go_east,
+                    -PLAY_WIDTH,
+                    0.0,
+                ),
+                "west" | "w" => resolve_direction(
+                    &ctx_world.map.name,
+                    ctx_world.player.position,
+                    OdmName::go_west,
+                    PLAY_WIDTH,
+                    0.0,
+                ),
                 name => match MapName::try_from(name) {
                     Ok(target) => {
                         let pos = parts.get(2).and_then(|c| parse_coords(c));
@@ -304,7 +364,11 @@ fn execute_command(
                         ctx_save_data.map.map_x = odm.x;
                         ctx_save_data.map.map_y = odm.y;
                     }
-                    ctx_commands.insert_resource(LoadRequest { map_name: target.clone(), spawn_position: None, spawn_yaw: None });
+                    ctx_commands.insert_resource(LoadRequest {
+                        map_name: target.clone(),
+                        spawn_position: None,
+                        spawn_yaw: None,
+                    });
                     ctx_world.map.name = target;
                     ctx_game_state.set(GameState::Loading);
                 }
@@ -335,7 +399,10 @@ fn execute_command(
         },
         "wireframe" | "wf" => {
             ctx_wireframe_config.global = !ctx_wireframe_config.global;
-            ctx_state.push_output(format!("Wireframe: {}", if ctx_wireframe_config.global { "on" } else { "off" }));
+            ctx_state.push_output(format!(
+                "Wireframe: {}",
+                if ctx_wireframe_config.global { "on" } else { "off" }
+            ));
         }
         "shadows" => {
             ctx_cfg.shadows = parse_toggle(arg, ctx_cfg.shadows);
@@ -356,16 +423,25 @@ fn execute_command(
                     }
                 }
             }
-            ctx_state.push_output(format!("Bloom: {} (intensity: {:.2}) {NEEDS_RELOAD}",
-                if ctx_cfg.bloom { "on" } else { "off" }, ctx_cfg.bloom_intensity));
+            ctx_state.push_output(format!(
+                "Bloom: {} (intensity: {:.2}) {NEEDS_RELOAD}",
+                if ctx_cfg.bloom { "on" } else { "off" },
+                ctx_cfg.bloom_intensity
+            ));
         }
         "ssao" => {
             ctx_cfg.ssao = parse_toggle(arg, ctx_cfg.ssao);
-            ctx_state.push_output(format!("SSAO: {} {NEEDS_RELOAD}", if ctx_cfg.ssao { "on" } else { "off" }));
+            ctx_state.push_output(format!(
+                "SSAO: {} {NEEDS_RELOAD}",
+                if ctx_cfg.ssao { "on" } else { "off" }
+            ));
         }
         "fog" => {
             if arg.is_empty() {
-                ctx_state.push_output(format!("Fog start: {:.0}, end: {:.0}", ctx_cfg.fog_start, ctx_cfg.fog_end));
+                ctx_state.push_output(format!(
+                    "Fog start: {:.0}, end: {:.0}",
+                    ctx_cfg.fog_start, ctx_cfg.fog_end
+                ));
             } else if let (Ok(start), Some(Ok(end))) = (arg.parse::<f32>(), parts.get(2).map(|s| s.parse::<f32>())) {
                 ctx_cfg.fog_start = start;
                 ctx_cfg.fog_end = end;
@@ -401,17 +477,26 @@ fn execute_command(
             }
             "on" | "1" => {
                 ctx_cfg.depth_of_field = true;
-                ctx_state.push_output(format!("Depth of field: on (distance: {:.1})", ctx_cfg.depth_of_field_distance));
+                ctx_state.push_output(format!(
+                    "Depth of field: on (distance: {:.1})",
+                    ctx_cfg.depth_of_field_distance
+                ));
             }
             "" => {
-                ctx_state.push_output(format!("Depth of field: {} (distance: {:.1})",
-                    if ctx_cfg.depth_of_field { "on" } else { "off" }, ctx_cfg.depth_of_field_distance));
+                ctx_state.push_output(format!(
+                    "Depth of field: {} (distance: {:.1})",
+                    if ctx_cfg.depth_of_field { "on" } else { "off" },
+                    ctx_cfg.depth_of_field_distance
+                ));
             }
             dist => {
                 if let Ok(v) = dist.parse::<f32>() {
                     ctx_cfg.depth_of_field = true;
                     ctx_cfg.depth_of_field_distance = v.max(0.1);
-                    ctx_state.push_output(format!("Depth of field: on (distance: {:.1})", ctx_cfg.depth_of_field_distance));
+                    ctx_state.push_output(format!(
+                        "Depth of field: on (distance: {:.1})",
+                        ctx_cfg.depth_of_field_distance
+                    ));
                 } else {
                     ctx_state.push_output("Usage: dof [on|off|<distance>]".to_string());
                 }
@@ -421,7 +506,10 @@ fn execute_command(
         // --- Gameplay ---
         "fly" => {
             ctx_world.player.fly_mode = parse_toggle(arg, ctx_world.player.fly_mode);
-            ctx_state.push_output(format!("Fly mode: {}", if ctx_world.player.fly_mode { "on" } else { "off" }));
+            ctx_state.push_output(format!(
+                "Fly mode: {}",
+                if ctx_world.player.fly_mode { "on" } else { "off" }
+            ));
         }
         "speed" => {
             if arg.is_empty() {
@@ -435,8 +523,10 @@ fn execute_command(
         }
         "sensitivity" | "sens" => {
             if arg.is_empty() {
-                ctx_state.push_output(format!("Mouse sensitivity: {:.2}x {:.2}y",
-                    ctx_cfg.mouse_sensitivity_x, ctx_cfg.mouse_sensitivity_y));
+                ctx_state.push_output(format!(
+                    "Mouse sensitivity: {:.2}x {:.2}y",
+                    ctx_cfg.mouse_sensitivity_x, ctx_cfg.mouse_sensitivity_y
+                ));
             } else if let Ok(v) = arg.parse::<f32>() {
                 ctx_cfg.mouse_sensitivity_x = v;
                 ctx_cfg.mouse_sensitivity_y = v;
@@ -446,17 +536,33 @@ fn execute_command(
             }
         }
         "pos" => {
-            ctx_state.push_output(format!("Position: ({:.0}, {:.1}, {:.0})", ctx_world.player.position.x, ctx_world.player.position.y, ctx_world.player.position.z));
+            ctx_state.push_output(format!(
+                "Position: ({:.0}, {:.1}, {:.0})",
+                ctx_world.player.position.x, ctx_world.player.position.y, ctx_world.player.position.z
+            ));
             ctx_state.push_output(format!("Map: {}", ctx_world.map.name));
         }
 
         // --- Window ---
-        "fullscreen" | "fs" => { ctx_cfg.window_mode = "fullscreen".into(); ctx_state.push_output("Fullscreen".to_string()); }
-        "borderless" => { ctx_cfg.window_mode = "borderless".into(); ctx_state.push_output("Borderless fullscreen".to_string()); }
-        "windowed" | "window" => { ctx_cfg.window_mode = "windowed".into(); ctx_state.push_output("Windowed mode".to_string()); }
+        "fullscreen" | "fs" => {
+            ctx_cfg.window_mode = "fullscreen".into();
+            ctx_state.push_output("Fullscreen".to_string());
+        }
+        "borderless" => {
+            ctx_cfg.window_mode = "borderless".into();
+            ctx_state.push_output("Borderless fullscreen".to_string());
+        }
+        "windowed" | "window" => {
+            ctx_cfg.window_mode = "windowed".into();
+            ctx_state.push_output("Windowed mode".to_string());
+        }
         "aspect" | "aspect_ratio" | "ar" => {
             if arg.is_empty() {
-                let display = if ctx_cfg.aspect_ratio.is_empty() { "auto" } else { &ctx_cfg.aspect_ratio };
+                let display = if ctx_cfg.aspect_ratio.is_empty() {
+                    "auto"
+                } else {
+                    &ctx_cfg.aspect_ratio
+                };
                 ctx_state.push_output(format!("Aspect ratio: {}", display));
             } else if arg == "auto" {
                 ctx_cfg.aspect_ratio = "".into();
@@ -483,11 +589,19 @@ fn execute_command(
         }
         "fps_cap" => {
             if arg.is_empty() {
-                let cap = if ctx_cfg.fps_cap == 0 { "unlimited".to_string() } else { format!("{}", ctx_cfg.fps_cap) };
+                let cap = if ctx_cfg.fps_cap == 0 {
+                    "unlimited".to_string()
+                } else {
+                    format!("{}", ctx_cfg.fps_cap)
+                };
                 ctx_state.push_output(format!("FPS cap: {}", cap));
             } else if let Ok(v) = arg.parse::<u32>() {
                 ctx_cfg.fps_cap = v;
-                let cap = if v == 0 { "unlimited".to_string() } else { format!("{}", v) };
+                let cap = if v == 0 {
+                    "unlimited".to_string()
+                } else {
+                    format!("{}", v)
+                };
                 ctx_state.push_output(format!("FPS cap: {}", cap));
             } else {
                 ctx_state.push_output("Usage: fps_cap <0=unlimited|30|60|120|...>".to_string());
@@ -501,17 +615,28 @@ fn execute_command(
             ctx_state.push_output("All audio muted".to_string());
         }
         "unmute" => {
-            if ctx_cfg.music_volume == 0.0 { ctx_cfg.music_volume = 0.5; }
-            if ctx_cfg.sfx_volume == 0.0 { ctx_cfg.sfx_volume = 1.0; }
-            ctx_state.push_output(format!("Audio unmuted (music: {:.0}%, sfx: {:.0}%)",
-                ctx_cfg.music_volume * 100.0, ctx_cfg.sfx_volume * 100.0));
+            if ctx_cfg.music_volume == 0.0 {
+                ctx_cfg.music_volume = 0.5;
+            }
+            if ctx_cfg.sfx_volume == 0.0 {
+                ctx_cfg.sfx_volume = 1.0;
+            }
+            ctx_state.push_output(format!(
+                "Audio unmuted (music: {:.0}%, sfx: {:.0}%)",
+                ctx_cfg.music_volume * 100.0,
+                ctx_cfg.sfx_volume * 100.0
+            ));
         }
         "music" => {
             if arg.is_empty() {
                 ctx_state.push_output(format!("Music volume: {:.0}%", ctx_cfg.music_volume * 100.0));
             } else if let Ok(v) = arg.parse::<f32>() {
                 // Accept both 0-1 range and 0-100 range
-                ctx_cfg.music_volume = if v > 1.0 { (v / 100.0).clamp(0.0, 1.0) } else { v.clamp(0.0, 1.0) };
+                ctx_cfg.music_volume = if v > 1.0 {
+                    (v / 100.0).clamp(0.0, 1.0)
+                } else {
+                    v.clamp(0.0, 1.0)
+                };
                 ctx_state.push_output(format!("Music volume: {:.0}%", ctx_cfg.music_volume * 100.0));
             } else {
                 ctx_state.push_output("Usage: music <0-100>".to_string());
@@ -521,7 +646,11 @@ fn execute_command(
             if arg.is_empty() {
                 ctx_state.push_output(format!("SFX volume: {:.0}%", ctx_cfg.sfx_volume * 100.0));
             } else if let Ok(v) = arg.parse::<f32>() {
-                ctx_cfg.sfx_volume = if v > 1.0 { (v / 100.0).clamp(0.0, 1.0) } else { v.clamp(0.0, 1.0) };
+                ctx_cfg.sfx_volume = if v > 1.0 {
+                    (v / 100.0).clamp(0.0, 1.0)
+                } else {
+                    v.clamp(0.0, 1.0)
+                };
                 ctx_state.push_output(format!("SFX volume: {:.0}%", ctx_cfg.sfx_volume * 100.0));
             } else {
                 ctx_state.push_output("Usage: sfx <0-100>".to_string());
@@ -529,10 +658,17 @@ fn execute_command(
         }
         "volume" | "vol" => {
             if arg.is_empty() {
-                ctx_state.push_output(format!("Music: {:.0}%, SFX: {:.0}%",
-                    ctx_cfg.music_volume * 100.0, ctx_cfg.sfx_volume * 100.0));
+                ctx_state.push_output(format!(
+                    "Music: {:.0}%, SFX: {:.0}%",
+                    ctx_cfg.music_volume * 100.0,
+                    ctx_cfg.sfx_volume * 100.0
+                ));
             } else if let Ok(v) = arg.parse::<f32>() {
-                let vol = if v > 1.0 { (v / 100.0).clamp(0.0, 1.0) } else { v.clamp(0.0, 1.0) };
+                let vol = if v > 1.0 {
+                    (v / 100.0).clamp(0.0, 1.0)
+                } else {
+                    v.clamp(0.0, 1.0)
+                };
                 ctx_cfg.music_volume = vol;
                 ctx_cfg.sfx_volume = vol;
                 ctx_state.push_output(format!("All volume: {:.0}%", vol * 100.0));
@@ -563,8 +699,10 @@ fn execute_command(
         }
         "filtering" => {
             if arg.is_empty() {
-                ctx_state.push_output(format!("terrain={} models={} hud={}",
-                    ctx_cfg.terrain_filtering, ctx_cfg.models_filtering, ctx_cfg.hud_filtering));
+                ctx_state.push_output(format!(
+                    "terrain={} models={} hud={}",
+                    ctx_cfg.terrain_filtering, ctx_cfg.models_filtering, ctx_cfg.hud_filtering
+                ));
             } else {
                 match arg {
                     "nearest" | "linear" => {
@@ -586,20 +724,25 @@ fn execute_command(
         "hud_filtering" | "hf" => {
             set_filtering(ctx_state, &mut ctx_cfg.hud_filtering, "HUD", arg);
         }
-        "exit" | "quit" | "q" => { ctx_exit.write(AppExit::from_code(0)); }
-        "clear" | "cls" => { ctx_state.output.clear(); ctx_state.generation += 1; }
-        "save_cfg" => {
-            match ctx_cfg.save() {
-                Ok(()) => ctx_state.push_output(format!("Config saved to {}", ctx_cfg.config_path.display())),
-                Err(e) => ctx_state.push_output(e),
-            }
+        "exit" | "quit" | "q" => {
+            ctx_exit.write(AppExit::from_code(0));
         }
+        "clear" | "cls" => {
+            ctx_state.output.clear();
+            ctx_state.generation += 1;
+        }
+        "save_cfg" => match ctx_cfg.save() {
+            Ok(()) => ctx_state.push_output(format!("Config saved to {}", ctx_cfg.config_path.display())),
+            Err(e) => ctx_state.push_output(e),
+        },
         "help" | "?" => {
             for line in HELP_TEXT {
                 ctx_state.push_output(line.to_string());
             }
         }
-        _ => { ctx_state.push_output(format!("Unknown command: '{}'. Type 'help'.", command)); }
+        _ => {
+            ctx_state.push_output(format!("Unknown command: '{}'. Type 'help'.", command));
+        }
     }
 }
 
@@ -683,7 +826,10 @@ fn resolve_direction(
 ) -> Result<(MapName, [f32; 3]), String> {
     match current_map {
         MapName::Outdoor(odm) => match dir_fn(odm) {
-            Some(next) => Ok((MapName::Outdoor(next), [player_pos.x + x_offset, player_pos.y, player_pos.z + z_offset])),
+            Some(next) => Ok((
+                MapName::Outdoor(next),
+                [player_pos.x + x_offset, player_pos.y, player_pos.z + z_offset],
+            )),
             None => Err("No map in that direction.".to_string()),
         },
         MapName::Indoor(_) => Err("Directional navigation only works on outdoor maps.".to_string()),
@@ -714,7 +860,7 @@ fn update_console_ui(
     }
 
     if let Ok(window) = windows.single() {
-        let (left, top, vp_w, vp_h) = viewport_inner_rect(&window, &cfg, &ui_assets);
+        let (left, top, vp_w, vp_h) = viewport_inner_rect(window, &cfg, &ui_assets);
         let console_h = vp_h * CONSOLE_HEIGHT_FRACTION;
         for mut node in console_q.iter_mut() {
             node.left = Val::Px(left);
@@ -792,7 +938,9 @@ fn sync_config_to_scene(
                 ..default()
             });
         } else if existing_dof.is_some() {
-            commands.entity(entity).remove::<bevy::post_process::dof::DepthOfField>();
+            commands
+                .entity(entity)
+                .remove::<bevy::post_process::dof::DepthOfField>();
         }
     }
 
@@ -802,9 +950,7 @@ fn sync_config_to_scene(
                 bevy::window::MonitorSelection::Current,
                 bevy::window::VideoModeSelection::Current,
             ),
-            "borderless" => WindowMode::BorderlessFullscreen(
-                bevy::window::MonitorSelection::Current,
-            ),
+            "borderless" => WindowMode::BorderlessFullscreen(bevy::window::MonitorSelection::Current),
             _ => WindowMode::Windowed,
         };
         if std::mem::discriminant(&window.mode) != std::mem::discriminant(&target_mode) {
@@ -822,5 +968,4 @@ fn sync_config_to_scene(
         };
         window.present_mode = present_mode;
     }
-
 }

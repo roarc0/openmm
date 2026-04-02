@@ -35,7 +35,6 @@ pub struct NpcInteractable {
     pub npc_id: i16,
 }
 
-
 const INTERACT_RANGE: f32 = 250.0;
 const RAYCAST_RANGE: f32 = 2000.0;
 /// Tangent of the targeting cone half-angle used for all entity types (~7 degrees).
@@ -52,7 +51,12 @@ impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (hover_hint_system, interact_system, decoration_interact_system, npc_interact_system)
+            (
+                hover_hint_system,
+                interact_system,
+                decoration_interact_system,
+                npc_interact_system,
+            )
                 .chain()
                 .run_if(in_state(GameState::Game))
                 .run_if(resource_equals(HudView::World)),
@@ -84,16 +88,15 @@ fn check_interact_input(
 ) -> (bool, bool, bool) {
     let key = keys.just_pressed(KeyCode::KeyE) || keys.just_pressed(KeyCode::Enter);
     let click = mouse.just_pressed(MouseButton::Left);
-    let gamepad = gamepads.iter().any(|gp| gp.just_pressed(bevy::input::gamepad::GamepadButton::East));
+    let gamepad = gamepads
+        .iter()
+        .any(|gp| gp.just_pressed(bevy::input::gamepad::GamepadButton::East));
     (key, click, gamepad)
 }
 
 /// Find the nearest entity position within the camera ray's angular cone.
 /// Returns `(entity_ref, along_ray_distance)` for the closest hit.
-fn raycast_nearest<T>(
-    cam_global: &GlobalTransform,
-    items: impl Iterator<Item = (T, Vec3)>,
-) -> Option<(T, f32)> {
+fn raycast_nearest<T>(cam_global: &GlobalTransform, items: impl Iterator<Item = (T, Vec3)>) -> Option<(T, f32)> {
     let ray_origin = cam_global.translation();
     let ray_dir = cam_global.forward().as_vec3();
     let mut nearest: Option<(T, f32)> = None;
@@ -101,14 +104,14 @@ fn raycast_nearest<T>(
     for (item, position) in items {
         let to_item = position - ray_origin;
         let along_ray = to_item.dot(ray_dir);
-        if along_ray < 0.0 || along_ray > RAYCAST_RANGE { continue; }
+        if !(0.0..=RAYCAST_RANGE).contains(&along_ray) {
+            continue;
+        }
         let closest_point = ray_origin + ray_dir * along_ray;
         let perp_dist = closest_point.distance(position);
         let threshold = (along_ray * RAY_ANGLE_TAN).max(RAY_MIN_PERP);
-        if perp_dist < threshold {
-            if nearest.is_none() || along_ray < nearest.as_ref().unwrap().1 {
-                nearest = Some((item, along_ray));
-            }
+        if perp_dist < threshold && (nearest.is_none() || along_ray < nearest.as_ref().unwrap().1) {
+            nearest = Some((item, along_ray));
         }
     }
 
@@ -119,8 +122,7 @@ fn find_nearest_building<'a>(
     cam_global: &GlobalTransform,
     buildings: &'a Query<(&BuildingInfo, &GlobalTransform)>,
 ) -> Option<&'a BuildingInfo> {
-    raycast_nearest(cam_global, buildings.iter().map(|(info, _)| (info, info.position)))
-        .map(|(info, _)| info)
+    raycast_nearest(cam_global, buildings.iter().map(|(info, _)| (info, info.position))).map(|(info, _)| info)
 }
 
 fn check_exit_input(keys: &ButtonInput<KeyCode>, gamepads: &Query<&Gamepad>) -> bool {
@@ -146,14 +148,22 @@ fn interact_system(
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else {
+        return;
+    };
 
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad { return; }
+    if !key && !click && !gamepad {
+        return;
+    }
 
-    let cursor_grabbed = cursor_query.single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
-    if click && !cursor_grabbed { return; }
+    let cursor_grabbed = cursor_query
+        .single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
+        .unwrap_or(true);
+    if click && !cursor_grabbed {
+        return;
+    }
 
     let Some(info) = find_nearest_building(cam_global, &buildings) else {
         return;
@@ -199,10 +209,10 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
                         return Some(format!("Chest #{}", id));
                     }
                     lod::evt::GameEvent::SpeakInHouse { house_id } => {
-                        if let Some(houses) = me.houses.as_ref() {
-                            if let Some(entry) = houses.houses.get(house_id) {
-                                return Some(entry.name.clone());
-                            }
+                        if let Some(houses) = me.houses.as_ref()
+                            && let Some(entry) = houses.houses.get(house_id)
+                        {
+                            return Some(entry.name.clone());
                         }
                         return Some(format!("Building #{}", house_id));
                     }
@@ -241,8 +251,7 @@ fn find_nearest_decoration<'a>(
     cam_global: &GlobalTransform,
     decorations: &'a Query<&DecorationInfo>,
 ) -> Option<&'a DecorationInfo> {
-    raycast_nearest(cam_global, decorations.iter().map(|info| (info, info.position)))
-        .map(|(info, _)| info)
+    raycast_nearest(cam_global, decorations.iter().map(|info| (info, info.position))).map(|(info, _)| info)
 }
 
 /// Resolve a human-readable name for a decoration from its event data.
@@ -262,10 +271,10 @@ fn resolve_decoration_name(event_id: u16, map_events: &Option<Res<MapEvents>>) -
                 return Some(format!("Chest #{}", id));
             }
             lod::evt::GameEvent::SpeakInHouse { house_id } => {
-                if let Some(houses) = me.houses.as_ref() {
-                    if let Some(entry) = houses.houses.get(house_id) {
-                        return Some(entry.name.clone());
-                    }
+                if let Some(houses) = me.houses.as_ref()
+                    && let Some(entry) = houses.houses.get(house_id)
+                {
+                    return Some(entry.name.clone());
                 }
                 return Some(format!("Building #{}", house_id));
             }
@@ -286,14 +295,22 @@ fn decoration_interact_system(
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else {
+        return;
+    };
 
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad { return; }
+    if !key && !click && !gamepad {
+        return;
+    }
 
-    let cursor_grabbed = cursor_query.single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
-    if click && !cursor_grabbed { return; }
+    let cursor_grabbed = cursor_query
+        .single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
+        .unwrap_or(true);
+    if click && !cursor_grabbed {
+        return;
+    }
 
     let Some(info) = find_nearest_decoration(cam_global, &decorations) else {
         return;
@@ -310,8 +327,7 @@ fn find_nearest_npc<'a>(
     cam_global: &GlobalTransform,
     npcs: &'a Query<&NpcInteractable>,
 ) -> Option<&'a NpcInteractable> {
-    raycast_nearest(cam_global, npcs.iter().map(|info| (info, info.position)))
-        .map(|(info, _)| info)
+    raycast_nearest(cam_global, npcs.iter().map(|info| (info, info.position))).map(|(info, _)| info)
 }
 
 /// Detect click on an NPC and push a SpeakNPC event to open the dialogue UI.
@@ -324,17 +340,29 @@ fn npc_interact_system(
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else {
+        return;
+    };
 
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad { return; }
+    if !key && !click && !gamepad {
+        return;
+    }
 
-    let cursor_grabbed = cursor_query.single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
-    if click && !cursor_grabbed { return; }
+    let cursor_grabbed = cursor_query
+        .single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
+        .unwrap_or(true);
+    if click && !cursor_grabbed {
+        return;
+    }
 
-    let Some(info) = find_nearest_npc(cam_global, &npcs) else { return };
-    event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: info.npc_id as i32 });
+    let Some(info) = find_nearest_npc(cam_global, &npcs) else {
+        return;
+    };
+    event_queue.push_single(lod::evt::GameEvent::SpeakNPC {
+        npc_id: info.npc_id as i32,
+    });
 }
 
 /// Show the name of the nearest interactive building, decoration, or NPC in the footer bar.
@@ -346,21 +374,23 @@ fn hover_hint_system(
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else {
+        return;
+    };
 
     // All entity types use camera-ray targeting consistently
-    if let Some(info) = find_nearest_building(cam_global, &buildings) {
-        if let Some(name) = resolve_building_name(info, &map_events) {
-            footer.set(&name);
-            return;
-        }
+    if let Some(info) = find_nearest_building(cam_global, &buildings)
+        && let Some(name) = resolve_building_name(info, &map_events)
+    {
+        footer.set(&name);
+        return;
     }
 
-    if let Some(info) = find_nearest_decoration(cam_global, &decorations) {
-        if let Some(name) = resolve_decoration_name(info.event_id, &map_events) {
-            footer.set(&name);
-            return;
-        }
+    if let Some(info) = find_nearest_decoration(cam_global, &decorations)
+        && let Some(name) = resolve_decoration_name(info.event_id, &map_events)
+    {
+        footer.set(&name);
+        return;
     }
 
     if let Some(info) = find_nearest_npc(cam_global, &npcs) {

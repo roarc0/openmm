@@ -4,10 +4,10 @@
 //! Each `Actor` carries pre-resolved sprite roots and NPC identity so openmm needs
 //! no direct LOD queries during spawn.
 
-use std::error::Error;
-use crate::LodManager;
-use super::monster;
 use super::global::GameData;
+use super::monster;
+use crate::LodManager;
+use std::error::Error;
 
 /// Stub for future map-state persistence. When populated, actors whose index
 /// is in `dead_actor_ids` are excluded from the returned roster.
@@ -25,8 +25,8 @@ pub struct Actor {
     /// actors sharing the same standing_sprite root. Never 0 after construction.
     pub variant: u8,
     pub name: String,
-    pub portrait_name: Option<String>,  // NPC only, e.g. "NPC042"
-    pub profession_id: Option<u8>,      // NPC only
+    pub portrait_name: Option<String>, // NPC only, e.g. "NPC042"
+    pub profession_id: Option<u8>,     // NPC only
     pub radius: u16,
     pub height: u16,
     pub move_speed: u16,
@@ -39,9 +39,15 @@ pub struct Actor {
 }
 
 impl Actor {
-    pub fn is_npc(&self) -> bool      { self.npc_id > 0 }
-    pub fn is_monster(&self) -> bool  { self.npc_id == 0 }
-    pub fn npc_id(&self) -> i16       { self.npc_id }
+    pub fn is_npc(&self) -> bool {
+        self.npc_id > 0
+    }
+    pub fn is_monster(&self) -> bool {
+        self.npc_id == 0
+    }
+    pub fn npc_id(&self) -> i16 {
+        self.npc_id
+    }
 }
 
 /// Compute palette variant for each actor based on the minimum palette_id of actors
@@ -52,14 +58,13 @@ fn compute_variants(actors: &mut Vec<Actor>) {
     let mut base_pals: HashMap<&str, u16> = HashMap::new();
     for a in actors.iter() {
         let e = base_pals.entry(&a.standing_sprite).or_insert(a.palette_id);
-        if a.palette_id < *e { *e = a.palette_id; }
+        if a.palette_id < *e {
+            *e = a.palette_id;
+        }
     }
 
     // base_pals keys borrow from actors, so we need to collect first
-    let base_pals: HashMap<String, u16> = base_pals
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v))
-        .collect();
+    let base_pals: HashMap<String, u16> = base_pals.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
 
     for actor in actors.iter_mut() {
         let base = base_pals[&actor.standing_sprite];
@@ -85,9 +90,7 @@ impl Actors {
         let ddm = crate::ddm::Ddm::new(lod, map_name)?;
         let street_npcs = game_data.street_npcs.as_ref();
 
-        let dead_ids: &[u16] = state
-            .map(|s| s.dead_actor_ids.as_slice())
-            .unwrap_or(&[]);
+        let dead_ids: &[u16] = state.map(|s| s.dead_actor_ids.as_slice()).unwrap_or(&[]);
 
         let mut actors = Vec::with_capacity(ddm.actors.len());
 
@@ -95,18 +98,24 @@ impl Actors {
             if dead_ids.contains(&(idx as u16)) {
                 continue;
             }
-            if raw.hp <= 0 { continue; }
-            if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 { continue; }
+            if raw.hp <= 0 {
+                continue;
+            }
+            if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 {
+                continue;
+            }
 
             let Some(entry) = monster::resolve_entry(raw.monlist_id, game_data, lod) else {
-                log::warn!("Actor '{}' monlist_id={} has no DSFT sprite — skipping",
-                    raw.name, raw.monlist_id);
+                log::warn!(
+                    "Actor '{}' monlist_id={} has no DSFT sprite — skipping",
+                    raw.name,
+                    raw.monlist_id
+                );
                 continue;
             };
 
             let (portrait_name, profession_id, name) = if raw.npc_id > 0 {
-                let portrait = street_npcs
-                    .and_then(|t| t.portrait_name(raw.npc_id as i32));
+                let portrait = street_npcs.and_then(|t| t.portrait_name(raw.npc_id as i32));
                 let prof = street_npcs
                     .and_then(|t| t.get(raw.npc_id as i32))
                     .map(|e| e.profession_id as u8);
@@ -120,11 +129,7 @@ impl Actors {
             };
 
             actors.push(Actor {
-                position: [
-                    raw.position[0] as i32,
-                    raw.position[1] as i32,
-                    raw.position[2] as i32,
-                ],
+                position: [raw.position[0] as i32, raw.position[1] as i32, raw.position[2] as i32],
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
                 palette_id: entry.palette_id,
@@ -158,9 +163,7 @@ impl Actors {
     ) -> Result<Self, Box<dyn Error>> {
         let street_npcs = game_data.street_npcs.as_ref();
 
-        let dead_ids: &[u16] = state
-            .map(|s| s.dead_actor_ids.as_slice())
-            .unwrap_or(&[]);
+        let dead_ids: &[u16] = state.map(|s| s.dead_actor_ids.as_slice()).unwrap_or(&[]);
 
         let mut actors = Vec::with_capacity(raw_actors.len());
 
@@ -168,18 +171,24 @@ impl Actors {
             if dead_ids.contains(&(idx as u16)) {
                 continue;
             }
-            if raw.hp <= 0 { continue; }
-            if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 { continue; }
+            if raw.hp <= 0 {
+                continue;
+            }
+            if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 {
+                continue;
+            }
 
             let Some(entry) = monster::resolve_entry(raw.monlist_id, game_data, lod) else {
-                log::warn!("Actor '{}' monlist_id={} has no DSFT sprite — skipping",
-                    raw.name, raw.monlist_id);
+                log::warn!(
+                    "Actor '{}' monlist_id={} has no DSFT sprite — skipping",
+                    raw.name,
+                    raw.monlist_id
+                );
                 continue;
             };
 
             let (portrait_name, profession_id, name) = if raw.npc_id > 0 {
-                let portrait = street_npcs
-                    .and_then(|t| t.portrait_name(raw.npc_id as i32));
+                let portrait = street_npcs.and_then(|t| t.portrait_name(raw.npc_id as i32));
                 let prof = street_npcs
                     .and_then(|t| t.get(raw.npc_id as i32))
                     .map(|e| e.profession_id as u8);
@@ -193,11 +202,7 @@ impl Actors {
             };
 
             actors.push(Actor {
-                position: [
-                    raw.position[0] as i32,
-                    raw.position[1] as i32,
-                    raw.position[2] as i32,
-                ],
+                position: [raw.position[0] as i32, raw.position[1] as i32, raw.position[2] as i32],
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
                 palette_id: entry.palette_id,
@@ -221,7 +226,9 @@ impl Actors {
         Ok(Actors { actors })
     }
 
-    pub fn get_actors(&self) -> &[Actor] { &self.actors }
+    pub fn get_actors(&self) -> &[Actor] {
+        &self.actors
+    }
 
     pub fn get_npcs(&self) -> impl Iterator<Item = &Actor> {
         self.actors.iter().filter(|a| a.is_npc())

@@ -38,13 +38,10 @@ fn handle_play_music(
         }
 
         let data_path = lod::get_data_path();
-        let music_path =
-            std::path::Path::new(&data_path).join(format!("Music/{}.mp3", ev.track));
+        let music_path = std::path::Path::new(&data_path).join(format!("Music/{}.mp3", ev.track));
 
         if let Ok(bytes) = std::fs::read(&music_path) {
-            let source = AudioSource {
-                bytes: bytes.into(),
-            };
+            let source = AudioSource { bytes: bytes.into() };
             let handle = audio_sources.add(source);
             commands.spawn((
                 AudioPlayer(handle),
@@ -64,10 +61,7 @@ fn handle_play_music(
 }
 
 /// Sync music volume with config changes (from console commands).
-fn sync_music_volume(
-    cfg: Res<crate::config::GameConfig>,
-    mut music_sinks: Query<&mut AudioSink, With<MapMusic>>,
-) {
+fn sync_music_volume(cfg: Res<crate::config::GameConfig>, mut music_sinks: Query<&mut AudioSink, With<MapMusic>>) {
     if !cfg.is_changed() {
         return;
     }

@@ -40,20 +40,15 @@ pub struct FacingYaw(pub f32);
 
 /// Animation state for entities that have multiple frames.
 /// Not implemented yet — placeholder for the animation system.
-#[derive(Component, Debug, Clone, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, PartialEq, Eq, Default)]
 pub enum AnimationState {
+    #[default]
     Idle,
     Walking,
     Attacking,
     GettingHit,
     Dying,
     Dead,
-}
-
-impl Default for AnimationState {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 /// Loot container: when a monster dies, this component is added so it can be looted.
@@ -135,8 +130,7 @@ fn wander_system(
                 let seed = pos_seed + time.elapsed_secs() * 0.5;
                 let angle = (seed * 2.3).sin() * std::f32::consts::TAU;
                 let dist = actor.tether_distance.max(300.0) * 0.4;
-                actor.wander_target = actor.guarding_position
-                    + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
+                actor.wander_target = actor.guarding_position + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
                 actor.wander_timer = 3.0 + (seed.cos().abs()) * 3.0; // walk for 3-6s
                 *anim_state = AnimationState::Walking;
             } else {
@@ -181,7 +175,10 @@ fn wander_system(
 /// Skips entities with SpriteSheet (those are handled by update_sprite_sheets).
 fn billboard_face_camera(
     camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
-    mut billboard_query: Query<(&mut Transform, &GlobalTransform, &Visibility), (With<Billboard>, Without<sprites::SpriteSheet>)>,
+    mut billboard_query: Query<
+        (&mut Transform, &GlobalTransform, &Visibility),
+        (With<Billboard>, Without<sprites::SpriteSheet>),
+    >,
 ) {
     let Ok(camera_gt) = camera_query.single() else {
         return;

@@ -13,9 +13,7 @@ use crate::GameState;
 pub struct PlayerInputSet;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::collision::{
-    BuildingColliders, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
-};
+use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height};
 use crate::save::GameSave;
 use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
@@ -124,13 +122,17 @@ impl Plugin for PlayerPlugin {
                 x: cfg.mouse_sensitivity_x,
                 y: cfg.mouse_sensitivity_y,
             })
-            .add_systems(
-                OnEnter(GameState::Game),
-                (spawn_player, grab_cursor_on_enter),
-            )
+            .add_systems(OnEnter(GameState::Game), (spawn_player, grab_cursor_on_enter))
             .add_systems(
                 Update,
-                (toggle_fly_mode, toggle_mouse_look, player_movement, player_look, cursor_grab, log_gamepads)
+                (
+                    toggle_fly_mode,
+                    toggle_mouse_look,
+                    player_movement,
+                    player_look,
+                    cursor_grab,
+                    log_gamepads,
+                )
                     .chain()
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
@@ -142,7 +144,12 @@ impl Plugin for PlayerPlugin {
 
 fn log_gamepads(gamepads: Query<(Entity, &Gamepad), Added<Gamepad>>) {
     for (entity, gp) in gamepads.iter() {
-        info!("Gamepad connected: entity={:?} vendor={:?} product={:?}", entity, gp.vendor_id(), gp.product_id());
+        info!(
+            "Gamepad connected: entity={:?} vendor={:?} product={:?}",
+            entity,
+            gp.vendor_id(),
+            gp.product_id()
+        );
     }
 }
 
@@ -171,7 +178,12 @@ fn spawn_player(
         // for MoveToMap, or sector center fallback for console/direct load).
         if let Some(sp) = indoor.start_points.first() {
             info!("Indoor spawn: pos={:?} yaw={:.1}", sp.position, sp.yaw.to_degrees());
-            (sp.position.x, sp.position.y + settings.eye_height, sp.position.z, sp.yaw)
+            (
+                sp.position.x,
+                sp.position.y + settings.eye_height,
+                sp.position.z,
+                sp.yaw,
+            )
         } else {
             (0.0, settings.eye_height, 0.0, 0.0)
         }
@@ -181,35 +193,43 @@ fn spawn_player(
         let pos = save_data.player.position;
         let has_save_pos = pos[0] != 0.0 || pos[1] != 0.0 || pos[2] != 0.0;
         if has_save_pos {
-            let y = sample_terrain_height(&prepared.map.height_map, pos[0], pos[2])
-                + settings.eye_height;
+            let y = sample_terrain_height(&prepared.map.height_map, pos[0], pos[2]) + settings.eye_height;
             (pos[0], y, pos[2], save_data.player.yaw)
         } else {
-            let party_start = prepared.start_points.iter()
-                .find(|sp| sp.name.to_lowercase().contains("party start")
-                         || sp.name.to_lowercase().contains("party_start"));
+            let party_start = prepared.start_points.iter().find(|sp| {
+                sp.name.to_lowercase().contains("party start") || sp.name.to_lowercase().contains("party_start")
+            });
             if let Some(sp) = party_start {
-                let y = sample_terrain_height(&prepared.map.height_map, sp.position.x, sp.position.z)
-                    + settings.eye_height;
+                let y =
+                    sample_terrain_height(&prepared.map.height_map, sp.position.x, sp.position.z) + settings.eye_height;
                 (sp.position.x, y, sp.position.z, sp.yaw)
             } else {
                 (0.0, settings.eye_height, 0.0, 0.0)
             }
         }
     } else {
-        (save_data.player.position[0], save_data.player.position[1],
-         save_data.player.position[2], save_data.player.yaw)
+        (
+            save_data.player.position[0],
+            save_data.player.position[1],
+            save_data.player.position[2],
+            save_data.player.yaw,
+        )
     };
 
-    info!("Player spawn: pos=({:.1}, {:.1}, {:.1}) yaw={:.1}deg indoor={}",
-        start_x, start_y, start_z, start_yaw.to_degrees(), is_indoor);
+    info!(
+        "Player spawn: pos=({:.1}, {:.1}, {:.1}) yaw={:.1}deg indoor={}",
+        start_x,
+        start_y,
+        start_z,
+        start_yaw.to_degrees(),
+        is_indoor
+    );
 
     let mut player_entity = commands.spawn((
         Name::new("player"),
         Player,
         PlayerPhysics::default(),
-        Transform::from_xyz(start_x, start_y, start_z)
-            .with_rotation(Quat::from_rotation_y(start_yaw)),
+        Transform::from_xyz(start_x, start_y, start_z).with_rotation(Quat::from_rotation_y(start_yaw)),
         Visibility::default(),
         InGame,
     ));
@@ -224,7 +244,11 @@ fn spawn_player(
             Transform::from_rotation(Quat::from_rotation_x(10.0_f32.to_radians())),
             Projection::Perspective(PerspectiveProjection {
                 // MM6 FOV: 75 degrees outdoor, 60 degrees indoor (from OpenEnroth)
-                fov: if is_indoor { 60.0_f32.to_radians() } else { 75.0_f32.to_radians() },
+                fov: if is_indoor {
+                    60.0_f32.to_radians()
+                } else {
+                    75.0_f32.to_radians()
+                },
                 near: 10.0,
                 far: 100000.0,
                 ..Default::default()
@@ -320,17 +344,12 @@ fn toggle_fly_mode(
     }
 }
 
-fn toggle_mouse_look(
-    keys: Res<ButtonInput<KeyCode>>,
-    cfg: Res<GameConfig>,
-    mut mouse_look: ResMut<MouseLookEnabled>,
-) {
+fn toggle_mouse_look(keys: Res<ButtonInput<KeyCode>>, cfg: Res<GameConfig>, mut mouse_look: ResMut<MouseLookEnabled>) {
     if cfg.capslock_toggle_mouse_look && keys.just_pressed(KeyCode::CapsLock) {
         mouse_look.0 = !mouse_look.0;
         info!("Mouse look: {}", if mouse_look.0 { "ON" } else { "OFF" });
     }
 }
-
 
 fn player_movement(
     keys: Res<ButtonInput<KeyCode>>,
@@ -454,12 +473,14 @@ fn player_movement(
                 // Terrain slope check — block movement if slope angle > ~35 degrees.
                 // Skip entirely when the player is on BSP floor geometry (e.g. inside a castle):
                 // the terrain heightmap doesn't match the building floor and would wrongly block stairs.
-                let on_bsp_floor = colliders.as_ref().and_then(|c| {
-                    let feet_y = from.y - settings.eye_height;
-                    c.floor_height_at(from.x, from.z, feet_y)
-                }).is_some();
-                if !on_bsp_floor {
-                if let Some(ref hm) = height_map {
+                let on_bsp_floor = colliders
+                    .as_ref()
+                    .and_then(|c| {
+                        let feet_y = from.y - settings.eye_height;
+                        c.floor_height_at(from.x, from.z, feet_y)
+                    })
+                    .is_some();
+                if !on_bsp_floor && let Some(ref hm) = height_map {
                     let current_ground = sample_terrain_height(&hm.heights, from.x, from.z);
                     let dest_ground = sample_terrain_height(&hm.heights, dest.x, dest.z);
                     let height_diff = dest_ground - current_ground;
@@ -468,7 +489,8 @@ fn player_movement(
                         let horiz_dist = ((dest.x - from.x).powi(2) + (dest.z - from.z).powi(2)).sqrt().max(0.1);
                         let slope_angle = (height_diff / horiz_dist).atan();
 
-                        if slope_angle > 0.6 { // ~35 degrees, matches physics slide threshold
+                        if slope_angle > 0.6 {
+                            // ~35 degrees, matches physics slide threshold
                             // Try sliding along each axis independently
                             let mut slid = from;
                             let gx = sample_terrain_height(&hm.heights, dest.x, from.z);
@@ -484,36 +506,29 @@ fn player_movement(
                             dest = slid;
                         }
                     }
-                }
                 } // !on_bsp_floor
 
                 // Water check
-                let can_enter_water = water_walking.as_ref().map_or(false, |w| w.0)
-                    || world_state.player.fly_mode
-                    || !physics.on_ground;
-                if !can_enter_water {
-                    if let Some(ref wm) = water_map {
-                        if wm.is_water_at(dest.x, dest.z) && !wm.is_water_at(from.x, from.z) {
-                            let feet_y = from.y - settings.eye_height;
-                            let on_bridge = colliders
-                                .as_ref()
-                                .and_then(|c| c.floor_height_at(dest.x, dest.z, feet_y))
-                                .is_some();
-                            if !on_bridge {
-                                dest = from;
-                            }
-                        }
+                let can_enter_water =
+                    water_walking.as_ref().is_some_and(|w| w.0) || world_state.player.fly_mode || !physics.on_ground;
+                if !can_enter_water
+                    && let Some(ref wm) = water_map
+                    && wm.is_water_at(dest.x, dest.z)
+                    && !wm.is_water_at(from.x, from.z)
+                {
+                    let feet_y = from.y - settings.eye_height;
+                    let on_bridge = colliders
+                        .as_ref()
+                        .and_then(|c| c.floor_height_at(dest.x, dest.z, feet_y))
+                        .is_some();
+                    if !on_bridge {
+                        dest = from;
                     }
                 }
 
                 // BSP wall collision
                 if let Some(ref c) = colliders {
-                    dest = c.resolve_movement(
-                        from,
-                        dest,
-                        settings.collision_radius,
-                        settings.eye_height,
-                    );
+                    dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
                 }
                 // Door collision
                 if let Some(ref dc) = door_colliders {
@@ -659,9 +674,9 @@ fn cursor_grab(
     key_bindings: Res<PlayerKeyBindings>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
-    if let Ok(mut cursor_options) = cursor_query.single_mut() {
-        if keys.just_pressed(key_bindings.toggle_grab_cursor) {
-            toggle_grab_cursor(&mut cursor_options);
-        }
+    if let Ok(mut cursor_options) = cursor_query.single_mut()
+        && keys.just_pressed(key_bindings.toggle_grab_cursor)
+    {
+        toggle_grab_cursor(&mut cursor_options);
     }
 }

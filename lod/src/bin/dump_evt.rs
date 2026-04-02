@@ -3,7 +3,8 @@ use std::io::Read;
 fn main() {
     let lod = lod::LodManager::new(lod::get_lod_path()).unwrap();
 
-    let evt_data = lod.try_get_bytes("icons/oute3.evt")
+    let evt_data = lod
+        .try_get_bytes("icons/oute3.evt")
         .or_else(|_| lod.try_get_bytes("games/oute3.evt"))
         .or_else(|_| lod.try_get_bytes("new/oute3.evt"))
         .expect("Could not find oute3.evt");
@@ -29,8 +30,13 @@ fn main() {
         let size_byte = data[pos] as usize;
         let total = size_byte + 1;
         if total < 5 || pos + total > data.len() {
-            println!("[{:04x}] Bad record: size_byte={} total={} remaining={}",
-                pos, size_byte, total, data.len() - pos);
+            println!(
+                "[{:04x}] Bad record: size_byte={} total={} remaining={}",
+                pos,
+                size_byte,
+                total,
+                data.len() - pos
+            );
             break;
         }
 
@@ -40,8 +46,10 @@ fn main() {
         let params = &data[pos + 5..pos + total];
 
         let desc = decode_opcode(opcode, params);
-        println!("[{:04x}] evt={:3} step={:2} op=0x{:02x} {}",
-            pos, event_id, step, opcode, desc);
+        println!(
+            "[{:04x}] evt={:3} step={:2} op=0x{:02x} {}",
+            pos, event_id, step, opcode, desc
+        );
 
         pos += total;
         count += 1;
@@ -51,7 +59,12 @@ fn main() {
 
 fn u32_param(params: &[u8], offset: usize) -> Option<u32> {
     if params.len() >= offset + 4 {
-        Some(u32::from_le_bytes([params[offset], params[offset+1], params[offset+2], params[offset+3]]))
+        Some(u32::from_le_bytes([
+            params[offset],
+            params[offset + 1],
+            params[offset + 2],
+            params[offset + 3],
+        ]))
     } else {
         None
     }
@@ -95,8 +108,10 @@ fn decode_opcode(opcode: u8, params: &[u8]) -> String {
             } else {
                 String::new()
             };
-            format!("MoveToMap(x={} y={} z={} dir={} house={} icon={} map='{}')",
-                x, y, z, dir, house_id, icon, map_name)
+            format!(
+                "MoveToMap(x={} y={} z={} dir={} house={} icon={} map='{}')",
+                x, y, z, dir, house_id, icon, map_name
+            )
         }
         0x07 => format!("OpenChest(id={})", params.first().copied().unwrap_or(0)),
         0x0E => format!("Compare(params={:02x?})", &params[..params.len().min(12)]),

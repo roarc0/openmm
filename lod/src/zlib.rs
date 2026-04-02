@@ -4,11 +4,7 @@ use std::{
     io::{BufReader, Cursor, Read},
 };
 
-pub fn decompress(
-    data: &[u8],
-    compressed_size: usize,
-    uncompressed_size: usize,
-) -> Result<Vec<u8>, Box<dyn Error>> {
+pub fn decompress(data: &[u8], compressed_size: usize, uncompressed_size: usize) -> Result<Vec<u8>, Box<dyn Error>> {
     check_size(data.len(), compressed_size)?;
     let uncompressed_data = decompress_zlib(data, uncompressed_size)?;
     check_size(uncompressed_data.len(), uncompressed_size)?;
@@ -25,11 +21,7 @@ fn decompress_zlib(data: &[u8], reserve_size: usize) -> Result<Vec<u8>, Box<dyn 
 
 fn check_size(size: usize, expected_size: usize) -> Result<(), Box<dyn Error>> {
     if size != expected_size {
-        return Err(format!(
-            "Expected  data size: {}B, actual size: {}B",
-            expected_size, size
-        )
-        .into());
+        return Err(format!("Expected  data size: {}B, actual size: {}B", expected_size, size).into());
     }
     Ok(())
 }
@@ -37,8 +29,8 @@ fn check_size(size: usize, expected_size: usize) -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use flate2::write::ZlibEncoder;
     use flate2::Compression;
+    use flate2::write::ZlibEncoder;
     use std::io::Write;
 
     fn zlib_compress(data: &[u8]) -> Vec<u8> {

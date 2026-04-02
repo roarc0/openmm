@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use crate::{
-    billboard::{Billboard, BillboardManager},
     LodManager,
+    billboard::{Billboard, BillboardManager},
 };
 
 /// A single resolved decoration (billboard/spawn point) from an outdoor map.
@@ -80,17 +80,16 @@ impl Decorations {
 
             // Check for directional sprites
             let name = &bb.declist_name;
-            let (sprite_name, is_directional, width, height) =
-                if let Some(root) = find_directional_root(name, lod) {
-                    (root, true, 0.0, 0.0)
-                } else {
-                    // Non-directional: pre-compute world dimensions
-                    let (w, h) = mgr
-                        .get(lod, name, bb.data.declist_id)
-                        .map(|sprite| sprite.dimensions())
-                        .unwrap_or((1.0, 1.0));
-                    (name.clone(), false, w, h)
-                };
+            let (sprite_name, is_directional, width, height) = if let Some(root) = find_directional_root(name, lod) {
+                (root, true, 0.0, 0.0)
+            } else {
+                // Non-directional: pre-compute world dimensions
+                let (w, h) = mgr
+                    .get(lod, name, bb.data.declist_id)
+                    .map(|sprite| sprite.dimensions())
+                    .unwrap_or((1.0, 1.0));
+                (name.clone(), false, w, h)
+            };
 
             entries.push(DecorationEntry {
                 position,

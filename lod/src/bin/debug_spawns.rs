@@ -8,8 +8,14 @@ fn main() {
     for (i, sp) in map.spawn_points.iter().enumerate() {
         println!(
             "  [{:2}] pos=({},{},{}) radius={} type={} idx={} attrs={}",
-            i, sp.position[0], sp.position[1], sp.position[2],
-            sp.radius, sp.spawn_type, sp.monster_index, sp.attributes
+            i,
+            sp.position[0],
+            sp.position[1],
+            sp.position[2],
+            sp.radius,
+            sp.spawn_type,
+            sp.monster_index,
+            sp.attributes
         );
     }
 }

@@ -3,13 +3,11 @@ fn main() {
     if let Some(files) = lod.files_in("icons") {
         let mut bgs: Vec<(String, u32, u32)> = Vec::new();
         for f in &files {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                lod.game().icon(f)
-            }));
-            if let Ok(Some(img)) = result {
-                if img.width() >= 200 {
-                    bgs.push((f.to_string(), img.width(), img.height()));
-                }
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| lod.game().icon(f)));
+            if let Ok(Some(img)) = result
+                && img.width() >= 200
+            {
+                bgs.push((f.to_string(), img.width(), img.height()));
             }
         }
         bgs.sort_by(|a, b| a.0.cmp(&b.0));

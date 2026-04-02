@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 use lod::dtile::Tileset;
 
+use super::SoundManager;
 use crate::game::InGame;
 use crate::game::player::Player;
 use crate::states::loading::PreparedWorld;
-use super::SoundManager;
 
 /// Sound ID for walking on a terrain type (from OpenEnroth SoundEnums.h).
 fn walk_sound_id(tileset: Tileset) -> u32 {
@@ -46,7 +46,9 @@ fn footstep_system(
     world_state: Res<crate::game::world_state::WorldState>,
     mut state: Local<FootstepState>,
 ) {
-    let Some(ref mut sound_manager) = sound_manager else { return };
+    let Some(ref mut sound_manager) = sound_manager else {
+        return;
+    };
     let Some(prepared) = prepared else { return };
     let Ok(player_tf) = player_query.single() else { return };
 
@@ -90,8 +92,7 @@ fn footstep_system(
     let entity = commands
         .spawn((
             AudioPlayer(handle),
-            PlaybackSettings::LOOP
-                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 3.0)),
+            PlaybackSettings::LOOP.with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 3.0)),
             InGame,
         ))
         .id();

@@ -3,10 +3,8 @@
 
 fn main() {
     let map = std::env::args().nth(1).unwrap_or_else(|| "oute3".to_string());
-    let data_path =
-        std::env::var("OPENMM_6_PATH").unwrap_or_else(|_| "./target/mm6/data".to_string());
-    let lod =
-        lod::LodManager::new(std::path::Path::new(&data_path)).expect("Failed to load LOD");
+    let data_path = std::env::var("OPENMM_6_PATH").unwrap_or_else(|_| "./target/mm6/data".to_string());
+    let lod = lod::LodManager::new(std::path::Path::new(&data_path)).expect("Failed to load LOD");
 
     // Dump billboard events
     println!("=== {map} BILLBOARD EVENTS ===");
@@ -64,10 +62,7 @@ fn main() {
             println!(
                 "  Total: {} billboards, {} with events",
                 odm.billboards.len(),
-                odm.billboards
-                    .iter()
-                    .filter(|b| b.data.event != 0)
-                    .count()
+                odm.billboards.iter().filter(|b| b.data.event != 0).count()
             );
         }
         Err(e) => println!("  Not an outdoor map or error: {e}"),

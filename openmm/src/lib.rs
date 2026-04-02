@@ -1,6 +1,4 @@
-use bevy::prelude::{
-    App, AppExtStates, Commands, Component, Entity, Plugin, Query, States, With,
-};
+use bevy::prelude::{App, AppExtStates, Commands, Component, Entity, Plugin, Query, States, With};
 use bevy_config::BevyConfigPlugin;
 
 use assets::GameAssets;
@@ -34,8 +32,7 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         let cfg = GameConfig::load();
-        let game_assets = GameAssets::new(lod::get_lod_path().into())
-            .expect("unable to load game data files");
+        let game_assets = GameAssets::new(lod::get_lod_path().into()).expect("unable to load game data files");
         let game_fonts = fonts::GameFonts::load(&game_assets);
         let save_data = GameSave::load_or_default();
 
@@ -44,13 +41,7 @@ impl Plugin for GamePlugin {
             .insert_resource(game_fonts)
             .insert_resource(save_data)
             .init_resource::<ui_assets::UiAssets>()
-            .add_plugins((
-                BevyConfigPlugin,
-                SplashPlugin,
-                MenuPlugin,
-                LoadingPlugin,
-                InGamePlugin,
-            ))
+            .add_plugins((BevyConfigPlugin, SplashPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
             .insert_state(GameState::Splash);
     }
 }

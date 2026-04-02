@@ -81,7 +81,7 @@ fn monster_for_index_name_slot_mapping() {
     assert_eq!(info.monster_for_index(3, 0).map(|(n, _)| n), Some("Troll"));
     // Forced variants use the same slot mapping
     assert_eq!(info.monster_for_index(4, 0).map(|(n, _)| n), Some("Goblin")); // slot 0
-    assert_eq!(info.monster_for_index(8, 0).map(|(n, _)| n), Some("Orc"));   // slot 1
+    assert_eq!(info.monster_for_index(8, 0).map(|(n, _)| n), Some("Orc")); // slot 1
     assert_eq!(info.monster_for_index(12, 0).map(|(n, _)| n), Some("Troll")); // slot 2
 }
 

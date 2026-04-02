@@ -1,6 +1,6 @@
-use super::*;
-use crate::{get_lod_path, LodManager};
 use super::super::global::GameData;
+use super::*;
+use crate::{LodManager, get_lod_path};
 
 fn game_data(lod: &LodManager) -> GameData {
     GameData::new(lod).expect("GameData::new failed")
@@ -21,8 +21,11 @@ fn get_npcs_all_have_sprites() {
     let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
     for npc in actors.get_npcs() {
         assert!(npc.is_npc());
-        assert!(!npc.standing_sprite.is_empty(),
-            "NPC '{}' should have a standing sprite", npc.name);
+        assert!(
+            !npc.standing_sprite.is_empty(),
+            "NPC '{}' should have a standing sprite",
+            npc.name
+        );
     }
 }
 
@@ -46,7 +49,11 @@ fn npc_portrait_name_format() {
     let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
     for npc in actors.get_npcs() {
         if let Some(portrait) = &npc.portrait_name {
-            assert!(portrait.starts_with("NPC"), "portrait '{}' should start with NPC", portrait);
+            assert!(
+                portrait.starts_with("NPC"),
+                "portrait '{}' should start with NPC",
+                portrait
+            );
             assert_eq!(portrait.len(), 6, "portrait '{}' should be 6 chars", portrait);
         }
     }
@@ -60,8 +67,11 @@ fn state_snapshot_empty_filters_nothing() {
     let all_count = actors_all.get_actors().len();
     let snapshot = MapStateSnapshot { dead_actor_ids: vec![] };
     let actors_with_state = Actors::new(&lod, "oute3.odm", Some(&snapshot), &gd).unwrap();
-    assert_eq!(actors_with_state.get_actors().len(), all_count,
-        "empty snapshot should not filter anything");
+    assert_eq!(
+        actors_with_state.get_actors().len(),
+        all_count,
+        "empty snapshot should not filter anything"
+    );
 }
 
 #[test]
@@ -73,5 +83,8 @@ fn variant_is_precomputed() {
     // The assertion checks that ALL actors have variant >= 1.
     // Actors with a unique standing_sprite will always be variant 1.
     let all_variants_nonzero = actors.get_actors().iter().all(|a| a.variant >= 1);
-    assert!(all_variants_nonzero, "all actors should have variant >= 1 after pre-computation");
+    assert!(
+        all_variants_nonzero,
+        "all actors should have variant >= 1 after pre-computation"
+    );
 }

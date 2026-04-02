@@ -198,7 +198,7 @@ pub(super) fn update_viewport(
         return;
     };
 
-    let (lx, ly, lw, lh) = letterbox_rect(&window, &cfg);
+    let (lx, ly, lw, lh) = letterbox_rect(window, &cfg);
     let sf = window.scale_factor();
     let lw_logical = lw as f32 / sf;
     let lh_logical = lh as f32 / sf;

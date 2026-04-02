@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::{lod_data::LodData, LodManager};
+use crate::{LodManager, lod_data::LodData};
 
 const RECORD_SIZE: usize = 148;
 
@@ -97,18 +97,18 @@ impl MonsterList {
     /// Returns true if the given 0-based monlist_id is a peasant type.
     /// Checks the actual internal_name from dmonlist.bin for a "Peasant" prefix.
     pub fn is_peasant(&self, monlist_id: u8) -> bool {
-        self.monsters.get(monlist_id as usize)
+        self.monsters
+            .get(monlist_id as usize)
             .is_some_and(|m| m.internal_name.to_ascii_lowercase().starts_with("peasant"))
     }
 
     /// Returns true if the given peasant monlist_id is female (PeasantF types).
     /// Checks the internal_name for the "F" marker after "Peasant".
     pub fn is_female_peasant(&self, monlist_id: u8) -> bool {
-        self.monsters.get(monlist_id as usize)
-            .is_some_and(|m| {
-                let lower = m.internal_name.to_ascii_lowercase();
-                lower.starts_with("peasantf")
-            })
+        self.monsters.get(monlist_id as usize).is_some_and(|m| {
+            let lower = m.internal_name.to_ascii_lowercase();
+            lower.starts_with("peasantf")
+        })
     }
 
     /// Find a monster by internal name prefix + difficulty (1=A, 2=B, 3=C).
@@ -122,7 +122,11 @@ impl MonsterList {
         // Try preferred variant first, then all variants
         for suffix in &[preferred, "A", "B", "C"] {
             let target = format!("{}{}", name, suffix);
-            if let Some(m) = self.monsters.iter().find(|m| m.internal_name.eq_ignore_ascii_case(&target)) {
+            if let Some(m) = self
+                .monsters
+                .iter()
+                .find(|m| m.internal_name.eq_ignore_ascii_case(&target))
+            {
                 return Some(m);
             }
         }
@@ -131,7 +135,12 @@ impl MonsterList {
 
     /// Find a monster whose sprite actually exists in the LOD.
     /// Uses try_get_bytes (cheap) instead of sprite() (expensive decode).
-    pub fn find_with_sprite(&self, name: &str, difficulty: u8, lod_manager: &crate::LodManager) -> Option<&MonsterDesc> {
+    pub fn find_with_sprite(
+        &self,
+        name: &str,
+        difficulty: u8,
+        lod_manager: &crate::LodManager,
+    ) -> Option<&MonsterDesc> {
         let preferred = match difficulty {
             1 => "A",
             2 => "B",
@@ -139,7 +148,11 @@ impl MonsterList {
         };
         for suffix in &[preferred, "A", "B", "C"] {
             let target = format!("{}{}", name, suffix);
-            if let Some(m) = self.monsters.iter().find(|m| m.internal_name.eq_ignore_ascii_case(&target)) {
+            if let Some(m) = self
+                .monsters
+                .iter()
+                .find(|m| m.internal_name.eq_ignore_ascii_case(&target))
+            {
                 let sprite = &m.sprite_names[0];
                 if !sprite.is_empty() {
                     // Cheap check: just see if the raw bytes exist in the LOD
@@ -149,14 +162,14 @@ impl MonsterList {
                     } else {
                         format!("{}a0", root)
                     };
-                    if lod_manager.try_get_bytes(&format!("sprites/{}", check_name)).is_ok() {
+                    if lod_manager.try_get_bytes(format!("sprites/{}", check_name)).is_ok() {
                         return Some(m);
                     }
                     // Try stripped root
                     if root.len() > 1 {
-                        let shorter = &root[..root.len()-1];
+                        let shorter = &root[..root.len() - 1];
                         let check2 = format!("{}a0", shorter);
-                        if lod_manager.try_get_bytes(&format!("sprites/{}", check2)).is_ok() {
+                        if lod_manager.try_get_bytes(format!("sprites/{}", check2)).is_ok() {
                             return Some(m);
                         }
                     }

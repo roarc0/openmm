@@ -70,7 +70,7 @@ pub(super) fn update_minimap(
     let Ok(player_tf) = player_q.single() else {
         return;
     };
-    let (lw, lh) = logical_size(&window, &cfg);
+    let (lw, lh) = logical_size(window, &cfg);
     let d = hud_dimensions(lw, lh, &ui_assets);
 
     // Map overview is 512x512 pixels covering the 128x128 tile terrain.
@@ -108,14 +108,14 @@ pub(super) fn update_minimap(
     // Update arrow direction based on player yaw
     // mapdir assets are counterclockwise: 1=NE, 2=N, 3=NW, 4=W, 5=SW, 6=S, 7=SE, 8=E
     // sector is clockwise: 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-    if let Some(ref arrows) = arrows_res {
-        if arrows.0.len() == 8 {
-            let sector = ((cw_angle / (std::f32::consts::TAU / 8.0) + 0.5) as usize) % 8;
-            // Map clockwise sector to counterclockwise index
-            let idx = (9 - sector) % 8;
-            for mut arrow_img in arrow_q.iter_mut() {
-                arrow_img.image = arrows.0[idx].clone();
-            }
+    if let Some(ref arrows) = arrows_res
+        && arrows.0.len() == 8
+    {
+        let sector = ((cw_angle / (std::f32::consts::TAU / 8.0) + 0.5) as usize) % 8;
+        // Map clockwise sector to counterclockwise index
+        let idx = (9 - sector) % 8;
+        for mut arrow_img in arrow_q.iter_mut() {
+            arrow_img.image = arrows.0[idx].clone();
         }
     }
 
@@ -128,8 +128,7 @@ pub(super) fn update_minimap(
     let compass_clip_w = d.scale_w(38.0);
     let e_start = d.scale_w(28.0);
     let cycle_w = d.scale_w(240.0);
-    let angle_from_east = (cw_angle - std::f32::consts::FRAC_PI_2)
-        .rem_euclid(std::f32::consts::TAU);
+    let angle_from_east = (cw_angle - std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
     let pixel_pos = e_start + (angle_from_east / std::f32::consts::TAU) * cycle_w;
     for mut node in compass_q.iter_mut() {
         node.left = Val::Px(compass_clip_w / 2.0 - pixel_pos);

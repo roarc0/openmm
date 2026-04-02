@@ -7,7 +7,7 @@ use std::io::{Cursor, Read};
 use bitflags::bitflags;
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{lod_data::LodData, LodManager};
+use crate::{LodManager, lod_data::LodData};
 
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,7 +106,7 @@ impl ObjectList {
 #[cfg(test)]
 mod tests {
     use super::ObjectList;
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     #[test]
     fn parse_dobjlist() {

@@ -37,7 +37,14 @@ impl SndArchive {
             let decompressed_size = cursor.read_u32::<LittleEndian>()?;
 
             if !name.is_empty() {
-                entries.insert(name, SndEntry { offset, size, decompressed_size });
+                entries.insert(
+                    name,
+                    SndEntry {
+                        offset,
+                        size,
+                        decompressed_size,
+                    },
+                );
             }
         }
 
@@ -56,8 +63,7 @@ impl SndArchive {
         let raw = &self.data[start..end];
 
         let wav = if entry.decompressed_size > 0 {
-            crate::zlib::decompress(raw, entry.size as usize, entry.decompressed_size as usize)
-                .ok()?
+            crate::zlib::decompress(raw, entry.size as usize, entry.decompressed_size as usize).ok()?
         } else {
             raw.to_vec()
         };
@@ -120,12 +126,10 @@ const INDEX_TABLE: [i32; 16] = [-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4
 
 /// IMA-ADPCM step size table
 const STEP_TABLE: [i32; 89] = [
-    7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
-    50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173, 190, 209, 230,
-    253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796, 876, 963,
-    1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327,
-    3660, 4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442,
-    11487, 12635, 13899, 15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794,
+    7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31, 34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107,
+    118, 130, 143, 157, 173, 190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796, 876, 963,
+    1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358, 5894,
+    6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899, 15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794,
     32767,
 ];
 
@@ -136,10 +140,18 @@ fn decode_nibble(nibble: u8, predictor: &mut i32, step_index: &mut i32) -> i16 {
 
     // Compute difference
     let mut diff = step >> 3;
-    if nibble & 1 != 0 { diff += step >> 2; }
-    if nibble & 2 != 0 { diff += step >> 1; }
-    if nibble & 4 != 0 { diff += step; }
-    if nibble & 8 != 0 { diff = -diff; }
+    if nibble & 1 != 0 {
+        diff += step >> 2;
+    }
+    if nibble & 2 != 0 {
+        diff += step >> 1;
+    }
+    if nibble & 4 != 0 {
+        diff += step;
+    }
+    if nibble & 8 != 0 {
+        diff = -diff;
+    }
 
     *predictor = (*predictor + diff).clamp(-32768, 32767);
     *step_index = (*step_index + INDEX_TABLE[nibble as usize]).clamp(0, 88);
@@ -151,13 +163,17 @@ fn decode_nibble(nibble: u8, predictor: &mut i32, step_index: &mut i32) -> i16 {
 fn ima_adpcm_to_pcm(wav: &[u8]) -> Option<Vec<u8>> {
     let fmt_offset = find_chunk(wav, b"fmt ")?;
     let fmt_size = u32::from_le_bytes([
-        wav[fmt_offset + 4], wav[fmt_offset + 5],
-        wav[fmt_offset + 6], wav[fmt_offset + 7],
+        wav[fmt_offset + 4],
+        wav[fmt_offset + 5],
+        wav[fmt_offset + 6],
+        wav[fmt_offset + 7],
     ]) as usize;
 
     // Parse IMA-ADPCM fmt chunk
     let fmt = &wav[fmt_offset + 8..fmt_offset + 8 + fmt_size];
-    if fmt.len() < 20 { return None; }
+    if fmt.len() < 20 {
+        return None;
+    }
 
     let channels = u16::from_le_bytes([fmt[2], fmt[3]]) as usize;
     let sample_rate = u32::from_le_bytes([fmt[4], fmt[5], fmt[6], fmt[7]]);
@@ -172,8 +188,10 @@ fn ima_adpcm_to_pcm(wav: &[u8]) -> Option<Vec<u8>> {
     // Find data chunk
     let data_offset = find_chunk(wav, b"data")?;
     let data_size = u32::from_le_bytes([
-        wav[data_offset + 4], wav[data_offset + 5],
-        wav[data_offset + 6], wav[data_offset + 7],
+        wav[data_offset + 4],
+        wav[data_offset + 5],
+        wav[data_offset + 6],
+        wav[data_offset + 7],
     ]) as usize;
     let adpcm_data = &wav[data_offset + 8..data_offset + 8 + data_size];
 
@@ -192,7 +210,9 @@ fn ima_adpcm_to_pcm(wav: &[u8]) -> Option<Vec<u8>> {
 
         for ch in 0..channels {
             let hdr = ch * 4;
-            if hdr + 4 > block.len() { return None; }
+            if hdr + 4 > block.len() {
+                return None;
+            }
             predictors[ch] = i16::from_le_bytes([block[hdr], block[hdr + 1]]) as i32;
             step_indices[ch] = (block[hdr + 2] as i32).clamp(0, 88);
             // First sample comes from the header predictor
@@ -318,8 +338,10 @@ fn pcm_samples_from_wav(wav: &[u8]) -> Option<(Vec<i16>, u16, u32)> {
 
     let data_offset = find_chunk(wav, b"data")?;
     let data_size = u32::from_le_bytes([
-        wav[data_offset + 4], wav[data_offset + 5],
-        wav[data_offset + 6], wav[data_offset + 7],
+        wav[data_offset + 4],
+        wav[data_offset + 5],
+        wav[data_offset + 6],
+        wav[data_offset + 7],
     ]) as usize;
     let pcm_data = &wav[data_offset + 8..data_offset + 8 + data_size];
 
@@ -492,9 +514,7 @@ fn dsp_deess(samples: &mut [i16], sample_rate: u32, reduction_db: f32) {
     let mut envelope = 0.0_f32;
 
     // Compute RMS of the full signal for threshold
-    let rms: f32 = (samples.iter().map(|&s| (s as f32).powi(2)).sum::<f32>()
-        / samples.len().max(1) as f32)
-        .sqrt();
+    let rms: f32 = (samples.iter().map(|&s| (s as f32).powi(2)).sum::<f32>() / samples.len().max(1) as f32).sqrt();
     let threshold = rms * 1.5; // trigger when sibilant band exceeds 1.5x RMS
 
     for s in samples.iter_mut() {
@@ -530,10 +550,7 @@ mod tests {
     fn snd_path() -> String {
         let data_path = crate::get_data_path();
         let base = Path::new(&data_path);
-        for candidate in &[
-            base.join("../Sounds/Audio.snd"),
-            base.join("Sounds/Audio.snd"),
-        ] {
+        for candidate in &[base.join("../Sounds/Audio.snd"), base.join("Sounds/Audio.snd")] {
             if candidate.exists() {
                 return candidate.to_string_lossy().to_string();
             }

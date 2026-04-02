@@ -5,7 +5,12 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{enums::{SoundAttributes, SoundType}, lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{
+    LodManager,
+    enums::{SoundAttributes, SoundType},
+    lod_data::LodData,
+    utils::try_read_name,
+};
 
 pub struct DSounds {
     pub items: Vec<DSoundInfo>,
@@ -66,9 +71,7 @@ impl DSounds {
 
         for _ in 0..item_count {
             let mut item = DSoundInfo::default();
-            cursor.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(&mut item as *mut _ as *mut u8, item_size)
-            })?;
+            cursor.read_exact(unsafe { std::slice::from_raw_parts_mut(&mut item as *mut _ as *mut u8, item_size) })?;
             items.push(item);
         }
 
@@ -82,15 +85,15 @@ impl DSounds {
     /// Look up a sound by name (case-insensitive).
     pub fn get_by_name(&self, name: &str) -> Option<&DSoundInfo> {
         let lower = name.to_lowercase();
-        self.items.iter().find(|s| {
-            s.name().map(|n| n.to_lowercase() == lower).unwrap_or(false)
-        })
+        self.items
+            .iter()
+            .find(|s| s.name().map(|n| n.to_lowercase() == lower).unwrap_or(false))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     use super::DSounds;
 

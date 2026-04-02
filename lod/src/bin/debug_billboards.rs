@@ -1,4 +1,4 @@
-use lod::{LodManager, odm::Odm, billboard::BillboardManager};
+use lod::{LodManager, billboard::BillboardManager, odm::Odm};
 
 fn main() {
     let lod_manager = LodManager::new(lod::get_lod_path()).unwrap();
@@ -43,5 +43,8 @@ fn main() {
             failed += 1;
         }
     }
-    println!("\nSummary: {} loaded, {} failed, {} invisible", loaded, failed, invisible_count);
+    println!(
+        "\nSummary: {} loaded, {} failed, {} invisible",
+        loaded, failed, invisible_count
+    );
 }

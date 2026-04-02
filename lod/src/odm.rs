@@ -6,12 +6,12 @@ use std::{
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{
-    billboard::{read_billboards, Billboard},
-    bsp_model::{read_bsp_models, BSPModel},
+    LodManager,
+    billboard::{Billboard, read_billboards},
+    bsp_model::{BSPModel, read_bsp_models},
     dtile::{Dtile, TileTable},
     lod_data::LodData,
     utils::try_read_string_block,
-    LodManager,
 };
 
 pub const ODM_SIZE: usize = 128;
@@ -68,7 +68,7 @@ pub struct SpawnPoint {
 
 impl Odm {
     pub fn new(lod_manager: &LodManager, name: &str) -> Result<Self, Box<dyn Error>> {
-        let data = LodData::try_from(lod_manager.try_get_bytes(&format!("games/{}", name))?)?;
+        let data = LodData::try_from(lod_manager.try_get_bytes(format!("games/{}", name))?)?;
         let data = data.data.as_slice();
 
         let mut cursor = Cursor::new(data);
@@ -154,7 +154,7 @@ impl Odm {
             let x = i32::from_le_bytes(data[first..first + 4].try_into().unwrap());
             let y = i32::from_le_bytes(data[first + 4..first + 8].try_into().unwrap());
             let z = i32::from_le_bytes(data[first + 8..first + 12].try_into().unwrap());
-            if x.abs() > 50000 || y.abs() > 50000 || z < 0 || z > 10000 {
+            if x.abs() > 50000 || y.abs() > 50000 || !(0..=10000).contains(&z) {
                 continue;
             }
 
@@ -232,11 +232,7 @@ impl OdmData {
                 // World position: offset by border so original terrain stays centered
                 let world_w = (w - TERRAIN_BORDER) as f32 - orig_half_w;
                 let world_d = (d - TERRAIN_BORDER) as f32 - orig_half_d;
-                positions.push([
-                    world_w * ODM_TILE_SCALE,
-                    height,
-                    world_d * ODM_TILE_SCALE,
-                ]);
+                positions.push([world_w * ODM_TILE_SCALE, height, world_d * ODM_TILE_SCALE]);
             }
         }
 
@@ -277,8 +273,7 @@ impl OdmData {
                 let orig_tw = (w as i32 - TERRAIN_BORDER).clamp(0, orig_w as i32 - 2) as usize;
                 let orig_td = (d as i32 - TERRAIN_BORDER).clamp(0, orig_d as i32 - 2) as usize;
                 let tile_index = orig_td * orig_w + orig_tw;
-                let (uv_tl, uv_tr, uv_bl, uv_br) =
-                    Self::tile_uvs(tile_table, odm.tile_map[tile_index]);
+                let (uv_tl, uv_tr, uv_bl, uv_br) = Self::tile_uvs(tile_table, odm.tile_map[tile_index]);
 
                 if diag1 <= diag2 {
                     indices.extend_from_slice(&[tl, bl, br, tl, br, tr]);
@@ -307,11 +302,7 @@ impl OdmData {
     /// Tangent along d (z-axis): T_d = (0, dh_dd, tile_scale)
     /// Normal = T_d × T_w = (-dh_dw * tile_scale, tile_scale², -dh_dd * tile_scale)
     /// Simplified: (-dh_dw, tile_scale, -dh_dd) then normalize
-    fn compute_smooth_normals(
-        height_map: &[u8],
-        width: usize,
-        depth: usize,
-    ) -> Vec<[f32; 3]> {
+    fn compute_smooth_normals(height_map: &[u8], width: usize, depth: usize) -> Vec<[f32; 3]> {
         let mut normals = Vec::with_capacity(width * depth);
         for d in 0..depth {
             for w in 0..width {
@@ -340,10 +331,7 @@ impl OdmData {
         normals
     }
 
-    fn tile_uvs(
-        tile_table: &TileTable,
-        tile_index: u8,
-    ) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2]) {
+    fn tile_uvs(tile_table: &TileTable, tile_index: u8) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2]) {
         let (tile_x, tile_y) = tile_table.coordinate(tile_index);
         let (tile_x, tile_y) = (tile_x as f32, tile_y as f32);
         let (size_x, size_y) = tile_table.size();
@@ -374,7 +362,7 @@ impl OdmData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     #[test]
     fn get_map_works() {

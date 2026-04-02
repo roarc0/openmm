@@ -3,8 +3,7 @@ use bevy::prelude::*;
 use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 
 /// Maximum height the player can step up onto a BSP floor.
-/// MM6 castle stairs have large risers; 200 units matches the engine's own slope tolerance.
-const MAX_STEP_UP: f32 = 200.0;
+const MAX_STEP_UP: f32 = 80.0;
 
 /// A collision triangle in Bevy coordinates, with precomputed AABB.
 /// Used for floor height sampling (point-in-triangle + barycentric interpolation).
@@ -31,7 +30,10 @@ impl CollisionTriangle {
             max_z: v0.z.max(v1.z).max(v2.z),
             min_y: v0.y.min(v1.y).min(v2.y),
             max_y: v0.y.max(v1.y).max(v2.y),
-            v0, v1, v2, normal,
+            v0,
+            v1,
+            v2,
+            normal,
         }
     }
 
@@ -82,7 +84,17 @@ impl CollisionWall {
             polygon_xz.push(Vec2::new(v.x, v.z));
         }
 
-        Self { normal, plane_dist, polygon_xz, min_x, max_x, min_z, max_z, min_y, max_y }
+        Self {
+            normal,
+            plane_dist,
+            polygon_xz,
+            min_x,
+            max_x,
+            min_z,
+            max_z,
+            min_y,
+            max_y,
+        }
     }
 
     /// Signed distance from a 3D point to this face's plane.
@@ -95,8 +107,7 @@ impl CollisionWall {
     /// Uses the XZ normal component to determine the dominant axis for projection.
     fn contains_xz(&self, px: f32, pz: f32, radius: f32) -> bool {
         // AABB pre-check with radius
-        if px + radius < self.min_x || px - radius > self.max_x
-            || pz + radius < self.min_z || pz - radius > self.max_z
+        if px + radius < self.min_x || px - radius > self.max_x || pz + radius < self.min_z || pz - radius > self.max_z
         {
             return false;
         }
@@ -254,14 +265,8 @@ impl WaterMap {
 }
 
 /// Whether the player can walk on water (e.g. from a spell).
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct WaterWalking(pub bool);
-
-impl Default for WaterWalking {
-    fn default() -> Self {
-        Self(false)
-    }
-}
 
 /// Sample terrain height at a world position using bilinear interpolation.
 pub fn sample_terrain_height(height_map: &[u8], world_x: f32, world_z: f32) -> f32 {
@@ -287,12 +292,7 @@ pub fn sample_terrain_height(height_map: &[u8], world_x: f32, world_z: f32) -> f
 }
 
 /// Probe for the ground height at a world position from above.
-pub fn probe_ground_height(
-    height_map: &[u8],
-    colliders: Option<&BuildingColliders>,
-    x: f32,
-    z: f32,
-) -> f32 {
+pub fn probe_ground_height(height_map: &[u8], colliders: Option<&BuildingColliders>, x: f32, z: f32) -> f32 {
     let terrain_h = sample_terrain_height(height_map, x, z);
     let mut best = terrain_h;
     if let Some(colliders) = colliders {
@@ -357,9 +357,7 @@ fn point_in_polygon_2d(p: Vec2, polygon: &[Vec2]) -> bool {
     for i in 0..n {
         let vi = polygon[i];
         let vj = polygon[j];
-        if ((vi.y > p.y) != (vj.y > p.y))
-            && (p.x < (vj.x - vi.x) * (p.y - vi.y) / (vj.y - vi.y) + vi.x)
-        {
+        if ((vi.y > p.y) != (vj.y > p.y)) && (p.x < (vj.x - vi.x) * (p.y - vi.y) / (vj.y - vi.y) + vi.x) {
             inside = !inside;
         }
         j = i;

@@ -113,10 +113,7 @@ fn cache_key_includes_palette_id_when_variant_and_palette_nonzero() {
     );
     // variant=1 never uses the DSFT palette path, so palette_id is irrelevant
     assert_eq!(cache_key("gstfly", 1, 0, 0, 223), "gstfly");
-    assert_eq!(cache_key("gstfly", 1, 0, 0, 0),   "gstfly");
+    assert_eq!(cache_key("gstfly", 1, 0, 0, 0), "gstfly");
     // Palette must also be distinct when min dimensions are present
-    assert_ne!(
-        cache_key("gstfly", 2, 64, 128, 0),
-        cache_key("gstfly", 2, 64, 128, 223),
-    );
+    assert_ne!(cache_key("gstfly", 2, 64, 128, 0), cache_key("gstfly", 2, 64, 128, 223),);
 }

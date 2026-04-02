@@ -1,4 +1,9 @@
-use crate::{dtile::{Dtile, Tileset}, get_lod_path, odm::Odm, LodManager};
+use crate::{
+    LodManager,
+    dtile::{Dtile, Tileset},
+    get_lod_path,
+    odm::Odm,
+};
 
 #[test]
 fn read_dtile_data_works() {
@@ -63,8 +68,14 @@ fn tileset_lookup_snow_map() {
     for i in 90..95 {
         let dtile_idx = i - 90 + odm.tile_data[1] as usize;
         let info = dtile.tile_info(dtile_idx);
-        println!("tile_map={} -> dtile[{}] name={:?} tile_set={} -> {:?}",
-            i, dtile_idx, info.0, info.1, Tileset::from_raw(lookup[i]));
+        println!(
+            "tile_map={} -> dtile[{}] name={:?} tile_set={} -> {:?}",
+            i,
+            dtile_idx,
+            info.0,
+            info.1,
+            Tileset::from_raw(lookup[i])
+        );
     }
 
     // outc1 is a snow map — primary terrain should be Snow
@@ -85,7 +96,7 @@ fn from_raw_covers_all_tilesets() {
     assert_eq!(Tileset::from_raw(4), Some(Tileset::Dirt));
     assert_eq!(Tileset::from_raw(5), Some(Tileset::Water));
     assert_eq!(Tileset::from_raw(6), Some(Tileset::CrackedSwamp)); // crktyl
-    assert_eq!(Tileset::from_raw(7), Some(Tileset::Swamp));    // swmtyl
+    assert_eq!(Tileset::from_raw(7), Some(Tileset::Swamp)); // swmtyl
     assert_eq!(Tileset::from_raw(8), Some(Tileset::Road));
     assert_eq!(Tileset::from_raw(22), Some(Tileset::Road));
     assert_eq!(Tileset::from_raw(-1), None);

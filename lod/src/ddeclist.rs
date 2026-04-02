@@ -5,7 +5,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use crate::{enums::DecorationDescFlags, lod_data::LodData, utils::try_read_name, LodManager};
+use crate::{LodManager, enums::DecorationDescFlags, lod_data::LodData, utils::try_read_name};
 
 pub struct DDecList {
     pub items: Vec<DDecListItem>,
@@ -135,9 +135,7 @@ impl DDecList {
 
         for _i in 0..item_count {
             let mut item = DDecListItem::default();
-            cursor.read_exact(unsafe {
-                std::slice::from_raw_parts_mut(&mut item as *mut _ as *mut u8, item_size)
-            })?;
+            cursor.read_exact(unsafe { std::slice::from_raw_parts_mut(&mut item as *mut _ as *mut u8, item_size) })?;
             items.push(item);
         }
 
@@ -147,7 +145,7 @@ impl DDecList {
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_lod_path, LodManager};
+    use crate::{LodManager, get_lod_path};
 
     use super::DDecList;
 

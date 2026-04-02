@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy::render::render_resource::Face;
 
 use crate::GameState;
-use crate::game::InGame;
 use crate::assets::GameAssets;
+use crate::game::InGame;
 use crate::game::entities::{actor, sprites};
 use crate::game::terrain_material::{TerrainMaterial, WaterExtension};
 
@@ -153,7 +153,10 @@ fn check_map_boundary(
     }
     let Ok(transform) = player_query.single() else { return };
     let crate::game::map_name::MapName::Outdoor(ref odm) = world_state.map.name else {
-        debug!("check_map_boundary: skipped (not outdoor map: {:?})", world_state.map.name);
+        debug!(
+            "check_map_boundary: skipped (not outdoor map: {:?})",
+            world_state.map.name
+        );
         return;
     };
     let pos = transform.translation;
@@ -286,9 +289,11 @@ fn spawn_world(
                 ));
 
                 if is_building {
-                    model_entity.insert(
-                        crate::game::interaction::make_building_info(&model.name, model.position, model.event_ids.clone()),
-                    );
+                    model_entity.insert(crate::game::interaction::make_building_info(
+                        &model.name,
+                        model.position,
+                        model.event_ids.clone(),
+                    ));
                 }
 
                 model_entity.with_children(|model_parent| {
@@ -300,14 +305,12 @@ fn spawn_world(
                             let tex_handle = images.add(img);
                             mat.base_color_texture = Some(tex_handle);
                         }
-                        model_parent.spawn((
-                            Mesh3d(meshes.add(sub.mesh.clone())),
-                            MeshMaterial3d(materials.add(mat)),
-                        ));
+                        model_parent.spawn((Mesh3d(meshes.add(sub.mesh.clone())), MeshMaterial3d(materials.add(mat))));
                     }
                 });
             }
-        }).id();
+        })
+        .id();
 
     // Build outdoor clickable faces from BSP model faces with cog_trigger_id
     {
@@ -324,7 +327,9 @@ fn spawn_world(
                         model.vertices.get(idx).map(|v| Vec3::from(*v))
                     })
                     .collect();
-                if verts.len() < 3 { continue; }
+                if verts.len() < 3 {
+                    continue;
+                }
                 let nx = face.plane.normal[0] as f32 / 65536.0;
                 let ny = face.plane.normal[2] as f32 / 65536.0;
                 let nz = -face.plane.normal[1] as f32 / 65536.0;
@@ -349,7 +354,9 @@ fn spawn_world(
     let decorations = prepared.decorations.clone();
 
     // Reuse Actors and Monsters resolved during preloading — avoids duplicate LOD parsing.
-    let monsters = prepared.resolved_monsters.take()
+    let monsters = prepared
+        .resolved_monsters
+        .take()
         .unwrap_or_else(lod::game::monster::Monsters::default_empty);
     let actors = prepared.resolved_actors.take();
 
@@ -360,19 +367,30 @@ fn spawn_world(
         save_data.player.position[2],
     );
 
-    let bb_order = sort_by_distance_mm6(decorations.entries(), player_spawn,
-        |d| d.position[0] as f32, |d| d.position[1] as f32);
+    let bb_order = sort_by_distance_mm6(
+        decorations.entries(),
+        player_spawn,
+        |d| d.position[0] as f32,
+        |d| d.position[1] as f32,
+    );
 
     let actor_order = if let Some(ref a) = actors {
-        sort_by_distance_mm6(a.get_actors(), player_spawn,
+        sort_by_distance_mm6(
+            a.get_actors(),
+            player_spawn,
             |actor| actor.position[0] as f32,
-            |actor| actor.position[1] as f32)
+            |actor| actor.position[1] as f32,
+        )
     } else {
         Vec::new()
     };
 
-    let monster_order = sort_by_distance_mm6(monsters.entries(), player_spawn,
-        |m| m.spawn_position[0] as f32, |m| m.spawn_position[1] as f32);
+    let monster_order = sort_by_distance_mm6(
+        monsters.entries(),
+        player_spawn,
+        |m| m.spawn_position[0] as f32,
+        |m| m.spawn_position[1] as f32,
+    );
 
     let total = bb_order.len() + actor_order.len() + monster_order.len();
     // Play map music
@@ -397,9 +415,13 @@ fn spawn_world(
     });
 }
 
-
 /// Sort indices by distance from player using MM6 coords (works with i16 or i32).
-fn sort_by_distance_mm6<T>(items: &[T], player: Vec3, pos_x: impl Fn(&T) -> f32, pos_y: impl Fn(&T) -> f32) -> Vec<usize> {
+fn sort_by_distance_mm6<T>(
+    items: &[T],
+    player: Vec3,
+    pos_x: impl Fn(&T) -> f32,
+    pos_y: impl Fn(&T) -> f32,
+) -> Vec<usize> {
     let mut order: Vec<usize> = (0..items.len()).collect();
     order.sort_by(|&a, &b| {
         let da = (pos_x(&items[a]) - player.x).powi(2) + (pos_y(&items[a]) + player.z).powi(2);
@@ -458,8 +480,12 @@ fn lazy_spawn(
 
         if dec.is_directional {
             let (dirs, px_w, px_h) = sprites::load_decoration_directions(
-                &dec.sprite_name, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut p.sprite_cache));
+                &dec.sprite_name,
+                game_assets.lod_manager(),
+                &mut images,
+                &mut materials,
+                &mut Some(&mut p.sprite_cache),
+            );
             if px_w > 0.0 {
                 // Apply DSFT scale via sprite group name lookup
                 let dsft_scale = bb_mgr.dsft_scale_for_group(&dec.sprite_name);
@@ -470,24 +496,29 @@ fn lazy_spawn(
                 let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
                 // Single animation frame with 5 directional views
                 let states = vec![vec![dirs]];
-                let child_id = commands.spawn((
-                    Name::new(format!("decoration:{}", key)),
-                    Mesh3d(quad), MeshMaterial3d(initial_mat),
-                    Transform::from_translation(pos),
-                    crate::game::entities::WorldEntity,
-                    crate::game::entities::EntityKind::Decoration,
-                    crate::game::entities::Billboard,
-                    crate::game::entities::AnimationState::Idle,
-                    sprites::SpriteSheet::new(states, vec![(sw, sh)]),
-                    crate::game::entities::FacingYaw(dec.facing_yaw),
-                )).id();
+                let child_id = commands
+                    .spawn((
+                        Name::new(format!("decoration:{}", key)),
+                        Mesh3d(quad),
+                        MeshMaterial3d(initial_mat),
+                        Transform::from_translation(pos),
+                        crate::game::entities::WorldEntity,
+                        crate::game::entities::EntityKind::Decoration,
+                        crate::game::entities::Billboard,
+                        crate::game::entities::AnimationState::Idle,
+                        sprites::SpriteSheet::new(states, vec![(sw, sh)]),
+                        crate::game::entities::FacingYaw(dec.facing_yaw),
+                    ))
+                    .id();
                 commands.entity(terrain_entity).add_child(child_id);
                 if dec.event_id > 0 {
-                    commands.entity(child_id).insert(crate::game::interaction::DecorationInfo {
-                        event_id: dec.event_id as u16,
-                        position: pos,
-                        billboard_index: dec.billboard_index,
-                    });
+                    commands
+                        .entity(child_id)
+                        .insert(crate::game::interaction::DecorationInfo {
+                            event_id: dec.event_id as u16,
+                            position: pos,
+                            billboard_index: dec.billboard_index,
+                        });
                 }
                 spawned += 1;
             } else {
@@ -509,9 +540,12 @@ fn lazy_spawn(
                 let tex = images.add(bevy_img);
                 let m = materials.add(StandardMaterial {
                     unlit: true,
-                    base_color_texture: Some(tex), alpha_mode: AlphaMode::Mask(0.5),
-                    cull_mode: None, double_sided: true,
-                    perceptual_roughness: 1.0, reflectance: 0.0,
+                    base_color_texture: Some(tex),
+                    alpha_mode: AlphaMode::Mask(0.5),
+                    cull_mode: None,
+                    double_sided: true,
+                    perceptual_roughness: 1.0,
+                    reflectance: 0.0,
                     ..default()
                 });
                 let q = meshes.add(Rectangle::new(w, h));
@@ -519,20 +553,26 @@ fn lazy_spawn(
                 (m, q, h)
             };
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
-            let child_id = commands.spawn((
-                Name::new("decoration"), Mesh3d(quad), MeshMaterial3d(mat),
-                Transform::from_translation(pos),
-                crate::game::entities::WorldEntity,
-                crate::game::entities::EntityKind::Decoration,
-                crate::game::entities::Billboard,
-            )).id();
+            let child_id = commands
+                .spawn((
+                    Name::new("decoration"),
+                    Mesh3d(quad),
+                    MeshMaterial3d(mat),
+                    Transform::from_translation(pos),
+                    crate::game::entities::WorldEntity,
+                    crate::game::entities::EntityKind::Decoration,
+                    crate::game::entities::Billboard,
+                ))
+                .id();
             commands.entity(terrain_entity).add_child(child_id);
             if dec.event_id > 0 {
-                commands.entity(child_id).insert(crate::game::interaction::DecorationInfo {
-                    event_id: dec.event_id as u16,
-                    position: pos,
-                    billboard_index: dec.billboard_index,
-                });
+                commands
+                    .entity(child_id)
+                    .insert(crate::game::interaction::DecorationInfo {
+                        event_id: dec.event_id as u16,
+                        position: pos,
+                        billboard_index: dec.billboard_index,
+                    });
             }
             spawned += 1;
         }
@@ -559,11 +599,20 @@ fn lazy_spawn(
         let variant = actor.variant;
 
         let (s2, w2, h2) = sprites::load_entity_sprites(
-            &actor.standing_sprite, &actor.walking_sprite, game_assets.lod_manager(),
-            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant, actor.palette_id);
+            &actor.standing_sprite,
+            &actor.walking_sprite,
+            game_assets.lod_manager(),
+            &mut images,
+            &mut materials,
+            &mut Some(&mut p.sprite_cache),
+            variant,
+            actor.palette_id,
+        );
         if s2.is_empty() || s2[0].is_empty() {
-            error!("NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
-                actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite);
+            error!(
+                "NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
+                actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite
+            );
             continue;
         }
         // Apply DSFT scale (same as decorations — sprite group name lookup)
@@ -588,21 +637,27 @@ fn lazy_spawn(
             let generated_id = 5000 + i as i32;
             // Pick a complete identity (name + portrait) from npcdata.txt peasant entries,
             // split by sex. Falls back to npcnames.txt name + generic portrait if unavailable.
-            let (name, portrait) = map_events.as_ref()
+            let (name, portrait) = map_events
+                .as_ref()
                 .and_then(|me| me.npc_table.as_ref())
                 .and_then(|t| t.peasant_identity(actor.is_female, i))
                 .map(|(n, p)| (n.to_string(), p))
                 .unwrap_or_else(|| {
-                    let name = map_events.as_ref()
+                    let name = map_events
+                        .as_ref()
                         .and_then(|me| me.name_pool.as_ref())
                         .map(|pool| pool.name_for(actor.is_female, i).to_string())
                         .unwrap_or_else(|| actor.name.clone());
                     (name, 1)
                 });
             if let Some(ref mut me) = map_events {
-                me.generated_npcs.insert(generated_id, lod::game::npc::GeneratedNpc {
-                    name: name.clone(), portrait,
-                });
+                me.generated_npcs.insert(
+                    generated_id,
+                    lod::game::npc::GeneratedNpc {
+                        name: name.clone(),
+                        portrait,
+                    },
+                );
             }
             (name, generated_id)
         } else {
@@ -611,18 +666,26 @@ fn lazy_spawn(
         };
 
         commands.entity(terrain_entity).with_child((
-            Name::new(format!("npc:{}", actor.name)), Mesh3d(quad), MeshMaterial3d(initial_mat),
+            Name::new(format!("npc:{}", actor.name)),
+            Mesh3d(quad),
+            MeshMaterial3d(initial_mat),
             Transform::from_translation(pos),
-            crate::game::entities::WorldEntity, crate::game::entities::EntityKind::Npc,
+            crate::game::entities::WorldEntity,
+            crate::game::entities::EntityKind::Npc,
             crate::game::entities::AnimationState::Idle,
             sprites::SpriteSheet::new(states, vec![(sw, sh)]),
             actor::Actor {
-                name: actor.name.clone(), hp: actor.hp, max_hp: actor.hp,
+                name: actor.name.clone(),
+                hp: actor.hp,
+                max_hp: actor.hp,
                 move_speed: actor.move_speed as f32,
-                initial_position: pos, guarding_position: pos,
+                initial_position: pos,
+                guarding_position: pos,
                 tether_distance: actor.tether_distance as f32,
                 wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
-                wander_target: pos, facing_yaw: 0.0, hostile: false,
+                wander_target: pos,
+                facing_yaw: 0.0,
+                hostile: false,
             },
             crate::game::interaction::NpcInteractable {
                 name: display_name,
@@ -639,10 +702,20 @@ fn lazy_spawn(
         monster_idx += 1;
         p.idx += 1;
         let (states, raw_w, raw_h) = sprites::load_entity_sprites(
-            &m.standing_sprite, &m.walking_sprite, game_assets.lod_manager(),
-            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), m.variant, m.palette_id);
+            &m.standing_sprite,
+            &m.walking_sprite,
+            game_assets.lod_manager(),
+            &mut images,
+            &mut materials,
+            &mut Some(&mut p.sprite_cache),
+            m.variant,
+            m.palette_id,
+        );
         if states.is_empty() || states[0].is_empty() {
-            error!("Monster sprite '{}'/'{}'  failed to load — skipping", m.standing_sprite, m.walking_sprite);
+            error!(
+                "Monster sprite '{}'/'{}'  failed to load — skipping",
+                m.standing_sprite, m.walking_sprite
+            );
             continue;
         }
         // Apply DSFT scale (same as decorations — sprite group name lookup)
@@ -660,15 +733,26 @@ fn lazy_spawn(
         let pos = Vec3::new(wx, gy + sh / 2.0, wz);
 
         commands.entity(terrain_entity).with_child((
-            Name::new("monster"), Mesh3d(quad), MeshMaterial3d(initial_mat),
+            Name::new("monster"),
+            Mesh3d(quad),
+            MeshMaterial3d(initial_mat),
             Transform::from_translation(pos),
-            crate::game::entities::WorldEntity, crate::game::entities::EntityKind::Monster,
+            crate::game::entities::WorldEntity,
+            crate::game::entities::EntityKind::Monster,
             crate::game::entities::AnimationState::Idle,
             sprites::SpriteSheet::new(states, vec![(sw, sh)]),
             actor::Actor {
-                name: "Monster".into(), hp: 10, max_hp: 10, move_speed: m.move_speed as f32,
-                initial_position: pos, guarding_position: pos, tether_distance: m.radius.max(200) as f32,
-                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0, wander_target: pos, facing_yaw: 0.0, hostile: true,
+                name: "Monster".into(),
+                hp: 10,
+                max_hp: 10,
+                move_speed: m.move_speed as f32,
+                initial_position: pos,
+                guarding_position: pos,
+                tether_distance: m.radius.max(200) as f32,
+                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
+                wander_target: pos,
+                facing_yaw: 0.0,
+                hostile: true,
             },
         ));
         spawned += 1;

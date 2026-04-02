@@ -24,10 +24,9 @@ impl Plugin for BevyConfigPlugin {
 
         let window_mode = match cfg.window_mode.as_str() {
             "borderless" => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
-            "fullscreen" => WindowMode::Fullscreen(
-                MonitorSelection::Current,
-                bevy::window::VideoModeSelection::Current,
-            ),
+            "fullscreen" => {
+                WindowMode::Fullscreen(MonitorSelection::Current, bevy::window::VideoModeSelection::Current)
+            }
             _ => WindowMode::Windowed,
         };
 
@@ -78,9 +77,7 @@ pub fn camera_msaa(cfg: &GameConfig) -> Msaa {
         return Msaa::Off;
     }
     if needs_msaa_off && !matches!(cfg.antialiasing.as_str(), "fxaa" | "smaa" | "taa" | "off") {
-        warn!(
-            "Post-processing requires Msaa::Off — forcing Msaa::Off (set antialiasing to fxaa/smaa/taa)"
-        );
+        warn!("Post-processing requires Msaa::Off — forcing Msaa::Off (set antialiasing to fxaa/smaa/taa)");
         return Msaa::Off;
     }
 
