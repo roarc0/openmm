@@ -158,136 +158,52 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### Sound system
 
-- `SoundManager` resource holds DSounds table + SndArchive + cached Bevy audio handles
-- `PlayMusicEvent` — any system can request map music (track number + volume)
-- `PlaySoundEvent` — plays a sound at a 3D world position (spatial audio via SpatialListener on player camera)
-- `PlayUiSoundEvent` — plays a non-positional UI sound
-- Sound files are WAV stored in `Sounds/Audio.snd` (zlib-compressed), resolved by name from dsounds.bin
-- Sounds are loaded on-demand and cached by sound_id
-- Decorations with `sound_id > 0` trigger PlaySoundEvent on spawn
-- `SoundManager::load_sound` validates WAV: checks RIFF header, WAVE tag, and PCM format byte (audio_fmt == 1). Unsupported formats are skipped with a warning.
-- `chest_open_sound_id` is pre-cached at startup by looking up `"openchest0101"` in DSounds.
-- Spatial scale: `1.0 / 1000.0` — approximately 2 terrain tiles (1024 units) maps to normal attenuation distance.
-- `PlaySoundEvent` is **looping** spatial audio (e.g. decoration ambient sounds, footsteps). `PlayUiSoundEvent` spawns a **once-and-despawn** non-positional entity.
-- Music is loaded **from the filesystem** (`Music/{track}.mp3` relative to the game data directory), NOT from a LOD archive. The `MapMusic` component marks the music entity so it can be despawned on map change.
-- Music volume syncs from `cfg.music_volume` whenever `GameConfig` changes (e.g. after a console command).
-- Footstep sound IDs by terrain tileset (from OpenEnroth `SoundEnums.h`): Grass=93, Snow=97, Desert=91, Volcanic=88, Dirt=92, Water=101, CrackedSwamp/Swamp=100, Road=96.
-- Footsteps use a looping audio entity that is despawned and respawned when the player transitions to a different tileset. No footstep sound plays in fly mode.
+- `SoundManager` resource: DSounds + SndArchive + audio handle cache
+- `PlaySoundEvent` = looping spatial audio; `PlayUiSoundEvent` = once-and-despawn non-positional; `PlayMusicEvent` = map music
+- Music from filesystem `Music/{track}.mp3`, NOT from LOD. Spatial scale `1.0/1000.0`.
+
+> See `docs/sound-system.md` for full details.
 
 ### Sprites and actors
 
-- NPC sprites are resolved from the DSFT table at runtime (no hardcoded sprite list). Preloaded during loading screen via `build_npc_sprite_table()`.
-- Sprite variant system: monsters have difficulty variants (1=A base, 2=B blue tint, 3=C red tint). The `tint_variant()` function in `lod::image` applies color shifts.
-- Cache key format: `"root"`, `"root@v2"`, `"root@v2p223"`, `"root@64x128"`, `"root@64x128@v2"`, or `"root@64x128@v2p223"` — encodes sprite root, optional minimum dimensions, variant, and palette_id (palette only appended when variant > 1 AND palette_id > 0).
-- Entity spawning is lazy: `spawn_world` creates terrain/models immediately, then `lazy_spawn` spawns billboards, NPCs, and monsters in batches per frame (time-budgeted) sorted by distance from player.
-- `SpriteSheet` component: `states[state_idx][frame_idx]` = `[Handle<StandardMaterial>; 5]` (5 directions). State 0 = standing, state 1 = walking (if available).
-- Walking sprites are loaded first (tend to be wider) to determine target dimensions; standing sprites are then padded to match so neither animation gets stretched.
-- `load_entity_sprites` falls back to progressively shorter root names if a sprite isn't found (e.g. `"gobla"` → `"gobl"` → `"gob"`).
-- `FacingYaw` component for directional decorations (e.g. ships) whose sprite depends on camera angle; distinct from `Actor.facing_yaw` which drives live rotation.
-- `distance_culling` system hides entities beyond `cfg.draw_distance`; runs before sprite updates each frame.
-- `billboard_face_camera` skips entities with `SpriteSheet` (those are updated by `update_sprite_sheets` instead).
+- NPC sprites resolved from DSFT at runtime; preloaded via `build_npc_sprite_table()`. Cache key: `"root@v2p223@64x128"`.
+- `SpriteSheet`: `states[state][frame] = [Handle<StandardMaterial>; 5]` (5 directions). Lazy-spawned in distance-sorted, time-budgeted batches.
+- `distance_culling` hides entities beyond draw distance; `billboard_face_camera` skips `SpriteSheet` entities.
 
-### Wander AI
-
-- `Actor` component fields: `name`, `hp`/`max_hp`, `move_speed`, `initial_position`, `guarding_position`, `tether_distance`, `wander_timer`, `wander_target`, `facing_yaw`, `hostile`.
-- Wander uses position-based seeding (`initial_position.x * 7.3 + z * 13.7`) to desynchronize actors — using shared `time.elapsed_secs()` as seed caused all actors to fire collision checks in the same frame.
-- Walk timing: 3–6 s walking, 2–5 s idle. Walk speed is capped at 60 units/step regardless of `move_speed`. Tether effectively defaults to 300 units minimum.
-- Actors doing collision use `BuildingColliders::resolve_movement` with radius=20, eye_height=140.
-
-### Interaction system
-
-- `BuildingInfo` component on BSP model entities (model name, position, event_ids list).
-- `DecorationInfo` on billboard entities (event_id, position, billboard_index for SetSprite targeting).
-- `NpcInteractable` on NPC entities (name, position, npc_id — zero means no dialogue).
-- Interaction trigger: `KeyE`, `Enter`, left mouse click, or gamepad East. Range: `INTERACT_RANGE = 250` (close) or `RAYCAST_RANGE = 2000` (ray).
-- Ray targeting uses a cone with `RAY_ANGLE_TAN = 0.12` (~7°); minimum perpendicular threshold `RAY_MIN_PERP = 60` for very close objects.
-- `interaction_input` also handles exiting Building/NpcDialogue/Chest views (presses E/Enter/click while view is non-World).
+> Sprite loading details, wander AI, and interaction system: see `docs/actors-and-sprites.md`.
 
 ### Loading pipeline details
 
-- `LoadRequest` resource: set `map_name` + optionally `spawn_position` and `spawn_yaw` before transitioning to `GameState::Loading`.
-- `loading_setup` removes all previous map resources (`PreparedWorld`, `PreparedIndoorWorld`, `BlvDoors`, `DoorColliders`, `ClickableFaces`, `TouchTriggerFaces`) to avoid stale state across map changes.
-- `PreparedWorld` resource (outdoor): contains `Odm`, terrain/water meshes and textures, models, decorations, actors, resolved monsters, start_points, sprite_cache, billboard_cache, water_cells, terrain_lookup, music_track.
-- `PreparedIndoorWorld` resource (indoor): contains models, start_points, collision geometry (walls/floors/ceilings), door definitions, door face meshes, clickable_faces, **touch_trigger_faces**, map_base string for EVT loading, actors from DLV.
-- `TouchTriggerFaces` resource (`EVENT_BY_TOUCH` flag): faces that fire EVT events when the player walks within proximity. Each has face_index, event_id, center, radius (half the bounding box diagonal for floor faces).
-- `LoadingProgress` private resource tracks all intermediate data between pipeline steps; discarded once `PreparedWorld`/`PreparedIndoorWorld` is produced.
-- `PreloadQueue` batches sprite preloading across frames: sprite_roots `(root, variant, palette_id)` triples + billboard_idx + music_resolved.
-- Player spawn priorities: **indoor** → `start_points[0]` (set from LoadRequest.spawn_position for MoveToMap events, or sector center as fallback). **outdoor** → non-zero save position → decoration named "party start" / "party_start" → origin.
+- `LoadRequest`: set `map_name` + optional `spawn_position`/`spawn_yaw` before entering `GameState::Loading`.
+- `loading_setup` removes all per-map resources — if you add a new one, register it there or it persists across map changes.
+- Spawn priorities: indoor → `start_points[0]`; outdoor → save pos → "party start" decoration → origin.
+
+> Full pipeline details: see `docs/loading-pipeline.md`.
 
 ### Player details
 
-- `PlayerSettings` defaults: `speed=2048`, `fly_speed=4096`, `eye_height=160`, `gravity=9800`, `jump_velocity=1300`, `collision_radius=24`, `max_slope_height=200` (step-up for terrain), `max_xz` clamps to the playable ODM boundary.
-- FOV: 75° outdoors, 60° indoors (aligned with OpenEnroth values). Camera spawns with -8° pitch tilt.
-- `SpatialListener` (ear gap=4.0) is on the `PlayerCamera` child entity, not the `Player` root.
-- Walk speed is half of `settings.speed`; `cfg.always_run` skips the halving. Fly mode uses `fly_speed`.
-- Fly mode: toggle with F2 or gamepad Select; stored in `WorldState.player.fly_mode`.
-- `MouseLookEnabled` resource: initialized from `cfg.mouse_look`, toggled at runtime with CapsLock (if `cfg.capslock_toggle_mouse_look`).
-- `MouseSensitivity` resource: adjusted at runtime with Home (increase) / End (decrease) keys in 5-unit steps.
-- Gamepad: left stick moves, right stick looks. Unmapped controllers (e.g. GameSir) expose right stick as LeftZ/RightZ axes — the code has a fallback for this.
-- `PlayerInputSet` system set label — order other systems after player input using `.after(PlayerInputSet)`.
+- `PlayerSettings`: speed=2048, fly_speed=4096, eye_height=160, gravity=9800, collision_radius=24.
+- FOV 75° outdoor / 60° indoor. `SpatialListener` on `PlayerCamera` child entity, not `Player` root.
+- `PlayerInputSet` system set label — dependent systems must run `.after(PlayerInputSet)`.
 
-### Physics and collision
-
-- `gravity_system` applies gravity (`settings.gravity = 9800` units/s²), vertical velocity, and ceiling/floor clamping each frame. Does NOT run when `HudView != World`.
-- Effective ground Y = `max(terrain_height, bsp_floor_height)`. Ceiling Y from `BuildingColliders::ceiling_height_at`.
-- Slope sliding: triggered on outdoor terrain when slope angle > `MAX_SLOPE_ANGLE = 0.6` rad (~35°). Slide speed: `SLOPE_SLIDE_SPEED = 4000`. Not applied indoors.
-- `BuildingColliders::resolve_movement` iterates 3× to handle corners. `MAX_STEP_UP = 50` — walls shorter than this are steppable.
-- `CollisionWall`: plane (normal + dist) + XZ polygon for containment (ray-cast + edge distance). `CollisionTriangle`: 3 vertices + precomputed AABB + normal for barycentric floor height sampling.
-- `WaterMap` resource (outdoor, `cells: Vec<bool>`) + `WaterWalking` resource (toggled by EVT). Both are per-map resources inserted by `setup_collision_data`.
-- `DoorColliders` resource (indoor): rebuilt from `DoorCollisionFace` data + live door positions each frame by the door animation system; used by player movement to be pushed out of moving doors.
+> Full player settings and physics/collision: see `docs/player-physics.md`.
 
 ### WorldState and game variables
 
-- `WorldState` resource is the single source of truth for runtime player/map state. `GameSave` is the persistent serialization form; call `WorldState::write_to_save` / `read_from_save` to transfer.
-- `WorldState.time_of_day`: 0.0=midnight, 0.25=sunrise, 0.375=9am (default), 0.5=noon, 0.75=sunset. Drives sun position, ambient light, and sky color.
-- `GameVariables` fields: `map_vars[100]` (reset on map change), `quest_bits: HashSet<i32>`, `autonotes: HashSet<i32>`, `gold` (starting 200), `food` (starting 7), `reputation`.
-- Use `GameVariables::set_qbit` / `clear_qbit` / `has_qbit` and `add_autonote` — these log every change at info level.
+- `WorldState` = runtime source of truth; `GameSave` = JSON at `target/saves/{slot}.json`.
+- `GameVariables`: `map_vars[100]` (reset on map change), `quest_bits`, `autonotes`, gold=200, food=7.
+- `Party`: 4 fixed members; `active_target` set by `ForPartyMember` EVT opcode.
 
-### Party system
+> Full details (party skills, map events, NPC tables, save format): see `docs/game-state.md`.
 
-- `Party` resource holds exactly 4 `PartyMember`s (indices 0–3 = Player1–4 in EVT).
-- Default party: Zoltan (Knight), Roderick (Paladin), Alexei (Archer), Serena (Cleric), all level 1.
-- `Party::active_target` is set by the `ForPartyMember` EVT opcode and used by subsequent variable reads/writes.
-- `Party::max_skill(target, var)` returns the highest skill level across all members matching `target`.
-- `PartyMember::skills` is `[u8; 31]` indexed by `EvtVariable::skill_index()` (covers skills 0x38–0x56). Use `set_skill` / `get_skill` with `EvtVariable`.
-
-### Map events loading
-
-- `MapEvents` resource: `evt` (map-specific EVT), `houses` (TwoDEvents), `npc_table` (StreetNpcs), `name_pool` (NpcNamePool), `generated_npcs` (HashMap for peasant actors with npc_id ≥ 5000).
-- `global.evt` is always loaded and *merged* into the map EVT (entries from global extend, not override, per event_id).
-- `TwoDEvents` (2devents.txt) is **NOT loaded for indoor maps** (`indoor=true` → `houses = None`). Building SpeakInHouse events still work but have no metadata.
-- `generated_npcs` is populated lazily at actor spawn time for generic peasant/actor entries.
-- `EventQueue` internally uses `VecDeque<EventSequence>` where each `EventSequence` is the full step list for one event_id. Use `push_all(event_id, evt)` (script) or `push_single(GameEvent)` (synthesized). `clear()` to abort the queue.
-
-### HUD internals
-
-- HUD uses a 2D camera (order=1, no clear color, `IsDefaultUiCamera`) that renders on top of the 3D camera (order=0).
-- Reference dimensions: `REF_W=640`, `REF_H=480`. All asset positions scale by `scale_x = window_w / 640` and `scale_y = window_h / 480` independently (non-uniform scaling for widescreen).
-- Six border pieces (border1–6) plus tap frames (tap1=morning, tap2=day, tap3=evening, tap4=night), compass strip, 8 directional arrows (mapdir1=N…mapdir8=NW), and footer strip.
-- `FooterText` resource: `set(text)` for hover hints; `set_status(text, duration, now)` for timed status messages that **lock out hover hints** until the timer expires. `tick(now)` must be called each frame to expire the lock.
-- `StatsBar` displays gold and food from `WorldState.game_vars`, rendered as bitmapped text using `GameFonts`. Updates only when values change.
-- Minimap: 512×512 LOD icon image (e.g. `"oute3"`) scrolled to keep the player dot at center. Zoom=3.0×. Direction arrow selected from 8 frames based on player yaw.
-
-### Lighting and sky
-
-- Day/night cycle duration: `DAY_CYCLE_SECS = 1800` (30 minutes real time). `WorldState.time_of_day` advances each frame while in `HudView::World`.
-- Sun color: warm (reddish-orange) at horizon → white at noon. Illuminance: 300–1200 lux during day, 0 at night.
-- `cfg.lighting`: `"enhanced"` = full PBR with directional light; any other value = unlit mode. Unlit sets `base_color = srgb(0.69, 0.69, 0.69)`, enhanced uses `srgb(1.4, 1.4, 1.4)` for models. The mode toggle updates both `StandardMaterial` (models) and `TerrainMaterial` (terrain) in the same frame.
-- Sky is a large flat quad above the camera rendered with a custom `SkyMaterial` (WGSL shader in `shaders/sky.wgsl`) with time-scrolling UVs. The quad follows the camera each frame. Indoor maps skip the sky dome and set `ClearColor = BLACK`.
-- Sky texture name comes from `Odm.sky_texture`; falls back to `"plansky1"` if empty or missing.
-
-### Terrain material
-
-- `TerrainMaterial = ExtendedMaterial<StandardMaterial, WaterExtension>` (defined in `terrain_material.rs`).
-- `WaterExtension` adds two extra textures: `water_texture` (animated water), `water_mask` (R8 image, white = water pixel). The WGSL shader (`shaders/terrain_water.wgsl`) replaces cyan marker pixels in the terrain atlas with animated water.
-- Water mask uses **nearest** filtering to keep cell boundaries sharp even when the terrain atlas uses linear filtering.
+> HUD internals, lighting, sky, and terrain shaders: see `docs/hud-rendering.md`.
 
 ### Map names and save system
 
-- `MapName` enum: `Outdoor(OdmName)` or `Indoor(String)`. `TryFrom<&str>` parses `"oute3"` (5 chars, starts with "out") as outdoor; anything else (with or without `.odm`/`.blv` extension) as indoor.
-- `OdmName` supports directional navigation: `go_north/go_south/go_east/go_west` return `Option<OdmName>` (None at map boundary). Valid column range: `'a'–'e'`, row range: `'1'–'3'`.
-- `GameSave` is serialized as JSON to `target/saves/{slot}.json`. Default spawn position is `[-10178, 340, 11206]` at yaw -38.7° (MM6 starting area of oute3).
-- `GameAssets` resource (from `assets/mod.rs`) wraps `LodManager` + `GameData` + `BillboardManager`. `game_lod()` returns a `GameLod<'_>` view for decoded sprites, bitmaps, icons, and fonts.
+- `MapName` enum: `Outdoor(OdmName)` or `Indoor(String)`. `TryFrom<&str>` parses `"oute3"` (5 chars, starts with `"out"`) as outdoor; anything else as indoor.
+- `OdmName` supports directional navigation: `go_north/go_south/go_east/go_west` return `Option<OdmName>` (None at boundary). Valid columns `'a'–'e'`, rows `'1'–'3'`.
+- `GameSave` → JSON at `target/saves/{slot}.json`. Default spawn: `[-10178, 340, 11206]` yaw -38.7°.
+- `GameAssets` resource: wraps `LodManager` + `GameData` + `BillboardManager`. `game_lod()` for sprites, bitmaps, icons, fonts.
 
 ### Developer console
 
@@ -333,8 +249,13 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 Files in `docs/` — keep this list in sync (Rule 2):
 
-- `docs/actors-and-sprites.md` — actor/NPC/monster sprite system, DSFT resolution, variants, caching
+- `docs/actors-and-sprites.md` — actor/NPC/monster sprite system, DSFT resolution, variants, caching, wander AI, interaction
 - `docs/terrain-tileset.md` — tile table format, tileset enums, atlas generation
+- `docs/sound-system.md` — SoundManager, events, music, footsteps, spatial audio
+- `docs/loading-pipeline.md` — LoadRequest, pipeline steps, PreparedWorld, spawn priorities
+- `docs/player-physics.md` — PlayerSettings, camera, input, gravity, collision, slopes, doors
+- `docs/game-state.md` — WorldState, GameVariables, Party, MapEvents, save system
+- `docs/hud-rendering.md` — HUD camera, elements, FooterText, minimap, lighting, sky, terrain shaders
 - `docs/superpowers/plans/` — implementation plans for completed features (BLV, doors, HUD, events, sound, party, actors)
 - `docs/superpowers/specs/` — design specs for completed features
 

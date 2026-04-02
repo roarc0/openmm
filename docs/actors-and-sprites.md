@@ -181,3 +181,75 @@ attributes: u16
 Spawn points define WHERE actors appear. The DDM contains the actual live actors
 with their current state. On first map load, spawn points generate actors; on
 subsequent loads, the DDM state is restored.
+
+---
+
+## Sprite System (openmm)
+
+### Sprite resolution
+
+- NPC sprites are resolved from the DSFT table at runtime — no hardcoded sprite list. Preloaded during the loading screen via `build_npc_sprite_table()`.
+- `load_entity_sprites` falls back to progressively shorter root names if a sprite isn't found (e.g. `"gobla"` → `"gobl"` → `"gob"`).
+
+### Cache key format
+
+`"root"`, `"root@v2"`, `"root@v2p223"`, `"root@64x128"`, `"root@64x128@v2"`, or `"root@64x128@v2p223"`
+
+- `@v2` — variant (1=base, 2=blue tint, 3=red tint). Only appended when variant > 1.
+- `p223` — palette_id. Only appended when variant > 1 AND palette_id > 0.
+- `@64x128` — minimum dimensions to pad to (walking sprites determine this, standing sprites are padded to match).
+
+### SpriteSheet component
+
+`states[state_idx][frame_idx] = [Handle<StandardMaterial>; 5]` (5 directions).
+- State 0 = standing, state 1 = walking (if available).
+- Walking sprites are loaded first (tend to be wider) to set target dimensions.
+
+### Lazy spawning
+
+`spawn_world` creates terrain/models immediately. `lazy_spawn` spawns billboards, NPCs, and monsters in time-budgeted batches per frame, sorted by distance from the player.
+
+### Per-frame systems
+
+- `distance_culling` — hides entities beyond `cfg.draw_distance`; runs before sprite updates.
+- `billboard_face_camera` — skips entities with `SpriteSheet` (those are handled by `update_sprite_sheets`).
+- `FacingYaw` component — for directional decorations (e.g. ships) whose sprite depends on camera angle; distinct from `Actor.facing_yaw` which drives live rotation.
+
+---
+
+## Wander AI
+
+### Actor component fields
+
+`name`, `hp`/`max_hp`, `move_speed`, `initial_position`, `guarding_position`, `tether_distance`, `wander_timer`, `wander_target`, `facing_yaw`, `hostile`.
+
+### Behaviour
+
+- Walk timing: 3–6 s walking, 2–5 s idle.
+- Walk speed is capped at 60 units/step regardless of `move_speed`.
+- Tether effectively defaults to 300 units minimum.
+- Collision uses `BuildingColliders::resolve_movement` with radius=20, eye_height=140.
+
+### Desynchronization
+
+Wander uses position-based seeding (`initial_position.x * 7.3 + z * 13.7`) to desynchronize actors. Using a shared `time.elapsed_secs()` seed caused all actors to fire collision checks in the same frame.
+
+---
+
+## Interaction System
+
+### Components
+
+- `BuildingInfo` — on BSP model entities: model name, position, event_ids list.
+- `DecorationInfo` — on billboard entities: event_id, position, billboard_index for SetSprite targeting.
+- `NpcInteractable` — on NPC entities: name, position, npc_id (zero = no dialogue).
+
+### Trigger conditions
+
+- Keys: `KeyE`, `Enter`, left mouse click, or gamepad East.
+- Close range (no ray): `INTERACT_RANGE = 250` units.
+- Ray range: `RAYCAST_RANGE = 2000` units, cone with `RAY_ANGLE_TAN = 0.12` (~7°), minimum perpendicular threshold `RAY_MIN_PERP = 60`.
+
+### HUD exit
+
+`interaction_input` also handles exiting `Building` / `NpcDialogue` / `Chest` views when the player presses E/Enter/click while `HudView != World`.
