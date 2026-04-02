@@ -97,8 +97,8 @@ impl Default for PlayerKeyBindings {
         Self {
             move_forward: KeyCode::KeyW,
             move_backward: KeyCode::KeyS,
-            strafe_left: KeyCode::KeyA,
-            strafe_right: KeyCode::KeyD,
+            strafe_left: KeyCode::KeyQ,
+            strafe_right: KeyCode::KeyE,
             rotate_left: KeyCode::ArrowLeft,
             rotate_right: KeyCode::ArrowRight,
             jump: KeyCode::Space,
@@ -390,9 +390,9 @@ fn player_movement(
         } else {
             for key in keys.get_pressed() {
                 let key = *key;
-                if key == key_bindings.rotate_left {
+                if key == key_bindings.rotate_left || key == KeyCode::KeyA {
                     transform.rotate_y(turn_speed * time.delta_secs());
-                } else if key == key_bindings.rotate_right {
+                } else if key == key_bindings.rotate_right || key == KeyCode::KeyD {
                     transform.rotate_y(-turn_speed * time.delta_secs());
                 }
             }
