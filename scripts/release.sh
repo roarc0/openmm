@@ -2,7 +2,7 @@
 # release.sh — bump version, tag, and push to trigger the release CI.
 #
 # Usage:
-#   ./scripts/release.sh 0.2.0
+#   ./scripts/release.sh 0.2.0  (or v0.2.0)
 #
 # What it does:
 #   1. Validates the version argument (semver x.y.z)
@@ -17,9 +17,10 @@
 set -euo pipefail
 
 VERSION="${1:-}"
+VERSION="${VERSION#v}"  # strip optional leading 'v'
 
 if [[ -z "$VERSION" ]]; then
-    echo "Usage: $0 <version>  (e.g. $0 0.2.0)" >&2
+    echo "Usage: $0 <version>  (e.g. $0 0.2.0 or v0.2.0)" >&2
     exit 1
 fi
 
