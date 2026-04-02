@@ -29,27 +29,31 @@ impl SpriteCache {
     /// Call during loading screen to avoid decoding during gameplay.
     pub fn preload(
         &mut self,
-        roots: &[(&str, u8)],
+        roots: &[(&str, u8, u16)],
         lod_manager: &LodManager,
         images: &mut Assets<Image>,
         materials: &mut Assets<StandardMaterial>,
     ) {
-        for &(root, variant) in roots {
-            load_sprite_frames(root, lod_manager, images, materials, &mut Some(self), variant, 0, 0, 0);
+        for &(root, variant, palette_id) in roots {
+            load_sprite_frames(root, lod_manager, images, materials, &mut Some(self), variant, 0, 0, palette_id);
         }
     }
 }
 
-/// Build a cache key for a sprite root with optional variant and minimum size.
-/// Format: "root" or "root@v2" or "root@64x128" or "root@64x128@v2"
-fn cache_key(root: &str, variant: u8, min_w: u32, min_h: u32) -> String {
+/// Build a cache key for a sprite root with optional variant, minimum size, and palette.
+/// Format: "root", "root@v2", "root@v2p223", "root@64x128", "root@64x128@v2", "root@64x128@v2p223"
+/// palette_id is included only when variant > 1 && palette_id > 0 (DSFT direct path).
+fn cache_key(root: &str, variant: u8, min_w: u32, min_h: u32, palette_id: u16) -> String {
     let has_size = min_w > 0 || min_h > 0;
     let has_variant = variant > 1;
-    match (has_size, has_variant) {
-        (false, false) => root.to_string(),
-        (false, true) => format!("{}@v{}", root, variant),
-        (true, false) => format!("{}@{}x{}", root, min_w, min_h),
-        (true, true) => format!("{}@{}x{}@v{}", root, min_w, min_h, variant),
+    let has_palette = has_variant && palette_id > 0;
+    match (has_size, has_variant, has_palette) {
+        (false, false, _)      => root.to_string(),
+        (false, true,  false)  => format!("{}@v{}", root, variant),
+        (false, true,  true)   => format!("{}@v{}p{}", root, variant, palette_id),
+        (true,  false, _)      => format!("{}@{}x{}", root, min_w, min_h),
+        (true,  true,  false)  => format!("{}@{}x{}@v{}", root, min_w, min_h, variant),
+        (true,  true,  true)   => format!("{}@{}x{}@v{}p{}", root, min_w, min_h, variant, palette_id),
     }
 }
 
@@ -153,7 +157,7 @@ pub fn load_sprite_frames(
     palette_id: u16,
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
-    let key = cache_key(root, variant, min_w, min_h);
+    let key = cache_key(root, variant, min_w, min_h, palette_id);
 
     if let Some(c) = cache.as_ref() {
         if let Some(&(w, h)) = c.dimensions.get(&key) {
@@ -646,6 +650,33 @@ mod tests {
                 angle
             );
         }
+    }
+
+    /// Regression: preloaded cache entries (palette_id=0) must not collide with
+    /// spawn-time entries that use a specific DSFT palette_id. Before the fix,
+    /// "gstfly@v2" was cached by preload with palette_id=0 (sprite-header offset path),
+    /// then reused at spawn time when the correct DSFT palette was 223 — causing the
+    /// walking animation to display with the wrong palette while standing was correct
+    /// (it used a different cache key due to min_w/min_h padding).
+    #[test]
+    fn cache_key_includes_palette_id_when_variant_and_palette_nonzero() {
+        // No palette: key should not include palette suffix
+        assert_eq!(cache_key("gstfly", 2, 0, 0, 0), "gstfly@v2");
+        // With DSFT palette: key must differ so preloaded (palette=0) and spawn-time entries don't collide
+        assert_eq!(cache_key("gstfly", 2, 0, 0, 223), "gstfly@v2p223");
+        assert_ne!(
+            cache_key("gstfly", 2, 0, 0, 0),
+            cache_key("gstfly", 2, 0, 0, 223),
+            "palette_id=0 and palette_id=223 must produce distinct cache keys"
+        );
+        // variant=1 never uses the DSFT palette path, so palette_id is irrelevant
+        assert_eq!(cache_key("gstfly", 1, 0, 0, 223), "gstfly");
+        assert_eq!(cache_key("gstfly", 1, 0, 0, 0),   "gstfly");
+        // Palette must also be distinct when min dimensions are present
+        assert_ne!(
+            cache_key("gstfly", 2, 64, 128, 0),
+            cache_key("gstfly", 2, 64, 128, 223),
+        );
     }
 
 }

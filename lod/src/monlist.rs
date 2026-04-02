@@ -268,4 +268,44 @@ mod tests {
             }
         }
     }
+
+    /// Regression: ghost walking and standing groups must resolve to the same
+    /// sprite root and DSFT palette_id. Before the cache-key fix, the walking
+    /// animation used a stale preload entry (palette_id=0 offset path) while
+    /// standing decoded fresh with the correct DSFT palette — causing the ghost
+    /// to display the wrong color during walking in outc3.
+    #[test]
+    fn ghost_walking_and_standing_palette_match() {
+        let lod = LodManager::new(get_lod_path()).unwrap();
+        let gd = crate::game::global::GameData::new(&lod).unwrap();
+        for dif in 1..=3u8 {
+            let desc = gd.monlist.find_by_name("Ghost", dif)
+                .unwrap_or_else(|| panic!("Ghost variant {} should exist", dif));
+            let st_group = &desc.sprite_names[0];
+            let wa_group = &desc.sprite_names[1];
+            let st = crate::game::monster::resolve_sprite_group(st_group, &gd.dsft, &lod)
+                .unwrap_or_else(|| panic!("Ghost {} standing group '{}' should resolve", dif, st_group));
+            let wa = crate::game::monster::resolve_sprite_group(wa_group, &gd.dsft, &lod)
+                .unwrap_or_else(|| panic!("Ghost {} walking group '{}' should resolve", dif, wa_group));
+            assert_eq!(
+                st.0, wa.0,
+                "Ghost {}: standing root '{}' should match walking root '{}'",
+                dif, st.0, wa.0
+            );
+            assert_eq!(
+                st.1, wa.1,
+                "Ghost {}: standing palette_id {} should match walking palette_id {} — mismatch causes wrong color during walking animation",
+                dif, st.1, wa.1
+            );
+            // B/C variants must have non-zero DSFT palette_id so sprite_with_palette is used
+            if dif > 1 {
+                assert!(
+                    st.1 > 0,
+                    "Ghost {} DSFT palette_id should be non-zero (got {}), otherwise sprite-header offset path is used instead",
+                    dif, st.1
+                );
+            }
+        }
+    }
+
 }

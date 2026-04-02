@@ -560,7 +560,7 @@ fn lazy_spawn(
 
         let (s2, w2, h2) = sprites::load_entity_sprites(
             &actor.standing_sprite, &actor.walking_sprite, game_assets.lod_manager(),
-            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant, 0);
+            &mut images, &mut materials, &mut Some(&mut p.sprite_cache), variant, actor.palette_id);
         if s2.is_empty() || s2[0].is_empty() {
             error!("NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
                 actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite);

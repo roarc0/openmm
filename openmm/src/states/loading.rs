@@ -74,8 +74,8 @@ struct LoadingProgress {
 
 /// Queued sprite preload work items, processed across multiple frames.
 struct PreloadQueue {
-    /// (sprite_root, variant) pairs to preload into SpriteCache.
-    sprite_roots: Vec<(String, u8)>,
+    /// (sprite_root, variant, palette_id) triples to preload into SpriteCache.
+    sprite_roots: Vec<(String, u8, u16)>,
     /// Index into progress.decorations.entries() for billboard preloading.
     billboard_idx: usize,
     /// Current position in sprite_roots.
@@ -845,7 +845,7 @@ fn loading_step(
 
             // First frame: build the preload queue from map-specific data
             if progress.preload_queue.is_none() {
-                let mut sprite_roots: Vec<(String, u8)> = Vec::new();
+                let mut sprite_roots: Vec<(String, u8, u16)> = Vec::new();
                 let mut seen = std::collections::HashSet::new();
 
                 // NPC sprites: resolve once, cache for spawn_world reuse
@@ -858,8 +858,9 @@ fn loading_step(
                 if let Some(ref actors) = lod_actors {
                     for actor in actors.get_actors() {
                         for root in [actor.standing_sprite.clone(), actor.walking_sprite.clone()] {
-                            if seen.insert(root.clone()) {
-                                sprite_roots.push((root, 0));
+                            let key = format!("{}@v{}p{}", root, actor.variant, actor.palette_id);
+                            if seen.insert(key) {
+                                sprite_roots.push((root, actor.variant, actor.palette_id));
                             }
                         }
                     }
@@ -875,9 +876,9 @@ fn loading_step(
                 if let Some(ref monsters) = resolved_monsters {
                     for m in monsters.iter() {
                         for root in [m.standing_sprite.clone(), m.walking_sprite.clone()] {
-                            let key = format!("{}@v{}", root, m.variant);
+                            let key = format!("{}@v{}p{}", root, m.variant, m.palette_id);
                             if seen.insert(key) {
-                                sprite_roots.push((root, m.variant));
+                                sprite_roots.push((root, m.variant, m.palette_id));
                             }
                         }
                     }
@@ -909,8 +910,8 @@ fn loading_step(
                 let queue = progress.preload_queue.as_mut().unwrap();
                 while queue.sprite_idx < queue.sprite_roots.len() {
                     if frame_start.elapsed().as_secs_f32() * 1000.0 > PRELOAD_BUDGET_MS { break; }
-                    let (root, variant) = &queue.sprite_roots[queue.sprite_idx];
-                    cache.preload(&[(root.as_str(), *variant)], game_assets.lod_manager(), &mut images, &mut materials);
+                    let (root, variant, palette_id) = &queue.sprite_roots[queue.sprite_idx];
+                    cache.preload(&[(root.as_str(), *variant, *palette_id)], game_assets.lod_manager(), &mut images, &mut materials);
                     queue.sprite_idx += 1;
                 }
                 progress.sprite_cache = Some(cache);

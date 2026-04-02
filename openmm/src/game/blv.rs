@@ -340,7 +340,7 @@ fn spawn_indoor_world(
 
             let (states, sw, sh) = sprites::load_entity_sprites(
                 &actor.standing_sprite, &actor.walking_sprite, game_assets.lod_manager(),
-                &mut images, &mut materials, &mut Some(&mut sprite_cache), variant, 0);
+                &mut images, &mut materials, &mut Some(&mut sprite_cache), variant, actor.palette_id);
             if states.is_empty() || states[0].is_empty() {
                 error!("Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
                     actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite);
