@@ -127,7 +127,7 @@ impl Actors {
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
                 palette_id: entry.palette_id,
-                variant: 0,
+                variant: 1, // overwritten by compute_variants() before return
                 name,
                 portrait_name,
                 profession_id,
@@ -199,7 +199,7 @@ impl Actors {
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
                 palette_id: entry.palette_id,
-                variant: 0,
+                variant: 1, // overwritten by compute_variants() before return
                 name,
                 portrait_name,
                 profession_id,
