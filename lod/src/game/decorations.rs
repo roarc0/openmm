@@ -26,7 +26,7 @@ pub struct DecorationEntry {
     pub billboard_index: usize,
     /// Facing yaw in radians, converted from MM6 direction_degrees.
     pub facing_yaw: f32,
-    /// Declist ID for DSFT scale resolution via BillboardManager.
+    /// Declist ID used to resolve sprite name, SFT frame, and scale via BillboardManager::get().
     pub declist_id: u16,
 }
 
