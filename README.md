@@ -6,19 +6,23 @@
 
 Open-source reimplementation of the Might and Magic VI engine in Rust 🦀
 
-Note: OpenMM is a fan project and is not affiliated with Ubisoft or New World Computing. It's a tribute to the timeless joy of the original game.
+The goal is to reproduce original MM6 gameplay — movement, combat, dialogue, quests — with clean, maintainable code. Graphical improvements are welcome where they enhance the experience without compromising accuracy.
 
-## Features
+> OpenMM is a fan project, not affiliated with Ubisoft or New World Computing. You must own a copy of Might and Magic VI to use it.
 
-- Terrain rendering with textures (outdoor maps)
-- Building rendering with BSP models
-- Billboards (trees, rocks, fountains)
-- NPCs and monsters with directional sprites and wander AI
-- Player movement with terrain following and first-person camera
-- Indoor map rendering (BLV files)
-- Door interaction and animation
-- Loading screens and map transitions
-- Developer console (Tab key)
+## Current Features
+
+- Terrain rendering with textures (outdoor maps / ODM files)
+- BSP model rendering (buildings) with textures
+- Billboards (decorations: trees, rocks, fountains) with sprite caching
+- NPCs and monsters with directional sprites, wander AI, and animation
+- Player entity with terrain-following movement and first-person camera
+- Loading screen with step-based map loader and sprite preloading
+- Splash screen and menu scaffolding
+- Developer console (Tab key) with commands: load, msaa, fullscreen, borderless, windowed, exit
+- Seamless map boundary transitions between adjacent outdoor zones
+- Indoor map rendering (BLV files) with face-based geometry and collision
+- Indoor door interaction: clickable faces dispatch EVT events, door animation state machine
 
 ## Requirements
 
@@ -38,20 +42,24 @@ Note: OpenMM is a fan project and is not affiliated with Ubisoft or New World Co
 3. Place your Might and Magic VI game data files in the correct location (see Setup Game Data below)
 4. Run the executable
 
-### Setup Game Data
+## Game Data Setup
 
-You need the original Might and Magic VI game data files. Set the `OPENMM_6_PATH` environment variable to point to your MM6 installation directory, or place the data files in `./target/mm6/data/`:
+OpenMM requires the original Might and Magic VI data files. These are the `.lod` archive files from your MM6 installation (`games.lod`, `bitmaps.lod`, `icons.lod`, `sprites.lod`, etc.).
 
+**Option 1 — Environment variable (recommended):**
 ```bash
-# Option 1: Set environment variable
 export OPENMM_6_PATH=/path/to/your/mm6/installation
+```
 
-# Option 2: Create default directory and copy files
+**Option 2 — Default directory:**
+```bash
 mkdir -p ./target/mm6/data
 cp /path/to/your/mm6/*.lod ./target/mm6/data/
 ```
 
-The engine looks for LOD archive files (games.lod, bitmaps.lod, icons.lod, sprites.lod, etc.) in this directory.
+The engine looks for LOD files in the directory pointed to by `OPENMM_6_PATH`, defaulting to `./target/mm6/data/`.
+
+> MM6 is available on [GOG](https://www.gog.com). The GOG version installs directly to a folder you can point `OPENMM_6_PATH` at.
 
 ## Build from Source
 
@@ -112,28 +120,44 @@ After building, run the executable:
 # From workspace root
 ./target/release/openmm
 
-# Or with specific map
+# Start on a specific map
 ./target/release/openmm --map oute3
 ```
 
-### Controls
+## Controls
 
-- **Arrow Keys**: Move forward/back and rotate
-- **A/D**: Strafe left/right
-- **Mouse**: Look around
-- **ESC**: Toggle cursor grab
-- **Tab**: Open developer console
+| Input | Action |
+|-------|--------|
+| **W / Up Arrow** | Move forward |
+| **S / Down Arrow** | Move backward |
+| **A / D** | Strafe left / right |
+| **Left / Right Arrow** | Rotate left / right |
+| **Mouse** | Look around |
+| **E / Enter** | Interact (talk to NPC, enter building, open door) |
+| **F2** | Toggle fly mode |
+| **CapsLock** | Toggle mouse look |
+| **Home / End** | Increase / decrease mouse sensitivity |
+| **ESC** | Release / grab mouse cursor |
+| **Tab** | Open developer console |
 
-### Developer Console Commands
+## Developer Console
 
-Press **Tab** to open the console, then type commands:
+Press **Tab** to open the console. Available commands:
 
-- `load <map>` - Load a map (e.g., `load oute3`, `load d01`)
-- `msaa <value>` - Set MSAA samples (0, 2, 4, 8)
-- `fullscreen` - Toggle fullscreen mode
-- `borderless` - Toggle borderless window
-- `windowed` - Switch to windowed mode
-- `exit` - Exit the game
+| Command | Description |
+|---------|-------------|
+| `load <map>` | Load an outdoor map (`oute3`, `outb2`, …) or indoor dungeon (`d01`–`d20`, and more) |
+| `msaa <0\|2\|4\|8>` | Set MSAA sample count |
+| `lighting <enhanced\|flat>` | Toggle PBR / unlit rendering |
+| `fog <start> <end>` | Set fog distances |
+| `music <vol>` | Set music volume (0.0–1.0) |
+| `sfx <vol>` | Set sound effects volume |
+| `fullscreen` | Toggle fullscreen |
+| `borderless` | Toggle borderless window |
+| `windowed` | Switch to windowed mode |
+| `exit` | Quit the game |
+
+Type `help` in-game for the current full list.
 
 ## Project Structure
 
