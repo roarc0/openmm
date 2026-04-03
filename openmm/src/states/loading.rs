@@ -274,6 +274,7 @@ fn loading_setup(
     commands.remove_resource::<crate::game::blv::DoorColliders>();
     commands.remove_resource::<crate::game::blv::ClickableFaces>();
     commands.remove_resource::<crate::game::blv::TouchTriggerFaces>();
+    commands.remove_resource::<crate::game::hud::MapOverviewImage>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.
     let (map_name, spawn_position, spawn_yaw) = if let Some(r) = load_request {

@@ -1,6 +1,7 @@
 mod borders;
 mod crosshair;
 mod footer;
+mod map_overlay;
 mod minimap;
 mod overlay;
 mod stats_bar;
@@ -39,7 +40,14 @@ pub enum HudView {
     Inventory,
     Stats,
     Rest,
+    /// Fullscreen map overlay (M key). Freezes time, blocks input.
+    Map,
 }
+
+/// Handle to the current map's overview image for the M-key fullscreen overlay.
+/// `None` for indoor maps (no overview icon exists).
+#[derive(Resource)]
+pub struct MapOverviewImage(pub Option<Handle<Image>>);
 
 pub struct HudPlugin;
 
@@ -62,6 +70,10 @@ impl Plugin for HudPlugin {
                     overlay::update_overlay_layout,
                     overlay::spawn_npc_portrait,
                     overlay::despawn_npc_portrait,
+                    map_overlay::map_input_system,
+                    map_overlay::spawn_map_overlay,
+                    map_overlay::despawn_map_overlay,
+                    map_overlay::update_map_overlay_layout,
                     freeze_system,
                 )
                     .chain()
@@ -147,6 +159,7 @@ fn spawn_hud(
         crate::game::map_name::MapName::Indoor(_) => String::new(),
     };
     let map_overview = load_map_overview(&map_overview_name, &game_assets, &mut images, &cfg);
+    commands.insert_resource(MapOverviewImage(map_overview.clone()));
 
     // Load compass strip
     let compass = ui_assets.get_or_load("compass", &game_assets, &mut images, &cfg);
