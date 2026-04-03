@@ -35,6 +35,13 @@ pub struct NpcInteractable {
     pub npc_id: i16,
 }
 
+/// Component on monster entities for hover name display.
+/// No click action yet — combat system not implemented.
+#[derive(Component)]
+pub struct MonsterInteractable {
+    pub name: String,
+}
+
 const INTERACT_RANGE: f32 = 250.0;
 const RAYCAST_RANGE: f32 = 2000.0;
 /// Tangent of the targeting cone half-angle used for all entity types (~7 degrees).

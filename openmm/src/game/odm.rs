@@ -735,7 +735,7 @@ fn lazy_spawn(
         let pos = Vec3::new(wx, gy + sh / 2.0, wz);
 
         commands.entity(terrain_entity).with_child((
-            Name::new("monster"),
+            Name::new(format!("monster:{}", m.name)),
             Mesh3d(quad),
             MeshMaterial3d(initial_mat),
             Transform::from_translation(pos),
@@ -743,8 +743,9 @@ fn lazy_spawn(
             crate::game::entities::EntityKind::Monster,
             crate::game::entities::AnimationState::Idle,
             sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
+            crate::game::interaction::MonsterInteractable { name: m.name.clone() },
             actor::Actor {
-                name: "Monster".into(),
+                name: m.name.clone(),
                 hp: 10,
                 max_hp: 10,
                 move_speed: m.move_speed as f32,

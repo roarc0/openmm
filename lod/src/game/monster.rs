@@ -8,6 +8,8 @@ use std::error::Error;
 /// One entry per group member. Spread position is computed by the caller using
 /// `spawn_position`, `spawn_radius`, and `group_index`.
 pub struct Monster {
+    /// Display name from mapstats (e.g. "Goblin", "Orc").
+    pub name: String,
     /// Group center in MM6 coordinates (NOT yet spread). Caller applies angle × radius.
     pub spawn_position: [i32; 3],
     /// Radius from center for position spreading.
@@ -78,6 +80,7 @@ impl Monsters {
                     .unwrap_or_else(|| st_root.clone());
 
                 entries.push(Monster {
+                    name: mon_name.to_string(),
                     spawn_position: sp.position,
                     spawn_radius: sp.radius.max(200),
                     group_index: g,
