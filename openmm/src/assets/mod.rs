@@ -72,15 +72,29 @@ pub fn repeat_sampler() -> bevy::image::ImageSampler {
 }
 
 /// Select sampler based on filtering mode string ("nearest" or "linear").
+/// Always uses Repeat address mode so tiling textures work correctly.
 pub fn sampler_for_filtering(mode: &str) -> bevy::image::ImageSampler {
     if mode == "nearest" {
-        nearest_sampler()
+        repeat_nearest_sampler()
     } else {
         repeat_linear_sampler()
     }
 }
 
-/// Image sampler using nearest-neighbor filtering (no interpolation).
+/// Image sampler using nearest-neighbor filtering with Repeat address mode.
+pub fn repeat_nearest_sampler() -> bevy::image::ImageSampler {
+    bevy::image::ImageSampler::Descriptor(bevy::image::ImageSamplerDescriptor {
+        address_mode_u: bevy::image::ImageAddressMode::Repeat,
+        address_mode_v: bevy::image::ImageAddressMode::Repeat,
+        min_filter: bevy::image::ImageFilterMode::Nearest,
+        mag_filter: bevy::image::ImageFilterMode::Nearest,
+        mipmap_filter: bevy::image::ImageFilterMode::Nearest,
+        ..default()
+    })
+}
+
+/// Image sampler using nearest-neighbor filtering (no interpolation, no repeat).
+/// Use only for non-tiling textures (UI sprites, overlays, etc.).
 pub fn nearest_sampler() -> bevy::image::ImageSampler {
     bevy::image::ImageSampler::Descriptor(bevy::image::ImageSamplerDescriptor {
         min_filter: bevy::image::ImageFilterMode::Nearest,
