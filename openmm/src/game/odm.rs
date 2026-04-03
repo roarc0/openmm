@@ -524,6 +524,12 @@ fn lazy_spawn(
                             mask: None,
                         });
                 }
+                if dec.light_radius > 0 {
+                    let light_id = commands
+                        .spawn(decoration_point_light(dec.light_radius))
+                        .id();
+                    commands.entity(child_id).add_child(light_id);
+                }
                 spawned += 1;
             } else {
                 continue;
@@ -602,6 +608,12 @@ fn lazy_spawn(
                     .entity(child_id)
                     .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
             }
+            if dec.light_radius > 0 {
+                let light_id = commands
+                    .spawn(decoration_point_light(dec.light_radius))
+                    .id();
+                commands.entity(child_id).add_child(light_id);
+            }
             spawned += 1;
         } else {
             // Static single-frame decoration.
@@ -665,6 +677,12 @@ fn lazy_spawn(
                 commands
                     .entity(child_id)
                     .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
+            }
+            if dec.light_radius > 0 {
+                let light_id = commands
+                    .spawn(decoration_point_light(dec.light_radius))
+                    .id();
+                commands.entity(child_id).add_child(light_id);
             }
             spawned += 1;
         }
@@ -857,5 +875,21 @@ fn lazy_spawn(
 
     if p.idx >= bb_len + actor_len + monster_len {
         commands.remove_resource::<PendingSpawns>();
+    }
+}
+
+/// Build a `PointLight` for a decoration with the given MM6 light radius.
+///
+/// Intensity scales with radius² so smaller lights aren't washed out by larger ones.
+/// Color is warm orange (torches, braziers). Shadows disabled for performance.
+/// Flicker is free: the light entity inherits visibility from its parent decoration.
+fn decoration_point_light(light_radius: u16) -> impl Bundle {
+    let range = light_radius as f32;
+    PointLight {
+        color: Color::srgb(1.0, 0.75, 0.35),
+        intensity: range * range * 0.15,
+        range,
+        shadows_enabled: false,
+        ..default()
     }
 }

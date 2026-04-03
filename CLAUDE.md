@@ -6,15 +6,16 @@ Faithful open-source reimplementation of the Might and Magic VI engine in Rust. 
 
 - Terrain rendering with textures (outdoor maps / ODM files)
 - BSP model rendering (buildings) with textures
-- Billboards (decorations: trees, rocks, fountains) with sprite caching
+- Billboards (decorations: trees, rocks, fountains) with sprite caching, animation, flicker, and point lights
 - NPCs and monsters with directional sprites, wander AI, and animation
 - Player entity with terrain-following movement and first-person camera
 - Loading screen with step-based map loader and sprite preloading
 - Splash screen and menu scaffolding
-- Developer console (Tab key) with commands: load, msaa, fullscreen, borderless, windowed, exit
+- Developer console (Tab key) with commands: load, msaa, fullscreen, borderless, windowed, exit, time
 - Seamless map boundary transitions between adjacent outdoor zones
 - Indoor map rendering (BLV files) with face-based geometry and collision
 - Indoor door interaction: clickable faces dispatch EVT events, door animation state machine
+- Full in-game calendar clock (1 real second = 1 game minute, starts Jan 1 Year 1000 9am) with day/night cycle, sun arc, and ambient lighting
 
 ## Goal
 
@@ -213,6 +214,16 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 > Full player settings and physics/collision: see `docs/player-physics.md`.
 
+### In-game clock (GameTime)
+
+- `GameTime` resource in `game/game_time.rs` — authoritative in-game clock, 1 real second = 1 game minute.
+- Epoch: midnight, January 1, Year 1000 (Monday). Default start: 9:00am.
+- `time_of_day() -> f32`: 0.0 = midnight, 0.5 = noon, 0.75 = 6pm — consumed by lighting and sky.
+- `format_datetime() -> String`: e.g. `"Monday Jan 1 1000 9:00am"`.
+- `calendar_date() -> (year, month, day)`, `hour()`, `minute()`, `day_of_week()`.
+- Pauses automatically when `HudView ≠ World`; can be manually paused with console `time stop` / `time start`.
+- `GameTimePlugin` registered in `InGamePlugin`. Do NOT put time-related state in `WorldState`.
+
 ### WorldState and game variables
 
 - `WorldState` = runtime source of truth; `GameSave` = JSON at `target/saves/{slot}.json`.
@@ -309,3 +320,13 @@ Known pitfalls that have caused bugs or wasted time — read before starting any
 - Keep this CLAUDE.md up to date when dependency versions, architecture, or conventions change
 - Document notable engine findings in `docs/` — see `docs/actors-and-sprites.md` for the actor/sprite system, but create more sections based on the topic.
 - Use gpg no sign when you commit
+
+## Upcoming Work / TODOs
+
+Ordered roughly by impact and readiness:
+
+- **Texture animation (TFT)** — `tft.rs` parses the tile frame table but animated tile cycling is not yet implemented in the terrain shader; some water and lava tiles should cycle frames.
+- **NPC dialogue text rendering** — `SpeakInHouse` events open a `HudView::NpcDialogue` placeholder; actual text rendering (font from LOD, scrolling lines) is not yet wired up.
+- **Monster combat stats** — `MonList` entries have attack, HP, speed, resistances; combat is not yet implemented; needed for a playable state.
+- **Chest / item system** — `DChest` and `DObjList` parsers exist; spawning items inside chests and allowing the player to pick them up is the next inventory step.
+- **Save / load** — `GameSave` JSON skeleton exists; full round-trip persistence (party stats, map state, quest bits) is not yet implemented.

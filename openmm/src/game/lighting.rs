@@ -3,10 +3,9 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
+use crate::game::entities::Billboard;
+use crate::game::game_time::GameTime;
 use crate::game::terrain_material::TerrainMaterial;
-
-/// Full day/night cycle duration in seconds.
-const DAY_CYCLE_SECS: f32 = 1800.0; // 30 minutes
 
 pub struct LightingPlugin;
 
@@ -21,7 +20,7 @@ impl Plugin for LightingPlugin {
 #[derive(Component)]
 struct AmbientMarker;
 
-fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, world_state: Res<crate::game::world_state::WorldState>) {
+fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTime>) {
     commands.spawn((
         AmbientLight {
             color: Color::srgb(0.85, 0.85, 0.95),
@@ -32,7 +31,7 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, world_state: Res<crat
         InGame,
     ));
 
-    let tod = world_state.time_of_day;
+    let tod = game_time.time_of_day();
     let (dir_transform, color, illuminance) = sun_from_time(tod);
 
     commands.spawn((
@@ -48,9 +47,9 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, world_state: Res<crat
     ));
 }
 
-/// Compute sun transform, color, and brightness from time of day.
+/// Compute sun transform, color, and illuminance from time of day [0, 1].
 fn sun_from_time(tod: f32) -> (Transform, Color, f32) {
-    // Sun angle: 0 at sunrise (0.25), PI at sunset (0.75)
+    // Sun arc: rises at tod=0.25 (6am), sets at tod=0.75 (6pm).
     let sun_progress = ((tod - 0.25) / 0.5).clamp(0.0, 1.0);
     let angle = sun_progress * std::f32::consts::PI;
 
@@ -62,41 +61,31 @@ fn sun_from_time(tod: f32) -> (Transform, Color, f32) {
     // Elevation: 0 at horizon, 1 at zenith
     let elevation = angle.sin().max(0.0);
 
-    // Sun color: warm at horizon, white at noon
-    let r = 1.0;
+    // Warm orange at horizon → white at noon
+    let r = 1.0_f32;
     let g = 0.75 + 0.25 * elevation;
     let b = 0.55 + 0.45 * elevation;
     let color = Color::srgb(r, g, b);
 
-    // Illuminance in lux — matches Bevy's default scale (EV100 9.7)
-    // Bevy default DirectionalLight is 10,000 lux (AMBIENT_DAYLIGHT)
+    // Illuminance in lux. 0 at night; peaks at noon.
     let is_day = tod > 0.22 && tod < 0.78;
     let illuminance = if is_day { 300.0 + 900.0 * elevation } else { 0.0 };
 
     (transform, color, illuminance)
 }
 
-/// Compute ambient light from time of day.
+/// Compute ambient light color and brightness from time of day [0, 1].
 fn ambient_from_time(tod: f32) -> (Color, f32) {
-    // Night: dark blue, low brightness
-    // Dawn/dusk: warm orange tint
-    // Day: bright, slightly blue
-
-    // How much "day" is it (0=midnight, 1=noon)
-    let day_amount = 1.0 - (tod * 2.0 - 1.0).abs(); // 0 at midnight, 1 at noon
-
-    // Smooth transitions
-    let dawn_dusk = {
-        let dist_to_sunrise = (tod - 0.25).abs();
-        let dist_to_sunset = (tod - 0.75).abs();
-        let nearest = dist_to_sunrise.min(dist_to_sunset);
-        (1.0 - (nearest * 10.0).min(1.0)).max(0.0) // peak at sunrise/sunset
+    let day_amount = 1.0_f32 - (tod * 2.0 - 1.0).abs();
+    let dawn_dusk: f32 = {
+        let d1 = (tod - 0.25).abs();
+        let d2 = (tod - 0.75).abs();
+        (1.0 - (d1.min(d2) * 10.0).min(1.0)).max(0.0)
     };
 
-    let r = 0.15 + 0.65 * day_amount + 0.2 * dawn_dusk;
-    let g = 0.15 + 0.60 * day_amount + 0.1 * dawn_dusk;
-    let b = 0.25 + 0.55 * day_amount - 0.1 * dawn_dusk;
-
+    let r = 0.15 + 0.65 * day_amount + 0.20 * dawn_dusk;
+    let g = 0.15 + 0.60 * day_amount + 0.10 * dawn_dusk;
+    let b = 0.25 + 0.55 * day_amount - 0.10 * dawn_dusk;
     let brightness = 1500.0 + 2500.0 * day_amount;
 
     (
@@ -105,19 +94,44 @@ fn ambient_from_time(tod: f32) -> (Color, f32) {
     )
 }
 
+/// Tint color applied to unlit sprite materials to simulate night darkening.
+///
+/// Unlit materials ignore `AmbientLight` and `DirectionalLight`, so we multiply
+/// their `base_color` by this tint every frame. At noon it's pure white (no change);
+/// at midnight it's a dark blue (moonlight). The color temperature matches the ambient.
+fn sprite_tint_from_time(tod: f32) -> Color {
+    let day_amount = (1.0_f32 - (tod * 2.0 - 1.0).abs()).max(0.0);
+    let dawn_dusk: f32 = {
+        let d1 = (tod - 0.25).abs();
+        let d2 = (tod - 0.75).abs();
+        (1.0 - (d1.min(d2) * 10.0).min(1.0)).max(0.0)
+    };
+
+    // Night floor: dark blue moonlight (0.12, 0.12, 0.20)
+    // Dawn/dusk: warm orange boost
+    // Noon: white (1.0, 1.0, 1.0)
+    let r = (0.12 + 0.83 * day_amount + 0.05 * dawn_dusk).clamp(0.0, 1.0);
+    let g = (0.12 + 0.83 * day_amount).clamp(0.0, 1.0);
+    let b = (0.20 + 0.75 * day_amount - 0.05 * dawn_dusk).clamp(0.0, 1.0);
+
+    Color::srgb(r, g, b)
+}
+
 fn animate_day_cycle(
-    time: Res<Time>,
+    game_time: Res<GameTime>,
     cfg: Res<GameConfig>,
-    mut world_state: ResMut<crate::game::world_state::WorldState>,
     mut lighting_state: ResMut<LightingState>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
-    model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<crate::game::entities::Billboard>>,
+    // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
+    model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
+    // Unlit billboard sprites — tinted by sprite_tint_from_time every frame.
+    billboard_query: Query<&MeshMaterial3d<StandardMaterial>, With<Billboard>>,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight)>,
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
 ) {
-    // Sync lighting mode (material unlit toggle) in the same system as light values
-    // to avoid any frame where materials and lights are mismatched.
+    // ── Lighting mode switch ───────────────────────────────────────────────────
+    // Sync lit/unlit toggle for model materials when the mode changes.
     if cfg.lighting != lighting_state.last_mode {
         lighting_state.last_mode = cfg.lighting.clone();
         let unlit = cfg.lighting != "enhanced";
@@ -148,22 +162,15 @@ fn animate_day_cycle(
         info!("Lighting mode: {}", cfg.lighting);
     }
 
-    // Advance time of day
-    world_state.time_of_day += time.delta_secs() / DAY_CYCLE_SECS;
-    if world_state.time_of_day > 1.0 {
-        world_state.time_of_day -= 1.0;
-    }
-    let tod = world_state.time_of_day;
+    let tod = game_time.time_of_day();
 
+    // ── Sun and ambient ────────────────────────────────────────────────────────
     let (new_transform, color, illuminance) = sun_from_time(tod);
+
     for (mut transform, mut light) in sun_query.iter_mut() {
         *transform = new_transform;
         light.color = color;
-        if cfg.lighting == "enhanced" {
-            light.illuminance = illuminance * 1.06;
-        } else {
-            light.illuminance = 0.0;
-        }
+        light.illuminance = if cfg.lighting == "enhanced" { illuminance * 1.06 } else { 0.0 };
     }
 
     if cfg.lighting == "enhanced" {
@@ -178,10 +185,51 @@ fn animate_day_cycle(
             ambient.brightness = 3000.0;
         }
     }
+
+    // ── Sprite tint ────────────────────────────────────────────────────────────
+    // Unlit sprite materials ignore the scene lights above. Apply a base_color tint
+    // so decorations, NPCs, and monsters also darken at night and warm at dawn/dusk.
+    // Only in enhanced mode — classic mode keeps sprites at their original brightness.
+    if cfg.lighting == "enhanced" {
+        let tint = sprite_tint_from_time(tod);
+        let mut tinted = std::collections::HashSet::new();
+        for mat_handle in billboard_query.iter() {
+            if tinted.insert(mat_handle.id()) {
+                if let Some(mat) = std_materials.get_mut(mat_handle.id()) {
+                    mat.base_color = tint;
+                }
+            }
+        }
+    } else {
+        // Restore to white when switching back to classic mode.
+        if lighting_state.last_tint != Color::WHITE {
+            lighting_state.last_tint = Color::WHITE;
+            let mut restored = std::collections::HashSet::new();
+            for mat_handle in billboard_query.iter() {
+                if restored.insert(mat_handle.id()) {
+                    if let Some(mat) = std_materials.get_mut(mat_handle.id()) {
+                        mat.base_color = Color::WHITE;
+                    }
+                }
+            }
+        }
+    }
+    lighting_state.last_tint = sprite_tint_from_time(tod);
 }
 
-/// Tracks the last applied lighting mode to detect changes.
-#[derive(Resource, Default)]
+/// Tracks applied lighting state to detect changes.
+#[derive(Resource)]
 struct LightingState {
     last_mode: String,
+    /// Last tint applied to billboard materials — used to skip writes when unchanged.
+    last_tint: Color,
+}
+
+impl Default for LightingState {
+    fn default() -> Self {
+        Self {
+            last_mode: String::new(),
+            last_tint: Color::WHITE,
+        }
+    }
 }

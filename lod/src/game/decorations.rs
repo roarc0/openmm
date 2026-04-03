@@ -34,6 +34,8 @@ pub struct DecorationEntry {
     pub frame_duration: f32,
     /// Flicker rate in Hz (0.0 = no flicker). Driven by is_flicker_{slow,medium,fast} flags.
     pub flicker_rate: f32,
+    /// Point-light emission radius in MM6 world units (0 = no light).
+    pub light_radius: u16,
 }
 
 /// Per-map decoration roster built from ODM billboard data.
@@ -133,6 +135,7 @@ impl Decorations {
                 num_frames,
                 frame_duration,
                 flicker_rate,
+                light_radius: declist_item.light_radius,
             });
         }
 

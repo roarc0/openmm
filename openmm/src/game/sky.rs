@@ -159,8 +159,8 @@ fn follow_camera(
 
 /// Update the clear color (sky background) based on time of day.
 /// This fills the area below the sky cylinder.
-fn update_sky_color(mut clear_color: ResMut<ClearColor>, world_state: Res<crate::game::world_state::WorldState>) {
-    let tod = world_state.time_of_day;
+fn update_sky_color(mut clear_color: ResMut<ClearColor>, game_time: Res<crate::game::game_time::GameTime>) {
+    let tod = game_time.time_of_day();
 
     let day_amount = 1.0 - (tod * 2.0 - 1.0).abs();
     let dawn_dusk: f32 = {

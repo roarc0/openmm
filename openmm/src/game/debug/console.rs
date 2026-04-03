@@ -25,7 +25,7 @@ use crate::ui_assets::UiAssets;
 const FONT_SIZE: f32 = 16.0;
 const MAX_OUTPUT_LINES: usize = 50;
 const NEEDS_RELOAD: &str = "(run 'reload' to apply)";
-const CONSOLE_HEIGHT_FRACTION: f32 = 0.4;
+const CONSOLE_HEIGHT_FRACTION: f32 = 0.6;
 
 /// Console state resource.
 #[derive(Resource, Default)]
@@ -167,6 +167,7 @@ fn console_input(
     mut cfg: ResMut<GameConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
     game_assets: Res<crate::GameAssets>,
+    mut game_time: ResMut<crate::game::game_time::GameTime>,
 ) {
     if !state.open {
         return;
@@ -198,6 +199,7 @@ fn console_input(
                         &mut cfg,
                         &mut wireframe_config,
                         &game_assets,
+                        &mut game_time,
                     );
                     state.input.clear();
                 }
@@ -294,6 +296,7 @@ fn execute_command(
     ctx_cfg: &mut GameConfig,
     ctx_wireframe_config: &mut WireframeConfig,
     ctx_game_assets: &crate::GameAssets,
+    ctx_game_time: &mut crate::game::game_time::GameTime,
 ) {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some(&command) = parts.first() else { return };
@@ -744,6 +747,30 @@ fn execute_command(
             Ok(()) => ctx_state.push_output(format!("Config saved to {}", ctx_cfg.config_path.display())),
             Err(e) => ctx_state.push_output(e),
         },
+        "time" => match arg {
+            "stop" | "pause" => {
+                ctx_game_time.set_paused(true);
+                ctx_state.push_output(format!("Time paused at {}", ctx_game_time.format_datetime()));
+            }
+            "start" | "resume" => {
+                ctx_game_time.set_paused(false);
+                ctx_state.push_output("Time resumed".to_string());
+            }
+            "advance" | "adv" => {
+                let hours: f32 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0.0);
+                if hours == 0.0 {
+                    ctx_state.push_output("Usage: time advance <hours>".to_string());
+                } else {
+                    ctx_game_time.advance_hours(hours);
+                    ctx_state.push_output(format!("Advanced {hours}h → {}", ctx_game_time.format_datetime()));
+                }
+            }
+            "" => {
+                let status = if ctx_game_time.is_paused() { " (paused)" } else { "" };
+                ctx_state.push_output(format!("{}{}", ctx_game_time.format_datetime(), status));
+            }
+            _ => ctx_state.push_output("Usage: time [stop|start|advance <hours>]".to_string()),
+        },
         "help" | "?" => {
             for line in HELP_TEXT {
                 ctx_state.push_output(line.to_string());
@@ -804,6 +831,10 @@ const HELP_TEXT: &[&str] = &[
     "  fly [on|off]     - Toggle fly mode",
     "  speed <N>        - Set turn speed",
     "  sens <N>         - Set mouse sensitivity",
+    "  time             - Show current in-game date/time",
+    "  time stop        - Pause the game clock",
+    "  time start       - Resume the game clock",
+    "  time advance <N> - Skip forward N in-game hours",
     "Audio:",
     "  music <0-100>    - Set music volume",
     "  sfx <0-100>      - Set sound effects volume",

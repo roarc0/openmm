@@ -9,14 +9,14 @@ use crate::save::GameSave;
 /// Centralized live runtime state for the game world.
 /// The single source of truth for player state and current map.
 /// Save/load copies between this and GameSave.
+///
+/// In-game time is owned by [`crate::game::game_time::GameTime`], not here.
 #[derive(Resource)]
 pub struct WorldState {
     pub player: PlayerRuntimeState,
     pub map: MapRuntimeState,
     pub debug: DebugRuntimeState,
     pub game_vars: GameVariables,
-    /// Time of day: 0.0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset
-    pub time_of_day: f32,
 }
 
 /// Game variables storage — quest flags, map locals, gold, food, etc.
@@ -136,7 +136,6 @@ impl Default for WorldState {
             map: MapRuntimeState::default(),
             debug: DebugRuntimeState::default(),
             game_vars: GameVariables::default(),
-            time_of_day: 0.375, // 9am
         }
     }
 }

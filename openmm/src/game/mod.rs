@@ -8,6 +8,7 @@ pub(crate) mod debug;
 pub(crate) mod entities;
 pub(crate) mod event_dispatch;
 pub(crate) mod events;
+pub(crate) mod game_time;
 pub(crate) mod hud;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
@@ -32,6 +33,7 @@ pub struct InGamePlugin;
 impl Plugin for InGamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
+            game_time::GameTimePlugin,
             lighting::LightingPlugin,
             sky::SkyPlugin,
             player::PlayerPlugin,
@@ -46,8 +48,8 @@ impl Plugin for InGamePlugin {
             debug::ConsolePlugin,
             world_state::WorldStatePlugin,
             sound::SoundPlugin,
-            MaterialPlugin::<terrain_material::TerrainMaterial>::default(),
         ))
+        .add_plugins(MaterialPlugin::<terrain_material::TerrainMaterial>::default())
         .add_plugins(party::PartyPlugin)
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
     }
