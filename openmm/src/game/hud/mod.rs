@@ -39,7 +39,14 @@ pub enum HudView {
     Inventory,
     Stats,
     Rest,
+    /// Fullscreen map overlay (M key). Freezes time, blocks input.
+    Map,
 }
+
+/// Handle to the current map's overview image for the M-key fullscreen overlay.
+/// `None` for indoor maps (no overview icon exists).
+#[derive(Resource)]
+pub struct MapOverviewImage(pub Option<Handle<Image>>);
 
 pub struct HudPlugin;
 
@@ -147,6 +154,7 @@ fn spawn_hud(
         crate::game::map_name::MapName::Indoor(_) => String::new(),
     };
     let map_overview = load_map_overview(&map_overview_name, &game_assets, &mut images, &cfg);
+    commands.insert_resource(MapOverviewImage(map_overview.clone()));
 
     // Load compass strip
     let compass = ui_assets.get_or_load("compass", &game_assets, &mut images, &cfg);
