@@ -281,20 +281,11 @@ fn spawn_world(
             let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
             // BSP models (buildings, structures)
             for model in &prepared.models {
-                let is_building = !model.event_ids.is_empty();
                 let mut model_entity = parent.spawn((
                     Name::new(format!("model_{}", model.name)),
                     Transform::default(),
                     Visibility::default(),
                 ));
-
-                if is_building {
-                    model_entity.insert(crate::game::interaction::make_building_info(
-                        &model.name,
-                        model.position,
-                        model.event_ids.clone(),
-                    ));
-                }
 
                 model_entity.with_children(|model_parent| {
                     for sub in &model.sub_meshes {
@@ -691,7 +682,6 @@ fn lazy_spawn(
             },
             crate::game::interaction::NpcInteractable {
                 name: display_name,
-                position: pos,
                 npc_id: effective_npc_id as i16,
             },
         ));

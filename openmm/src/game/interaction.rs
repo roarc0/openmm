@@ -12,14 +12,6 @@ use crate::game::entities::sprites::SpriteSheet;
 
 // --- Components & Resources ---
 
-/// Component on BSP model parent entities that are interactive.
-#[derive(Component)]
-pub struct BuildingInfo {
-    pub model_name: String,
-    pub position: Vec3,
-    pub event_ids: Vec<u16>,
-}
-
 /// Component on billboard/decoration entities that have EVT events.
 #[derive(Component)]
 pub struct DecorationInfo {
@@ -33,7 +25,6 @@ pub struct DecorationInfo {
 #[derive(Component)]
 pub struct NpcInteractable {
     pub name: String,
-    pub position: Vec3,
     /// Index into the street NPC table (Game.StreetNPC + 1). Zero means no NPC dialogue.
     pub npc_id: i16,
 }
@@ -44,13 +35,6 @@ pub struct NpcInteractable {
 pub struct MonsterInteractable {
     pub name: String,
 }
-
-const RAYCAST_RANGE: f32 = 2000.0;
-/// Tangent of the targeting cone half-angle used for all entity types (~7 degrees).
-/// At 500 units: ~60 unit radius. At 2000 units: ~240 unit radius.
-const RAY_ANGLE_TAN: f32 = 0.12;
-/// Minimum perpendicular threshold for very close objects.
-const RAY_MIN_PERP: f32 = 60.0;
 
 // --- Plugin ---
 
@@ -81,14 +65,6 @@ impl Plugin for InteractionPlugin {
 
 // --- Helpers ---
 
-pub fn make_building_info(model_name: &str, position: Vec3, event_ids: Vec<u16>) -> BuildingInfo {
-    BuildingInfo {
-        model_name: model_name.to_string(),
-        position,
-        event_ids,
-    }
-}
-
 fn check_interact_input(
     keys: &ButtonInput<KeyCode>,
     mouse: &ButtonInput<MouseButton>,
@@ -100,37 +76,6 @@ fn check_interact_input(
         .iter()
         .any(|gp| gp.just_pressed(bevy::input::gamepad::GamepadButton::East));
     (key, click, gamepad)
-}
-
-/// Find the nearest entity position within the camera ray's angular cone.
-/// Returns `(entity_ref, along_ray_distance)` for the closest hit.
-fn raycast_nearest<T>(cam_global: &GlobalTransform, items: impl Iterator<Item = (T, Vec3)>) -> Option<(T, f32)> {
-    let ray_origin = cam_global.translation();
-    let ray_dir = cam_global.forward().as_vec3();
-    let mut nearest: Option<(T, f32)> = None;
-
-    for (item, position) in items {
-        let to_item = position - ray_origin;
-        let along_ray = to_item.dot(ray_dir);
-        if !(0.0..=RAYCAST_RANGE).contains(&along_ray) {
-            continue;
-        }
-        let closest_point = ray_origin + ray_dir * along_ray;
-        let perp_dist = closest_point.distance(position);
-        let threshold = (along_ray * RAY_ANGLE_TAN).max(RAY_MIN_PERP);
-        if perp_dist < threshold && (nearest.is_none() || along_ray < nearest.as_ref().unwrap().1) {
-            nearest = Some((item, along_ray));
-        }
-    }
-
-    nearest
-}
-
-fn find_nearest_building<'a>(
-    cam_global: &GlobalTransform,
-    buildings: &'a Query<(&BuildingInfo, &GlobalTransform)>,
-) -> Option<&'a BuildingInfo> {
-    raycast_nearest(cam_global, buildings.iter().map(|(info, _)| (info, info.position))).map(|(info, _)| info)
 }
 
 fn check_exit_input(keys: &ButtonInput<KeyCode>, gamepads: &Query<&Gamepad>) -> bool {
@@ -162,56 +107,6 @@ fn interaction_input(
             cursor.visible = false;
         }
     }
-}
-
-/// Resolve a human-readable name for a building from its event data.
-fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>>) -> Option<String> {
-    let me = map_events.as_ref()?;
-    let evt = me.evt.as_ref()?;
-
-    for &eid in &info.event_ids {
-        if let Some(steps) = evt.events.get(&eid) {
-            for s in steps {
-                match &s.event {
-                    lod::evt::GameEvent::OpenChest { id } => {
-                        return Some(format!("Chest #{}", id));
-                    }
-                    lod::evt::GameEvent::SpeakInHouse { house_id } => {
-                        if let Some(houses) = me.houses.as_ref()
-                            && let Some(entry) = houses.houses.get(house_id)
-                        {
-                            return Some(entry.name.clone());
-                        }
-                        return Some(format!("Building #{}", house_id));
-                    }
-                    lod::evt::GameEvent::Hint { text, .. } => {
-                        if !text.is_empty() {
-                            return Some(text.clone());
-                        }
-                    }
-                    lod::evt::GameEvent::MoveToMap { map_name, .. } => {
-                        return Some(format!("Enter {}", map_name));
-                    }
-                    lod::evt::GameEvent::ChangeDoorState { .. } => {}
-                    lod::evt::GameEvent::PlaySound { .. } => {}
-                    lod::evt::GameEvent::StatusText { text, .. } => {
-                        if !text.is_empty() {
-                            return Some(text.clone());
-                        }
-                    }
-                    lod::evt::GameEvent::LocationName { text, .. } => {
-                        if !text.is_empty() {
-                            return Some(text.clone());
-                        }
-                    }
-                    lod::evt::GameEvent::ShowMessage { .. } => {}
-                    lod::evt::GameEvent::Exit => {}
-                    _ => {}
-                }
-            }
-        }
-    }
-    None
 }
 
 /// Detect click on a decoration and push its events. Uses billboard hit test with alpha mask.

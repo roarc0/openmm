@@ -235,12 +235,11 @@ fn draw_play_area(world_state: Res<crate::game::world_state::WorldState>, mut gi
     );
 }
 
-/// Draw wireframe outlines for clickable/interactive faces, buildings, and decorations.
+/// Draw wireframe outlines for clickable/interactive faces and decorations.
 fn draw_events(
     world_state: Res<crate::game::world_state::WorldState>,
     mut gizmos: Gizmos,
     clickable_faces: Option<Res<crate::game::blv::ClickableFaces>>,
-    buildings: Query<(&crate::game::interaction::BuildingInfo, &GlobalTransform)>,
     decorations: Query<&crate::game::interaction::DecorationInfo>,
 ) {
     if !world_state.debug.show_events {
@@ -267,21 +266,7 @@ fn draw_events(
         }
     }
 
-    // Outdoor: draw building interaction markers at info.position (BSP model center)
-    for (info, _gt) in buildings.iter() {
-        let pos = info.position;
-        let color = Color::srgb(0.0, 1.0, 1.0);
-        // Diamond above building roof + vertical line down to position
-        let top = pos + Vec3::Y * 400.0;
-        let s = 80.0;
-        gizmos.line(top + Vec3::X * s, top + Vec3::Z * s, color);
-        gizmos.line(top + Vec3::Z * s, top - Vec3::X * s, color);
-        gizmos.line(top - Vec3::X * s, top - Vec3::Z * s, color);
-        gizmos.line(top - Vec3::Z * s, top + Vec3::X * s, color);
-        gizmos.line(pos, top, color);
-    }
-
-    // Outdoor: draw decoration event markers (yellow diamond + vertical line, same style as buildings)
+    // Outdoor: draw decoration event markers (yellow diamond + vertical line)
     for info in decorations.iter() {
         let pos = info.position;
         let color = Color::srgb(1.0, 1.0, 0.0);

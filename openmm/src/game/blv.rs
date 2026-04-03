@@ -394,7 +394,6 @@ fn spawn_indoor_world(
                 },
                 crate::game::interaction::NpcInteractable {
                     name: actor.name.clone(),
-                    position: pos,
                     npc_id: actor.npc_id(),
                 },
                 crate::game::entities::Billboard,
