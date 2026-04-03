@@ -407,7 +407,7 @@ fn spawn_indoor_world(
 
 // --- Indoor face interaction ---
 
-const INDOOR_INTERACT_RANGE: f32 = 5120.0;
+pub(crate) const INDOOR_INTERACT_RANGE: f32 = 5120.0;
 
 /// Detect indoor face interaction (Enter/click) and dispatch EVT events.
 fn indoor_interact_system(

@@ -6,6 +6,9 @@ use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::player::PlayerCamera;
+use crate::game::raycast::{billboard_hit_test, resolve_event_name, ray_plane_intersect, point_in_polygon};
+use crate::game::blv::ClickableFaces;
+use crate::game::entities::sprites::SpriteSheet;
 
 // --- Components & Resources ---
 
@@ -42,7 +45,6 @@ pub struct MonsterInteractable {
     pub name: String,
 }
 
-const INTERACT_RANGE: f32 = 250.0;
 const RAYCAST_RANGE: f32 = 2000.0;
 /// Tangent of the targeting cone half-angle used for all entity types (~7 degrees).
 /// At 500 units: ~60 unit radius. At 2000 units: ~240 unit radius.
@@ -60,7 +62,6 @@ impl Plugin for InteractionPlugin {
             Update,
             (
                 hover_hint_system,
-                interact_system,
                 decoration_interact_system,
                 npc_interact_system,
             )
@@ -144,46 +145,6 @@ fn check_exit_input(keys: &ButtonInput<KeyCode>, gamepads: &Query<&Gamepad>) -> 
 
 // --- Systems ---
 
-/// Detect interaction input and push events from the building's EVT script to the queue.
-fn interact_system(
-    keys: Res<ButtonInput<KeyCode>>,
-    mouse: Res<ButtonInput<MouseButton>>,
-    gamepads: Query<&Gamepad>,
-    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    buildings: Query<(&BuildingInfo, &GlobalTransform)>,
-    map_events: Option<Res<MapEvents>>,
-    mut event_queue: ResMut<EventQueue>,
-    cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
-) {
-    let Ok((cam_global, _)) = camera_query.single() else {
-        return;
-    };
-
-    let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad {
-        return;
-    }
-
-    let cursor_grabbed = cursor_query
-        .single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
-        .unwrap_or(true);
-    if click && !cursor_grabbed {
-        return;
-    }
-
-    let Some(info) = find_nearest_building(cam_global, &buildings) else {
-        return;
-    };
-
-    let Some(me) = map_events else { return };
-    let Some(evt) = me.evt.as_ref() else { return };
-
-    for &eid in &info.event_ids {
-        event_queue.push_all(eid, evt);
-    }
-}
-
 /// Handle exit input when in Building or Chest overlay views.
 fn interaction_input(
     keys: Res<ButtonInput<KeyCode>>,
@@ -253,158 +214,161 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
     None
 }
 
-/// Find the nearest interactive decoration via raycast from the camera.
-fn find_nearest_decoration<'a>(
-    cam_global: &GlobalTransform,
-    decorations: &'a Query<&DecorationInfo>,
-) -> Option<&'a DecorationInfo> {
-    raycast_nearest(cam_global, decorations.iter().map(|info| (info, info.position))).map(|(info, _)| info)
-}
-
-/// Resolve a human-readable name for a decoration from its event data.
-fn resolve_decoration_name(event_id: u16, map_events: &Option<Res<MapEvents>>) -> Option<String> {
-    let me = map_events.as_ref()?;
-    let evt = me.evt.as_ref()?;
-    let steps = evt.events.get(&event_id)?;
-    for s in steps {
-        match &s.event {
-            lod::evt::GameEvent::Hint { text, .. } if !text.is_empty() => {
-                return Some(text.clone());
-            }
-            lod::evt::GameEvent::StatusText { text, .. } if !text.is_empty() => {
-                return Some(text.clone());
-            }
-            lod::evt::GameEvent::OpenChest { id } => {
-                return Some(format!("Chest #{}", id));
-            }
-            lod::evt::GameEvent::SpeakInHouse { house_id } => {
-                if let Some(houses) = me.houses.as_ref()
-                    && let Some(entry) = houses.houses.get(house_id)
-                {
-                    return Some(entry.name.clone());
-                }
-                return Some(format!("Building #{}", house_id));
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-/// Detect click on a decoration and push its events to the queue.
+/// Detect click on a decoration and push its events. Uses billboard hit test with alpha mask.
 fn decoration_interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    decorations: Query<&DecorationInfo>,
+    decorations: Query<(&DecorationInfo, &GlobalTransform, &Transform, &SpriteSheet)>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else {
-        return;
-    };
-
+    let Ok((cam_global, _)) = camera_query.single() else { return };
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad {
-        return;
+    if !key && !click && !gamepad { return }
+    let cursor_grabbed = cursor_query.single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
+    if click && !cursor_grabbed { return }
+
+    let origin = cam_global.translation();
+    let dir = cam_global.forward().as_vec3();
+
+    let mut nearest: Option<(f32, u16)> = None;
+    for (info, g_tf, tf, sheet) in decorations.iter() {
+        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        if let Some(t) = billboard_hit_test(
+            origin, dir, g_tf.translation(), tf.rotation,
+            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
+        ) {
+            if nearest.is_none() || t < nearest.unwrap().0 {
+                nearest = Some((t, info.event_id));
+            }
+        }
     }
 
-    let cursor_grabbed = cursor_query
-        .single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
-        .unwrap_or(true);
-    if click && !cursor_grabbed {
-        return;
-    }
-
-    let Some(info) = find_nearest_decoration(cam_global, &decorations) else {
-        return;
-    };
-
+    let Some((_, event_id)) = nearest else { return };
     let Some(me) = map_events else { return };
     let Some(evt) = me.evt.as_ref() else { return };
-
-    event_queue.push_all(info.event_id, evt);
+    event_queue.push_all(event_id, evt);
 }
 
-/// Find the nearest NPC via raycast from the camera.
-fn find_nearest_npc<'a>(
-    cam_global: &GlobalTransform,
-    npcs: &'a Query<&NpcInteractable>,
-) -> Option<&'a NpcInteractable> {
-    raycast_nearest(cam_global, npcs.iter().map(|info| (info, info.position))).map(|(info, _)| info)
-}
-
-/// Detect click on an NPC and push a SpeakNPC event to open the dialogue UI.
+/// Detect click on an NPC and push a SpeakNPC event. Uses billboard hit test with alpha mask.
 fn npc_interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    npcs: Query<&NpcInteractable>,
+    npcs: Query<(&NpcInteractable, &GlobalTransform, &Transform, &SpriteSheet)>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else {
-        return;
-    };
-
+    let Ok((cam_global, _)) = camera_query.single() else { return };
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad {
-        return;
+    if !key && !click && !gamepad { return }
+    let cursor_grabbed = cursor_query.single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
+    if click && !cursor_grabbed { return }
+
+    let origin = cam_global.translation();
+    let dir = cam_global.forward().as_vec3();
+
+    let mut nearest: Option<(f32, i16)> = None;
+    for (info, g_tf, tf, sheet) in npcs.iter() {
+        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        if let Some(t) = billboard_hit_test(
+            origin, dir, g_tf.translation(), tf.rotation,
+            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
+        ) {
+            if nearest.is_none() || t < nearest.unwrap().0 {
+                nearest = Some((t, info.npc_id));
+            }
+        }
     }
 
-    let cursor_grabbed = cursor_query
-        .single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
-        .unwrap_or(true);
-    if click && !cursor_grabbed {
-        return;
-    }
-
-    let Some(info) = find_nearest_npc(cam_global, &npcs) else {
-        return;
-    };
-    event_queue.push_single(lod::evt::GameEvent::SpeakNPC {
-        npc_id: info.npc_id as i32,
-    });
+    let Some((_, npc_id)) = nearest else { return };
+    event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: npc_id as i32 });
 }
 
-/// Show the name of the nearest interactive building, decoration, or NPC in the footer bar.
+/// Show the nearest interactive object's name in the footer — pixel-accurate for all types.
 fn hover_hint_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    buildings: Query<(&BuildingInfo, &GlobalTransform)>,
-    decorations: Query<&DecorationInfo>,
-    npcs: Query<&NpcInteractable>,
+    clickable_faces: Option<Res<ClickableFaces>>,
+    decorations: Query<(&DecorationInfo, &GlobalTransform, &Transform, &SpriteSheet)>,
+    npcs: Query<(&NpcInteractable, &GlobalTransform, &Transform, &SpriteSheet)>,
+    monsters: Query<(&MonsterInteractable, &GlobalTransform, &Transform, &SpriteSheet)>,
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else {
-        return;
-    };
+    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let origin = cam_global.translation();
+    let dir = cam_global.forward().as_vec3();
 
-    // All entity types use camera-ray targeting consistently
-    if let Some(info) = find_nearest_building(cam_global, &buildings)
-        && let Some(name) = resolve_building_name(info, &map_events)
-    {
-        footer.set(&name);
-        return;
+    let mut nearest: Option<(f32, String)> = None;
+
+    // BSP faces (outdoor and indoor) via ClickableFaces
+    if let Some(faces) = clickable_faces.as_ref() {
+        for face in &faces.faces {
+            if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist) {
+                if t > crate::game::blv::INDOOR_INTERACT_RANGE {
+                    continue;
+                }
+                let hit = origin + dir * t;
+                if point_in_polygon(hit, &face.vertices, face.normal) {
+                    if let Some(name) = resolve_event_name(face.event_id, &map_events) {
+                        if nearest.is_none() || t < nearest.as_ref().unwrap().0 {
+                            nearest = Some((t, name));
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    if let Some(info) = find_nearest_decoration(cam_global, &decorations)
-        && let Some(name) = resolve_decoration_name(info.event_id, &map_events)
-    {
-        footer.set(&name);
-        return;
+    // Decorations
+    for (info, g_tf, tf, sheet) in decorations.iter() {
+        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        if let Some(t) = billboard_hit_test(
+            origin, dir, g_tf.translation(), tf.rotation,
+            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
+        ) {
+            if nearest.is_none() || t < nearest.as_ref().unwrap().0 {
+                if let Some(name) = resolve_event_name(info.event_id, &map_events) {
+                    nearest = Some((t, name));
+                }
+            }
+        }
     }
 
-    if let Some(info) = find_nearest_npc(cam_global, &npcs) {
-        footer.set(&info.name);
-        return;
+    // NPCs
+    for (info, g_tf, tf, sheet) in npcs.iter() {
+        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        if let Some(t) = billboard_hit_test(
+            origin, dir, g_tf.translation(), tf.rotation,
+            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
+        ) {
+            if nearest.is_none() || t < nearest.as_ref().unwrap().0 {
+                nearest = Some((t, info.name.clone()));
+            }
+        }
     }
 
-    // Nothing in crosshair — clear
-    footer.clear();
+    // Monsters
+    for (info, g_tf, tf, sheet) in monsters.iter() {
+        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        if let Some(t) = billboard_hit_test(
+            origin, dir, g_tf.translation(), tf.rotation,
+            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
+        ) {
+            if nearest.is_none() || t < nearest.as_ref().unwrap().0 {
+                nearest = Some((t, info.name.clone()));
+            }
+        }
+    }
+
+    match nearest {
+        Some((_, name)) => footer.set(&name),
+        None => footer.clear(),
+    }
 }
