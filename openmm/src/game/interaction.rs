@@ -2,13 +2,13 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
+use crate::game::blv::ClickableFaces;
+use crate::game::entities::sprites::SpriteSheet;
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::player::PlayerCamera;
-use crate::game::raycast::{billboard_hit_test, resolve_event_name, ray_plane_intersect, point_in_polygon};
-use crate::game::blv::ClickableFaces;
-use crate::game::entities::sprites::SpriteSheet;
+use crate::game::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 
 // --- Components & Resources ---
 
@@ -44,11 +44,7 @@ impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (
-                hover_hint_system,
-                decoration_interact_system,
-                npc_interact_system,
-            )
+            (hover_hint_system, decoration_interact_system, npc_interact_system)
                 .chain()
                 .run_if(in_state(GameState::Game))
                 .run_if(resource_equals(HudView::World)),
@@ -120,12 +116,20 @@ fn decoration_interact_system(
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else {
+        return;
+    };
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad { return }
-    let cursor_grabbed = cursor_query.single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
-    if click && !cursor_grabbed { return }
+    if !key && !click && !gamepad {
+        return;
+    }
+    let cursor_grabbed = cursor_query
+        .single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
+        .unwrap_or(true);
+    if click && !cursor_grabbed {
+        return;
+    }
 
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
@@ -134,12 +138,16 @@ fn decoration_interact_system(
     for (info, g_tf, tf, sheet) in decorations.iter() {
         let (sw, sh) = sheet.state_dimensions[sheet.current_state];
         if let Some(t) = billboard_hit_test(
-            origin, dir, g_tf.translation(), tf.rotation,
-            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
-        ) {
-            if nearest.is_none() || t < nearest.unwrap().0 {
-                nearest = Some((t, info.event_id));
-            }
+            origin,
+            dir,
+            g_tf.translation(),
+            tf.rotation,
+            sw / 2.0,
+            sh / 2.0,
+            sheet.current_mask.as_deref(),
+        ) && (nearest.is_none() || t < nearest.unwrap().0)
+        {
+            nearest = Some((t, info.event_id));
         }
     }
 
@@ -159,12 +167,20 @@ fn npc_interact_system(
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else {
+        return;
+    };
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad { return }
-    let cursor_grabbed = cursor_query.single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None)).unwrap_or(true);
-    if click && !cursor_grabbed { return }
+    if !key && !click && !gamepad {
+        return;
+    }
+    let cursor_grabbed = cursor_query
+        .single()
+        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
+        .unwrap_or(true);
+    if click && !cursor_grabbed {
+        return;
+    }
 
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
@@ -173,12 +189,16 @@ fn npc_interact_system(
     for (info, g_tf, tf, sheet) in npcs.iter() {
         let (sw, sh) = sheet.state_dimensions[sheet.current_state];
         if let Some(t) = billboard_hit_test(
-            origin, dir, g_tf.translation(), tf.rotation,
-            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
-        ) {
-            if nearest.is_none() || t < nearest.unwrap().0 {
-                nearest = Some((t, info.npc_id));
-            }
+            origin,
+            dir,
+            g_tf.translation(),
+            tf.rotation,
+            sw / 2.0,
+            sh / 2.0,
+            sheet.current_mask.as_deref(),
+        ) && (nearest.is_none() || t < nearest.unwrap().0)
+        {
+            nearest = Some((t, info.npc_id));
         }
     }
 
@@ -196,7 +216,9 @@ fn hover_hint_system(
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else { return };
+    let Ok((cam_global, _)) = camera_query.single() else {
+        return;
+    };
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
 
@@ -210,12 +232,11 @@ fn hover_hint_system(
                     continue;
                 }
                 let hit = origin + dir * t;
-                if point_in_polygon(hit, &face.vertices, face.normal) {
-                    if let Some(name) = resolve_event_name(face.event_id, &map_events) {
-                        if nearest.is_none() || t < nearest.as_ref().unwrap().0 {
-                            nearest = Some((t, name));
-                        }
-                    }
+                if point_in_polygon(hit, &face.vertices, face.normal)
+                    && let Some(name) = resolve_event_name(face.event_id, &map_events)
+                    && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+                {
+                    nearest = Some((t, name));
                 }
             }
         }
@@ -225,13 +246,18 @@ fn hover_hint_system(
     for (info, g_tf, tf, sheet) in decorations.iter() {
         let (sw, sh) = sheet.state_dimensions[sheet.current_state];
         if let Some(t) = billboard_hit_test(
-            origin, dir, g_tf.translation(), tf.rotation,
-            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
+            origin,
+            dir,
+            g_tf.translation(),
+            tf.rotation,
+            sw / 2.0,
+            sh / 2.0,
+            sheet.current_mask.as_deref(),
         ) {
-            if nearest.is_none() || t < nearest.as_ref().unwrap().0 {
-                if let Some(name) = resolve_event_name(info.event_id, &map_events) {
-                    nearest = Some((t, name));
-                }
+            if (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+                && let Some(name) = resolve_event_name(info.event_id, &map_events)
+            {
+                nearest = Some((t, name));
             }
         }
     }
@@ -240,12 +266,16 @@ fn hover_hint_system(
     for (info, g_tf, tf, sheet) in npcs.iter() {
         let (sw, sh) = sheet.state_dimensions[sheet.current_state];
         if let Some(t) = billboard_hit_test(
-            origin, dir, g_tf.translation(), tf.rotation,
-            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
-        ) {
-            if nearest.is_none() || t < nearest.as_ref().unwrap().0 {
-                nearest = Some((t, info.name.clone()));
-            }
+            origin,
+            dir,
+            g_tf.translation(),
+            tf.rotation,
+            sw / 2.0,
+            sh / 2.0,
+            sheet.current_mask.as_deref(),
+        ) && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+        {
+            nearest = Some((t, info.name.clone()));
         }
     }
 
@@ -253,12 +283,16 @@ fn hover_hint_system(
     for (info, g_tf, tf, sheet) in monsters.iter() {
         let (sw, sh) = sheet.state_dimensions[sheet.current_state];
         if let Some(t) = billboard_hit_test(
-            origin, dir, g_tf.translation(), tf.rotation,
-            sw / 2.0, sh / 2.0, sheet.current_mask.as_deref(),
-        ) {
-            if nearest.is_none() || t < nearest.as_ref().unwrap().0 {
-                nearest = Some((t, info.name.clone()));
-            }
+            origin,
+            dir,
+            g_tf.translation(),
+            tf.rotation,
+            sw / 2.0,
+            sh / 2.0,
+            sheet.current_mask.as_deref(),
+        ) && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+        {
+            nearest = Some((t, info.name.clone()));
         }
     }
 

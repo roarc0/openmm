@@ -147,10 +147,10 @@ pub fn billboard_hit_test(
     let u = local_x / (half_w * 2.0) + 0.5;
     let v = 0.5 - local_y / (half_h * 2.0);
 
-    if let Some(mask) = mask {
-        if !mask.test(u, v) {
-            return None; // Transparent pixel
-        }
+    if let Some(mask) = mask
+        && !mask.test(u, v)
+    {
+        return None; // Transparent pixel
     }
 
     Some(t)
