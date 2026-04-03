@@ -352,7 +352,8 @@ fn execute_command(
                 name => match MapName::try_from(name) {
                     Ok(target) => {
                         let filename = target.filename();
-                        if ctx_game_assets.lod_manager().try_get_bytes(&filename).is_err() {
+                        let lod_path = format!("games/{}", filename);
+                        if ctx_game_assets.lod_manager().try_get_bytes(&lod_path).is_err() {
                             Err(format!("Map not found: {}", filename))
                         } else {
                             let pos = parts.get(2).and_then(|c| parse_coords(c));
