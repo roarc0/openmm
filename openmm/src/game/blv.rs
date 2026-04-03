@@ -347,7 +347,7 @@ fn spawn_indoor_world(
         for actor in actors.get_actors() {
             let variant = actor.variant;
 
-            let (states, sw, sh) = sprites::load_entity_sprites(
+            let (states, state_masks, sw, sh) = sprites::load_entity_sprites(
                 &actor.standing_sprite,
                 &actor.walking_sprite,
                 game_assets.lod_manager(),
@@ -378,7 +378,7 @@ fn spawn_indoor_world(
                 crate::game::entities::WorldEntity,
                 crate::game::entities::EntityKind::Npc,
                 crate::game::entities::AnimationState::Idle,
-                sprites::SpriteSheet::new(states, vec![(sw, sh)]),
+                sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
                 actor::Actor {
                     name: actor.name.clone(),
                     hp: actor.hp,

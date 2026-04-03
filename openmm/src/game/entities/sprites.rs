@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use image::{DynamicImage, GenericImageView, RgbaImage};
+use image::DynamicImage;
 
 use lod::LodManager;
 
@@ -48,6 +48,8 @@ pub struct SpriteCache {
     materials: HashMap<String, Handle<StandardMaterial>>,
     /// Maps cache key to (width, height)
     dimensions: HashMap<String, (f32, f32)>,
+    /// Alpha masks keyed identically to `materials`.
+    masks: HashMap<String, Arc<AlphaMask>>,
 }
 
 impl SpriteCache {
@@ -101,6 +103,10 @@ pub struct SpriteSheet {
     pub states: Vec<Vec<[Handle<StandardMaterial>; 5]>>,
     /// Width and height per state (sprites can differ between standing/walking).
     pub state_dimensions: Vec<(f32, f32)>,
+    /// Per-state, per-frame, per-direction alpha masks (parallel to `states`).
+    pub state_masks: Vec<Vec<[Arc<AlphaMask>; 5]>>,
+    /// The alpha mask for the currently displayed (state, frame, direction). Updated by update_sprite_sheets.
+    pub current_mask: Option<Arc<AlphaMask>>,
     pub current_frame: usize,
     pub current_state: usize,
     pub frame_timer: f32,
@@ -110,10 +116,16 @@ pub struct SpriteSheet {
 }
 
 impl SpriteSheet {
-    pub fn new(states: Vec<Vec<[Handle<StandardMaterial>; 5]>>, state_dimensions: Vec<(f32, f32)>) -> Self {
+    pub fn new(
+        states: Vec<Vec<[Handle<StandardMaterial>; 5]>>,
+        state_dimensions: Vec<(f32, f32)>,
+        state_masks: Vec<Vec<[Arc<AlphaMask>; 5]>>,
+    ) -> Self {
         Self {
             states,
             state_dimensions,
+            state_masks,
+            current_mask: None,
             current_frame: 0,
             current_state: 0,
             frame_timer: 0.0,
@@ -138,9 +150,9 @@ pub fn load_entity_sprites(
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
     palette_id: u16,
-) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, f32, f32) {
+) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, Vec<Vec<[Arc<AlphaMask>; 5]>>, f32, f32) {
     // Load walking first (usually wider) to get target dimensions
-    let (walking, ww, wh) = load_sprite_frames(
+    let (walking, walking_masks, ww, wh) = load_sprite_frames(
         walking_root,
         lod_manager,
         images,
@@ -153,7 +165,7 @@ pub fn load_entity_sprites(
     );
 
     // Load standing, padded to at least walking dimensions
-    let (standing, sw, sh) = load_sprite_frames(
+    let (standing, standing_masks, sw, sh) = load_sprite_frames(
         standing_root,
         lod_manager,
         images,
@@ -165,15 +177,15 @@ pub fn load_entity_sprites(
         palette_id,
     );
     if standing.is_empty() {
-        return (Vec::new(), 0.0, 0.0);
+        return (Vec::new(), Vec::new(), 0.0, 0.0);
     }
 
     let qw = sw.max(ww);
     let qh = sh.max(wh);
 
     // If standing is larger than walking, reload walking padded to match
-    let walking = if !walking.is_empty() && (sw > ww || sh > wh) {
-        let (padded, _, _) = load_sprite_frames(
+    let (walking, walking_masks) = if !walking.is_empty() && (sw > ww || sh > wh) {
+        let (padded, padded_masks, _, _) = load_sprite_frames(
             walking_root,
             lod_manager,
             images,
@@ -184,17 +196,19 @@ pub fn load_entity_sprites(
             qh as u32,
             palette_id,
         );
-        padded
+        (padded, padded_masks)
     } else {
-        walking
+        (walking, walking_masks)
     };
 
     let mut states = vec![standing];
+    let mut state_masks = vec![standing_masks];
     if !walking.is_empty() {
         states.push(walking);
+        state_masks.push(walking_masks);
     }
 
-    (states, qw, qh)
+    (states, state_masks, qw, qh)
 }
 
 /// Load sprite frames for a single animation (e.g. standing or walking).
@@ -213,23 +227,23 @@ pub fn load_sprite_frames(
     min_w: u32,
     min_h: u32,
     palette_id: u16,
-) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
+) -> (Vec<[Handle<StandardMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
     let key = cache_key(root, variant, min_w, min_h, palette_id);
 
     if let Some(c) = cache.as_ref()
         && let Some(&(w, h)) = c.dimensions.get(&key)
     {
-        let frames = rebuild_from_cache(&key, c);
+        let (frames, masks) = rebuild_from_cache(&key, c);
         if !frames.is_empty() {
-            return (frames, w, h);
+            return (frames, masks, w, h);
         }
     }
 
     // Try progressively shorter root names (e.g. "gobla" -> "gobl" -> "gob")
     let mut try_root = root;
     while try_root.len() >= 3 {
-        let (frames, w, h) = decode_sprite_frames(
+        let (frames, frame_masks, w, h) = decode_sprite_frames(
             try_root,
             lod_manager,
             images,
@@ -240,50 +254,61 @@ pub fn load_sprite_frames(
             palette_id,
         );
         if !frames.is_empty() {
-            store_in_cache(&key, &frames, w, h, cache);
-            return (frames, w, h);
+            store_in_cache(&key, &frames, &frame_masks, w, h, cache);
+            return (frames, frame_masks, w, h);
         }
         try_root = &try_root[..try_root.len() - 1];
     }
-    (Vec::new(), 0.0, 0.0)
+    (Vec::new(), Vec::new(), 0.0, 0.0)
 }
 
 fn store_in_cache(
     key: &str,
     frames: &[[Handle<StandardMaterial>; 5]],
+    frame_masks: &[[Arc<AlphaMask>; 5]],
     w: f32,
     h: f32,
     cache: &mut Option<&mut SpriteCache>,
 ) {
     if let Some(cache) = cache.as_mut() {
         cache.dimensions.insert(key.to_string(), (w, h));
-        for (fi, dirs) in frames.iter().enumerate() {
+        for (fi, (dirs, masks)) in frames.iter().zip(frame_masks.iter()).enumerate() {
             let frame_letter = (b'a' + fi as u8) as char;
-            for (di, mat) in dirs.iter().enumerate() {
+            for di in 0..5 {
                 let mat_key = format!("{}{}{}", key, frame_letter, di);
-                cache.materials.insert(mat_key, mat.clone());
+                cache.materials.insert(mat_key.clone(), dirs[di].clone());
+                cache.masks.insert(mat_key, masks[di].clone());
             }
         }
     }
 }
 
-fn rebuild_from_cache(key: &str, cache: &SpriteCache) -> Vec<[Handle<StandardMaterial>; 5]> {
+fn rebuild_from_cache(
+    key: &str,
+    cache: &SpriteCache,
+) -> (Vec<[Handle<StandardMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>) {
     let mut frames = Vec::new();
+    let mut mask_frames = Vec::new();
+    let fallback_mask = Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] });
     for fi in 0..6 {
         let frame_letter = (b'a' + fi) as char;
         let key0 = format!("{}{}0", key, frame_letter);
         if let Some(mat0) = cache.materials.get(&key0) {
+            let mask0 = cache.masks.get(&key0).cloned().unwrap_or_else(|| fallback_mask.clone());
             let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+            let mut masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
             for di in 0..5 {
                 let mat_key = format!("{}{}{}", key, frame_letter, di);
                 dirs[di] = cache.materials.get(&mat_key).cloned().unwrap_or_else(|| mat0.clone());
+                masks[di] = cache.masks.get(&mat_key).cloned().unwrap_or_else(|| mask0.clone());
             }
             frames.push(dirs);
+            mask_frames.push(masks);
         } else {
             break;
         }
     }
-    frames
+    (frames, mask_frames)
 }
 
 /// Decode sprite frames from the LOD, apply variant tinting, and pad to uniform size.
@@ -298,7 +323,7 @@ fn decode_sprite_frames(
     min_w: u32,
     min_h: u32,
     palette_id: u16,
-) -> (Vec<[Handle<StandardMaterial>; 5]>, f32, f32) {
+) -> (Vec<[Handle<StandardMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
     // First pass: collect all raw sprites and find max dimensions.
     let mut raw_sprites: Vec<Vec<Option<DynamicImage>>> = Vec::new();
     let mut max_w = min_w;
@@ -350,32 +375,36 @@ fn decode_sprite_frames(
     }
 
     if raw_sprites.is_empty() || max_w == 0 {
-        return (Vec::new(), 0.0, 0.0);
+        return (Vec::new(), Vec::new(), 0.0, 0.0);
     }
 
-    // Second pass: tint, pad to uniform size, and create materials.
+    // Second pass: pad to uniform size, build alpha masks, and create materials.
     let mut frames = Vec::new();
+    let mut frame_masks: Vec<[Arc<AlphaMask>; 5]> = Vec::new();
+    let fallback_mask = Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] });
     for dir_imgs in raw_sprites {
         let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
+        let mut dir_masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
         for (dir, img_opt) in dir_imgs.into_iter().enumerate() {
             if let Some(img) = img_opt {
-                // Palette swap handles variant coloring — no tinting needed
-
-                // Pad to uniform size: center horizontally, align bottom vertically
-                let img = if img.width() != max_w || img.height() != max_h {
-                    let mut padded = RgbaImage::new(max_w, max_h);
-                    let x_off = (max_w - img.width()) / 2;
-                    let y_off = max_h - img.height();
-                    for py in 0..img.height() {
-                        for px in 0..img.width() {
-                            padded.put_pixel(px + x_off, py + y_off, img.get_pixel(px, py));
+                let rgba = img.into_rgba8();
+                let rgba = if rgba.width() != max_w || rgba.height() != max_h {
+                    let mut padded = image::RgbaImage::new(max_w, max_h);
+                    let x_off = (max_w - rgba.width()) / 2;
+                    let y_off = max_h - rgba.height();
+                    for py in 0..rgba.height() {
+                        for px in 0..rgba.width() {
+                            padded.put_pixel(px + x_off, py + y_off, *rgba.get_pixel(px, py));
                         }
                     }
-                    DynamicImage::ImageRgba8(padded)
+                    padded
                 } else {
-                    img
+                    rgba
                 };
-                let bevy_img = crate::assets::dynamic_to_bevy_image(img);
+                dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
+                let bevy_img = crate::assets::dynamic_to_bevy_image(
+                    image::DynamicImage::ImageRgba8(rgba)
+                );
                 let tex = images.add(bevy_img);
                 dir_materials[dir] = materials.add(StandardMaterial {
                     unlit: true,
@@ -389,12 +418,14 @@ fn decode_sprite_frames(
                 });
             } else if dir > 0 {
                 dir_materials[dir] = dir_materials[0].clone();
+                dir_masks[dir] = dir_masks[0].clone();
             }
         }
         frames.push(dir_materials);
+        frame_masks.push(dir_masks);
     }
 
-    (frames, max_w as f32, max_h as f32)
+    (frames, frame_masks, max_w as f32, max_h as f32)
 }
 
 /// Load a sprite with a palette offset applied (for monster variant palette swaps).
@@ -515,6 +546,13 @@ pub fn update_sprite_sheets(
             sprites.last_applied = current_key;
             let new_mat = sprites.states[state_idx][sprites.current_frame][direction].clone();
             *mat_handle = MeshMaterial3d(new_mat);
+            // Keep current_mask in sync with the displayed frame
+            if state_idx < sprites.state_masks.len()
+                && sprites.current_frame < sprites.state_masks[state_idx].len()
+            {
+                sprites.current_mask =
+                    Some(sprites.state_masks[state_idx][sprites.current_frame][direction].clone());
+            }
         }
 
         transform.rotation = Quat::from_rotation_y(camera_angle);
@@ -552,24 +590,27 @@ pub fn load_decoration_directions(
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
-) -> ([Handle<StandardMaterial>; 5], f32, f32) {
+) -> ([Handle<StandardMaterial>; 5], [Arc<AlphaMask>; 5], f32, f32) {
     let key = format!("dec:{}", root);
     if let Some(c) = cache.as_ref()
         && let Some(&(w, h)) = c.dimensions.get(&key)
     {
         let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+        let fallback = Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] });
+        let mut masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback.clone());
         let mut found = true;
         for di in 0..5 {
             let mat_key = format!("{}a{}", key, di);
             if let Some(mat) = c.materials.get(&mat_key) {
                 dirs[di] = mat.clone();
+                masks[di] = c.masks.get(&mat_key).cloned().unwrap_or_else(|| fallback.clone());
             } else {
                 found = false;
                 break;
             }
         }
         if found {
-            return (dirs, w, h);
+            return (dirs, masks, w, h);
         }
     }
 
@@ -588,27 +629,30 @@ pub fn load_decoration_directions(
     }
 
     if max_w == 0 || raw[0].is_none() {
-        return (Default::default(), 0.0, 0.0);
+        return (Default::default(), std::array::from_fn(|_| Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] })), 0.0, 0.0);
     }
 
-    // Pad to uniform size and create materials
+    let fallback_mask = Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] });
     let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+    let mut dir_masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
     for (dir, img_opt) in raw.into_iter().enumerate() {
         if let Some(img) = img_opt {
-            let img = if img.width() != max_w || img.height() != max_h {
-                let mut padded = RgbaImage::new(max_w, max_h);
-                let x_off = (max_w - img.width()) / 2;
-                let y_off = max_h - img.height();
-                for py in 0..img.height() {
-                    for px in 0..img.width() {
-                        padded.put_pixel(px + x_off, py + y_off, img.get_pixel(px, py));
+            let rgba = img.into_rgba8();
+            let rgba = if rgba.width() != max_w || rgba.height() != max_h {
+                let mut padded = image::RgbaImage::new(max_w, max_h);
+                let x_off = (max_w - rgba.width()) / 2;
+                let y_off = max_h - rgba.height();
+                for py in 0..rgba.height() {
+                    for px in 0..rgba.width() {
+                        padded.put_pixel(px + x_off, py + y_off, *rgba.get_pixel(px, py));
                     }
                 }
-                DynamicImage::ImageRgba8(padded)
+                padded
             } else {
-                img
+                rgba
             };
-            let bevy_img = crate::assets::dynamic_to_bevy_image(img);
+            dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
+            let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
             let tex = images.add(bevy_img);
             dirs[dir] = materials.add(StandardMaterial {
                 unlit: true,
@@ -622,19 +666,21 @@ pub fn load_decoration_directions(
             });
         } else if dir > 0 {
             dirs[dir] = dirs[0].clone();
+            dir_masks[dir] = dir_masks[0].clone();
         }
     }
 
     // Store in cache
-    if let Some(cache) = cache.as_mut() {
-        cache.dimensions.insert(key.clone(), (max_w as f32, max_h as f32));
-        for (di, mat) in dirs.iter().enumerate() {
+    if let Some(c) = cache.as_mut() {
+        c.dimensions.insert(key.clone(), (max_w as f32, max_h as f32));
+        for di in 0..5 {
             let mat_key = format!("{}a{}", key, di);
-            cache.materials.insert(mat_key, mat.clone());
+            c.materials.insert(mat_key.clone(), dirs[di].clone());
+            c.masks.insert(mat_key, dir_masks[di].clone());
         }
     }
 
-    (dirs, max_w as f32, max_h as f32)
+    (dirs, dir_masks, max_w as f32, max_h as f32)
 }
 
 #[cfg(test)]

@@ -479,7 +479,7 @@ fn lazy_spawn(
         let dec_pos = Vec3::from(lod::odm::mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
 
         if dec.is_directional {
-            let (dirs, px_w, px_h) = sprites::load_decoration_directions(
+            let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
                 &dec.sprite_name,
                 game_assets.lod_manager(),
                 &mut images,
@@ -496,6 +496,7 @@ fn lazy_spawn(
                 let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
                 // Single animation frame with 5 directional views
                 let states = vec![vec![dirs]];
+                let state_masks = vec![vec![dir_masks]];
                 let child_id = commands
                     .spawn((
                         Name::new(format!("decoration:{}", key)),
@@ -506,7 +507,7 @@ fn lazy_spawn(
                         crate::game::entities::EntityKind::Decoration,
                         crate::game::entities::Billboard,
                         crate::game::entities::AnimationState::Idle,
-                        sprites::SpriteSheet::new(states, vec![(sw, sh)]),
+                        sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
                         crate::game::entities::FacingYaw(dec.facing_yaw),
                     ))
                     .id();
@@ -598,7 +599,7 @@ fn lazy_spawn(
 
         let variant = actor.variant;
 
-        let (s2, w2, h2) = sprites::load_entity_sprites(
+        let (s2, m2, w2, h2) = sprites::load_entity_sprites(
             &actor.standing_sprite,
             &actor.walking_sprite,
             game_assets.lod_manager(),
@@ -618,6 +619,7 @@ fn lazy_spawn(
         // Apply DSFT scale (same as decorations — sprite group name lookup)
         let dsft_scale = bb_mgr.dsft_scale_for_group(&actor.standing_sprite);
         let states = s2;
+        let state_masks = m2;
         let sw = w2 * dsft_scale;
         let sh = h2 * dsft_scale;
         let initial_mat = states[0][0][0].clone();
@@ -673,7 +675,7 @@ fn lazy_spawn(
             crate::game::entities::WorldEntity,
             crate::game::entities::EntityKind::Npc,
             crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet::new(states, vec![(sw, sh)]),
+            sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
             actor::Actor {
                 name: actor.name.clone(),
                 hp: actor.hp,
@@ -701,7 +703,7 @@ fn lazy_spawn(
         let m = &p.monsters.entries()[p.monster_order[monster_idx]];
         monster_idx += 1;
         p.idx += 1;
-        let (states, raw_w, raw_h) = sprites::load_entity_sprites(
+        let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
             &m.standing_sprite,
             &m.walking_sprite,
             game_assets.lod_manager(),
@@ -740,7 +742,7 @@ fn lazy_spawn(
             crate::game::entities::WorldEntity,
             crate::game::entities::EntityKind::Monster,
             crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet::new(states, vec![(sw, sh)]),
+            sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
             actor::Actor {
                 name: "Monster".into(),
                 hp: 10,
