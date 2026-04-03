@@ -1,6 +1,7 @@
 mod borders;
 mod crosshair;
 mod footer;
+mod map_overlay;
 mod minimap;
 mod overlay;
 mod stats_bar;
@@ -69,6 +70,10 @@ impl Plugin for HudPlugin {
                     overlay::update_overlay_layout,
                     overlay::spawn_npc_portrait,
                     overlay::despawn_npc_portrait,
+                    map_overlay::map_input_system,
+                    map_overlay::spawn_map_overlay,
+                    map_overlay::despawn_map_overlay,
+                    map_overlay::update_map_overlay_layout,
                     freeze_system,
                 )
                     .chain()
