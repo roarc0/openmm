@@ -24,7 +24,7 @@ struct PendingSpawns {
     frames_elapsed: u32,
     sprite_cache: sprites::SpriteCache,
     /// Cached billboard materials: key = sprite name, value = (material, mesh, width, height, mask)
-    billboard_cache: std::collections::HashMap<
+    dec_sprite_cache: std::collections::HashMap<
         String,
         (
             Handle<StandardMaterial>,
@@ -407,7 +407,7 @@ fn spawn_world(
         idx: 0,
         frames_elapsed: 0,
         sprite_cache: prepared.sprite_cache.clone(),
-        billboard_cache: prepared.billboard_cache.clone(),
+        dec_sprite_cache: prepared.dec_sprite_cache.clone(),
         decorations,
         monsters,
         actors,
@@ -529,7 +529,7 @@ fn lazy_spawn(
                 continue;
             }
         } else {
-            let (mat, quad, w, h, mask) = if let Some((m, q, w, h, msk)) = p.billboard_cache.get(key) {
+            let (mat, quad, w, h, mask) = if let Some((m, q, w, h, msk)) = p.dec_sprite_cache.get(key) {
                 (m.clone(), q.clone(), *w, *h, msk.clone())
             } else {
                 let sprite = match bb_mgr.get(game_assets.lod_manager(), key, dec.declist_id) {
@@ -555,7 +555,7 @@ fn lazy_spawn(
                     ..default()
                 });
                 let q = meshes.add(Rectangle::new(w, h));
-                p.billboard_cache
+                p.dec_sprite_cache
                     .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));
                 (m, q, w, h, msk)
             };

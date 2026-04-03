@@ -58,7 +58,7 @@ struct LoadingProgress {
     resolved_monsters: Option<lod::game::monster::Monsters>,
     start_points: Option<Vec<StartPoint>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
-    billboard_cache: Option<
+    dec_sprite_cache: Option<
         std::collections::HashMap<
             String,
             (
@@ -231,7 +231,7 @@ pub struct PreparedWorld {
     pub resolved_monsters: Option<lod::game::monster::Monsters>,
     pub start_points: Vec<StartPoint>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
-    pub billboard_cache: std::collections::HashMap<
+    pub dec_sprite_cache: std::collections::HashMap<
         String,
         (
             Handle<StandardMaterial>,
@@ -318,7 +318,7 @@ fn loading_setup(
         resolved_monsters: None,
         start_points: None,
         sprite_cache: None,
-        billboard_cache: None,
+        dec_sprite_cache: None,
         water_cells: None,
         terrain_lookup: None,
         music_track: 0,
@@ -959,7 +959,7 @@ fn loading_step(
                 let sprites_done = progress.preload_queue.as_ref().unwrap().sprite_idx
                     >= progress.preload_queue.as_ref().unwrap().sprite_roots.len();
                 if sprites_done {
-                    let mut bb_cache = progress.billboard_cache.take().unwrap_or_default();
+                    let mut bb_cache = progress.dec_sprite_cache.take().unwrap_or_default();
                     let bb_mgr = game_assets.billboard_manager();
                     // Take decorations to allow simultaneous mutable borrow of preload_queue
                     let decorations = progress.decorations.take();
@@ -1006,7 +1006,7 @@ fn loading_step(
                         }
                     }
                     progress.decorations = decorations;
-                    progress.billboard_cache = Some(bb_cache);
+                    progress.dec_sprite_cache = Some(bb_cache);
                 }
             }
 
@@ -1046,7 +1046,7 @@ fn loading_step(
                     resolved_monsters: progress.resolved_monsters.take(),
                     start_points: progress.start_points.take().unwrap_or_default(),
                     sprite_cache: progress.sprite_cache.take().unwrap_or_default(),
-                    billboard_cache: progress.billboard_cache.take().unwrap_or_default(),
+                    dec_sprite_cache: progress.dec_sprite_cache.take().unwrap_or_default(),
                     terrain_lookup: progress
                         .terrain_lookup
                         .take()
