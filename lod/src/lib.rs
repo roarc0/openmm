@@ -19,16 +19,24 @@ pub mod monlist;
 pub mod odm;
 pub mod twodevents;
 
+pub mod awards;
 pub mod billboard;
+pub mod class;
 pub mod dchest;
 pub mod ddeclist;
+pub mod dift;
 pub mod dobjlist;
 pub mod doverlay;
+pub mod dpft;
 pub mod dsft;
 pub mod dsounds;
 pub mod enums;
 pub mod image;
+pub mod items;
+pub mod npcnews;
+pub mod npcprof;
 pub mod snd;
+pub mod spells;
 pub mod terrain;
 pub mod tft;
 
