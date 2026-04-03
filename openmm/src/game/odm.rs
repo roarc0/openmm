@@ -525,9 +525,7 @@ fn lazy_spawn(
                         });
                 }
                 if dec.light_radius > 0 {
-                    let light_id = commands
-                        .spawn(decoration_point_light(dec.light_radius))
-                        .id();
+                    let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
                     commands.entity(child_id).add_child(light_id);
                 }
                 spawned += 1;
@@ -609,9 +607,7 @@ fn lazy_spawn(
                     .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
             }
             if dec.light_radius > 0 {
-                let light_id = commands
-                    .spawn(decoration_point_light(dec.light_radius))
-                    .id();
+                let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
                 commands.entity(child_id).add_child(light_id);
             }
             spawned += 1;
@@ -679,9 +675,7 @@ fn lazy_spawn(
                     .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
             }
             if dec.light_radius > 0 {
-                let light_id = commands
-                    .spawn(decoration_point_light(dec.light_radius))
-                    .id();
+                let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
                 commands.entity(child_id).add_child(light_id);
             }
             spawned += 1;

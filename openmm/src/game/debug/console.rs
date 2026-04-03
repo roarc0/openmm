@@ -756,10 +756,10 @@ fn execute_command(
                 ctx_game_time.set_paused(false);
                 ctx_state.push_output("Time resumed".to_string());
             }
-            "advance" | "adv" => {
+            "add" => {
                 let hours: f32 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0.0);
                 if hours == 0.0 {
-                    ctx_state.push_output("Usage: time advance <hours>".to_string());
+                    ctx_state.push_output("Usage: time add <hours>".to_string());
                 } else {
                     ctx_game_time.advance_hours(hours);
                     ctx_state.push_output(format!("Advanced {hours}h → {}", ctx_game_time.format_datetime()));
@@ -769,7 +769,7 @@ fn execute_command(
                 let status = if ctx_game_time.is_paused() { " (paused)" } else { "" };
                 ctx_state.push_output(format!("{}{}", ctx_game_time.format_datetime(), status));
             }
-            _ => ctx_state.push_output("Usage: time [stop|start|advance <hours>]".to_string()),
+            _ => ctx_state.push_output("Usage: time [stop|start|add <hours>]".to_string()),
         },
         "help" | "?" => {
             for line in HELP_TEXT {
@@ -834,7 +834,7 @@ const HELP_TEXT: &[&str] = &[
     "  time             - Show current in-game date/time",
     "  time stop        - Pause the game clock",
     "  time start       - Resume the game clock",
-    "  time advance <N> - Skip forward N in-game hours",
+    "  time add <N>     - Skip forward N in-game hours",
     "Audio:",
     "  music <0-100>    - Set music volume",
     "  sfx <0-100>      - Set sound effects volume",

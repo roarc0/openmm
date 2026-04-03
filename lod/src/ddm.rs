@@ -143,6 +143,7 @@ impl DdmActor {
 }
 
 /// Parsed DDM delta file.
+#[derive(Debug)]
 pub struct Ddm {
     pub actors: Vec<DdmActor>,
 }

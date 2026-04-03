@@ -40,6 +40,7 @@ fmt-check:
 test:
 	cargo test --workspace
 
+lint: fmt-check clippy
 	@echo "All lint checks passed"
 
 test-ci:
@@ -55,3 +56,20 @@ dump_sounds:
 
 clean:
 	cargo clean
+
+help:
+	@echo "Available commands:"
+	@echo "  build         - Build the project (debug)"
+	@echo "  release       - Build the project (release)"
+	@echo "  run           - Run the game (use map=X to load specific map)"
+	@echo "  run-release   - Run the game in release mode"
+	@echo "  check         - Run cargo check"
+	@echo "  clippy        - Run clippy linting"
+	@echo "  fix           - Auto-fix clippy and run fmt"
+	@echo "  fmt           - Format code"
+	@echo "  test          - Run all tests"
+	@echo "  lint          - Run format and clippy checks"
+	@echo "  test-ci       - Run local CI script"
+	@echo "  dump_assets   - Extract assets from LOD"
+	@echo "  dump_sounds   - Extract sounds from LOD"
+	@echo "  clean         - Clean cargo target directory"

@@ -12,14 +12,21 @@ const SECS_PER_GAME_MINUTE: f64 = 1.0;
 const MINS_PER_HOUR: u64 = 60;
 const HOURS_PER_DAY: u64 = 24;
 const MINS_PER_DAY: u64 = MINS_PER_HOUR * HOURS_PER_DAY;
-const DAYS_PER_YEAR: u64 = 365; // no leap years
 
 const DAYS_IN_MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const MONTH_NAMES: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 // Jan 1, Year 1000 is defined as Monday.
-const DAY_NAMES: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAY_NAMES: [&str; 7] = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+];
 
 // ── Resource ──────────────────────────────────────────────────────────────────
 
@@ -102,19 +109,25 @@ impl GameTime {
 
         let mut year = 1000u32;
         loop {
-            if remaining < DAYS_PER_YEAR {
+            let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+            if remaining < days_in_year {
                 break;
             }
-            remaining -= DAYS_PER_YEAR;
+            remaining -= days_in_year;
             year += 1;
         }
 
         let mut month = 1u32;
-        for &days_in_month in &DAYS_IN_MONTH {
-            if remaining < days_in_month as u64 {
+        for (i, &days_in_month) in DAYS_IN_MONTH.iter().enumerate() {
+            let mut days = days_in_month as u64;
+            if i == 1 && is_leap_year(year) {
+                // February in a leap year
+                days = 29;
+            }
+            if remaining < days {
                 break;
             }
-            remaining -= days_in_month as u64;
+            remaining -= days;
             month += 1;
         }
 
@@ -134,7 +147,16 @@ impl GameTime {
         let dow = DAY_NAMES[self.day_of_week() as usize];
         let month_name = MONTH_NAMES[(month - 1) as usize];
         let (hour12, ampm) = to_12_hour(self.hour());
-        format!("{} {} {} {} {}:{:02}{}", dow, month_name, day, year, hour12, self.minute(), ampm)
+        format!(
+            "{} {} {} {} {}:{:02}{}",
+            dow,
+            month_name,
+            day,
+            year,
+            hour12,
+            self.minute(),
+            ampm
+        )
     }
 }
 
@@ -145,6 +167,10 @@ fn to_12_hour(hour: u32) -> (u32, &'static str) {
         12 => (12, "pm"),
         _ => (hour - 12, "pm"),
     }
+}
+
+fn is_leap_year(year: u32) -> bool {
+    year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400))
 }
 
 // ── Plugin ────────────────────────────────────────────────────────────────────
@@ -237,9 +263,57 @@ mod tests {
         let mut gt = GameTime::default();
         // Advance exactly 365 game days past the start of year 1000
         // From 9am Jan 1 to 9am Jan 1 next year = 365 * 24 * 60 minutes
+        // Year 1000 is not a leap year (divisible by 100 but not 400).
         gt.elapsed_secs = (365 * 24 * 60) as f64 * SECS_PER_GAME_MINUTE;
         let (year, month, day) = gt.calendar_date();
         assert_eq!(year, 1001);
         assert_eq!((month, day), (1, 1));
+    }
+
+    #[test]
+    fn leap_year_provides_feb_29() {
+        let mut gt = GameTime::default();
+        // Year 1004 is the first leap year (since 1000 is not).
+        // Advance to Jan 1, 1004
+        let days_1000 = 365;
+        let days_1001 = 365;
+        let days_1002 = 365;
+        let days_1003 = 365;
+        let days_to_1004 = days_1000 + days_1001 + days_1002 + days_1003;
+
+        gt.elapsed_secs = (days_to_1004 * 24 * 60) as f64 * SECS_PER_GAME_MINUTE;
+        let (year, month, day) = gt.calendar_date();
+        assert_eq!(year, 1004);
+        assert_eq!((month, day), (1, 1));
+
+        // Advance 31 days (Jan) + 28 days (Feb) = 59 days to get to Feb 29
+        gt.advance_hours(59.0 * 24.0);
+        let (year, month, day) = gt.calendar_date();
+        assert_eq!(year, 1004);
+        assert_eq!(month, 2);
+        assert_eq!(day, 29); // Exists!
+
+        // Advance 1 more day gets us to March 1st
+        gt.advance_hours(24.0);
+        let (year, month, day) = gt.calendar_date();
+        assert_eq!(year, 1004);
+        assert_eq!(month, 3);
+        assert_eq!(day, 1);
+    }
+
+    #[test]
+    fn cross_midnight_rollovers() {
+        let mut gt = GameTime::default();
+        // Add 14 hours to 9am -> 11pm
+        gt.advance_hours(14.0);
+        assert_eq!(gt.hour(), 23);
+
+        // Add 2 hours -> 1am next day
+        gt.advance_hours(2.0);
+        assert_eq!(gt.hour(), 1);
+        assert_eq!(gt.day_of_week(), 1); // Sub-test: day successfully advanced
+
+        // Output format confirms the natural math logic works!
+        assert_eq!(gt.format_datetime(), "Tuesday Jan 2 1000 1:00am");
     }
 }

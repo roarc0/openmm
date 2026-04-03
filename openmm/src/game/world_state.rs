@@ -11,7 +11,7 @@ use crate::save::GameSave;
 /// Save/load copies between this and GameSave.
 ///
 /// In-game time is owned by [`crate::game::game_time::GameTime`], not here.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct WorldState {
     pub player: PlayerRuntimeState,
     pub map: MapRuntimeState,
@@ -126,17 +126,6 @@ impl GameVariables {
 
     pub fn has_autonote(&self, note: i32) -> bool {
         self.autonotes.contains(&note)
-    }
-}
-
-impl Default for WorldState {
-    fn default() -> Self {
-        Self {
-            player: PlayerRuntimeState::default(),
-            map: MapRuntimeState::default(),
-            debug: DebugRuntimeState::default(),
-            game_vars: GameVariables::default(),
-        }
     }
 }
 

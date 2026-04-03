@@ -94,11 +94,12 @@ fn ambient_from_time(tod: f32) -> (Color, f32) {
     )
 }
 
-/// Tint color applied to unlit sprite materials to simulate night darkening.
+/// Tint applied to unlit billboard materials to simulate ambient light variation.
 ///
-/// Unlit materials ignore `AmbientLight` and `DirectionalLight`, so we multiply
-/// their `base_color` by this tint every frame. At noon it's pure white (no change);
-/// at midnight it's a dark blue (moonlight). The color temperature matches the ambient.
+/// Sprites stay `unlit: true` to avoid directional-light flicker (billboard normals
+/// always face the camera, so dot(normal, sun) varies wildly with camera yaw).
+/// Instead we multiply `base_color` by this tint each frame in enhanced mode.
+/// Night floor: dark blue moonlight. Noon: white (no change to texture color).
 fn sprite_tint_from_time(tod: f32) -> Color {
     let day_amount = (1.0_f32 - (tod * 2.0 - 1.0).abs()).max(0.0);
     let dawn_dusk: f32 = {
@@ -107,12 +108,10 @@ fn sprite_tint_from_time(tod: f32) -> Color {
         (1.0 - (d1.min(d2) * 10.0).min(1.0)).max(0.0)
     };
 
-    // Night floor: dark blue moonlight (0.12, 0.12, 0.20)
-    // Dawn/dusk: warm orange boost
-    // Noon: white (1.0, 1.0, 1.0)
-    let r = (0.12 + 0.83 * day_amount + 0.05 * dawn_dusk).clamp(0.0, 1.0);
-    let g = (0.12 + 0.83 * day_amount).clamp(0.0, 1.0);
-    let b = (0.20 + 0.75 * day_amount - 0.05 * dawn_dusk).clamp(0.0, 1.0);
+    // Night floor (0.05, 0.05, 0.10) → noon white (0.95, 0.95, 0.95)
+    let r = (0.05 + 0.90 * day_amount + 0.05 * dawn_dusk).clamp(0.0, 1.0);
+    let g = (0.05 + 0.90 * day_amount).clamp(0.0, 1.0);
+    let b = (0.10 + 0.85 * day_amount - 0.05 * dawn_dusk).clamp(0.0, 1.0);
 
     Color::srgb(r, g, b)
 }
@@ -125,13 +124,16 @@ fn animate_day_cycle(
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
     // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
     model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
-    // Unlit billboard sprites — tinted by sprite_tint_from_time every frame.
+    // Billboard decorations — always unlit; tinted per-frame.
     billboard_query: Query<&MeshMaterial3d<StandardMaterial>, With<Billboard>>,
+    // Actor sprites (NPCs/monsters) — SpriteSheet, no Billboard marker.
+    actor_query: Query<&MeshMaterial3d<StandardMaterial>, With<crate::game::entities::sprites::SpriteSheet>>,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight)>,
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
 ) {
     // ── Lighting mode switch ───────────────────────────────────────────────────
     // Sync lit/unlit toggle for model materials when the mode changes.
+    // Billboards are always unlit — their day/night effect comes from base_color tinting.
     if cfg.lighting != lighting_state.last_mode {
         lighting_state.last_mode = cfg.lighting.clone();
         let unlit = cfg.lighting != "enhanced";
@@ -170,7 +172,11 @@ fn animate_day_cycle(
     for (mut transform, mut light) in sun_query.iter_mut() {
         *transform = new_transform;
         light.color = color;
-        light.illuminance = if cfg.lighting == "enhanced" { illuminance * 1.06 } else { 0.0 };
+        light.illuminance = if cfg.lighting == "enhanced" {
+            illuminance * 1.06
+        } else {
+            0.0
+        };
     }
 
     if cfg.lighting == "enhanced" {
@@ -186,50 +192,22 @@ fn animate_day_cycle(
         }
     }
 
-    // ── Sprite tint ────────────────────────────────────────────────────────────
-    // Unlit sprite materials ignore the scene lights above. Apply a base_color tint
-    // so decorations, NPCs, and monsters also darken at night and warm at dawn/dusk.
-    // Only in enhanced mode — classic mode keeps sprites at their original brightness.
-    if cfg.lighting == "enhanced" {
-        let tint = sprite_tint_from_time(tod);
-        let mut tinted = std::collections::HashSet::new();
-        for mat_handle in billboard_query.iter() {
-            if tinted.insert(mat_handle.id()) {
-                if let Some(mat) = std_materials.get_mut(mat_handle.id()) {
-                    mat.base_color = tint;
-                }
-            }
-        }
-    } else {
-        // Restore to white when switching back to classic mode.
-        if lighting_state.last_tint != Color::WHITE {
-            lighting_state.last_tint = Color::WHITE;
-            let mut restored = std::collections::HashSet::new();
-            for mat_handle in billboard_query.iter() {
-                if restored.insert(mat_handle.id()) {
-                    if let Some(mat) = std_materials.get_mut(mat_handle.id()) {
-                        mat.base_color = Color::WHITE;
-                    }
-                }
-            }
+    // ── Sprite tint ───────────────────────────────────────────────────────────
+    // Sprites are always unlit to avoid directional-light flicker. Apply a
+    // base_color tint derived from time of day so they darken at night.
+    let tint = sprite_tint_from_time(tod);
+    let mut tinted = std::collections::HashSet::new();
+    for mat_handle in billboard_query.iter().chain(actor_query.iter()) {
+        if tinted.insert(mat_handle.id())
+            && let Some(mat) = std_materials.get_mut(mat_handle.id())
+        {
+            mat.base_color = tint;
         }
     }
-    lighting_state.last_tint = sprite_tint_from_time(tod);
 }
 
 /// Tracks applied lighting state to detect changes.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 struct LightingState {
     last_mode: String,
-    /// Last tint applied to billboard materials — used to skip writes when unchanged.
-    last_tint: Color,
-}
-
-impl Default for LightingState {
-    fn default() -> Self {
-        Self {
-            last_mode: String::new(),
-            last_tint: Color::WHITE,
-        }
-    }
 }

@@ -691,7 +691,7 @@ pub fn load_decoration_directions(
             let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
             let tex = images.add(bevy_img);
             dirs[dir] = materials.add(StandardMaterial {
-                unlit: true,
+                unlit: false,
                 base_color_texture: Some(tex),
                 alpha_mode: AlphaMode::Mask(0.5),
                 double_sided: true,

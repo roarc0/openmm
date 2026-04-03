@@ -48,62 +48,30 @@ fn main() {
     }
 
     // Dump readable versions
-    println!("\nDumping readable text text files (*.txt) ...");
+    println!("\nDumping readable text files (*.txt) ...");
     dump_readable_files(&lod_manager, out_dir);
 }
 
 fn dump_readable_files(lod_manager: &LodManager, out_dir: &Path) {
     let archives = lod_manager.archives();
     for archive in archives {
-        if let Some(files) = lod_manager.files_in(&archive) {
+        if let Some(files) = lod_manager.files_in(archive) {
             for file in files {
                 let lower = file.to_lowercase();
                 let mut out_content = None;
 
                 if lower.ends_with(".odm") {
-                    if let Ok(data) = lod::odm::Odm::new(lod_manager, &file) {
+                    if let Ok(data) = lod::odm::Odm::new(lod_manager, file) {
                         out_content = Some(format!("{:#?}", data));
                     }
                 } else if lower.ends_with(".ddm") {
-                    if let Ok(data) = lod::ddm::Ddm::new(lod_manager, &file) {
+                    if let Ok(data) = lod::ddm::Ddm::new(lod_manager, file) {
                         out_content = Some(format!("{:#?}", data));
                     }
-                } else if lower.ends_with(".blv") {
-                    if let Ok(data) = lod::blv::Blv::new(lod_manager, &file) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
-                } else if lower.ends_with(".dlv") {
-                    if let Ok(data) = lod::dlv::Dlv::new(lod_manager, &file) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
-                } else if lower == "dsft.bin" {
-                    if let Ok(data) = lod::dsft::DSFT::new(lod_manager) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
-                } else if lower == "ddeclist.bin" {
-                    if let Ok(data) = lod::ddeclist::DDecList::new(lod_manager) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
-                } else if lower == "dsounds.bin" {
-                    if let Ok(data) = lod::dsounds::DSounds::new(lod_manager) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
-                } else if lower == "dchest.bin" {
-                    if let Ok(data) = lod::dchest::DChest::new(lod_manager) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
-                } else if lower == "dmonlist.bin" {
-                    if let Ok(data) = lod::monlist::MonList::new(lod_manager) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
-                } else if lower == "dobjlist.bin" {
-                    if let Ok(data) = lod::dobjlist::DObjList::new(lod_manager) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
-                } else if lower == "mapstats.txt" {
-                    if let Ok(data) = lod::mapstats::MapStats::new(lod_manager) {
-                        out_content = Some(format!("{:#?}", data));
-                    }
+                } else if lower.ends_with(".blv")
+                    && let Ok(data) = lod::blv::Blv::new(lod_manager, file)
+                {
+                    out_content = Some(format!("{:#?}", data));
                 }
 
                 if let Some(content) = out_content {
