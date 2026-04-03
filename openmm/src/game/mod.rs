@@ -16,6 +16,7 @@ pub(crate) mod odm;
 pub(crate) mod party;
 pub(crate) mod physics;
 pub(crate) mod player;
+pub(crate) mod raycast;
 pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod terrain_material;

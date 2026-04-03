@@ -18,6 +18,7 @@ use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::HudView;
 use crate::game::player::PlayerCamera;
+use crate::game::raycast::{point_in_polygon, ray_plane_intersect};
 use crate::states::loading::PreparedIndoorWorld;
 
 // --- Components ---
@@ -405,79 +406,6 @@ fn spawn_indoor_world(
 }
 
 // --- Indoor face interaction ---
-
-/// Ray-plane intersection. Returns distance along ray if hit (positive = in front).
-fn ray_plane_intersect(origin: Vec3, dir: Vec3, normal: Vec3, plane_dist: f32) -> Option<f32> {
-    let denom = normal.dot(dir);
-    if denom.abs() < 1e-6 {
-        return None; // Ray parallel to plane
-    }
-    let t = (plane_dist - normal.dot(origin)) / denom;
-    if t > 0.0 { Some(t) } else { None }
-}
-
-/// Test if a point lies inside a convex/concave polygon using winding number.
-/// All points are assumed coplanar. Projects to the best 2D plane based on normal.
-fn point_in_polygon(point: Vec3, vertices: &[Vec3], normal: Vec3) -> bool {
-    if vertices.len() < 3 {
-        return false;
-    }
-    // Choose projection axes: drop the axis with the largest normal component
-    let abs_n = normal.abs();
-    let (ax1, ax2) = if abs_n.x >= abs_n.y && abs_n.x >= abs_n.z {
-        // Drop X, project to YZ
-        (1usize, 2usize)
-    } else if abs_n.y >= abs_n.z {
-        // Drop Y, project to XZ
-        (0, 2)
-    } else {
-        // Drop Z, project to XY
-        (0, 1)
-    };
-
-    let get = |v: Vec3, axis: usize| -> f32 {
-        match axis {
-            0 => v.x,
-            1 => v.y,
-            _ => v.z,
-        }
-    };
-
-    let px = get(point, ax1);
-    let py = get(point, ax2);
-
-    // Winding number test
-    let mut winding = 0i32;
-    let n = vertices.len();
-    for i in 0..n {
-        let v1 = vertices[i];
-        let v2 = vertices[(i + 1) % n];
-        let y1 = get(v1, ax2);
-        let y2 = get(v2, ax2);
-
-        if y1 <= py {
-            if y2 > py {
-                // Upward crossing
-                let x1 = get(v1, ax1);
-                let x2 = get(v2, ax1);
-                let cross = (x2 - x1) * (py - y1) - (px - x1) * (y2 - y1);
-                if cross > 0.0 {
-                    winding += 1;
-                }
-            }
-        } else if y2 <= py {
-            // Downward crossing
-            let x1 = get(v1, ax1);
-            let x2 = get(v2, ax1);
-            let cross = (x2 - x1) * (py - y1) - (px - x1) * (y2 - y1);
-            if cross < 0.0 {
-                winding -= 1;
-            }
-        }
-    }
-
-    winding != 0
-}
 
 const INDOOR_INTERACT_RANGE: f32 = 5120.0;
 
