@@ -1,5 +1,51 @@
 use bevy::prelude::*;
 
+use crate::game::events::MapEvents;
+
+/// Resolve a human-readable label for an event ID from its EVT steps.
+/// Returns the first non-empty text found, scanning steps in order.
+/// Recognised events: Hint, StatusText, LocationName, SpeakInHouse, OpenChest, MoveToMap.
+pub fn resolve_event_name_from_evt(event_id: u16, evt: &lod::evt::EvtFile) -> Option<String> {
+    let steps = evt.events.get(&event_id)?;
+    for s in steps {
+        let text = match &s.event {
+            lod::evt::GameEvent::Hint { text, .. } if !text.is_empty() => text.clone(),
+            lod::evt::GameEvent::StatusText { text, .. } if !text.is_empty() => text.clone(),
+            lod::evt::GameEvent::LocationName { text, .. } if !text.is_empty() => text.clone(),
+            lod::evt::GameEvent::SpeakInHouse { house_id } => format!("Building #{}", house_id),
+            lod::evt::GameEvent::OpenChest { id } => format!("Chest #{}", id),
+            lod::evt::GameEvent::MoveToMap { map_name, .. } => format!("Enter {}", map_name),
+            _ => continue,
+        };
+        return Some(text);
+    }
+    None
+}
+
+/// Resolve a label for an event from the map's loaded event table.
+/// For SpeakInHouse, looks up the house name from the loaded house table first.
+/// Returns `None` when no map events are loaded or no matching event exists.
+pub fn resolve_event_name(event_id: u16, map_events: &Option<Res<MapEvents>>) -> Option<String> {
+    let me = map_events.as_ref()?;
+    let evt = me.evt.as_ref()?;
+
+    // For SpeakInHouse, prefer the loaded house name over the generic "Building #N"
+    if let Some(steps) = evt.events.get(&event_id) {
+        for s in steps {
+            if let lod::evt::GameEvent::SpeakInHouse { house_id } = &s.event {
+                if let Some(houses) = me.houses.as_ref()
+                    && let Some(entry) = houses.houses.get(house_id)
+                {
+                    return Some(entry.name.clone());
+                }
+                return Some(format!("Building #{}", house_id));
+            }
+        }
+    }
+
+    resolve_event_name_from_evt(event_id, evt)
+}
+
 /// Ray-plane intersection. Returns distance `t` along ray if hit (positive = in front).
 pub fn ray_plane_intersect(origin: Vec3, dir: Vec3, normal: Vec3, plane_dist: f32) -> Option<f32> {
     let denom = normal.dot(dir);
@@ -75,6 +121,45 @@ mod tests {
     fn ray_plane_behind_miss() {
         let t = ray_plane_intersect(Vec3::new(0.0, -1.0, 0.0), Vec3::NEG_Y, Vec3::Y, 0.0);
         assert!(t.is_none());
+    }
+
+    #[test]
+    fn resolve_event_name_first_match_wins() {
+        use std::collections::HashMap;
+        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
+        events.insert(1, vec![
+            EvtStep { step: 0, event: GameEvent::StatusText { str_id: 0, text: "status".into() } },
+            EvtStep { step: 1, event: GameEvent::Hint { str_id: 0, text: "hint".into() } },
+        ]);
+        let evt = EvtFile { events };
+        // First non-empty match wins in step order
+        assert_eq!(resolve_event_name_from_evt(1, &evt), Some("status".to_string()));
+    }
+
+    #[test]
+    fn resolve_event_name_hint_only() {
+        use std::collections::HashMap;
+        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
+        events.insert(2, vec![
+            EvtStep { step: 0, event: GameEvent::Hint { str_id: 0, text: "hint".into() } },
+        ]);
+        let evt = EvtFile { events };
+        assert_eq!(resolve_event_name_from_evt(2, &evt), Some("hint".to_string()));
+    }
+
+    #[test]
+    fn resolve_event_name_empty_text_skipped() {
+        use std::collections::HashMap;
+        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
+        events.insert(3, vec![
+            EvtStep { step: 0, event: GameEvent::Hint { str_id: 0, text: "".into() } },
+            EvtStep { step: 1, event: GameEvent::StatusText { str_id: 0, text: "real".into() } },
+        ]);
+        let evt = EvtFile { events };
+        assert_eq!(resolve_event_name_from_evt(3, &evt), Some("real".to_string()));
     }
 
     #[test]
