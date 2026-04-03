@@ -87,6 +87,7 @@ fn spawn_hud(
     mut footer_text: ResMut<FooterText>,
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
+    world_state: Res<crate::game::world_state::WorldState>,
 ) {
     // HUD camera -- covers the full window, clears to black (letterbox bar color).
     // Order 1 ensures it renders after the 3D camera (order 0), which overwrites
@@ -138,9 +139,14 @@ fn spawn_hud(
         .collect();
     let tap_frame = tap_handles.first().cloned();
 
-    // Load current map overview image for minimap
-    // Map overview images are stored as icons (e.g., "oute3" -> 512x512)
-    let map_overview = load_map_overview(&game_assets, &mut images, &cfg);
+    // Load current map overview image for minimap.
+    // Outdoor maps have an icon matching their name (e.g. "oute3").
+    // Indoor maps don't have overview icons, so this returns None.
+    let map_overview_name = match &world_state.map.name {
+        crate::game::map_name::MapName::Outdoor(odm) => odm.to_string(),
+        crate::game::map_name::MapName::Indoor(_) => String::new(),
+    };
+    let map_overview = load_map_overview(&map_overview_name, &game_assets, &mut images, &cfg);
 
     // Load compass strip
     let compass = ui_assets.get_or_load("compass", &game_assets, &mut images, &cfg);

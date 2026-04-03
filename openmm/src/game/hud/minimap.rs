@@ -27,23 +27,18 @@ pub(super) struct MinimapArrows(pub Vec<Handle<Image>>);
 #[derive(Resource)]
 pub(super) struct TapFrames(pub Vec<Handle<Image>>);
 
-/// Load the map overview image for the minimap.
+/// Load the overview image for `map_name` (e.g. `"oute3"`).
+/// Returns `None` for indoor maps or if no icon is found in the LOD.
 pub(super) fn load_map_overview(
+    map_name: &str,
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
     cfg: &GameConfig,
 ) -> Option<Handle<Image>> {
-    // Try loading the current map's overview (e.g., "oute3")
-    // For now, try common map names
-    let map_names = ["oute3", "oute2", "oute1", "outa1"];
-    for name in map_names {
-        if let Some(img) = game_assets.game_lod().icon(name) {
-            let mut bevy_img = assets::dynamic_to_bevy_image(img);
-            bevy_img.sampler = crate::ui_assets::hud_sampler(cfg);
-            return Some(images.add(bevy_img));
-        }
-    }
-    None
+    let img = game_assets.game_lod().icon(map_name)?;
+    let mut bevy_img = assets::dynamic_to_bevy_image(img);
+    bevy_img.sampler = crate::ui_assets::hud_sampler(cfg);
+    Some(images.add(bevy_img))
 }
 
 /// Make green or red color-keyed pixels transparent for tap frame overlays.
