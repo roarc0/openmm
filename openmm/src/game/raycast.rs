@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::game::entities::sprites::AlphaMask;
 use crate::game::events::MapEvents;
 
 /// Resolve a human-readable label for an event ID from its EVT steps.
@@ -107,6 +108,54 @@ pub fn point_in_polygon(point: Vec3, vertices: &[Vec3], normal: Vec3) -> bool {
     winding != 0
 }
 
+/// Test whether the camera forward ray hits a billboard sprite at pixel level.
+///
+/// - `center`: world-space center of the billboard (from `GlobalTransform::translation`)
+/// - `rotation`: the billboard's current Y-axis rotation (from `Transform::rotation`)
+/// - `half_w`, `half_h`: half the sprite's world-space width and height
+/// - `mask`: optional alpha mask; if `None`, the full quad counts as opaque
+///
+/// Returns the ray distance `t` if the ray hits an opaque pixel, or `None` on miss.
+pub fn billboard_hit_test(
+    ray_origin: Vec3,
+    ray_dir: Vec3,
+    center: Vec3,
+    rotation: bevy::math::Quat,
+    half_w: f32,
+    half_h: f32,
+    mask: Option<&AlphaMask>,
+) -> Option<f32> {
+    // Billboard plane normal = direction the sprite faces (rotation * +Z)
+    let normal = rotation * Vec3::Z;
+    let plane_dist = normal.dot(center);
+
+    let t = ray_plane_intersect(ray_origin, ray_dir, normal, plane_dist)?;
+
+    let hit = ray_origin + ray_dir * t;
+    let delta = hit - center;
+
+    // Project onto billboard local axes
+    let right = rotation * Vec3::X;
+    let local_x = delta.dot(right); // horizontal, ±half_w
+    let local_y = delta.y; // vertical, ±half_h (billboards stay upright)
+
+    if local_x.abs() > half_w || local_y.abs() > half_h {
+        return None; // Outside quad bounds
+    }
+
+    // UV: u in [0,1] left-to-right, v in [0,1] top-to-bottom
+    let u = local_x / (half_w * 2.0) + 0.5;
+    let v = 0.5 - local_y / (half_h * 2.0);
+
+    if let Some(mask) = mask {
+        if !mask.test(u, v) {
+            return None; // Transparent pixel
+        }
+    }
+
+    Some(t)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,6 +252,54 @@ mod tests {
         );
         let evt = EvtFile { events };
         assert_eq!(resolve_event_name_from_evt(3, &evt), Some("real".to_string()));
+    }
+
+    #[test]
+    fn billboard_hit_center() {
+        // Billboard at origin, facing -Z (towards camera at +Z)
+        // Camera ray from (0,0,10) going -Z
+        let origin = Vec3::new(0.0, 0.0, 10.0);
+        let dir = Vec3::NEG_Z;
+        let center = Vec3::ZERO;
+        let rotation = bevy::math::Quat::IDENTITY; // faces -Z
+        let t = billboard_hit_test(origin, dir, center, rotation, 50.0, 50.0, None);
+        assert!(t.is_some());
+        assert!((t.unwrap() - 10.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn billboard_hit_miss_too_far_right() {
+        let origin = Vec3::new(0.0, 0.0, 10.0);
+        let dir = Vec3::NEG_Z;
+        let center = Vec3::new(200.0, 0.0, 0.0); // billboard 200 units to the right
+        let t = billboard_hit_test(origin, dir, center, bevy::math::Quat::IDENTITY, 50.0, 50.0, None);
+        assert!(t.is_none());
+    }
+
+    #[test]
+    fn billboard_hit_transparent_pixel_misses() {
+        use crate::game::entities::sprites::AlphaMask;
+        // 2x2 mask — only bottom-left pixel is opaque
+        let mask = AlphaMask::new(2, 2, vec![true, false, false, false]);
+        // Ray hits top-right corner: u~0.75, v~0.25 → transparent
+        let origin = Vec3::new(25.0, 25.0, 10.0); // offset right and up from center
+        let dir = Vec3::NEG_Z;
+        let center = Vec3::ZERO;
+        let t = billboard_hit_test(origin, dir, center, bevy::math::Quat::IDENTITY, 50.0, 50.0, Some(&mask));
+        assert!(t.is_none());
+    }
+
+    #[test]
+    fn billboard_hit_opaque_pixel_hits() {
+        use crate::game::entities::sprites::AlphaMask;
+        // 2x2 mask — only top-left pixel is opaque (index 0: u<0.5, v<0.5)
+        let mask = AlphaMask::new(2, 2, vec![true, false, false, false]);
+        // Ray hits top-left: local_x = -25, local_y = 25 → u=0.25, v=0.25
+        let origin = Vec3::new(-25.0, 25.0, 10.0);
+        let dir = Vec3::NEG_Z;
+        let center = Vec3::ZERO;
+        let t = billboard_hit_test(origin, dir, center, bevy::math::Quat::IDENTITY, 50.0, 50.0, Some(&mask));
+        assert!(t.is_some());
     }
 
     #[test]

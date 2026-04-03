@@ -36,6 +36,11 @@ impl AlphaMask {
         }
     }
 
+    /// Construct an `AlphaMask` directly from raw boolean data (used in tests).
+    pub fn new(width: u32, height: u32, data: Vec<bool>) -> Self {
+        Self { width, height, data }
+    }
+
     /// Test whether a UV coordinate hits an opaque pixel. Both u and v in [0,1].
     /// UV is clamped to image bounds — never panics on out-of-range input.
     pub fn test(&self, u: f32, v: f32) -> bool {
