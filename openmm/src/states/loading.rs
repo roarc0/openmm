@@ -375,6 +375,8 @@ fn loading_step(
                     }
                     Err(e) => {
                         error!("Failed to parse indoor map {}: {}", map_name, e);
+                        commands.remove_resource::<LoadRequest>();
+                        game_state.set(GameState::Menu);
                         return;
                     }
                 }
@@ -403,11 +405,15 @@ fn loading_step(
                         }
                         Err(e) => {
                             error!("Failed to load tile table: {}", e);
+                            commands.remove_resource::<LoadRequest>();
+                            game_state.set(GameState::Menu);
                         }
                     }
                 }
                 Err(e) => {
                     error!("Failed to parse map {}: {}", map_name, e);
+                    commands.remove_resource::<LoadRequest>();
+                    game_state.set(GameState::Menu);
                 }
             }
         }

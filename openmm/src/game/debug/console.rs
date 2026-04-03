@@ -166,6 +166,7 @@ fn console_input(
     mut game_state: ResMut<NextState<GameState>>,
     mut cfg: ResMut<GameConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
+    game_assets: Res<crate::GameAssets>,
 ) {
     if !state.open {
         return;
@@ -196,6 +197,7 @@ fn console_input(
                         &mut game_state,
                         &mut cfg,
                         &mut wireframe_config,
+                        &game_assets,
                     );
                     state.input.clear();
                 }
@@ -291,6 +293,7 @@ fn execute_command(
     ctx_game_state: &mut NextState<GameState>,
     ctx_cfg: &mut GameConfig,
     ctx_wireframe_config: &mut WireframeConfig,
+    ctx_game_assets: &crate::GameAssets,
 ) {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some(&command) = parts.first() else { return };
@@ -348,9 +351,14 @@ fn execute_command(
                 ),
                 name => match MapName::try_from(name) {
                     Ok(target) => {
-                        let pos = parts.get(2).and_then(|c| parse_coords(c));
-                        // Default to [0,0,0] so spawn_player uses the map's start point
-                        Ok((target, pos.unwrap_or([0.0, 0.0, 0.0])))
+                        let filename = target.filename();
+                        if ctx_game_assets.lod_manager().try_get_bytes(&filename).is_err() {
+                            Err(format!("Map not found: {}", filename))
+                        } else {
+                            let pos = parts.get(2).and_then(|c| parse_coords(c));
+                            // Default to [0,0,0] so spawn_player uses the map's start point
+                            Ok((target, pos.unwrap_or([0.0, 0.0, 0.0])))
+                        }
                     }
                     Err(e) => Err(format!("Invalid map name '{}': {}", name, e)),
                 },
