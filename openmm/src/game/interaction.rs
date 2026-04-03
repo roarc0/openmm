@@ -19,6 +19,9 @@ pub struct DecorationInfo {
     pub position: Vec3,
     /// Index into the map's billboard array (for SetSprite targeting).
     pub billboard_index: usize,
+    /// World-space half-extents for static (non-SpriteSheet) decorations. Zero for directional.
+    pub half_w: f32,
+    pub half_h: f32,
 }
 
 /// Component on NPC actor entities for hover/click interaction.
@@ -124,7 +127,7 @@ fn decoration_interact_system(
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    decorations: Query<(&DecorationInfo, &GlobalTransform, &SpriteSheet)>,
+    decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
@@ -148,18 +151,26 @@ fn decoration_interact_system(
     let dir = cam_global.forward().as_vec3();
 
     let mut nearest: Option<(f32, u16)> = None;
-    for (info, g_tf, sheet) in decorations.iter() {
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
-            continue;
+    for (info, g_tf, sheet_opt) in decorations.iter() {
+        let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
+            let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+                continue;
+            };
+            (sw / 2.0, sh / 2.0, sheet.current_mask.as_deref())
+        } else {
+            if info.half_w == 0.0 && info.half_h == 0.0 {
+                continue;
+            }
+            (info.half_w, info.half_h, None)
         };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
             g_tf.translation(),
             facing_rotation(origin, g_tf.translation()),
-            sw / 2.0,
-            sh / 2.0,
-            sheet.current_mask.as_deref(),
+            half_w,
+            half_h,
+            mask,
         ) && (nearest.is_none() || t < nearest.unwrap().0)
         {
             nearest = Some((t, info.event_id));
@@ -227,7 +238,7 @@ fn npc_interact_system(
 fn hover_hint_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     clickable_faces: Option<Res<ClickableFaces>>,
-    decorations: Query<(&DecorationInfo, &GlobalTransform, &SpriteSheet)>,
+    decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
     monsters: Query<(&MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
     map_events: Option<Res<MapEvents>>,
@@ -260,24 +271,30 @@ fn hover_hint_system(
     }
 
     // Decorations
-    for (info, g_tf, sheet) in decorations.iter() {
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
-            continue;
+    for (info, g_tf, sheet_opt) in decorations.iter() {
+        let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
+            let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+                continue;
+            };
+            (sw / 2.0, sh / 2.0, sheet.current_mask.as_deref())
+        } else {
+            if info.half_w == 0.0 && info.half_h == 0.0 {
+                continue;
+            }
+            (info.half_w, info.half_h, None)
         };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
             g_tf.translation(),
             facing_rotation(origin, g_tf.translation()),
-            sw / 2.0,
-            sh / 2.0,
-            sheet.current_mask.as_deref(),
-        ) {
-            if (nearest.is_none() || t < nearest.as_ref().unwrap().0)
-                && let Some(name) = resolve_event_name(info.event_id, &map_events)
-            {
-                nearest = Some((t, name));
-            }
+            half_w,
+            half_h,
+            mask,
+        ) && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+            && let Some(name) = resolve_event_name(info.event_id, &map_events)
+        {
+            nearest = Some((t, name));
         }
     }
 
