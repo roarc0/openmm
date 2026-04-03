@@ -136,7 +136,7 @@ fn decoration_interact_system(
 
     let mut nearest: Option<(f32, u16)> = None;
     for (info, g_tf, tf, sheet) in decorations.iter() {
-        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
@@ -187,7 +187,7 @@ fn npc_interact_system(
 
     let mut nearest: Option<(f32, i16)> = None;
     for (info, g_tf, tf, sheet) in npcs.iter() {
-        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
@@ -244,7 +244,7 @@ fn hover_hint_system(
 
     // Decorations
     for (info, g_tf, tf, sheet) in decorations.iter() {
-        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
@@ -264,7 +264,7 @@ fn hover_hint_system(
 
     // NPCs
     for (info, g_tf, tf, sheet) in npcs.iter() {
-        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
@@ -281,7 +281,7 @@ fn hover_hint_system(
 
     // Monsters
     for (info, g_tf, tf, sheet) in monsters.iter() {
-        let (sw, sh) = sheet.state_dimensions[sheet.current_state];
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
