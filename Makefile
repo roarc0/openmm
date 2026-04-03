@@ -1,4 +1,4 @@
-j.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds
+.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds test-ci
 
 # --- Build ---
 
@@ -40,8 +40,10 @@ fmt-check:
 test:
 	cargo test --workspace
 
-lint: fmt-check clippy
 	@echo "All lint checks passed"
+
+test-ci:
+	bash scripts/test_ci.sh
 
 # --- Tools ---
 

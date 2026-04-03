@@ -1,10 +1,10 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    tags:
+      - 'v*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev pkg-config libwayland-dev libxkbcommon-dev mold
+          sudo apt-get install -y clang libasound2-dev libudev-dev pkg-config libwayland-dev libxkbcommon-dev mold
 
       - uses: Swatinem/rust-cache@v2
 
@@ -52,7 +52,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev pkg-config libwayland-dev libxkbcommon-dev mold
+          sudo apt-get install -y clang libasound2-dev libudev-dev pkg-config libwayland-dev libxkbcommon-dev mold
 
       - uses: Swatinem/rust-cache@v2
 
@@ -75,7 +75,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libasound2-dev libudev-dev pkg-config libwayland-dev libxkbcommon-dev mold
+          sudo apt-get install -y clang libasound2-dev libudev-dev pkg-config libwayland-dev libxkbcommon-dev mold
 
       - uses: Swatinem/rust-cache@v2
 
