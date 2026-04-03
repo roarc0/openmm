@@ -146,6 +146,87 @@ impl BillboardManager {
         self.d_sft.scale_for_group(group)
     }
 
+    /// Count the animation frames in a decoration's DSFT group.
+    /// Returns 1 for single-frame (static) decorations.
+    pub fn animation_frame_count(&self, declist_id: u16) -> usize {
+        let Some(declist_item) = self.d_declist.items.get(declist_id as usize) else {
+            return 1;
+        };
+        let sft_index = declist_item.sft_index();
+        if sft_index < 0 {
+            return 1;
+        }
+        let mut count = 0;
+        let mut idx = sft_index as usize;
+        loop {
+            let Some(frame) = self.d_sft.frames.get(idx) else {
+                break;
+            };
+            count += 1;
+            if !frame.is_not_group_end() {
+                break;
+            }
+            idx += 1;
+        }
+        count.max(1)
+    }
+
+    /// Load all animation frames for a decoration by walking the DSFT group chain.
+    /// Returns a `Vec` with one entry per frame; single-frame decorations return `vec![...]` of length 1.
+    pub fn get_animation_frames(&self, lod_manager: &LodManager, name: &str, declist_id: u16) -> Vec<BillboardSprite> {
+        let Some(declist_item) = self.d_declist.items.get(declist_id as usize) else {
+            return vec![];
+        };
+        let sft_index = declist_item.sft_index();
+        if sft_index < 0 {
+            return vec![];
+        }
+        let dec_name = declist_item.name().unwrap_or_default();
+        let mut results = vec![];
+        let mut idx = sft_index as usize;
+        loop {
+            let Some(sft_frame) = self.d_sft.frames.get(idx) else {
+                break;
+            };
+            let sft_name = sft_frame.sprite_name().unwrap_or_default();
+            let is_first = idx == sft_index as usize;
+            let image = if is_first {
+                lod_manager
+                    .game()
+                    .sprite(&dec_name)
+                    .or_else(|| lod_manager.game().sprite(&sft_name))
+                    .or_else(|| lod_manager.game().sprite(name))
+                    .or_else(|| lod_manager.game().sprite(&format!("{}0", dec_name)))
+                    .or_else(|| lod_manager.game().sprite(&format!("{}0", sft_name)))
+                    .or_else(|| lod_manager.game().sprite(&format!("{}0", name)))
+            } else {
+                lod_manager
+                    .game()
+                    .sprite(&sft_name)
+                    .or_else(|| lod_manager.game().sprite(name))
+            };
+            match image {
+                Some(img) => results.push(BillboardSprite {
+                    image: img,
+                    d_declist_item: declist_item.clone(),
+                    d_sft_frame: sft_frame.clone(),
+                }),
+                None => {
+                    log::warn!(
+                        "billboard: animation frame {} for '{}' not found in LOD",
+                        idx - sft_index as usize,
+                        name
+                    );
+                }
+            }
+            if !sft_frame.is_not_group_end() {
+                break;
+            }
+            idx += 1;
+        }
+        results
+    }
+
     pub fn get(&self, lod_manager: &LodManager, name: &str, declist_id: u16) -> Option<BillboardSprite> {
         let declist_item = self.d_declist.items.get(declist_id as usize)?;
         let sft_frame = self.d_sft.frames.get(declist_item.sft_index() as usize)?;

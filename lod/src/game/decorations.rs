@@ -28,6 +28,12 @@ pub struct DecorationEntry {
     pub facing_yaw: f32,
     /// Declist ID used to resolve sprite name, SFT frame, and scale via BillboardManager::get().
     pub declist_id: u16,
+    /// Number of animation frames in the DSFT group (1 = static, >1 = animated loop).
+    pub num_frames: usize,
+    /// Seconds per animation frame (0.15 normal, 0.30 for is_slow_loop decorations).
+    pub frame_duration: f32,
+    /// Flicker rate in Hz (0.0 = no flicker). Driven by is_flicker_{slow,medium,fast} flags.
+    pub flicker_rate: f32,
 }
 
 /// Per-map decoration roster built from ODM billboard data.
@@ -78,6 +84,22 @@ impl Decorations {
             // direction_degrees is in a 2048-unit full-circle (1 unit = PI/1024 radians)
             let facing_yaw = bb.data.direction_degrees as f32 * std::f32::consts::PI / 1024.0;
 
+            // Animation and flicker attributes from the declist item
+            let flicker_rate = if declist_item.is_flicker_fast() {
+                4.0_f32
+            } else if declist_item.is_flicker_medium() {
+                2.0_f32
+            } else if declist_item.is_flicker_slow() {
+                1.0_f32
+            } else {
+                0.0_f32
+            };
+            let frame_duration = if declist_item.is_slow_loop() {
+                0.30_f32
+            } else {
+                0.15_f32
+            };
+
             // Check for directional sprites
             let name = &bb.declist_name;
             let (sprite_name, is_directional, width, height) = if let Some(root) = find_directional_root(name, lod) {
@@ -91,6 +113,12 @@ impl Decorations {
                 (name.clone(), false, w, h)
             };
 
+            let num_frames = if is_directional {
+                1 // Directional animation handled separately
+            } else {
+                mgr.animation_frame_count(bb.data.declist_id)
+            };
+
             entries.push(DecorationEntry {
                 position,
                 sprite_name,
@@ -102,6 +130,9 @@ impl Decorations {
                 billboard_index,
                 facing_yaw,
                 declist_id: bb.data.declist_id,
+                num_frames,
+                frame_duration,
+                flicker_rate,
             });
         }
 

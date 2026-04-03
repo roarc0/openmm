@@ -56,6 +56,29 @@ pub enum AnimationState {
 #[derive(Component)]
 pub struct Lootable;
 
+/// Visibility flicker for torches, candles, and similar decorations.
+/// Toggles Visibility at a fixed rate; runs after distance_culling so out-of-range
+/// entities stay hidden even when "lit".
+#[derive(Component)]
+pub struct DecorFlicker {
+    /// Toggles per second.
+    pub rate: f32,
+    timer: f32,
+    lit: bool,
+}
+
+impl DecorFlicker {
+    pub fn new(rate: f32, phase_offset: f32) -> Self {
+        // Start with a random phase so nearby torches don't flicker in sync.
+        let period = if rate > 0.0 { 1.0 / rate } else { 1.0 };
+        Self {
+            rate,
+            timer: phase_offset * period,
+            lit: true,
+        }
+    }
+}
+
 // --- Plugin ---
 
 pub struct EntitiesPlugin;
@@ -66,6 +89,7 @@ impl Plugin for EntitiesPlugin {
             Update,
             (
                 distance_culling,
+                flicker_system,
                 wander_system,
                 sprites::update_sprite_sheets,
                 billboard_face_camera,
@@ -167,6 +191,25 @@ fn wander_system(
                 actor.wander_timer = 2.0;
             }
         }
+    }
+}
+
+/// Toggle visibility for flickering decorations (torches, candles, etc.).
+/// Runs after distance_culling: when unlit it forces Hidden; when lit it leaves
+/// whatever distance_culling set, so out-of-range entities stay hidden.
+fn flicker_system(time: Res<Time>, mut query: Query<(&mut DecorFlicker, &mut Visibility)>) {
+    let dt = time.delta_secs();
+    for (mut flicker, mut vis) in query.iter_mut() {
+        flicker.timer += dt;
+        let period = 1.0 / flicker.rate;
+        while flicker.timer >= period {
+            flicker.timer -= period;
+            flicker.lit = !flicker.lit;
+        }
+        if !flicker.lit {
+            *vis = Visibility::Hidden;
+        }
+        // When lit, distance_culling result stands — no change needed.
     }
 }
 

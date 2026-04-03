@@ -972,9 +972,9 @@ fn loading_step(
                                 }
                                 let dec = &decs.entries()[queue.billboard_idx];
                                 queue.billboard_idx += 1;
-                                if dec.is_directional {
+                                if dec.is_directional || dec.num_frames > 1 {
                                     continue;
-                                } // directional sprites loaded at spawn time
+                                } // directional and animated sprites loaded at spawn time
                                 if bb_cache.contains_key(&dec.sprite_name) {
                                     continue;
                                 }

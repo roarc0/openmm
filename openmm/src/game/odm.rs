@@ -528,7 +528,83 @@ fn lazy_spawn(
             } else {
                 continue;
             }
+        } else if dec.num_frames > 1 {
+            // Animated non-directional decoration: build a SpriteSheet so update_sprite_sheets
+            // handles frame cycling and camera-facing rotation.
+            let frame_sprites = bb_mgr.get_animation_frames(game_assets.lod_manager(), key, dec.declist_id);
+            if frame_sprites.is_empty() {
+                warn!("Animated decoration '{}' has no loadable frames, skipping", key);
+                continue;
+            }
+            let (w, h) = frame_sprites[0].dimensions();
+            if w == 0.0 || h == 0.0 {
+                continue;
+            }
+            let quad = meshes.add(Rectangle::new(w, h));
+            let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
+
+            // Build per-frame materials and masks; replicate across 5 directions (non-directional).
+            let mut frame_mats: Vec<[Handle<StandardMaterial>; 5]> = vec![];
+            let mut frame_masks: Vec<[std::sync::Arc<crate::game::entities::sprites::AlphaMask>; 5]> = vec![];
+            for sprite in &frame_sprites {
+                let rgba = sprite.image.to_rgba8();
+                let msk = std::sync::Arc::new(crate::game::entities::sprites::AlphaMask::from_image(&rgba));
+                let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
+                    rgba,
+                )));
+                let mat = materials.add(StandardMaterial {
+                    unlit: true,
+                    base_color_texture: Some(tex),
+                    alpha_mode: AlphaMode::Mask(0.5),
+                    cull_mode: None,
+                    double_sided: true,
+                    perceptual_roughness: 1.0,
+                    reflectance: 0.0,
+                    ..default()
+                });
+                frame_mats.push(std::array::from_fn(|_| mat.clone()));
+                frame_masks.push(std::array::from_fn(|_| msk.clone()));
+            }
+
+            let initial_mat = frame_mats[0][0].clone();
+            let mut sheet = sprites::SpriteSheet::new(vec![frame_mats], vec![(w, h)], vec![frame_masks]);
+            sheet.frame_duration = dec.frame_duration;
+
+            let child_id = commands
+                .spawn((
+                    Name::new(format!("decoration:{}", key)),
+                    Mesh3d(quad),
+                    MeshMaterial3d(initial_mat),
+                    Transform::from_translation(pos),
+                    crate::game::entities::WorldEntity,
+                    crate::game::entities::EntityKind::Decoration,
+                    crate::game::entities::Billboard,
+                    crate::game::entities::AnimationState::Idle,
+                    sheet,
+                ))
+                .id();
+            commands.entity(terrain_entity).add_child(child_id);
+            if dec.event_id > 0 {
+                commands
+                    .entity(child_id)
+                    .insert(crate::game::interaction::DecorationInfo {
+                        event_id: dec.event_id as u16,
+                        position: pos,
+                        billboard_index: dec.billboard_index,
+                        half_w: 0.0,
+                        half_h: 0.0,
+                        mask: None, // SpriteSheet.current_mask handles this
+                    });
+            }
+            if dec.flicker_rate > 0.0 {
+                let phase = (pos.x * 0.137 + pos.z * 0.031).abs().fract();
+                commands
+                    .entity(child_id)
+                    .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
+            }
+            spawned += 1;
         } else {
+            // Static single-frame decoration.
             let (mat, quad, w, h, mask) = if let Some((m, q, w, h, msk)) = p.dec_sprite_cache.get(key) {
                 (m.clone(), q.clone(), *w, *h, msk.clone())
             } else {
@@ -583,6 +659,12 @@ fn lazy_spawn(
                         half_h: h / 2.0,
                         mask: Some(mask),
                     });
+            }
+            if dec.flicker_rate > 0.0 {
+                let phase = (pos.x * 0.137 + pos.z * 0.031).abs().fract();
+                commands
+                    .entity(child_id)
+                    .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
             }
             spawned += 1;
         }
