@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use crate::game::events::MapEvents;
 
 /// Resolve a human-readable label for an event ID from its EVT steps.
-/// Returns the first non-empty text found, scanning steps in order.
+/// Returns the first non-empty text found, scanning steps in their script order —
+/// the EVT step order determines priority, not event type.
 /// Recognised events: Hint, StatusText, LocationName, SpeakInHouse, OpenChest, MoveToMap.
 pub fn resolve_event_name_from_evt(event_id: u16, evt: &lod::evt::EvtFile) -> Option<String> {
     let steps = evt.events.get(&event_id)?;
@@ -25,6 +26,7 @@ pub fn resolve_event_name_from_evt(event_id: u16, evt: &lod::evt::EvtFile) -> Op
 /// Resolve a label for an event from the map's loaded event table.
 /// For SpeakInHouse, looks up the house name from the loaded house table first.
 /// Returns `None` when no map events are loaded or no matching event exists.
+/// Each `ClickableFaceInfo` / `DecorationInfo` exposes a single event_id — no multi-ID iteration needed.
 pub fn resolve_event_name(event_id: u16, map_events: &Option<Res<MapEvents>>) -> Option<String> {
     let me = map_events.as_ref()?;
     let evt = me.evt.as_ref()?;
