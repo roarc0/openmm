@@ -617,6 +617,7 @@ fn lazy_spawn(
         let state_masks = m2;
         let sw = w2 * dsft_scale;
         let sh = h2 * dsft_scale;
+        let state_count = states.len();
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
         let wx = actor.position[0] as f32;
@@ -670,7 +671,7 @@ fn lazy_spawn(
             crate::game::entities::WorldEntity,
             crate::game::entities::EntityKind::Npc,
             crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
+            sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
             actor::Actor {
                 name: actor.name.clone(),
                 hp: actor.hp,
@@ -718,6 +719,7 @@ fn lazy_spawn(
         let dsft_scale = bb_mgr.dsft_scale_for_group(&m.standing_sprite);
         let sw = raw_w * dsft_scale;
         let sh = raw_h * dsft_scale;
+        let state_count = states.len();
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
         // Compute spread position (was done inside resolve_monsters, now done here)
@@ -736,7 +738,7 @@ fn lazy_spawn(
             crate::game::entities::WorldEntity,
             crate::game::entities::EntityKind::Monster,
             crate::game::entities::AnimationState::Idle,
-            sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
+            sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
             crate::game::interaction::MonsterInteractable { name: m.name.clone() },
             actor::Actor {
                 name: m.name.clone(),

@@ -364,6 +364,7 @@ fn spawn_indoor_world(
                 );
                 continue;
             }
+            let state_count = states.len();
             let initial_mat = states[0][0][0].clone();
             let quad = meshes.add(Rectangle::new(sw, sh));
             // Indoor actors use MM6 coordinates directly (no heightmap probing)
@@ -378,7 +379,7 @@ fn spawn_indoor_world(
                 crate::game::entities::WorldEntity,
                 crate::game::entities::EntityKind::Npc,
                 crate::game::entities::AnimationState::Idle,
-                sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
+                sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
                 actor::Actor {
                     name: actor.name.clone(),
                     hp: actor.hp,
