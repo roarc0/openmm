@@ -651,7 +651,8 @@ fn player_look(
         if keys.just_pressed(KeyCode::End) {
             pitch = 0.0;
         }
-        pitch = pitch.clamp(-1.54, 1.54);
+        // Constrain pitch to match MM6's limited vertical view angle (~45 degrees)
+        pitch = pitch.clamp(-std::f32::consts::FRAC_PI_4, std::f32::consts::FRAC_PI_4);
         transform.rotation = Quat::from_axis_angle(Vec3::X, pitch);
     }
 }
