@@ -23,8 +23,17 @@ struct PendingSpawns {
     idx: usize,
     frames_elapsed: u32,
     sprite_cache: sprites::SpriteCache,
-    /// Cached billboard materials: key = sprite name, value = (material, mesh, width, height)
-    billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32, f32)>,
+    /// Cached billboard materials: key = sprite name, value = (material, mesh, width, height, mask)
+    billboard_cache: std::collections::HashMap<
+        String,
+        (
+            Handle<StandardMaterial>,
+            Handle<Mesh>,
+            f32,
+            f32,
+            std::sync::Arc<crate::game::entities::sprites::AlphaMask>,
+        ),
+    >,
     /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).
     decorations: lod::game::decorations::Decorations,
     monsters: lod::game::monster::Monsters,
@@ -512,6 +521,7 @@ fn lazy_spawn(
                             billboard_index: dec.billboard_index,
                             half_w: 0.0,
                             half_h: 0.0,
+                            mask: None,
                         });
                 }
                 spawned += 1;
@@ -519,8 +529,8 @@ fn lazy_spawn(
                 continue;
             }
         } else {
-            let (mat, quad, w, h) = if let Some((m, q, w, h)) = p.billboard_cache.get(key) {
-                (m.clone(), q.clone(), *w, *h)
+            let (mat, quad, w, h, mask) = if let Some((m, q, w, h, msk)) = p.billboard_cache.get(key) {
+                (m.clone(), q.clone(), *w, *h, msk.clone())
             } else {
                 let sprite = match bb_mgr.get(game_assets.lod_manager(), key, dec.declist_id) {
                     Some(s) => s,
@@ -530,7 +540,9 @@ fn lazy_spawn(
                     }
                 };
                 let (w, h) = sprite.dimensions();
-                let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
+                let rgba = sprite.image.to_rgba8();
+                let msk = std::sync::Arc::new(crate::game::entities::sprites::AlphaMask::from_image(&rgba));
+                let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
                 let tex = images.add(bevy_img);
                 let m = materials.add(StandardMaterial {
                     unlit: true,
@@ -543,8 +555,9 @@ fn lazy_spawn(
                     ..default()
                 });
                 let q = meshes.add(Rectangle::new(w, h));
-                p.billboard_cache.insert(key.clone(), (m.clone(), q.clone(), w, h));
-                (m, q, w, h)
+                p.billboard_cache
+                    .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));
+                (m, q, w, h, msk)
             };
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
             let child_id = commands
@@ -568,6 +581,7 @@ fn lazy_spawn(
                         billboard_index: dec.billboard_index,
                         half_w: w / 2.0,
                         half_h: h / 2.0,
+                        mask: Some(mask),
                     });
             }
             spawned += 1;

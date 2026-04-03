@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::game::blv::ClickableFaces;
-use crate::game::entities::sprites::SpriteSheet;
+use crate::game::entities::sprites::{AlphaMask, SpriteSheet};
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
@@ -22,6 +24,8 @@ pub struct DecorationInfo {
     /// World-space half-extents for static (non-SpriteSheet) decorations. Zero for directional.
     pub half_w: f32,
     pub half_h: f32,
+    /// Alpha mask for pixel-accurate hit testing of static decorations. None for directional.
+    pub mask: Option<Arc<AlphaMask>>,
 }
 
 /// Component on NPC actor entities for hover/click interaction.
@@ -161,7 +165,7 @@ fn decoration_interact_system(
             if info.half_w == 0.0 && info.half_h == 0.0 {
                 continue;
             }
-            (info.half_w, info.half_h, None)
+            (info.half_w, info.half_h, info.mask.as_deref())
         };
         if let Some(t) = billboard_hit_test(
             origin,
@@ -281,7 +285,7 @@ fn hover_hint_system(
             if info.half_w == 0.0 && info.half_h == 0.0 {
                 continue;
             }
-            (info.half_w, info.half_h, None)
+            (info.half_w, info.half_h, info.mask.as_deref())
         };
         if let Some(t) = billboard_hit_test(
             origin,

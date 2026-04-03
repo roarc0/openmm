@@ -58,7 +58,18 @@ struct LoadingProgress {
     resolved_monsters: Option<lod::game::monster::Monsters>,
     start_points: Option<Vec<StartPoint>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
-    billboard_cache: Option<std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32, f32)>>,
+    billboard_cache: Option<
+        std::collections::HashMap<
+            String,
+            (
+                Handle<StandardMaterial>,
+                Handle<Mesh>,
+                f32,
+                f32,
+                std::sync::Arc<crate::game::entities::sprites::AlphaMask>,
+            ),
+        >,
+    >,
     water_cells: Option<Vec<bool>>,
     terrain_lookup: Option<lod::terrain::TerrainLookup>,
     music_track: u8,
@@ -220,7 +231,16 @@ pub struct PreparedWorld {
     pub resolved_monsters: Option<lod::game::monster::Monsters>,
     pub start_points: Vec<StartPoint>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
-    pub billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32, f32)>,
+    pub billboard_cache: std::collections::HashMap<
+        String,
+        (
+            Handle<StandardMaterial>,
+            Handle<Mesh>,
+            f32,
+            f32,
+            std::sync::Arc<crate::game::entities::sprites::AlphaMask>,
+        ),
+    >,
     pub water_cells: Vec<bool>,
     pub terrain_lookup: lod::terrain::TerrainLookup,
     /// Music track ID from mapstats.txt (maps to Music/{track}.mp3). 0 = no music.
@@ -962,7 +982,12 @@ fn loading_step(
                                     bb_mgr.get(game_assets.lod_manager(), &dec.sprite_name, dec.declist_id)
                                 {
                                     let (w, h) = sprite.dimensions();
-                                    let bevy_img = crate::assets::dynamic_to_bevy_image(sprite.image);
+                                    let rgba = sprite.image.to_rgba8();
+                                    let mask = std::sync::Arc::new(
+                                        crate::game::entities::sprites::AlphaMask::from_image(&rgba),
+                                    );
+                                    let bevy_img =
+                                        crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
                                     let tex = images.add(bevy_img);
                                     let m = materials.add(StandardMaterial {
                                         base_color_texture: Some(tex),
@@ -975,7 +1000,7 @@ fn loading_step(
                                         ..default()
                                     });
                                     let q = meshes.add(Rectangle::new(w, h));
-                                    bb_cache.insert(dec.sprite_name.clone(), (m, q, w, h));
+                                    bb_cache.insert(dec.sprite_name.clone(), (m, q, w, h, mask));
                                 }
                             }
                         }
