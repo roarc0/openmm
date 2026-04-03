@@ -84,6 +84,19 @@ fn check_exit_input(keys: &ButtonInput<KeyCode>, gamepads: &Query<&Gamepad>) -> 
         })
 }
 
+// --- Helpers ---
+
+/// Compute the Y-axis rotation that makes a billboard at `center` face `cam_origin`.
+/// Matches the logic in `billboard_face_camera` for non-SpriteSheet entities.
+fn facing_rotation(cam_origin: Vec3, center: Vec3) -> Quat {
+    let d = cam_origin - center;
+    if d.x.abs() > 0.01 || d.z.abs() > 0.01 {
+        Quat::from_rotation_y(d.x.atan2(d.z))
+    } else {
+        Quat::IDENTITY
+    }
+}
+
 // --- Systems ---
 
 /// Handle exit input when in Building or Chest overlay views.
@@ -111,7 +124,7 @@ fn decoration_interact_system(
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    decorations: Query<(&DecorationInfo, &GlobalTransform, &Transform, &SpriteSheet)>,
+    decorations: Query<(&DecorationInfo, &GlobalTransform, &SpriteSheet)>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
@@ -135,13 +148,15 @@ fn decoration_interact_system(
     let dir = cam_global.forward().as_vec3();
 
     let mut nearest: Option<(f32, u16)> = None;
-    for (info, g_tf, tf, sheet) in decorations.iter() {
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
+    for (info, g_tf, sheet) in decorations.iter() {
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+            continue;
+        };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
             g_tf.translation(),
-            tf.rotation,
+            facing_rotation(origin, g_tf.translation()),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
@@ -163,7 +178,7 @@ fn npc_interact_system(
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    npcs: Query<(&NpcInteractable, &GlobalTransform, &Transform, &SpriteSheet)>,
+    npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
@@ -186,13 +201,15 @@ fn npc_interact_system(
     let dir = cam_global.forward().as_vec3();
 
     let mut nearest: Option<(f32, i16)> = None;
-    for (info, g_tf, tf, sheet) in npcs.iter() {
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
+    for (info, g_tf, sheet) in npcs.iter() {
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+            continue;
+        };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
             g_tf.translation(),
-            tf.rotation,
+            facing_rotation(origin, g_tf.translation()),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
@@ -210,9 +227,9 @@ fn npc_interact_system(
 fn hover_hint_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     clickable_faces: Option<Res<ClickableFaces>>,
-    decorations: Query<(&DecorationInfo, &GlobalTransform, &Transform, &SpriteSheet)>,
-    npcs: Query<(&NpcInteractable, &GlobalTransform, &Transform, &SpriteSheet)>,
-    monsters: Query<(&MonsterInteractable, &GlobalTransform, &Transform, &SpriteSheet)>,
+    decorations: Query<(&DecorationInfo, &GlobalTransform, &SpriteSheet)>,
+    npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
+    monsters: Query<(&MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
@@ -243,13 +260,15 @@ fn hover_hint_system(
     }
 
     // Decorations
-    for (info, g_tf, tf, sheet) in decorations.iter() {
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
+    for (info, g_tf, sheet) in decorations.iter() {
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+            continue;
+        };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
             g_tf.translation(),
-            tf.rotation,
+            facing_rotation(origin, g_tf.translation()),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
@@ -263,13 +282,15 @@ fn hover_hint_system(
     }
 
     // NPCs
-    for (info, g_tf, tf, sheet) in npcs.iter() {
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
+    for (info, g_tf, sheet) in npcs.iter() {
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+            continue;
+        };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
             g_tf.translation(),
-            tf.rotation,
+            facing_rotation(origin, g_tf.translation()),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
@@ -280,13 +301,15 @@ fn hover_hint_system(
     }
 
     // Monsters
-    for (info, g_tf, tf, sheet) in monsters.iter() {
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else { continue };
+    for (info, g_tf, sheet) in monsters.iter() {
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+            continue;
+        };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
             g_tf.translation(),
-            tf.rotation,
+            facing_rotation(origin, g_tf.translation()),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
