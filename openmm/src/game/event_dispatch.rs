@@ -638,9 +638,9 @@ fn process_events(
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
-                // For peasant NPCs (npc_id >= 5000), look up the generated data.
-                // For quest NPCs (npc_id < 5000), look up npcdata.txt.
-                let (portrait_name, npc_display_name) = if *npc_id >= 5000 {
+                // For generated street NPCs (npc_id >= GENERATED_NPC_ID_BASE), look up generated_npcs.
+                // For quest NPCs (npc_id < GENERATED_NPC_ID_BASE), look up npcdata.txt.
+                let (portrait_name, npc_display_name) = if *npc_id >= crate::game::events::GENERATED_NPC_ID_BASE {
                     let entry = map_events.as_ref().and_then(|me| me.generated_npcs.get(npc_id));
                     let portrait = entry
                         .map(|g| format!("NPC{:03}", g.portrait))
@@ -665,6 +665,36 @@ fn process_events(
                     npc_id, portrait_name, npc_display_name
                 );
 
+                // Resolve profession name from npcprof.txt for both generated and quest NPCs.
+                let profession = if *npc_id >= crate::game::events::GENERATED_NPC_ID_BASE {
+                    map_events
+                        .as_ref()
+                        .and_then(|me| me.generated_npcs.get(npc_id))
+                        .filter(|g| g.profession_id > 0)
+                        .and_then(|g| {
+                            game_assets
+                                .game_data()
+                                .prof_table
+                                .as_ref()
+                                .and_then(|pt| pt.get(g.profession_id as u16))
+                                .map(|p| p.name.clone())
+                        })
+                } else {
+                    map_events
+                        .as_ref()
+                        .and_then(|me| me.npc_table.as_ref())
+                        .and_then(|t| t.get(*npc_id))
+                        .filter(|entry| entry.profession_id > 0)
+                        .and_then(|entry| {
+                            game_assets
+                                .game_data()
+                                .prof_table
+                                .as_ref()
+                                .and_then(|pt| pt.get(entry.profession_id as u16))
+                                .map(|p| p.name.clone())
+                        })
+                };
+
                 let portrait_img = game_assets
                     .game_lod()
                     .icon(&portrait_name)
@@ -675,6 +705,16 @@ fn process_events(
                     bevy_img.sampler = bevy::image::ImageSampler::nearest();
                     let handle = images.add(bevy_img);
                     commands.insert_resource(crate::game::hud::NpcPortrait { image: handle, size });
+                    // Original MM6 shows only the first name under the portrait.
+                    let first_name = npc_display_name
+                        .as_deref()
+                        .and_then(|n| n.split_whitespace().next())
+                        .unwrap_or_default()
+                        .to_string();
+                    commands.insert_resource(crate::game::hud::NpcProfile {
+                        name: first_name,
+                        profession,
+                    });
                     *hud_view = HudView::NpcDialogue;
                     grab_cursor(&mut cursor_query, false);
                 } else {

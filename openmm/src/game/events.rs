@@ -4,6 +4,11 @@ use bevy::prelude::*;
 
 use crate::assets::GameAssets;
 
+/// Base value added to the actor spawn index to form a synthetic npc_id for generated street NPCs.
+/// npcdata.txt has ~400 entries, so any value above that avoids collisions with quest NPC ids.
+/// This is an internal convention — MM6 has no equivalent; MM7 uses Game.StreetNPC + 5000.
+pub const GENERATED_NPC_ID_BASE: i32 = 5000;
+
 /// Parsed event data for the current map.
 #[derive(Resource, Default)]
 pub struct MapEvents {
@@ -14,7 +19,7 @@ pub struct MapEvents {
     pub npc_table: Option<lod::game::npc::StreetNpcs>,
     /// Name pool for generating street NPC names (from `npcnames.txt`).
     pub name_pool: Option<lod::game::npc::NpcNamePool>,
-    /// Dynamically generated NPCs for peasant actors (npc_id ≥ 5000).
+    /// Dynamically generated NPCs for peasant actors (npc_id ≥ GENERATED_NPC_ID_BASE).
     /// Populated at actor spawn time; keyed by the assigned npc_id.
     pub generated_npcs: std::collections::HashMap<i32, lod::game::npc::GeneratedNpc>,
 }

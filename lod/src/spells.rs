@@ -80,12 +80,7 @@ impl SpellsTable {
             let sp_cost_normal: u8 = cols.get(5).unwrap_or(&"0").trim().parse().unwrap_or(0);
             let sp_cost_expert: u8 = cols.get(6).unwrap_or(&"0").trim().parse().unwrap_or(0);
             let sp_cost_master: u8 = cols.get(7).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let description = cols
-                .get(8)
-                .unwrap_or(&"")
-                .trim()
-                .trim_matches('"')
-                .to_string();
+            let description = cols.get(8).unwrap_or(&"").trim().trim_matches('"').to_string();
             let effect_normal = cols.get(9).unwrap_or(&"").trim().to_string();
             let effect_expert = cols.get(10).unwrap_or(&"").trim().to_string();
             let effect_master = cols.get(11).unwrap_or(&"").trim().to_string();

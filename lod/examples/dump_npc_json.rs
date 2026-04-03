@@ -25,7 +25,7 @@ fn main() {
             (name, portrait, "quest")
         } else if is_peasant {
             // Peasant NPC: identity from npcdata.txt peasant-profession entries
-            let (name, portrait_num) = npc_table.peasant_identity(is_female, i).unwrap_or(("Peasant", 1));
+            let (name, portrait_num, _prof_id) = npc_table.peasant_identity(is_female, i).unwrap_or(("Peasant", 1, 52));
             let portrait = format!("NPC{:03}", portrait_num);
             let npc_type = if is_female { "peasant_female" } else { "peasant_male" };
             (name.to_string(), portrait, npc_type)

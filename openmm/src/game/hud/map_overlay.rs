@@ -4,8 +4,8 @@ use bevy::window::PrimaryWindow;
 use crate::config::GameConfig;
 use crate::ui_assets::UiAssets;
 
-use super::{HudUI, HudView, MapOverviewImage};
 use super::overlay::viewport_inner_rect;
+use super::{HudUI, HudView, MapOverviewImage};
 
 /// Marker for the fullscreen map overlay UI node.
 #[derive(Component)]
@@ -15,12 +15,7 @@ pub(super) struct MapOverlayUI;
 ///
 /// Applies 10% margin on each side — the display occupies 80% of the available area.
 /// The map image is 1:1, so size = min(available_w, available_h).
-pub(super) fn map_overlay_rect(
-    inner_left: f32,
-    inner_top: f32,
-    inner_w: f32,
-    inner_h: f32,
-) -> (f32, f32, f32, f32) {
+pub(super) fn map_overlay_rect(inner_left: f32, inner_top: f32, inner_w: f32, inner_h: f32) -> (f32, f32, f32, f32) {
     let available_w = inner_w * 0.8;
     let available_h = inner_h * 0.8;
     let size = available_w.min(available_h);

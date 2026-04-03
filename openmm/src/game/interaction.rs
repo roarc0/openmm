@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
-use crate::game::blv::ClickableFaces;
+use crate::game::blv::{ClickableFaces, OccluderFaces};
 use crate::game::entities::sprites::{AlphaMask, SpriteSheet};
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
@@ -32,7 +32,7 @@ pub struct DecorationInfo {
 #[derive(Component)]
 pub struct NpcInteractable {
     pub name: String,
-    /// Index into the street NPC table (Game.StreetNPC + 1). Zero means no NPC dialogue.
+    /// Quest NPC: index into npcdata.txt (1-based). Generated street NPC: GENERATED_NPC_ID_BASE + spawn index. Zero means no dialogue.
     pub npc_id: i16,
 }
 
@@ -117,6 +117,7 @@ fn interaction_input(
     if check_exit_input(&keys, &gamepads) {
         commands.remove_resource::<OverlayImage>();
         commands.remove_resource::<crate::game::hud::NpcPortrait>();
+        commands.remove_resource::<crate::game::hud::NpcProfile>();
         *view = HudView::World;
         if let Ok(mut cursor) = cursor_query.single_mut() {
             cursor.grab_mode = CursorGrabMode::Confined;
@@ -132,6 +133,7 @@ fn decoration_interact_system(
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
+    occluder_faces: Option<Res<OccluderFaces>>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
@@ -153,6 +155,10 @@ fn decoration_interact_system(
 
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
+    let occluder_t = occluder_faces
+        .as_ref()
+        .map(|of| of.min_hit_t(origin, dir))
+        .unwrap_or(f32::MAX);
 
     let mut nearest: Option<(f32, u16)> = None;
     for (info, g_tf, sheet_opt) in decorations.iter() {
@@ -175,7 +181,8 @@ fn decoration_interact_system(
             half_w,
             half_h,
             mask,
-        ) && (nearest.is_none() || t < nearest.unwrap().0)
+        ) && t < occluder_t
+            && (nearest.is_none() || t < nearest.unwrap().0)
         {
             nearest = Some((t, info.event_id));
         }
@@ -194,6 +201,7 @@ fn npc_interact_system(
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
+    occluder_faces: Option<Res<OccluderFaces>>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
@@ -214,6 +222,10 @@ fn npc_interact_system(
 
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
+    let occluder_t = occluder_faces
+        .as_ref()
+        .map(|of| of.min_hit_t(origin, dir))
+        .unwrap_or(f32::MAX);
 
     let mut nearest: Option<(f32, i16)> = None;
     for (info, g_tf, sheet) in npcs.iter() {
@@ -228,7 +240,8 @@ fn npc_interact_system(
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
-        ) && (nearest.is_none() || t < nearest.unwrap().0)
+        ) && t < occluder_t
+            && (nearest.is_none() || t < nearest.unwrap().0)
         {
             nearest = Some((t, info.npc_id));
         }
@@ -242,6 +255,7 @@ fn npc_interact_system(
 fn hover_hint_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     clickable_faces: Option<Res<ClickableFaces>>,
+    occluder_faces: Option<Res<OccluderFaces>>,
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
     monsters: Query<(&MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
@@ -253,10 +267,15 @@ fn hover_hint_system(
     };
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
+    let occluder_t = occluder_faces
+        .as_ref()
+        .map(|of| of.min_hit_t(origin, dir))
+        .unwrap_or(f32::MAX);
 
     let mut nearest: Option<(f32, String)> = None;
 
-    // BSP faces (outdoor and indoor) via ClickableFaces
+    // BSP faces (outdoor and indoor) via ClickableFaces — these are part of buildings so
+    // they are always in front of the occluder boundary; no occlusion check needed here.
     if let Some(faces) = clickable_faces.as_ref() {
         for face in &faces.faces {
             if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist) {
@@ -274,7 +293,7 @@ fn hover_hint_system(
         }
     }
 
-    // Decorations
+    // Decorations — skip if behind a solid wall.
     for (info, g_tf, sheet_opt) in decorations.iter() {
         let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
             let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
@@ -295,14 +314,15 @@ fn hover_hint_system(
             half_w,
             half_h,
             mask,
-        ) && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+        ) && t < occluder_t
+            && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
             && let Some(name) = resolve_event_name(info.event_id, &map_events)
         {
             nearest = Some((t, name));
         }
     }
 
-    // NPCs
+    // NPCs — skip if behind a solid wall.
     for (info, g_tf, sheet) in npcs.iter() {
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
@@ -315,13 +335,14 @@ fn hover_hint_system(
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
-        ) && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+        ) && t < occluder_t
+            && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
         {
             nearest = Some((t, info.name.clone()));
         }
     }
 
-    // Monsters
+    // Monsters — skip if behind a solid wall.
     for (info, g_tf, sheet) in monsters.iter() {
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
@@ -334,7 +355,8 @@ fn hover_hint_system(
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
-        ) && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+        ) && t < occluder_t
+            && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
         {
             nearest = Some((t, info.name.clone()));
         }

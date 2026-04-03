@@ -8,7 +8,7 @@ mod stats_bar;
 
 pub use borders::{parse_aspect_ratio, viewport_rect};
 pub use footer::FooterText;
-pub use overlay::{NpcPortrait, OverlayImage, viewport_inner_rect};
+pub use overlay::{NpcPortrait, NpcProfile, OverlayImage, viewport_inner_rect};
 
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;

@@ -138,6 +138,43 @@ pub struct ClickableFaces {
     pub faces: Vec<ClickableFaceInfo>,
 }
 
+/// Info about a single solid face used for ray occlusion.
+pub struct OccluderFaceInfo {
+    pub normal: Vec3,
+    pub plane_dist: f32,
+    pub vertices: Vec<Vec3>,
+}
+
+/// Resource holding all solid face geometry for ray-occlusion tests.
+///
+/// Present for both outdoor (BSP model faces) and indoor (BLV wall/floor/ceiling faces)
+/// maps. Used by hover and interact systems to gate hits — an NPC or decoration
+/// behind a building wall should not be targetable.
+#[derive(Resource, Default)]
+pub struct OccluderFaces {
+    pub faces: Vec<OccluderFaceInfo>,
+}
+
+impl OccluderFaces {
+    /// Returns the smallest `t` along `(origin, dir)` that hits any solid face,
+    /// or `f32::MAX` if the ray misses all faces.
+    pub fn min_hit_t(&self, origin: Vec3, dir: Vec3) -> f32 {
+        use crate::game::raycast::{point_in_polygon, ray_plane_intersect};
+        let mut min_t = f32::MAX;
+        for face in &self.faces {
+            if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist)
+                && t < min_t
+            {
+                let hit = origin + dir * t;
+                if point_in_polygon(hit, &face.vertices, face.normal) {
+                    min_t = t;
+                }
+            }
+        }
+        min_t
+    }
+}
+
 /// Info about a single touch-triggered indoor face.
 pub struct TouchTriggerInfo {
     pub event_id: u16,
@@ -306,6 +343,18 @@ fn spawn_indoor_world(
         .collect();
     commands.insert_resource(ClickableFaces { faces });
 
+    // Build OccluderFaces resource — all solid indoor geometry for ray occlusion.
+    let occ_faces: Vec<OccluderFaceInfo> = prepared
+        .occluder_faces
+        .iter()
+        .map(|f| OccluderFaceInfo {
+            normal: f.normal,
+            plane_dist: f.plane_dist,
+            vertices: f.vertices.clone(),
+        })
+        .collect();
+    commands.insert_resource(OccluderFaces { faces: occ_faces });
+
     // Build TouchTriggerFaces resource
     let touch_faces: Vec<TouchTriggerInfo> = prepared
         .touch_trigger_faces
@@ -371,6 +420,14 @@ fn spawn_indoor_world(
             let [bx, by, bz] = mm6_to_bevy(actor.position[0], actor.position[1], actor.position[2]);
             let pos = Vec3::new(bx, by + sh / 2.0, bz);
 
+            // Hover/status text shows the actor TYPE — generic category, never a personal name.
+            // Peasants → "Peasant". Quest NPCs → first name from npcdata.txt.
+            let hover_name = if actor.is_peasant {
+                "Peasant".to_string()
+            } else {
+                actor.name.split_whitespace().next().unwrap_or(&actor.name).to_string()
+            };
+
             commands.spawn((
                 Name::new(format!("npc:{}", actor.name)),
                 Mesh3d(quad),
@@ -394,7 +451,7 @@ fn spawn_indoor_world(
                     hostile: false,
                 },
                 crate::game::interaction::NpcInteractable {
-                    name: actor.name.clone(),
+                    name: hover_name,
                     npc_id: actor.npc_id(),
                 },
                 crate::game::entities::Billboard,

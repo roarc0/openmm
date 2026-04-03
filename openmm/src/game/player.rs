@@ -64,7 +64,7 @@ impl Default for PlayerSettings {
     fn default() -> Self {
         Self {
             sensitivity: 0.00006,
-            speed: 2048.,
+            speed: 1024.,
             fly_speed: 4096.,
             rotation_speed: 1.8,
             eye_height: 160.0,

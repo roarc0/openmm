@@ -68,18 +68,8 @@ impl NpcProfTable {
             let cost_per_week: u32 = cols.get(3).unwrap_or(&"0").trim().parse().unwrap_or(0);
             let personality = cols.get(4).unwrap_or(&"").trim().to_string();
             let action_text = cols.get(5).unwrap_or(&"").trim().to_string();
-            let in_party_benefit = cols
-                .get(6)
-                .unwrap_or(&"")
-                .trim()
-                .trim_matches('"')
-                .to_string();
-            let join_text = cols
-                .get(7)
-                .unwrap_or(&"")
-                .trim()
-                .trim_matches('"')
-                .to_string();
+            let in_party_benefit = cols.get(6).unwrap_or(&"").trim().trim_matches('"').to_string();
+            let join_text = cols.get(7).unwrap_or(&"").trim().trim_matches('"').to_string();
 
             professions.push(NpcProfession {
                 id,

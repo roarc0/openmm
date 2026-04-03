@@ -19,7 +19,7 @@ fn main() {
                 continue;
             }
             let is_female = monlist.is_female_peasant(a.monlist_id);
-            let (name, portrait) = npc_table.peasant_identity(is_female, i).unwrap_or(("Peasant", 1));
+            let (name, portrait, _prof_id) = npc_table.peasant_identity(is_female, i).unwrap_or(("Peasant", 1, 52));
             println!(
                 "  [{}] monlist_id={} {} → name='{}' portrait=NPC{:03}",
                 i,

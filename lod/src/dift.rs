@@ -81,9 +81,10 @@ impl IFT {
     /// Return the slice of frames belonging to the named animation group
     /// (case-insensitive match on `group_name`).
     pub fn find_group(&self, name: &str) -> Option<&[IftFrame]> {
-        let start = self.frames.iter().position(|f| {
-            f.is_group_start() && f.group_name.eq_ignore_ascii_case(name)
-        })?;
+        let start = self
+            .frames
+            .iter()
+            .position(|f| f.is_group_start() && f.group_name.eq_ignore_ascii_case(name))?;
         // Group ends when a new group starts or we reach end of table
         let len = self.frames[start + 1..]
             .iter()

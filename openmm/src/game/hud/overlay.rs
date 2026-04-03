@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
 use crate::config::GameConfig;
+use crate::fonts::{GameFonts, WHITE, YELLOW};
 use crate::ui_assets::UiAssets;
 
 use super::HudView;
@@ -16,12 +17,19 @@ pub struct OverlayImage {
 }
 
 /// Resource holding an NPC portrait image to display at actual size.
-/// Like OverlayImage but rendered at 2× scale in the upper-left of the viewport.
+/// Like OverlayImage but rendered at 2× scale centered in the viewport.
 #[derive(Resource)]
 pub struct NpcPortrait {
     pub image: Handle<Image>,
     /// Natural pixel size of the portrait.
     pub size: Vec2,
+}
+
+/// Resource holding the NPC name and profession for display under the portrait.
+#[derive(Resource)]
+pub struct NpcProfile {
+    pub name: String,
+    pub profession: Option<String>,
 }
 
 /// Marker component for the overlay UI node.
@@ -122,42 +130,76 @@ pub(super) fn update_overlay_layout(
     }
 }
 
-/// Spawn the NPC portrait node at 2× scale in the upper-left of the viewport inner area.
+/// Spawn the NPC portrait centered in the viewport with name and profession below it.
 pub(super) fn spawn_npc_portrait(
     mut commands: Commands,
     portrait: Option<Res<NpcPortrait>>,
+    profile: Option<Res<NpcProfile>>,
     view: Res<HudView>,
     existing: Query<Entity, With<NpcPortraitUI>>,
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
     ui_assets: Res<UiAssets>,
+    game_fonts: Res<GameFonts>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     if matches!(*view, HudView::World) || portrait.is_none() || !existing.is_empty() {
         return;
     }
     let Some(portrait) = portrait else { return };
     let Ok(window) = windows.single() else { return };
-    let (left, top, _, _) = viewport_inner_rect(window, &cfg, &ui_assets);
+    let (left, top, width, height) = viewport_inner_rect(window, &cfg, &ui_assets);
 
-    // Display at 2× native size so the portrait is readable
-    let w = portrait.size.x * 2.0;
-    let h = portrait.size.y * 2.0;
+    // 2× native size so the portrait is readable
+    let pw = portrait.size.x * 2.0;
+    let ph = portrait.size.y * 2.0;
 
-    commands.spawn((
-        Name::new("npc_portrait_ui"),
-        ImageNode::new(portrait.image.clone()),
-        Node {
-            position_type: PositionType::Absolute,
-            left: Val::Px(left + 10.0),
-            top: Val::Px(top + 10.0),
-            width: Val::Px(w),
-            height: Val::Px(h),
-            ..default()
-        },
-        NpcPortraitUI,
-        super::HudUI,
-        crate::game::InGame,
-    ));
+    // Flex column container covering the inner viewport — items centered inside
+    commands
+        .spawn((
+            Name::new("npc_portrait_ui"),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(left),
+                top: Val::Px(top),
+                width: Val::Px(width),
+                height: Val::Px(height),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                row_gap: Val::Px(8.0),
+                ..default()
+            },
+            NpcPortraitUI,
+            super::HudUI,
+            crate::game::InGame,
+        ))
+        .with_children(|parent| {
+            // Portrait image
+            parent.spawn((
+                ImageNode::new(portrait.image.clone()),
+                Node {
+                    width: Val::Px(pw),
+                    height: Val::Px(ph),
+                    ..default()
+                },
+            ));
+
+            // Name and profession from NpcProfile
+            if let Some(profile) = &profile {
+                if !profile.name.is_empty()
+                    && let Some(handle) = game_fonts.render(&profile.name, "arrus", YELLOW, &mut images)
+                {
+                    parent.spawn(ImageNode::new(handle));
+                }
+                if let Some(prof) = &profile.profession {
+                    let text = format!("the {}", prof);
+                    if let Some(handle) = game_fonts.render(&text, "arrus", WHITE, &mut images) {
+                        parent.spawn(ImageNode::new(handle));
+                    }
+                }
+            }
+        });
 }
 
 /// Despawn NPC portrait node when returning to World view or portrait removed.

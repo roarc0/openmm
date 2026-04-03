@@ -238,11 +238,57 @@ Wander uses position-based seeding (`initial_position.x * 7.3 + z * 13.7`) to de
 
 ## Interaction System
 
+---
+
+## NPC Identity System
+
+### DDM npc_id field
+
+Each DDM actor carries an `npc_id` (i16) that has different meanings depending on actor type:
+
+- **Quest NPCs** (`npc_id > 0`, not peasant): 1-based index into `npcdata.txt`. Directly identifies a named NPC (e.g. a smith or scholar) with fixed name, portrait, and profession.
+- **Peasant actors** (`is_peasant = true`): `npc_id` is a **type flag** (1 = female peasant, 2 = male peasant), NOT a npcdata.txt index. These have no fixed identity in the DDM — identity is generated at spawn time.
+- **Monsters** (`npc_id == 0`, not peasant): no NPC identity, combat-only.
+
+### Generated NPC IDs
+
+Since peasant actors have no fixed npcdata.txt entry, we assign synthetic IDs at spawn time:
+
+```
+generated_id = GENERATED_NPC_ID_BASE + actor_spawn_index
+```
+
+`GENERATED_NPC_ID_BASE = 5000` (arbitrary offset above the ~400 real npcdata.txt entries). These IDs key into `MapEvents::generated_npcs` — not a game-native concept, purely internal bookkeeping.
+
+### Peasant identity assignment
+
+In the original MM6, peasant names and professions are **randomized on every map load** — the DDM stores only a sex type flag (`npc_id = 1` female, `npc_id = 2` male), never a fixed identity.
+
+At spawn time, each peasant gets an identity from `npcdata.txt` entries with peasant professions (52–77):
+
+1. Pool is split by sex using `npcnames.txt` first-name classification
+2. `peasant_identity(is_female, seed)` picks `(name, portrait, profession_id)` from that pool
+3. `GeneratedNpc { name, portrait, profession_id }` is inserted into `MapEvents::generated_npcs`
+4. Portrait resolves to `"NPC{:03}"` icon (e.g. `NPC009`)
+5. Profession resolves via `npcprof.txt` (e.g. profession_id=56 → "Farmer")
+
+> **TODO**: Currently uses spawn index as seed (deterministic). Should use a per-load RNG seed so identities change each time the map loads, matching original engine behaviour. Once the save system exists, identities should be persisted in the save file.
+
+### npcprof.txt profession ranges
+
+- **IDs 1–51**: Hirable service NPCs (Smith, Alchemist, Guide, etc.) — provide in-party benefits
+- **IDs 52–77**: Peasant-type NPCs (Peasant, Serf, Farmer, Laborer, Child, etc.) — no useful skills, cheap to hire
+
+### NPC display rules
+
+- **Status text (hover crosshair)**: Shows the **actor type** — generic category name. Peasants → "Peasant". Quest NPCs → first name from npcdata.txt. Monsters → monster type name (e.g. "Goblin"). Never shows the personal name for peasants.
+- **NPC dialogue HUD (on click)**: Shows portrait + **first name** (e.g. "Alice") + **"the Profession"** (e.g. "the Farmer").
+
 ### Components
 
 - `BuildingInfo` — on BSP model entities: model name, position, event_ids list.
 - `DecorationInfo` — on billboard entities: event_id, position, billboard_index for SetSprite targeting.
-- `NpcInteractable` — on NPC entities: name, position, npc_id (zero = no dialogue).
+- `NpcInteractable` — on NPC entities: hover name (profession only), npc_id (quest NPC id from npcdata.txt, or generated_id ≥ GENERATED_NPC_ID_BASE for peasants).
 
 ### Trigger conditions
 

@@ -109,6 +109,8 @@ pub struct PreparedIndoorWorld {
     pub clickable_faces: Vec<ClickableFaceData>,
     /// Touch-triggered faces (EVENT_BY_TOUCH) for proximity events.
     pub touch_trigger_faces: Vec<TouchTriggerFaceData>,
+    /// All solid faces (wall/floor/ceiling, non-portal, non-invisible) for ray occlusion.
+    pub occluder_faces: Vec<OccluderFaceData>,
     /// Map base name for EVT loading (e.g. "d01").
     pub map_base: String,
     /// Actors (NPCs) from DLV file.
@@ -138,6 +140,13 @@ pub struct PreparedDoorFace {
 pub struct ClickableFaceData {
     pub face_index: usize,
     pub event_id: u16,
+    pub normal: Vec3,
+    pub plane_dist: f32,
+    pub vertices: Vec<Vec3>,
+}
+
+/// Data for a solid indoor face used for ray occlusion.
+pub struct OccluderFaceData {
     pub normal: Vec3,
     pub plane_dist: f32,
     pub vertices: Vec<Vec3>,
@@ -274,6 +283,7 @@ fn loading_setup(
     commands.remove_resource::<crate::game::blv::DoorColliders>();
     commands.remove_resource::<crate::game::blv::ClickableFaces>();
     commands.remove_resource::<crate::game::blv::TouchTriggerFaces>();
+    commands.remove_resource::<crate::game::blv::OccluderFaces>();
     commands.remove_resource::<crate::game::hud::MapOverviewImage>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.
@@ -618,6 +628,37 @@ fn loading_step(
                     })
                     .collect();
 
+                // Collect all solid faces for ray occlusion (wall/floor/ceiling, no portals, no door faces).
+                let occluder_faces: Vec<OccluderFaceData> = blv
+                    .faces
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, f)| {
+                        !f.is_invisible() && !f.is_portal() && f.num_vertices >= 3 && !door_faces.contains(i)
+                    })
+                    .filter_map(|(_, face)| {
+                        let verts: Vec<Vec3> = face
+                            .vertex_ids
+                            .iter()
+                            .filter_map(|&vid| {
+                                let v = blv.vertices.get(vid as usize)?;
+                                Some(Vec3::from(lod::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                            })
+                            .collect();
+                        if verts.len() < 3 {
+                            return None;
+                        }
+                        let mm6n = face.normal_f32();
+                        let normal = Vec3::new(mm6n[0], mm6n[2], -mm6n[1]);
+                        let plane_dist = normal.dot(verts[0]);
+                        Some(OccluderFaceData {
+                            normal,
+                            plane_dist,
+                            vertices: verts,
+                        })
+                    })
+                    .collect();
+
                 let models = vec![PreparedModel {
                     sub_meshes: textured
                         .into_iter()
@@ -739,6 +780,7 @@ fn loading_step(
                     door_face_meshes: prepared_door_faces,
                     clickable_faces,
                     touch_trigger_faces,
+                    occluder_faces,
                     map_base,
                     actors: dlv_actors,
                 });

@@ -43,12 +43,7 @@ impl ClassTable {
             if name.is_empty() {
                 continue;
             }
-            let description = cols
-                .get(1)
-                .unwrap_or(&"")
-                .trim()
-                .trim_matches('"')
-                .to_string();
+            let description = cols.get(1).unwrap_or(&"").trim().trim_matches('"').to_string();
             classes.push(ClassInfo { name, description });
         }
         Ok(ClassTable { classes })
@@ -56,8 +51,6 @@ impl ClassTable {
 
     /// Look up a class by exact name (case-insensitive).
     pub fn get(&self, name: &str) -> Option<&ClassInfo> {
-        self.classes
-            .iter()
-            .find(|c| c.name.eq_ignore_ascii_case(name))
+        self.classes.iter().find(|c| c.name.eq_ignore_ascii_case(name))
     }
 }

@@ -53,12 +53,7 @@ impl NpcNewsTable {
             }
             let map_id: u16 = cols.get(1).unwrap_or(&"0").trim().parse().unwrap_or(0);
             let topic = cols.get(2).unwrap_or(&"").trim().to_string();
-            let text_val = cols
-                .get(3)
-                .unwrap_or(&"")
-                .trim()
-                .trim_matches('"')
-                .to_string();
+            let text_val = cols.get(3).unwrap_or(&"").trim().trim_matches('"').to_string();
 
             items.push(NpcNewsItem {
                 index,

@@ -208,7 +208,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### Player details
 
-- `PlayerSettings`: speed=2048, fly_speed=4096, eye_height=160, gravity=9800, collision_radius=24.
+- `PlayerSettings`: speed=1024, fly_speed=4096, eye_height=160, gravity=9800, collision_radius=24.
 - FOV 75° outdoor / 60° indoor. `SpatialListener` on `PlayerCamera` child entity, not `Player` root.
 - `PlayerInputSet` system set label — dependent systems must run `.after(PlayerInputSet)`.
 
@@ -330,4 +330,5 @@ Ordered roughly by impact and readiness:
 - **Monster combat stats** — `MonList` entries have attack, HP, speed, resistances; combat is not yet implemented; needed for a playable state.
 - **Chest / item system** — `DChest` and `DObjList` parsers exist; spawning items inside chests and allowing the player to pick them up is the next inventory step.
 - **Save / load** — `GameSave` JSON skeleton exists; full round-trip persistence (party stats, map state, quest bits) is not yet implemented.
+- **Street NPC identity randomization** — `peasant_identity()` currently uses spawn index as a deterministic seed; in MM6 each map load assigns fresh random names/professions. Should seed from a per-load RNG. Once save/load exists, identities should be persisted so NPCs don't re-roll on every visit.
 - **Sky texture day/night variation** — ODM has a single `sky_texture` field; no format-level time-of-day variants. Need to investigate: does the original MM6 engine swap sky textures based on time (e.g. `plansky1` at day vs a darker variant at night), or does it rely purely on color tinting? Check what sky bitmap names exist in the LOD (`bitmaps` archive), look for naming patterns like `plansky1`/`plansky2` or morning/night variants, and check MMExtension docs. Currently the sky texture is static — only `ClearColor` changes with time of day.

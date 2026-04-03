@@ -96,12 +96,7 @@ impl ItemsTable {
             let shape: u8 = cols.get(12).unwrap_or(&"0").trim().parse().unwrap_or(0);
             let equip_x: u8 = cols.get(13).unwrap_or(&"0").trim().parse().unwrap_or(0);
             let equip_y: u8 = cols.get(14).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let notes = cols
-                .get(15)
-                .unwrap_or(&"")
-                .trim()
-                .trim_matches('"')
-                .to_string();
+            let notes = cols.get(15).unwrap_or(&"").trim().trim_matches('"').to_string();
 
             items.push(ItemInfo {
                 id,

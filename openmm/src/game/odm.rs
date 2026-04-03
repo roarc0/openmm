@@ -312,12 +312,13 @@ fn spawn_world(
         })
         .id();
 
-    // Build outdoor clickable faces from BSP model faces with cog_trigger_id
+    // Build outdoor clickable and occluder faces from BSP model faces.
     {
         let mut outdoor_clickable = Vec::new();
+        let mut outdoor_occluders = Vec::new();
         for model in &prepared.map.bsp_models {
             for face in &model.faces {
-                if face.cog_trigger_id == 0 || face.vertices_count < 3 || face.is_invisible() {
+                if face.vertices_count < 3 || face.is_invisible() {
                     continue;
                 }
                 let vc = face.vertices_count as usize;
@@ -335,9 +336,16 @@ fn spawn_world(
                 let nz = -face.plane.normal[1] as f32 / 65536.0;
                 let normal = Vec3::new(nx, ny, nz);
                 let plane_dist = normal.dot(verts[0]);
-                outdoor_clickable.push(crate::game::blv::ClickableFaceInfo {
-                    face_index: 0,
-                    event_id: face.cog_trigger_id,
+                if face.cog_trigger_id != 0 {
+                    outdoor_clickable.push(crate::game::blv::ClickableFaceInfo {
+                        face_index: 0,
+                        event_id: face.cog_trigger_id,
+                        normal,
+                        plane_dist,
+                        vertices: verts.clone(),
+                    });
+                }
+                outdoor_occluders.push(crate::game::blv::OccluderFaceInfo {
                     normal,
                     plane_dist,
                     vertices: verts,
@@ -347,6 +355,11 @@ fn spawn_world(
         if !outdoor_clickable.is_empty() {
             commands.insert_resource(crate::game::blv::ClickableFaces {
                 faces: outdoor_clickable,
+            });
+        }
+        if !outdoor_occluders.is_empty() {
+            commands.insert_resource(crate::game::blv::OccluderFaces {
+                faces: outdoor_occluders,
             });
         }
     }
@@ -740,21 +753,21 @@ fn lazy_spawn(
         // Identity assignment: Actor already has name/portrait for named NPCs.
         // For peasants, assign identity from npcdata.txt via map_events.
         let (display_name, effective_npc_id) = if actor.is_peasant {
-            let generated_id = 5000 + i as i32;
-            // Pick a complete identity (name + portrait) from npcdata.txt peasant entries,
-            // split by sex. Falls back to npcnames.txt name + generic portrait if unavailable.
-            let (name, portrait) = map_events
+            let generated_id = crate::game::events::GENERATED_NPC_ID_BASE + i as i32;
+            // Pick a complete identity (name + portrait + profession_id) from npcdata.txt peasant
+            // entries, split by sex. Falls back to npcnames.txt name + generic portrait if unavailable.
+            let (name, portrait, npc_profession_id) = map_events
                 .as_ref()
                 .and_then(|me| me.npc_table.as_ref())
                 .and_then(|t| t.peasant_identity(actor.is_female, i))
-                .map(|(n, p)| (n.to_string(), p))
+                .map(|(n, p, prof)| (n.to_string(), p, prof))
                 .unwrap_or_else(|| {
                     let name = map_events
                         .as_ref()
                         .and_then(|me| me.name_pool.as_ref())
                         .map(|pool| pool.name_for(actor.is_female, i).to_string())
                         .unwrap_or_else(|| actor.name.clone());
-                    (name, 1)
+                    (name, 1, 52) // 52 = "Peasant" in npcprof.txt
                 });
             if let Some(ref mut me) = map_events {
                 me.generated_npcs.insert(
@@ -762,6 +775,7 @@ fn lazy_spawn(
                     lod::game::npc::GeneratedNpc {
                         name: name.clone(),
                         portrait,
+                        profession_id: npc_profession_id,
                     },
                 );
             }
@@ -769,6 +783,19 @@ fn lazy_spawn(
         } else {
             // Named NPC: name already resolved in Actor
             (actor.name.clone(), actor.npc_id() as i32)
+        };
+
+        // Hover/status text shows the actor TYPE — generic category, never a personal name.
+        // Peasants → "Peasant". Quest NPCs → first name from npcdata.txt.
+        // Personal name + profession are shown only in the dialogue HUD on click.
+        let hover_name = if actor.is_peasant {
+            "Peasant".to_string()
+        } else {
+            display_name
+                .split_whitespace()
+                .next()
+                .unwrap_or(&display_name)
+                .to_string()
         };
 
         commands.entity(terrain_entity).with_child((
@@ -794,7 +821,7 @@ fn lazy_spawn(
                 hostile: false,
             },
             crate::game::interaction::NpcInteractable {
-                name: display_name,
+                name: hover_name,
                 npc_id: effective_npc_id as i16,
             },
         ));
