@@ -5,6 +5,7 @@
 //! (NPCs, monsters, decorations with animations).
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use bevy::prelude::*;
 use image::{DynamicImage, GenericImageView, RgbaImage};
@@ -14,6 +15,31 @@ use lod::LodManager;
 use crate::game::entities::actor::Actor;
 use crate::game::entities::{AnimationState, FacingYaw};
 use crate::game::player::PlayerCamera;
+
+/// CPU-side 1-bit alpha mask for a sprite image. Used for pixel-accurate ray hit testing.
+/// Built from the padded RGBA image at load time and kept in memory alongside the material.
+pub struct AlphaMask {
+    pub width: u32,
+    pub height: u32,
+    /// Row-major, true = opaque (alpha > 127).
+    pub(crate) data: Vec<bool>,
+}
+
+impl AlphaMask {
+    /// Build a mask from a padded RGBA sprite image. Pixels with alpha > 127 are opaque.
+    pub fn from_image(img: &image::RgbaImage) -> Self {
+        let data = img.pixels().map(|p| p[3] > 127).collect();
+        Self { width: img.width(), height: img.height(), data }
+    }
+
+    /// Test whether a UV coordinate hits an opaque pixel. Both u and v in [0,1].
+    /// UV is clamped to image bounds — never panics on out-of-range input.
+    pub fn test(&self, u: f32, v: f32) -> bool {
+        let x = (u * self.width as f32).clamp(0.0, (self.width - 1) as f32) as u32;
+        let y = (v * self.height as f32).clamp(0.0, (self.height - 1) as f32) as u32;
+        self.data[(y * self.width + x) as usize]
+    }
+}
 
 /// Cache for loaded sprite materials to avoid duplicate texture loading.
 #[derive(Resource, Default, Clone)]
@@ -612,5 +638,46 @@ pub fn load_decoration_directions(
 }
 
 #[cfg(test)]
-#[path = "sprites_tests.rs"]
-mod tests;
+mod tests {
+    use super::*;
+
+    fn make_mask(width: u32, height: u32, opaque: &[(u32, u32)]) -> AlphaMask {
+        let mut data = vec![false; (width * height) as usize];
+        for &(x, y) in opaque {
+            data[(y * width + x) as usize] = true;
+        }
+        AlphaMask { width, height, data }
+    }
+
+    #[test]
+    fn alpha_mask_opaque_pixel() {
+        let mask = make_mask(4, 4, &[(1, 1), (2, 2)]);
+        assert!(mask.test(1.5 / 4.0, 1.5 / 4.0));
+    }
+
+    #[test]
+    fn alpha_mask_transparent_pixel() {
+        let mask = make_mask(4, 4, &[(1, 1)]);
+        assert!(!mask.test(0.5 / 4.0, 0.5 / 4.0)); // pixel (0,0) is transparent
+    }
+
+    #[test]
+    fn alpha_mask_clamped_edges() {
+        let mask = make_mask(2, 2, &[(0, 0), (1, 0), (0, 1), (1, 1)]);
+        assert!(mask.test(-0.5, -0.5)); // clamps to (0,0)
+        assert!(mask.test(1.5, 1.5));   // clamps to (1,1)
+    }
+
+    #[test]
+    fn alpha_mask_from_image() {
+        let mut img = image::RgbaImage::new(2, 2);
+        img.put_pixel(0, 0, image::Rgba([255, 0, 0, 255])); // opaque
+        img.put_pixel(1, 0, image::Rgba([0, 0, 0, 0]));     // transparent
+        img.put_pixel(0, 1, image::Rgba([0, 0, 0, 0]));     // transparent
+        img.put_pixel(1, 1, image::Rgba([0, 255, 0, 128])); // semi → opaque (>127)
+        let mask = AlphaMask::from_image(&img);
+        assert!(mask.test(0.25, 0.25));  // pixel (0,0) opaque
+        assert!(!mask.test(0.75, 0.25)); // pixel (1,0) transparent
+        assert!(mask.test(0.75, 0.75));  // pixel (1,1) semi-opaque → opaque
+    }
+}
