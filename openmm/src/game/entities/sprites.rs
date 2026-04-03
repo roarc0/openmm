@@ -29,7 +29,11 @@ impl AlphaMask {
     /// Build a mask from a padded RGBA sprite image. Pixels with alpha > 127 are opaque.
     pub fn from_image(img: &image::RgbaImage) -> Self {
         let data = img.pixels().map(|p| p[3] > 127).collect();
-        Self { width: img.width(), height: img.height(), data }
+        Self {
+            width: img.width(),
+            height: img.height(),
+            data,
+        }
     }
 
     /// Test whether a UV coordinate hits an opaque pixel. Both u and v in [0,1].
@@ -150,7 +154,12 @@ pub fn load_entity_sprites(
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
     palette_id: u16,
-) -> (Vec<Vec<[Handle<StandardMaterial>; 5]>>, Vec<Vec<[Arc<AlphaMask>; 5]>>, f32, f32) {
+) -> (
+    Vec<Vec<[Handle<StandardMaterial>; 5]>>,
+    Vec<Vec<[Arc<AlphaMask>; 5]>>,
+    f32,
+    f32,
+) {
     // Load walking first (usually wider) to get target dimensions
     let (walking, walking_masks, ww, wh) = load_sprite_frames(
         walking_root,
@@ -289,7 +298,11 @@ fn rebuild_from_cache(
 ) -> (Vec<[Handle<StandardMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>) {
     let mut frames = Vec::new();
     let mut mask_frames = Vec::new();
-    let fallback_mask = Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] });
+    let fallback_mask = Arc::new(AlphaMask {
+        width: 1,
+        height: 1,
+        data: vec![true],
+    });
     for fi in 0..6 {
         let frame_letter = (b'a' + fi) as char;
         let key0 = format!("{}{}0", key, frame_letter);
@@ -381,7 +394,11 @@ fn decode_sprite_frames(
     // Second pass: pad to uniform size, build alpha masks, and create materials.
     let mut frames = Vec::new();
     let mut frame_masks: Vec<[Arc<AlphaMask>; 5]> = Vec::new();
-    let fallback_mask = Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] });
+    let fallback_mask = Arc::new(AlphaMask {
+        width: 1,
+        height: 1,
+        data: vec![true],
+    });
     for dir_imgs in raw_sprites {
         let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
         let mut dir_masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
@@ -402,9 +419,7 @@ fn decode_sprite_frames(
                     rgba
                 };
                 dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
-                let bevy_img = crate::assets::dynamic_to_bevy_image(
-                    image::DynamicImage::ImageRgba8(rgba)
-                );
+                let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
                 let tex = images.add(bevy_img);
                 dir_materials[dir] = materials.add(StandardMaterial {
                     unlit: true,
@@ -547,11 +562,8 @@ pub fn update_sprite_sheets(
             let new_mat = sprites.states[state_idx][sprites.current_frame][direction].clone();
             *mat_handle = MeshMaterial3d(new_mat);
             // Keep current_mask in sync with the displayed frame
-            if state_idx < sprites.state_masks.len()
-                && sprites.current_frame < sprites.state_masks[state_idx].len()
-            {
-                sprites.current_mask =
-                    Some(sprites.state_masks[state_idx][sprites.current_frame][direction].clone());
+            if state_idx < sprites.state_masks.len() && sprites.current_frame < sprites.state_masks[state_idx].len() {
+                sprites.current_mask = Some(sprites.state_masks[state_idx][sprites.current_frame][direction].clone());
             }
         }
 
@@ -596,7 +608,11 @@ pub fn load_decoration_directions(
         && let Some(&(w, h)) = c.dimensions.get(&key)
     {
         let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
-        let fallback = Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] });
+        let fallback = Arc::new(AlphaMask {
+            width: 1,
+            height: 1,
+            data: vec![true],
+        });
         let mut masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback.clone());
         let mut found = true;
         for di in 0..5 {
@@ -629,10 +645,25 @@ pub fn load_decoration_directions(
     }
 
     if max_w == 0 || raw[0].is_none() {
-        return (Default::default(), std::array::from_fn(|_| Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] })), 0.0, 0.0);
+        return (
+            Default::default(),
+            std::array::from_fn(|_| {
+                Arc::new(AlphaMask {
+                    width: 1,
+                    height: 1,
+                    data: vec![true],
+                })
+            }),
+            0.0,
+            0.0,
+        );
     }
 
-    let fallback_mask = Arc::new(AlphaMask { width: 1, height: 1, data: vec![true] });
+    let fallback_mask = Arc::new(AlphaMask {
+        width: 1,
+        height: 1,
+        data: vec![true],
+    });
     let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
     let mut dir_masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
     for (dir, img_opt) in raw.into_iter().enumerate() {
@@ -711,19 +742,19 @@ mod tests {
     fn alpha_mask_clamped_edges() {
         let mask = make_mask(2, 2, &[(0, 0), (1, 0), (0, 1), (1, 1)]);
         assert!(mask.test(-0.5, -0.5)); // clamps to (0,0)
-        assert!(mask.test(1.5, 1.5));   // clamps to (1,1)
+        assert!(mask.test(1.5, 1.5)); // clamps to (1,1)
     }
 
     #[test]
     fn alpha_mask_from_image() {
         let mut img = image::RgbaImage::new(2, 2);
         img.put_pixel(0, 0, image::Rgba([255, 0, 0, 255])); // opaque
-        img.put_pixel(1, 0, image::Rgba([0, 0, 0, 0]));     // transparent
-        img.put_pixel(0, 1, image::Rgba([0, 0, 0, 0]));     // transparent
+        img.put_pixel(1, 0, image::Rgba([0, 0, 0, 0])); // transparent
+        img.put_pixel(0, 1, image::Rgba([0, 0, 0, 0])); // transparent
         img.put_pixel(1, 1, image::Rgba([0, 255, 0, 128])); // semi → opaque (>127)
         let mask = AlphaMask::from_image(&img);
-        assert!(mask.test(0.25, 0.25));  // pixel (0,0) opaque
+        assert!(mask.test(0.25, 0.25)); // pixel (0,0) opaque
         assert!(!mask.test(0.75, 0.25)); // pixel (1,0) transparent
-        assert!(mask.test(0.75, 0.75));  // pixel (1,1) semi-opaque → opaque
+        assert!(mask.test(0.75, 0.75)); // pixel (1,1) semi-opaque → opaque
     }
 }

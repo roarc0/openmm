@@ -73,7 +73,11 @@ pub fn point_in_polygon(point: Vec3, vertices: &[Vec3], normal: Vec3) -> bool {
         (0, 1)
     };
     let get = |v: Vec3, axis: usize| -> f32 {
-        match axis { 0 => v.x, 1 => v.y, _ => v.z }
+        match axis {
+            0 => v.x,
+            1 => v.y,
+            _ => v.z,
+        }
     };
     let px = get(point, ax1);
     let py = get(point, ax2);
@@ -127,13 +131,28 @@ mod tests {
 
     #[test]
     fn resolve_event_name_first_match_wins() {
-        use std::collections::HashMap;
         use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use std::collections::HashMap;
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
-        events.insert(1, vec![
-            EvtStep { step: 0, event: GameEvent::StatusText { str_id: 0, text: "status".into() } },
-            EvtStep { step: 1, event: GameEvent::Hint { str_id: 0, text: "hint".into() } },
-        ]);
+        events.insert(
+            1,
+            vec![
+                EvtStep {
+                    step: 0,
+                    event: GameEvent::StatusText {
+                        str_id: 0,
+                        text: "status".into(),
+                    },
+                },
+                EvtStep {
+                    step: 1,
+                    event: GameEvent::Hint {
+                        str_id: 0,
+                        text: "hint".into(),
+                    },
+                },
+            ],
+        );
         let evt = EvtFile { events };
         // First non-empty match wins in step order
         assert_eq!(resolve_event_name_from_evt(1, &evt), Some("status".to_string()));
@@ -141,25 +160,47 @@ mod tests {
 
     #[test]
     fn resolve_event_name_hint_only() {
-        use std::collections::HashMap;
         use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use std::collections::HashMap;
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
-        events.insert(2, vec![
-            EvtStep { step: 0, event: GameEvent::Hint { str_id: 0, text: "hint".into() } },
-        ]);
+        events.insert(
+            2,
+            vec![EvtStep {
+                step: 0,
+                event: GameEvent::Hint {
+                    str_id: 0,
+                    text: "hint".into(),
+                },
+            }],
+        );
         let evt = EvtFile { events };
         assert_eq!(resolve_event_name_from_evt(2, &evt), Some("hint".to_string()));
     }
 
     #[test]
     fn resolve_event_name_empty_text_skipped() {
-        use std::collections::HashMap;
         use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use std::collections::HashMap;
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
-        events.insert(3, vec![
-            EvtStep { step: 0, event: GameEvent::Hint { str_id: 0, text: "".into() } },
-            EvtStep { step: 1, event: GameEvent::StatusText { str_id: 0, text: "real".into() } },
-        ]);
+        events.insert(
+            3,
+            vec![
+                EvtStep {
+                    step: 0,
+                    event: GameEvent::Hint {
+                        str_id: 0,
+                        text: "".into(),
+                    },
+                },
+                EvtStep {
+                    step: 1,
+                    event: GameEvent::StatusText {
+                        str_id: 0,
+                        text: "real".into(),
+                    },
+                },
+            ],
+        );
         let evt = EvtFile { events };
         assert_eq!(resolve_event_name_from_evt(3, &evt), Some("real".to_string()));
     }
@@ -168,9 +209,9 @@ mod tests {
     fn point_in_square_polygon() {
         let verts = vec![
             Vec3::new(-1.0, 0.0, -1.0),
-            Vec3::new( 1.0, 0.0, -1.0),
-            Vec3::new( 1.0, 0.0,  1.0),
-            Vec3::new(-1.0, 0.0,  1.0),
+            Vec3::new(1.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 1.0),
+            Vec3::new(-1.0, 0.0, 1.0),
         ];
         assert!(point_in_polygon(Vec3::new(0.0, 0.0, 0.0), &verts, Vec3::Y));
         assert!(!point_in_polygon(Vec3::new(2.0, 0.0, 0.0), &verts, Vec3::Y));
