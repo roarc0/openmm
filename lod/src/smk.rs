@@ -15,6 +15,10 @@ struct SmkT {
 }
 type SmkHandle = *mut SmkT;
 
+// Note: `c_char` is signed on x86-64 Linux (the target platform). On platforms
+// where `char` is unsigned (e.g. ARM without -fsigned-char), SMK_ERROR (-1)
+// would need special handling. libsmacker's own header uses plain `char` for
+// return values, so we match that here.
 const SMK_DONE: c_char = 0;
 const SMK_ERROR: c_char = -1;
 
@@ -166,6 +170,11 @@ impl SmkDecoder {
         let pixels = self.width as usize * self.height as usize;
         let mut rgba = vec![0u8; pixels * 4];
         unsafe {
+            // SAFETY: smk_get_palette and smk_get_video return pointers to libsmacker's
+            // internal frame buffers, which are allocated and populated by smk_first/smk_next.
+            // We only call decode_current_frame after a successful smk_first/smk_next call
+            // (SMK_MORE or SMK_LAST), and smk_enable_video(1) was called during init, so both
+            // pointers are guaranteed non-null and valid for width*height reads here.
             let palette = smk_get_palette(self.handle);
             let video = smk_get_video(self.handle);
             for i in 0..pixels {
