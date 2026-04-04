@@ -490,7 +490,7 @@ fn process_events(
                 footer.set_status(text, 4.0, time.elapsed_secs_f64());
             }
             GameEvent::Exit => {
-                // Stop processing this sequence and clear the queue
+                log_tail_unreachable(steps, pc);
                 event_queue.clear();
                 return;
             }
