@@ -15,7 +15,8 @@ use super::borders::*;
 
 const FOOD_REF_X: f32 = 545.0;
 const GOLD_REF_X: f32 = 610.0;
-const STATS_REF_Y: f32 = 256.0;
+/// Top edge of the stat box in MM6 UI reference pixels (center=256, top=252, height=8).
+const STATS_REF_Y: f32 = 252.0;
 
 #[derive(Component)]
 pub(super) struct HudFoodText;
