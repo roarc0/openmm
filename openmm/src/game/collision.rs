@@ -4,7 +4,7 @@ use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 
 /// Maximum height the player can step up onto a BSP floor (e.g. climbing stairs).
 /// 128 units covers typical MM6 discrete stair step heights.
-pub const MAX_STEP_UP: f32 = 128.0;
+pub const MAX_STEP_UP: f32 = 60.0;
 
 /// Maximum wall height that is silently stepped over (like a low curb).
 /// Walls taller than this are treated as solid obstacles in resolve_movement.
@@ -68,6 +68,9 @@ pub struct CollisionWall {
     pub max_z: f32,
     pub min_y: f32,
     pub max_y: f32,
+    /// True if a floor triangle exists directly above this wall within MAX_STEP_UP.
+    /// Precomputed at load time — stair risers are passable, obstacle walls are not.
+    pub is_step: bool,
 }
 
 impl CollisionWall {
@@ -100,6 +103,7 @@ impl CollisionWall {
             max_z,
             min_y,
             max_y,
+            is_step: false,
         }
     }
 
@@ -155,12 +159,18 @@ impl BuildingColliders {
             let prev = result;
 
             for wall in &self.walls {
-                // Height check: skip walls entirely above head or below feet
-                if feet_y > wall.max_y || from.y < wall.min_y {
+                // Height check: skip walls entirely above head or at/below feet
+                if feet_y >= wall.max_y || from.y < wall.min_y {
                     continue;
                 }
                 let wall_height = wall.max_y - wall.min_y;
                 if wall.max_y < feet_y + MAX_WALL_STEP && wall_height < MAX_WALL_STEP {
+                    continue;
+                }
+                // Stair riser: precomputed at load time — a floor exists above this wall.
+                // Let the player walk through; gravity snaps them up to that floor.
+                let step_height = wall.max_y - feet_y;
+                if wall.is_step && step_height > 0.0 && step_height <= MAX_STEP_UP {
                     continue;
                 }
 
@@ -189,6 +199,29 @@ impl BuildingColliders {
         result
     }
 
+    /// Mark walls as stair risers by checking whether a floor triangle overlaps them
+    /// in XZ and sits within MAX_STEP_UP above the wall. Called once after load.
+    pub fn mark_step_walls(&mut self) {
+        for wall in &mut self.walls {
+            'floor_search: for floor in &self.floors {
+                // Floor must be above the wall top, within stepping range.
+                if floor.min_y < wall.max_y || floor.min_y > wall.max_y + MAX_STEP_UP {
+                    continue;
+                }
+                // AABB overlap in XZ.
+                if floor.max_x < wall.min_x
+                    || floor.min_x > wall.max_x
+                    || floor.max_z < wall.min_z
+                    || floor.min_z > wall.max_z
+                {
+                    continue;
+                }
+                wall.is_step = true;
+                break 'floor_search;
+            }
+        }
+    }
+
     /// Sample the best BSP floor height at XZ, only considering floors within `max_step`
     /// above `feet_y`. Pass `MAX_STEP_UP` when already on BSP geometry; `TERRAIN_ENTRY_STEP`
     /// when on outdoor terrain to avoid stepping onto elevated outdoor objects.
@@ -196,7 +229,7 @@ impl BuildingColliders {
         // Tolerance for edge-of-triangle cases: if the player is right on the seam between
         // two adjacent triangles, exact containment may fail for both. We search twice —
         // first exact, then with a small expansion — and return the first hit.
-        const EDGE_TOLERANCE: f32 = 8.0;
+        const EDGE_TOLERANCE: f32 = 16.0;
 
         for tolerance in [0.0_f32, EDGE_TOLERANCE] {
             let mut best: Option<f32> = None;

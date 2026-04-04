@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,10 +20,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -33,31 +33,31 @@ jobs:
             libx11-dev libxi-dev libxrandr-dev libxcursor-dev \
             libasound2-dev libudev-dev \
             libvulkan-dev libgl1-mesa-dev libegl1-mesa-dev
-      
+
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo index
         uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Generate coverage
-        run: cargo tarpaulin --verbose --workspace --timeout 300 --out xml --no-default-features
-      
+        run: cargo tarpaulin --verbose --workspace --timeout 300 --out xml
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

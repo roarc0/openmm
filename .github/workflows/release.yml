@@ -3,10 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-
-permissions:
-  contents: write
+      - "v*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -60,45 +57,24 @@ jobs:
       - name: Create archive (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: |
-          mkdir -p release_staging
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact }} release_staging/
-          cp -r openmm/assets release_staging/
-          tar czf ${{ matrix.asset }} -C release_staging .
+          tar czf ${{ matrix.asset }} -C target/${{ matrix.target }}/release ${{ matrix.artifact }}
 
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path release_staging
-          Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact }} release_staging/
-          Copy-Item -Recurse openmm/assets release_staging/assets
-          Compress-Archive -Path release_staging/* -DestinationPath ${{ matrix.asset }}
-
-      - name: Generate checksum
-        shell: bash
-        run: |
-          if command -v sha256sum &>/dev/null; then
-            sha256sum ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
-          else
-            shasum -a 256 ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
-          fi
+          Compress-Archive -Path target/${{ matrix.target }}/release/${{ matrix.artifact }} -DestinationPath ${{ matrix.asset }}
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ matrix.asset }}
-            ${{ matrix.asset }}.sha256
-          generate_release_notes: true
+          files: ${{ matrix.asset }}
           body: |
             ## Installation
 
             1. Download the binary for your platform below
             2. Extract the archive
-            3. Place your Might and Magic VI game data as `mm6/` next to the executable (see [README](https://github.com/${{ github.repository }}/blob/main/README.md#game-data-setup))
+            3. Copy your Might and Magic VI game data files to the `data` directory next to the executable
             4. Run the executable
 
-            Verify your download with the `.sha256` file:
-            ```
-            sha256sum -c openmm-linux-x86_64.tar.gz.sha256
-            ```
+            See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed instructions.

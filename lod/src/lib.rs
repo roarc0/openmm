@@ -185,53 +185,33 @@ pub fn get_data_path() -> String {
 }
 
 /// Returns the LOD archive directory (where .lod files live).
-/// Uses OPENMM_6_PATH env var if set (appends /data), otherwise falls back to workspace target dir.
+/// Uses OPENMM_6_PATH env var if set, otherwise falls back to workspace target dir.
 pub fn get_lod_path() -> String {
     env::var(ENV_OPENMM_6_PATH)
         .ok()
         .filter(|s| !s.is_empty())
-        .map(|base| format!("{}/data", base.trim_end_matches('/')))
         .unwrap_or_else(default_lod_path)
 }
 
 fn default_data_path() -> String {
-    // Check current working directory first (release binary layout: mm6/ next to exe)
-    for subdir in &["mm6", "target/mm6"] {
-        let candidate = Path::new(subdir);
-        if candidate.exists() {
-            return candidate.to_string_lossy().into_owned();
-        }
-    }
-    // Also try workspace root derived from CARGO_MANIFEST_DIR (dev builds)
+    // Try workspace root (two levels up from lod crate manifest)
     let manifest = env!("CARGO_MANIFEST_DIR");
     let workspace = Path::new(manifest).parent().unwrap_or(Path::new("."));
-    for subdir in &["mm6", "target/mm6"] {
-        let candidate = workspace.join(subdir);
-        if candidate.exists() {
-            return candidate.to_string_lossy().into_owned();
-        }
+    let candidate = workspace.join("target/mm6");
+    if candidate.exists() {
+        return candidate.to_string_lossy().into_owned();
     }
-    "./mm6".into()
+    "./target/mm6".into()
 }
 
 fn default_lod_path() -> String {
-    // Check current working directory first (release binary layout: mm6/data/ next to exe)
-    for subdir in &["mm6/data", "target/mm6/data"] {
-        let candidate = Path::new(subdir);
-        if candidate.exists() {
-            return candidate.to_string_lossy().into_owned();
-        }
-    }
-    // Also try workspace root derived from CARGO_MANIFEST_DIR (dev builds)
     let manifest = env!("CARGO_MANIFEST_DIR");
     let workspace = Path::new(manifest).parent().unwrap_or(Path::new("."));
-    for subdir in &["mm6/data", "target/mm6/data"] {
-        let candidate = workspace.join(subdir);
-        if candidate.exists() {
-            return candidate.to_string_lossy().into_owned();
-        }
+    let candidate = workspace.join("target/mm6/data");
+    if candidate.exists() {
+        return candidate.to_string_lossy().into_owned();
     }
-    "./mm6/data".into()
+    "./target/mm6/data".into()
 }
 
 /// Returns `Some(LodManager)` when MM6 game data is present, or `None` otherwise.
@@ -262,14 +242,16 @@ mod tests {
 
     #[test]
     fn lod_manager_works() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_path = get_lod_path();
+        let lod_manager = LodManager::new(lod_path).unwrap();
         let grastyl = lod_manager.try_get_bytes("bitmaps/grastyl");
         assert_eq!(17676, grastyl.unwrap().len());
     }
 
     #[test]
     fn font_loading_works() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_path = get_lod_path();
+        let lod_manager = LodManager::new(lod_path).unwrap();
 
         let names = lod_manager.game().font_names();
         assert!(!names.is_empty(), "should find .fnt files");
@@ -290,7 +272,8 @@ mod tests {
 
     #[test]
     fn sprite_works() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_path = get_lod_path();
+        let lod_manager = LodManager::new(lod_path).unwrap();
         let rock = lod_manager.game().sprite("rok1");
         assert!(rock.is_some());
     }
@@ -299,7 +282,8 @@ mod tests {
     /// This is the mechanism used for monster variant B/C coloring (ghosts, skeletons, etc.).
     #[test]
     fn sprite_with_palette_produces_different_pixels() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_path = get_lod_path();
+        let lod_manager = LodManager::new(lod_path).unwrap();
         let dsft = crate::dsft::DSFT::new(&lod_manager).unwrap();
         let monlist = crate::monlist::MonsterList::new(&lod_manager).unwrap();
 

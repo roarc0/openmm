@@ -32,11 +32,13 @@ fn setup_collision_data(
 ) {
     if let Some(indoor) = &indoor {
         // Indoor map: collision from pre-extracted BLV faces
-        commands.insert_resource(BuildingColliders {
+        let mut colliders = BuildingColliders {
             walls: indoor.collision_walls.clone(),
             floors: indoor.collision_floors.clone(),
             ceilings: indoor.collision_ceilings.clone(),
-        });
+        };
+        colliders.mark_step_walls();
+        commands.insert_resource(colliders);
         return;
     }
 
@@ -110,11 +112,9 @@ fn setup_collision_data(
             }
         }
     }
-    commands.insert_resource(BuildingColliders {
-        walls,
-        floors,
-        ceilings,
-    });
+    let mut colliders = BuildingColliders { walls, floors, ceilings };
+    colliders.mark_step_walls();
+    commands.insert_resource(colliders);
 
     // Water map (outdoor only)
     commands.insert_resource(WaterMap {

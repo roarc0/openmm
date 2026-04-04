@@ -375,6 +375,16 @@ fn tileset_color(ts: Tileset) -> Color {
 }
 
 /// Color for an FPS value: green > 55, yellow > 30, red below.
+fn player_mode_str(world_state: &crate::game::world_state::WorldState) -> &'static str {
+    if world_state.player.fly_mode {
+        "  FLY"
+    } else if world_state.player.is_running {
+        "  RUN"
+    } else {
+        "  WALK"
+    }
+}
+
 fn fps_color(fps: f64) -> Color {
     if fps >= 55.0 {
         Color::srgb(0.2, 1.0, 0.2)
@@ -476,7 +486,7 @@ fn update_hud_text(
         } else {
             String::new()
         };
-        let mode = if world_state.player.fly_mode { "  FLY" } else { "  WALK" };
+        let mode = player_mode_str(&world_state);
         let coords = format!(
             "  X:{:.0}  Y:{:.0}  Z:{:.0}  YAW:{:.0}deg{}",
             transform.translation.x,

@@ -19,7 +19,7 @@ The goal is to reproduce original MM6 gameplay — movement, combat, dialogue, q
 - Player entity with terrain-following movement and first-person camera
 - Loading screen with step-based map loader and sprite preloading
 - Splash screen and menu scaffolding
-- Developer console (Tab key) with commands: load, msaa, fullscreen, borderless, windowed, exit
+- Developer console (Tab key) with commands: load, msaa, fullscreen, borderless, windowed, exit, time, and more
 - Seamless map boundary transitions between adjacent outdoor zones
 - Indoor map rendering (BLV files) with face-based geometry and collision
 - Indoor door interaction: clickable faces dispatch EVT events, door animation state machine
@@ -142,13 +142,18 @@ After building, run the executable:
 |-------|--------|
 | **W / Up Arrow** | Move forward |
 | **S / Down Arrow** | Move backward |
-| **A / D** | Strafe left / right |
+| **Q / E** | Strafe left / right |
+| **A / D** | Rotate left / right (or strafe with `always_strafe = true`) |
 | **Left / Right Arrow** | Rotate left / right |
-| **Mouse** | Look around |
-| **E / Enter** | Interact (talk to NPC, enter building, open door) |
-| **F2** | Toggle fly mode |
-| **CapsLock** | Toggle mouse look |
-| **Home / End** | Increase / decrease mouse sensitivity |
+| **Mouse** | Look around (when mouse look is active) |
+| **E / Enter / Left Click** | Interact (talk to NPC, open door, enter building) |
+| **Space** | Jump |
+| **Home** | Toggle fly mode |
+| **Insert / PageUp** | Fly up / fly down (in fly mode) |
+| **PageDown / Delete** | Look up / look down |
+| **End** | Reset pitch to level |
+| **CapsLock** | Toggle run / walk (run is 25% faster) |
+| **F3** | Toggle mouse look |
 | **ESC** | Release / grab mouse cursor |
 | **Tab** | Open developer console |
 
@@ -170,7 +175,7 @@ Press **Tab** to open the console (requires `console = true` in `openmm.toml`).
 | Command | Description |
 |---------|-------------|
 | `fly` | Toggle fly mode (no gravity, free vertical movement) |
-| `speed <value>` | Set movement speed (default 2048) |
+| `speed <value>` | Set movement speed (default 1024 walk / 1280 run) |
 | `sensitivity <value>` | Set mouse sensitivity |
 
 **Rendering**

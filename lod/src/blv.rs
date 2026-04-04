@@ -1250,11 +1250,11 @@ impl Blv {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_lod;
+    use crate::{LodManager, get_lod_path};
 
     #[test]
     fn parse_d01_blv() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
 
         println!("d01.blv:");
@@ -1400,7 +1400,7 @@ mod tests {
 
     #[test]
     fn parse_sewer_blv() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
         let blv = Blv::new(&lod_manager, "sewer.blv").unwrap();
 
         println!("sewer.blv:");
@@ -1419,7 +1419,7 @@ mod tests {
 
     #[test]
     fn textured_meshes_d01() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
 
         let texture_sizes = HashMap::new();
@@ -1439,7 +1439,7 @@ mod tests {
 
     #[test]
     fn face_extras_event_id() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
 
         let clickable: Vec<_> = blv
@@ -1482,7 +1482,7 @@ mod tests {
 
     #[test]
     fn initialize_doors_d01() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
         let dlv = crate::dlv::Dlv::new(&lod_manager, "d01.blv", blv.door_count, blv.doors_data_size).unwrap();
 
