@@ -120,7 +120,7 @@ impl Default for PlayerKeyBindings {
             fly_up: KeyCode::Insert,
             fly_down: KeyCode::PageUp,
             toggle_fly: KeyCode::Home,
-            toggle_run: KeyCode::KeyR,
+            toggle_run: KeyCode::CapsLock,
             toggle_grab_cursor: KeyCode::Escape,
         }
     }
@@ -384,7 +384,7 @@ fn toggle_fly_mode(
 }
 
 fn toggle_mouse_look(keys: Res<ButtonInput<KeyCode>>, cfg: Res<GameConfig>, mut mouse_look: ResMut<MouseLookEnabled>) {
-    if cfg.capslock_toggle_mouse_look && keys.just_pressed(KeyCode::CapsLock) {
+    if cfg.capslock_toggle_mouse_look && keys.just_pressed(KeyCode::F3) {
         mouse_look.0 = !mouse_look.0;
         info!("Mouse look: {}", if mouse_look.0 { "ON" } else { "OFF" });
     }
