@@ -154,9 +154,9 @@ fn interaction_input(
     }
 }
 
-/// Detect click/interact on the nearest interactable in the world (decoration OR NPC) and push
-/// exactly one event. By finding the global nearest hit before pushing, this guarantees only
-/// one UI can open per interaction — no stacking of events from overlapping targets.
+/// Detect click/interact on the nearest interactable in the world (decoration, NPC, or BSP face)
+/// and push exactly one event. By finding the global nearest hit before pushing, this guarantees
+/// only one UI can open per interaction — no stacking of events from overlapping targets.
 fn world_interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
@@ -164,6 +164,7 @@ fn world_interact_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
+    clickable_faces: Option<Res<ClickableFaces>>,
     occluder_faces: Option<Res<OccluderFaces>>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
@@ -193,10 +194,26 @@ fn world_interact_system(
 
     // Find the single nearest hit across all interactable types.
     enum Hit {
+        Face(u16),
         Decoration(u16),
         Npc(i16),
     }
     let mut nearest: Option<(f32, Hit)> = None;
+
+    // BSP faces (buildings, doors) — not occluded by terrain walls.
+    if let Some(faces) = clickable_faces.as_ref() {
+        for face in &faces.faces {
+            if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist) {
+                if t > crate::game::blv::INDOOR_INTERACT_RANGE {
+                    continue;
+                }
+                let hit = origin + dir * t;
+                if point_in_polygon(hit, &face.vertices, face.normal) && nearest.as_ref().is_none_or(|n| t < n.0) {
+                    nearest = Some((t, Hit::Face(face.event_id)));
+                }
+            }
+        }
+    }
 
     for (info, g_tf, sheet_opt) in decorations.iter() {
         let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
@@ -245,6 +262,14 @@ fn world_interact_system(
     }
 
     match nearest {
+        Some((dist, Hit::Face(event_id))) => {
+            info!("World interact: hit BSP face event_id={} at dist={:.0}", event_id, dist);
+            if let Some(me) = map_events.as_ref()
+                && let Some(evt) = me.evt.as_ref()
+            {
+                event_queue.push_all(event_id, evt);
+            }
+        }
         Some((_, Hit::Decoration(event_id))) => {
             if let Some(me) = map_events.as_ref()
                 && let Some(evt) = me.evt.as_ref()

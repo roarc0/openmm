@@ -275,7 +275,8 @@ fn subtract_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
     }
 }
 
-/// Evaluate a Compare condition. Returns true if condition is met (don't jump).
+/// Evaluate a Compare condition. Returns true if condition is met (JUMP to jump_step).
+/// MM6 Compare semantics: jump when condition is TRUE (e.g. "already done" → skip).
 fn evaluate_compare(vars: &GameVariables, var: EvtVariable, value: i32) -> bool {
     // Special cases: QBits and Autonotes check set membership
     if var == EvtVariable::QBITS {
@@ -451,13 +452,13 @@ fn process_events(
 
             // ── Control flow (NOW WORKING) ───────────────────────────
             GameEvent::Compare { var, value, jump_step } => {
-                if !evaluate_compare(&world_state.game_vars, *var, *value) {
-                    // Condition failed — jump to target step
+                if evaluate_compare(&world_state.game_vars, *var, *value) {
+                    // Condition met — jump to target step (e.g. "already done", skip action)
                     if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                        debug!("  Compare failed -> jumping to step {}", jump_step);
+                        debug!("  Compare met -> jumping to step {}", jump_step);
                         pc = target_idx;
                     } else {
-                        debug!("  Compare failed -> jump target step {} not found, ending", jump_step);
+                        debug!("  Compare met -> jump target step {} not found, ending", jump_step);
                         return;
                     }
                 }
@@ -897,5 +898,50 @@ fn process_events(
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lod::enums::EvtVariable;
+
+    fn make_vars() -> GameVariables {
+        GameVariables::default()
+    }
+
+    /// MM6 Compare: condition MET (true) → jump (skip). NOT met → fall through.
+    /// Regression for apple tree events in oute3: Compare(MapVar9 >= 1)
+    ///   - first click (MapVar9=0): 0 >= 1 = FALSE → don't jump → pick apple
+    ///   - second click (MapVar9=1): 1 >= 1 = TRUE → jump → already picked, skip
+    #[test]
+    fn compare_jumps_when_condition_met_not_when_unmet() {
+        // MapVar9 = EvtVariable(0x69 + 9) = EvtVariable(0x72)
+        let map_var9 = EvtVariable(0x69 + 9);
+
+        let mut vars = make_vars();
+        // First click: not yet picked (MapVar9 = 0)
+        vars.map_vars[9] = 0;
+        assert!(
+            !evaluate_compare(&vars, map_var9, 1),
+            "MapVar9=0 >= 1 should be FALSE (don't jump, fall through to pick apple)"
+        );
+
+        // Second click: already picked (MapVar9 = 1)
+        vars.map_vars[9] = 1;
+        assert!(
+            evaluate_compare(&vars, map_var9, 1),
+            "MapVar9=1 >= 1 should be TRUE (jump to skip — tree already picked)"
+        );
+    }
+
+    #[test]
+    fn compare_qbit_jumps_when_set() {
+        let mut vars = make_vars();
+        // QBit not set → FALSE (don't jump, can do quest)
+        assert!(!evaluate_compare(&vars, EvtVariable::QBITS, 5));
+        // QBit set → TRUE (jump, quest already done)
+        vars.set_qbit(5);
+        assert!(evaluate_compare(&vars, EvtVariable::QBITS, 5));
     }
 }

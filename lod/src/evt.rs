@@ -49,7 +49,8 @@ pub enum GameEvent {
     Exit,
 
     // ── Control flow ────────────────────────────────────────────────────
-    /// Compare variable against value; if false, jump to `jump_step`.
+    /// Compare variable against value; if condition IS MET (true), jump to `jump_step`.
+    /// Used to skip an action when already done (e.g. already picked, already visited).
     Compare {
         var: EvtVariable,
         value: i32,
@@ -245,13 +246,13 @@ impl std::fmt::Display for GameEvent {
             Self::Exit => write!(f, "Exit"),
             Self::Compare { var, value, jump_step } => {
                 if *var == EvtVariable::QBITS {
-                    write!(f, "Compare(QBit[{}] set? else step {})", value, jump_step)
+                    write!(f, "Compare(QBit[{}] set? skip step {})", value, jump_step)
                 } else if *var == EvtVariable::AUTONOTES_BITS {
-                    write!(f, "Compare(Autonote[{}] set? else step {})", value, jump_step)
+                    write!(f, "Compare(Autonote[{}] set? skip step {})", value, jump_step)
                 } else if *var == EvtVariable::INVENTORY {
-                    write!(f, "Compare(HasItem({})? else step {})", value, jump_step)
+                    write!(f, "Compare(HasItem({})? skip step {})", value, jump_step)
                 } else {
-                    write!(f, "Compare({} >= {}? else step {})", var, value, jump_step)
+                    write!(f, "Compare({} >= {}? skip step {})", var, value, jump_step)
                 }
             }
             Self::Jmp { target_step } => write!(f, "Jmp(step {})", target_step),
