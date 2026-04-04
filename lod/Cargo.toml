@@ -13,5 +13,8 @@ hexdump = "0.1"
 image = "0.25"
 log = "0.4"
 
+[build-dependencies]
+cc = "1"
+
 [lints]
 workspace = true
