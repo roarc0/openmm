@@ -123,6 +123,22 @@ pub(super) fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimen
     }
 }
 
+/// Full HUD canvas reference dimensions: (width, height) in original image pixels.
+///   width  = border1.w + border2.w - 1   (1-pixel overlap between right sidebar and bottom panel)
+///   height = border1.h
+pub fn hud_canvas_dims(ui: &crate::ui_assets::UiAssets) -> (f32, f32) {
+    let (b1w, b1h) = ui.dimensions("border1.pcx").unwrap_or((640, 480));
+    let (b2w, _)   = ui.dimensions("border2.pcx").unwrap_or((0, 0));
+    ((b1w + b2w).saturating_sub(1) as f32, b1h as f32)
+}
+
+/// Convert a MM6 UI reference coordinate to HudRoot-local logical pixels (left, top).
+/// `(ref_x, ref_y)` are pixel positions in the full HUD canvas (see `hud_canvas_dims`).
+/// `(lw, lh)` are the letterboxed logical dimensions.
+pub fn hud_ref_to_local(ref_x: f32, ref_y: f32, lw: f32, lh: f32, ref_w: f32, ref_h: f32) -> (f32, f32) {
+    (ref_x * lw / ref_w, ref_y * lh / ref_h)
+}
+
 /// Parse aspect ratio string like "4:3" into a float (width/height).
 pub fn parse_aspect_ratio(s: &str) -> Option<f32> {
     let parts: Vec<&str> = s.split(':').collect();
