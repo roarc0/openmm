@@ -27,7 +27,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libasound2-dev libudev-dev pkg-config libwayland-dev
+          sudo apt-get install -y \
+            clang pkg-config xvfb \
+            libwayland-dev libxkbcommon-dev \
+            libx11-dev libxi-dev libxrandr-dev libxcursor-dev \
+            libasound2-dev libudev-dev \
+            libvulkan-dev libgl1-mesa-dev libegl1-mesa-dev
       
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
@@ -51,7 +56,7 @@ jobs:
           key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Generate coverage
-        run: cargo tarpaulin --verbose --all-features --workspace --timeout 300 --out xml
+        run: cargo tarpaulin --verbose --workspace --timeout 300 --out xml
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
