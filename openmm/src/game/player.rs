@@ -19,6 +19,17 @@ use crate::game::collision::{
 use crate::save::GameSave;
 use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
+// --- Constants ---
+
+const WALK_SPEED: f32 = 1024.0;
+const FLY_SPEED: f32 = 2048.0;
+const ROTATION_SPEED: f32 = 1.8;
+const EYE_HEIGHT: f32 = 160.0;
+const GRAVITY: f32 = 9800.0;
+const MAX_SLOPE_HEIGHT: f32 = 200.0;
+const JUMP_VELOCITY: f32 = 1300.0;
+const COLLISION_RADIUS: f32 = 24.0;
+
 // --- Components ---
 
 #[derive(Component)]
@@ -64,14 +75,14 @@ impl Default for PlayerSettings {
     fn default() -> Self {
         Self {
             sensitivity: 0.00006,
-            speed: 1024.,
-            fly_speed: 4096.,
-            rotation_speed: 1.8,
-            eye_height: 160.0,
-            gravity: 9800.0,
-            max_slope_height: 200.0,
-            jump_velocity: 1300.0,
-            collision_radius: 24.0,
+            speed: WALK_SPEED,
+            fly_speed: FLY_SPEED,
+            rotation_speed: ROTATION_SPEED,
+            eye_height: EYE_HEIGHT,
+            gravity: GRAVITY,
+            max_slope_height: MAX_SLOPE_HEIGHT,
+            jump_velocity: JUMP_VELOCITY,
+            collision_radius: COLLISION_RADIUS,
             max_xz: ODM_TILE_SCALE * ODM_PLAY_SIZE as f32 / 2.0,
         }
     }
@@ -352,6 +363,38 @@ fn toggle_mouse_look(keys: Res<ButtonInput<KeyCode>>, cfg: Res<GameConfig>, mut 
     }
 }
 
+/// Moves from `from` towards `dest` applying wall collision in substeps.
+/// Each substep is at most `radius` units long, preventing tunnelling at high speeds.
+fn move_with_substeps(
+    from: Vec3,
+    dest: Vec3,
+    radius: f32,
+    eye_height: f32,
+    colliders: Option<&BuildingColliders>,
+    door_colliders: Option<&crate::game::blv::DoorColliders>,
+) -> Vec3 {
+    let movement = dest - from;
+    let dist = movement.length();
+    if dist < 0.001 {
+        return from;
+    }
+    let steps = ((dist / radius).ceil() as u32).max(1);
+    let step = movement / steps as f32;
+    let mut pos = from;
+    for _ in 0..steps {
+        let step_dest = pos + step;
+        if let Some(c) = colliders {
+            pos = c.resolve_movement(pos, step_dest, radius, eye_height);
+        } else {
+            pos = step_dest;
+        }
+        if let Some(dc) = door_colliders {
+            pos = dc.resolve_movement(pos, step_dest, radius, eye_height);
+        }
+    }
+    pos
+}
+
 fn player_movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -458,15 +501,12 @@ fn player_movement(
 
             if world_state.player.fly_mode {
                 let from = transform.translation;
-                let mut dest = from + movement;
-                // BSP wall collision still applies when flying
-                if let Some(ref c) = colliders {
-                    dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
-                }
-                if let Some(ref dc) = door_colliders {
-                    dest = dc.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
-                }
-                transform.translation = dest;
+                let dest = from + movement;
+                transform.translation = move_with_substeps(
+                    from, dest,
+                    settings.collision_radius, settings.eye_height,
+                    colliders.as_deref(), door_colliders.as_deref(),
+                );
             } else {
                 let from = transform.translation;
                 let mut dest = from + movement;
@@ -527,17 +567,13 @@ fn player_movement(
                     }
                 }
 
-                // BSP wall collision
-                if let Some(ref c) = colliders {
-                    dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
-                }
-                // Door collision
-                if let Some(ref dc) = door_colliders {
-                    dest = dc.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
-                }
-
-                transform.translation.x = dest.x;
-                transform.translation.z = dest.z;
+                let resolved = move_with_substeps(
+                    from, dest,
+                    settings.collision_radius, settings.eye_height,
+                    colliders.as_deref(), door_colliders.as_deref(),
+                );
+                transform.translation.x = resolved.x;
+                transform.translation.z = resolved.z;
             }
         }
 
