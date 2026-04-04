@@ -613,30 +613,20 @@ fn process_events(
                     debug!("SetSprite: decoration {} not found", target_idx);
                     continue;
                 };
-                // Load the named sprite directly, then apply DSFT group scale (same as at spawn).
-                let sprite_lower = sprite_name.to_lowercase();
-                let Some(img) = game_assets.game_lod().sprite(&sprite_lower) else {
+                let _ = declist_id; // stored for future use (e.g. directional swap)
+                let Some((new_mat, new_mesh, _new_w, new_h)) =
+                    crate::game::entities::sprites::load_static_decoration_sprite(
+                        sprite_name,
+                        game_assets.lod_manager(),
+                        game_assets.billboard_manager(),
+                        &mut images,
+                        &mut materials,
+                        &mut audio.meshes,
+                    )
+                else {
                     warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
                     continue;
                 };
-                let bb_mgr = game_assets.billboard_manager();
-                let dsft_scale = bb_mgr.dsft_scale_for_group(&sprite_lower);
-                let new_w = img.width() as f32 * dsft_scale;
-                let new_h = img.height() as f32 * dsft_scale;
-                let bevy_img = crate::assets::dynamic_to_bevy_image(img);
-                let _ = declist_id; // stored for future use; scale comes from group name
-                let tex = images.add(bevy_img);
-                let new_mat = materials.add(StandardMaterial {
-                    unlit: true,
-                    base_color_texture: Some(tex),
-                    alpha_mode: AlphaMode::Mask(0.5),
-                    cull_mode: None,
-                    double_sided: true,
-                    perceptual_roughness: 1.0,
-                    reflectance: 0.0,
-                    ..default()
-                });
-                let new_mesh = audio.meshes.add(Rectangle::new(new_w, new_h));
                 for (deco_info, mut mat_handle, mut mesh_handle, mut transform) in decoration_query.iter_mut() {
                     if deco_info.billboard_index == target_idx {
                         transform.translation.y = ground_y + new_h / 2.0;

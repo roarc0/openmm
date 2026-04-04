@@ -738,6 +738,40 @@ pub fn load_decoration_directions(
     (dirs, dir_masks, max_w as f32, max_h as f32)
 }
 
+/// Load a static (single-frame, non-directional) decoration sprite by name and return the
+/// material, mesh, and world-space dimensions — ready to swap onto an existing entity.
+///
+/// Applies the DSFT group scale factor so the size matches what the spawn code produces.
+/// Returns `None` if the sprite is not found in the LOD.
+pub fn load_static_decoration_sprite(
+    sprite_name: &str,
+    lod_manager: &LodManager,
+    bb_mgr: &lod::billboard::BillboardManager,
+    images: &mut Assets<Image>,
+    materials: &mut Assets<StandardMaterial>,
+    meshes: &mut Assets<Mesh>,
+) -> Option<(Handle<StandardMaterial>, Handle<Mesh>, f32, f32)> {
+    let name_lower = sprite_name.to_lowercase();
+    let img = lod_manager.game().sprite(&name_lower)?;
+    let dsft_scale = bb_mgr.dsft_scale_for_group(&name_lower);
+    let w = img.width() as f32 * dsft_scale;
+    let h = img.height() as f32 * dsft_scale;
+    let bevy_img = crate::assets::dynamic_to_bevy_image(img);
+    let tex = images.add(bevy_img);
+    let mat = materials.add(StandardMaterial {
+        unlit: true,
+        base_color_texture: Some(tex),
+        alpha_mode: AlphaMode::Mask(0.5),
+        cull_mode: None,
+        double_sided: true,
+        perceptual_roughness: 1.0,
+        reflectance: 0.0,
+        ..default()
+    });
+    let mesh = meshes.add(Rectangle::new(w, h));
+    Some((mat, mesh, w, h))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
