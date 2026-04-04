@@ -21,6 +21,11 @@ pub struct DecorationInfo {
     pub position: Vec3,
     /// Index into the map's billboard array (for SetSprite targeting).
     pub billboard_index: usize,
+    /// Declist ID used to resolve sprite name and scale via BillboardManager::get().
+    pub declist_id: u16,
+    /// Ground Y in Bevy coords (transform.y at spawn minus original half_h).
+    /// Stable across sprite swaps — used by SetSprite to reposition the billboard.
+    pub ground_y: f32,
     /// World-space half-extents for static (non-SpriteSheet) decorations. Zero for directional.
     pub half_w: f32,
     pub half_h: f32,

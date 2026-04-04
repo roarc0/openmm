@@ -36,6 +36,27 @@ impl Party {
             .max()
             .unwrap_or(0)
     }
+
+    /// Read a per-character EvtVariable from the targeted member(s).
+    /// For multi-target (Party), returns the value for member 0 (representative).
+    pub fn get_member_var(&self, target: EvtTargetCharacter, var: EvtVariable) -> i32 {
+        let idx = self.target_indices(target);
+        idx.first().map(|&i| self.members[i].get_var(var)).unwrap_or(0)
+    }
+
+    /// Write a per-character EvtVariable to the targeted member(s).
+    pub fn set_member_var(&mut self, target: EvtTargetCharacter, var: EvtVariable, value: i32) {
+        for i in self.target_indices(target) {
+            self.members[i].set_var(var, value);
+        }
+    }
+
+    /// Add delta to a per-character EvtVariable for the targeted member(s).
+    pub fn add_member_var(&mut self, target: EvtTargetCharacter, var: EvtVariable, delta: i32) {
+        for i in self.target_indices(target) {
+            self.members[i].add_var(var, delta);
+        }
+    }
 }
 
 impl Default for Party {

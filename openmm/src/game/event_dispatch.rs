@@ -27,11 +27,13 @@ use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::world_state::GameVariables;
 use crate::states::loading::LoadRequest;
 
-/// Bundles audio writer + SoundManager to stay within Bevy's 16-param limit.
+/// Bundles audio + mesh assets + game_time to stay within Bevy's 16-param limit.
 #[derive(SystemParam)]
 struct AudioParams<'w> {
     ui_sound: bevy::ecs::message::MessageWriter<'w, PlayUiSoundEvent>,
     sound_manager: Option<Res<'w, SoundManager>>,
+    game_time: Option<Res<'w, crate::game::game_time::GameTime>>,
+    meshes: ResMut<'w, Assets<Mesh>>,
 }
 
 /// An event sequence — a list of steps from one event_id, executed as a script.
@@ -145,7 +147,12 @@ fn grab_cursor(cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>
 // ── Variable read/write helpers ────────────────────────────────────────
 
 /// Read a game variable's current value.
-fn get_variable(vars: &GameVariables, var: EvtVariable) -> i32 {
+fn get_variable(
+    vars: &GameVariables,
+    party: &Party,
+    game_time: Option<&crate::game::game_time::GameTime>,
+    var: EvtVariable,
+) -> i32 {
     if var.is_map_var() {
         return vars.map_vars[var.map_var_index().unwrap() as usize];
     }
@@ -155,7 +162,37 @@ fn get_variable(vars: &GameVariables, var: EvtVariable) -> i32 {
         EvtVariable::REPUTATION_IS => vars.reputation,
         EvtVariable::QBITS => 0,          // compare uses contains check, handled separately
         EvtVariable::AUTONOTES_BITS => 0, // compare uses contains check
+        EvtVariable::FLYING => vars.flying as i32,
+        EvtVariable::NPCS => vars.npcs_in_party,
+        EvtVariable::TOTAL_CIRCUS_PRIZE => vars.total_circus_prize,
+        EvtVariable::SKILL_POINTS => party.get_member_var(party.active_target, var),
+        EvtVariable::DAYS_COUNTER1 => vars.days_counters[0],
+        EvtVariable::DAYS_COUNTER2 => vars.days_counters[1],
+        EvtVariable::DAYS_COUNTER3 => vars.days_counters[2],
+        EvtVariable::DAYS_COUNTER4 => vars.days_counters[3],
+        EvtVariable::DAYS_COUNTER5 => vars.days_counters[4],
+        EvtVariable::DAYS_COUNTER6 => vars.days_counters[5],
+        EvtVariable::MONTH_IS => {
+            game_time.map(|t| t.calendar_date().1 as i32).unwrap_or(1)
+        }
+        EvtVariable::HOUR_IS => {
+            game_time.map(|t| t.hour() as i32).unwrap_or(9)
+        }
+        EvtVariable::DAY_OF_WEEK_IS => {
+            game_time.map(|t| t.day_of_week() as i32).unwrap_or(0)
+        }
+        EvtVariable::DAY_OF_YEAR_IS => {
+            game_time.map(|t| {
+                let (_, m, d) = t.calendar_date();
+                ((m - 1) * 28 + d) as i32 // MM6 uses 28-day months
+            }).unwrap_or(1)
+        }
         _ => {
+            // Per-character variables (attrs, skills, conditions, etc.)
+            let pv = party.get_member_var(party.active_target, var);
+            if pv != 0 || is_character_var(var) {
+                return pv;
+            }
             debug!(
                 "get_variable: unhandled variable {} (0x{:02x}), returning 0",
                 var, var.0
@@ -165,8 +202,13 @@ fn get_variable(vars: &GameVariables, var: EvtVariable) -> i32 {
     }
 }
 
+/// Returns true if this variable is per-character (not global).
+fn is_character_var(var: EvtVariable) -> bool {
+    matches!(var.0, 0x01..=0x68)
+}
+
 /// Write a value to a game variable.
-fn set_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
+fn set_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
     if var.is_map_var() {
         let idx = var.map_var_index().unwrap() as usize;
         info!("  {} = {} (was {})", var, value, vars.map_vars[idx]);
@@ -196,17 +238,31 @@ fn set_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
                 vars.add_autonote(value);
             }
         }
+        EvtVariable::FLYING => vars.flying = value != 0,
+        EvtVariable::NPCS => vars.npcs_in_party = value,
+        EvtVariable::TOTAL_CIRCUS_PRIZE => vars.total_circus_prize = value,
+        EvtVariable::DAYS_COUNTER1 => vars.days_counters[0] = value,
+        EvtVariable::DAYS_COUNTER2 => vars.days_counters[1] = value,
+        EvtVariable::DAYS_COUNTER3 => vars.days_counters[2] = value,
+        EvtVariable::DAYS_COUNTER4 => vars.days_counters[3] = value,
+        EvtVariable::DAYS_COUNTER5 => vars.days_counters[4] = value,
+        EvtVariable::DAYS_COUNTER6 => vars.days_counters[5] = value,
         _ => {
-            warn!(
-                "  set_variable: unhandled variable {} (0x{:02x}) = {}",
-                var, var.0, value
-            );
+            if is_character_var(var) {
+                let target = party.active_target;
+                party.set_member_var(target, var, value);
+            } else {
+                warn!(
+                    "  set_variable: unhandled variable {} (0x{:02x}) = {}",
+                    var, var.0, value
+                );
+            }
         }
     }
 }
 
 /// Add to a game variable.
-fn add_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
+fn add_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
     if var.is_map_var() {
         let idx = var.map_var_index().unwrap() as usize;
         let old = vars.map_vars[idx];
@@ -231,17 +287,29 @@ fn add_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
         EvtVariable::AUTONOTES_BITS => {
             vars.add_autonote(value);
         }
+        EvtVariable::DAYS_COUNTER1 => vars.days_counters[0] += value,
+        EvtVariable::DAYS_COUNTER2 => vars.days_counters[1] += value,
+        EvtVariable::DAYS_COUNTER3 => vars.days_counters[2] += value,
+        EvtVariable::DAYS_COUNTER4 => vars.days_counters[3] += value,
+        EvtVariable::DAYS_COUNTER5 => vars.days_counters[4] += value,
+        EvtVariable::DAYS_COUNTER6 => vars.days_counters[5] += value,
+        EvtVariable::TOTAL_CIRCUS_PRIZE => vars.total_circus_prize += value,
         _ => {
-            warn!(
-                "  add_variable: unhandled variable {} (0x{:02x}) += {}",
-                var, var.0, value
-            );
+            if is_character_var(var) {
+                let target = party.active_target;
+                party.add_member_var(target, var, value);
+            } else {
+                warn!(
+                    "  add_variable: unhandled variable {} (0x{:02x}) += {}",
+                    var, var.0, value
+                );
+            }
         }
     }
 }
 
 /// Subtract from a game variable.
-fn subtract_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
+fn subtract_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
     if var.is_map_var() {
         let idx = var.map_var_index().unwrap() as usize;
         let old = vars.map_vars[idx];
@@ -266,18 +334,30 @@ fn subtract_variable(vars: &mut GameVariables, var: EvtVariable, value: i32) {
         EvtVariable::AUTONOTES_BITS => {
             vars.remove_autonote(value);
         }
+        EvtVariable::TOTAL_CIRCUS_PRIZE => vars.total_circus_prize -= value,
         _ => {
-            warn!(
-                "  subtract_variable: unhandled variable {} (0x{:02x}) -= {}",
-                var, var.0, value
-            );
+            if is_character_var(var) {
+                let target = party.active_target;
+                party.add_member_var(target, var, -value);
+            } else {
+                warn!(
+                    "  subtract_variable: unhandled variable {} (0x{:02x}) -= {}",
+                    var, var.0, value
+                );
+            }
         }
     }
 }
 
 /// Evaluate a Compare condition. Returns true if condition is met (JUMP to jump_step).
 /// MM6 Compare semantics: jump when condition is TRUE (e.g. "already done" → skip).
-fn evaluate_compare(vars: &GameVariables, var: EvtVariable, value: i32) -> bool {
+fn evaluate_compare(
+    vars: &GameVariables,
+    party: &Party,
+    game_time: Option<&crate::game::game_time::GameTime>,
+    var: EvtVariable,
+    value: i32,
+) -> bool {
     // Special cases: QBits and Autonotes check set membership
     if var == EvtVariable::QBITS {
         let result = vars.has_qbit(value);
@@ -291,7 +371,7 @@ fn evaluate_compare(vars: &GameVariables, var: EvtVariable, value: i32) -> bool 
     }
 
     // MM6 Compare semantics: numeric variables use >= (not ==)
-    let current = get_variable(vars, var);
+    let current = get_variable(vars, party, game_time, var);
     let result = current >= value;
     debug!("  Compare: {} = {} >= {}? -> {}", var, current, value, result);
     result
@@ -315,7 +395,7 @@ fn process_events(
     mut world_state: ResMut<crate::game::world_state::WorldState>,
     mut party: ResMut<Party>,
     time: Res<Time>,
-    mut decoration_query: Query<(&DecorationInfo, &mut MeshMaterial3d<StandardMaterial>)>,
+    mut decoration_query: Query<(&DecorationInfo, &mut MeshMaterial3d<StandardMaterial>, &mut Mesh3d, &mut Transform)>,
 ) {
     // Tick footer timer every frame
     footer.tick(time.elapsed_secs_f64());
@@ -452,7 +532,7 @@ fn process_events(
 
             // ── Control flow (NOW WORKING) ───────────────────────────
             GameEvent::Compare { var, value, jump_step } => {
-                if evaluate_compare(&world_state.game_vars, *var, *value) {
+                if evaluate_compare(&world_state.game_vars, &party, audio.game_time.as_deref(), *var, *value) {
                     // Condition met — jump to target step (e.g. "already done", skip action)
                     if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                         debug!("  Compare met -> jumping to step {}", jump_step);
@@ -496,13 +576,13 @@ fn process_events(
 
             // ── Variable operations (NOW WORKING) ────────────────────
             GameEvent::Add { var, value } => {
-                add_variable(&mut world_state.game_vars, *var, *value);
+                add_variable(&mut world_state.game_vars, &mut party, *var, *value);
             }
             GameEvent::Subtract { var, value } => {
-                subtract_variable(&mut world_state.game_vars, *var, *value);
+                subtract_variable(&mut world_state.game_vars, &mut party, *var, *value);
             }
             GameEvent::Set { var, value } => {
-                set_variable(&mut world_state.game_vars, *var, *value);
+                set_variable(&mut world_state.game_vars, &mut party, *var, *value);
             }
 
             // ── World operations (stubs with warns) ──────────────────
@@ -523,39 +603,47 @@ fn process_events(
                 sprite_name,
             } => {
                 info!("SetSprite: deco={} sprite='{}'", decoration_id, sprite_name);
-                // Find the decoration entity by billboard_index and replace its material
                 let target_idx = *decoration_id as usize;
-                let mut found = false;
-                for (deco_info, mut mat_handle) in decoration_query.iter_mut() {
+                // Find the target entity first to get declist_id and ground_y.
+                let target = decoration_query
+                    .iter()
+                    .find(|(d, ..)| d.billboard_index == target_idx)
+                    .map(|(d, ..)| (d.declist_id, d.ground_y));
+                let Some((declist_id, ground_y)) = target else {
+                    debug!("SetSprite: decoration {} not found", target_idx);
+                    continue;
+                };
+                // Load the named sprite directly, then apply DSFT group scale (same as at spawn).
+                let sprite_lower = sprite_name.to_lowercase();
+                let Some(img) = game_assets.game_lod().sprite(&sprite_lower) else {
+                    warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
+                    continue;
+                };
+                let bb_mgr = game_assets.billboard_manager();
+                let dsft_scale = bb_mgr.dsft_scale_for_group(&sprite_lower);
+                let new_w = img.width() as f32 * dsft_scale;
+                let new_h = img.height() as f32 * dsft_scale;
+                let bevy_img = crate::assets::dynamic_to_bevy_image(img);
+                let _ = declist_id; // stored for future use; scale comes from group name
+                let tex = images.add(bevy_img);
+                let new_mat = materials.add(StandardMaterial {
+                    unlit: true,
+                    base_color_texture: Some(tex),
+                    alpha_mode: AlphaMode::Mask(0.5),
+                    cull_mode: None,
+                    double_sided: true,
+                    perceptual_roughness: 1.0,
+                    reflectance: 0.0,
+                    ..default()
+                });
+                let new_mesh = audio.meshes.add(Rectangle::new(new_w, new_h));
+                for (deco_info, mut mat_handle, mut mesh_handle, mut transform) in decoration_query.iter_mut() {
                     if deco_info.billboard_index == target_idx {
-                        // Load the new sprite and create a material for it
-                        let sprite_lower = sprite_name.to_lowercase();
-                        if let Some(img) = game_assets.game_lod().sprite(&sprite_lower) {
-                            let bevy_img = crate::assets::dynamic_to_bevy_image(img);
-                            let tex = images.add(bevy_img);
-                            let new_mat = materials.add(StandardMaterial {
-                                unlit: true,
-                                base_color_texture: Some(tex),
-                                alpha_mode: AlphaMode::Mask(0.5),
-                                cull_mode: None,
-                                double_sided: true,
-                                perceptual_roughness: 1.0,
-                                reflectance: 0.0,
-                                ..default()
-                            });
-                            mat_handle.0 = new_mat;
-                            found = true;
-                        } else {
-                            warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
-                        }
+                        transform.translation.y = ground_y + new_h / 2.0;
+                        mesh_handle.0 = new_mesh;
+                        mat_handle.0 = new_mat;
                         break;
                     }
-                }
-                if !found {
-                    debug!(
-                        "SetSprite: decoration {} not found (may not have DecorationInfo)",
-                        target_idx
-                    );
                 }
             }
             GameEvent::ToggleIndoorLight { light_id, on } => {
@@ -630,10 +718,9 @@ fn process_events(
                 topic_index,
                 event_id,
             } => {
-                warn!(
-                    "STUB SetNPCTopic: npc={} topic={} event={}",
-                    npc_id, topic_index, event_id
-                );
+                info!("SetNPCTopic: npc={} topic={} event={}", npc_id, topic_index, event_id);
+                // Store event override keyed by npc_id; topic_index is ignored (MM6 has one active topic).
+                world_state.game_vars.npc_topics.insert(*npc_id as i32, *event_id as i32);
             }
             GameEvent::MoveNPC { npc_id, map_id } => {
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
@@ -817,21 +904,37 @@ fn process_events(
                 }
             }
             GameEvent::CheckSeason { season, jump_step } => {
-                let name = match season {
+                // MM6 seasons: 0=Winter(12,1,2), 1=Spring(3,4,5), 2=Summer(6,7,8), 3=Autumn(9,10,11)
+                let current_season = audio.game_time.as_deref().map(|gt| {
+                    let (_, month, _) = gt.calendar_date();
+                    match month {
+                        3..=5 => 1u8, // Spring
+                        6..=8 => 2,   // Summer
+                        9..=11 => 3,  // Autumn
+                        _ => 0,       // Winter (12, 1, 2)
+                    }
+                });
+                let season_name = match season {
                     0 => "Winter",
                     1 => "Spring",
                     2 => "Summer",
                     3 => "Autumn",
                     _ => "Unknown",
                 };
-                warn!(
-                    "STUB CheckSeason: {}({}) -> failing, jumping to step {}",
-                    name, season, jump_step
+                // Jump if season does NOT match (CheckSeason fails → jump past quest step)
+                let matches = current_season == Some(*season as u8);
+                info!(
+                    "  CheckSeason: want {} current={:?} -> {}",
+                    season_name,
+                    current_season,
+                    if matches { "pass" } else { "fail -> jump" }
                 );
-                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                    pc = target_idx;
-                } else {
-                    return;
+                if !matches {
+                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                        pc = target_idx;
+                    } else {
+                        return;
+                    }
                 }
             }
             GameEvent::IsNPCInParty { npc_id, jump_step } => {
@@ -884,7 +987,15 @@ fn process_events(
                 warn!("STUB ToggleChestFlag: chest={} flag=0x{:x} on={}", chest_id, flag, on);
             }
             GameEvent::SpecialJump { jump_value } => {
-                warn!("STUB SpecialJump: value={}", jump_value);
+                // Treat as unconditional jump to step N (same semantics as Jmp).
+                let target_step = *jump_value as u8;
+                if let Some(target_idx) = steps.iter().position(|s| s.step >= target_step) {
+                    debug!("  SpecialJump -> step {}", target_step);
+                    pc = target_idx;
+                } else {
+                    debug!("  SpecialJump -> step {} not found, ending", target_step);
+                    return;
+                }
             }
 
             GameEvent::Unhandled {
@@ -910,6 +1021,14 @@ mod tests {
         GameVariables::default()
     }
 
+    fn make_party() -> Party {
+        Party::default()
+    }
+
+    fn cmp(vars: &GameVariables, party: &Party, var: EvtVariable, value: i32) -> bool {
+        evaluate_compare(vars, party, None, var, value)
+    }
+
     /// MM6 Compare: condition MET (true) → jump (skip). NOT met → fall through.
     /// Regression for apple tree events in oute3: Compare(MapVar9 >= 1)
     ///   - first click (MapVar9=0): 0 >= 1 = FALSE → don't jump → pick apple
@@ -918,19 +1037,20 @@ mod tests {
     fn compare_jumps_when_condition_met_not_when_unmet() {
         // MapVar9 = EvtVariable(0x69 + 9) = EvtVariable(0x72)
         let map_var9 = EvtVariable(0x69 + 9);
+        let party = make_party();
 
         let mut vars = make_vars();
         // First click: not yet picked (MapVar9 = 0)
         vars.map_vars[9] = 0;
         assert!(
-            !evaluate_compare(&vars, map_var9, 1),
+            !cmp(&vars, &party, map_var9, 1),
             "MapVar9=0 >= 1 should be FALSE (don't jump, fall through to pick apple)"
         );
 
         // Second click: already picked (MapVar9 = 1)
         vars.map_vars[9] = 1;
         assert!(
-            evaluate_compare(&vars, map_var9, 1),
+            cmp(&vars, &party, map_var9, 1),
             "MapVar9=1 >= 1 should be TRUE (jump to skip — tree already picked)"
         );
     }
@@ -938,10 +1058,11 @@ mod tests {
     #[test]
     fn compare_qbit_jumps_when_set() {
         let mut vars = make_vars();
+        let party = make_party();
         // QBit not set → FALSE (don't jump, can do quest)
-        assert!(!evaluate_compare(&vars, EvtVariable::QBITS, 5));
+        assert!(!cmp(&vars, &party, EvtVariable::QBITS, 5));
         // QBit set → TRUE (jump, quest already done)
         vars.set_qbit(5);
-        assert!(evaluate_compare(&vars, EvtVariable::QBITS, 5));
+        assert!(cmp(&vars, &party, EvtVariable::QBITS, 5));
     }
 }

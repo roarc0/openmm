@@ -33,6 +33,16 @@ pub struct GameVariables {
     pub reputation: i32,
     /// Auto-notes (journal entries).
     pub autonotes: std::collections::HashSet<i32>,
+    /// Day counters 1-6 (EvtVariable 0xD8..0xDD), general-purpose timers.
+    pub days_counters: [i32; 6],
+    /// Whether the party is currently flying (EvtVariable 0xDE).
+    pub flying: bool,
+    /// Number of hired NPCs in party (EvtVariable 0xD6).
+    pub npcs_in_party: i32,
+    /// Total circus prize accumulated (EvtVariable 0xE0).
+    pub total_circus_prize: i32,
+    /// NPC topic overrides: npc_id → event_id (set by SetNPCTopic).
+    pub npc_topics: std::collections::HashMap<i32, i32>,
 }
 
 pub struct PlayerRuntimeState {
@@ -93,6 +103,11 @@ impl Default for GameVariables {
             food: 7,
             reputation: 0,
             autonotes: std::collections::HashSet::new(),
+            days_counters: [0; 6],
+            flying: false,
+            npcs_in_party: 0,
+            total_circus_prize: 0,
+            npc_topics: std::collections::HashMap::new(),
         }
     }
 }

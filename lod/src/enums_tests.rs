@@ -7,7 +7,7 @@ fn evt_opcode_round_trip() {
     assert_eq!(EvtOpcode::from_u8(6), Some(EvtOpcode::MoveToMap));
     assert_eq!(EvtOpcode::from_u8(15), Some(EvtOpcode::ChangeDoorState));
     assert_eq!(EvtOpcode::from_u8(68), Some(EvtOpcode::IsNPCInParty));
-    assert_eq!(EvtOpcode::from_u8(20), None); // unused slot
+    assert_eq!(EvtOpcode::from_u8(20), Some(EvtOpcode::Unknown20)); // named unknown slot
     assert_eq!(EvtOpcode::from_u8(255), None);
 }
 
