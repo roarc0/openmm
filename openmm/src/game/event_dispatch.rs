@@ -680,9 +680,8 @@ fn process_events(
                         .filter(|e| e.profession_id > 0)
                         .map(|e| e.profession_id as u16)
                 };
-                let prof_entry = profession_id.and_then(|id| {
-                    game_assets.game_data().prof_table.as_ref().and_then(|pt| pt.get(id))
-                });
+                let prof_entry =
+                    profession_id.and_then(|id| game_assets.game_data().prof_table.as_ref().and_then(|pt| pt.get(id)));
                 let profession = prof_entry.map(|p| p.name.clone());
 
                 let portrait_img = game_assets

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{GameState, despawn_all};
 
+pub(crate) mod actor_combat;
 pub(crate) mod blv;
 pub(crate) mod collision;
 pub(crate) mod debug;
@@ -49,6 +50,7 @@ impl Plugin for InGamePlugin {
             world_state::WorldStatePlugin,
             sound::SoundPlugin,
         ))
+        .add_plugins(actor_combat::ActorCombatPlugin)
         .add_plugins(MaterialPlugin::<terrain_material::TerrainMaterial>::default())
         .add_plugins(party::PartyPlugin)
         .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);

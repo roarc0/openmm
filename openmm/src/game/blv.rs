@@ -399,6 +399,7 @@ fn spawn_indoor_world(
             let (states, state_masks, sw, sh) = sprites::load_entity_sprites(
                 &actor.standing_sprite,
                 &actor.walking_sprite,
+                &actor.attacking_sprite,
                 game_assets.lod_manager(),
                 &mut images,
                 &mut materials,
@@ -449,6 +450,11 @@ fn spawn_indoor_world(
                     wander_target: pos,
                     facing_yaw: 0.0,
                     hostile: false,
+                    sound_ids: actor.sound_ids,
+                    fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                    attack_range: actor.radius as f32 * 2.0,
+                    attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
+                    attack_anim_remaining: 0.0,
                 },
                 crate::game::interaction::NpcInteractable {
                     name: hover_name,

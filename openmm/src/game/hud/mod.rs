@@ -63,10 +63,7 @@ impl Plugin for HudPlugin {
         app.init_resource::<FooterText>()
             .init_resource::<HudView>()
             .add_systems(OnEnter(GameState::Game), spawn_hud)
-            .add_systems(
-                Update,
-                close_ui_system.run_if(in_state(GameState::Game)),
-            )
+            .add_systems(Update, close_ui_system.run_if(in_state(GameState::Game)))
             .add_systems(
                 Update,
                 (

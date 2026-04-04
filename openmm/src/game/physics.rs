@@ -112,7 +112,11 @@ fn setup_collision_data(
             }
         }
     }
-    let mut colliders = BuildingColliders { walls, floors, ceilings };
+    let mut colliders = BuildingColliders {
+        walls,
+        floors,
+        ceilings,
+    };
     colliders.mark_step_walls();
     commands.insert_resource(colliders);
 

@@ -537,6 +537,14 @@ fn lazy_spawn(
                             mask: None,
                         });
                 }
+                if dec.trigger_radius > 0 && dec.event_id > 0 {
+                    commands
+                        .entity(child_id)
+                        .insert(crate::game::interaction::DecorationTrigger::new(
+                            dec.event_id as u16,
+                            dec.trigger_radius as f32,
+                        ));
+                }
                 if dec.light_radius > 0 {
                     let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
                     commands.entity(child_id).add_child(light_id);
@@ -613,6 +621,14 @@ fn lazy_spawn(
                         mask: None, // SpriteSheet.current_mask handles this
                     });
             }
+            if dec.trigger_radius > 0 && dec.event_id > 0 {
+                commands
+                    .entity(child_id)
+                    .insert(crate::game::interaction::DecorationTrigger::new(
+                        dec.event_id as u16,
+                        dec.trigger_radius as f32,
+                    ));
+            }
             if dec.flicker_rate > 0.0 {
                 let phase = (pos.x * 0.137 + pos.z * 0.031).abs().fract();
                 commands
@@ -681,6 +697,14 @@ fn lazy_spawn(
                         mask: Some(mask),
                     });
             }
+            if dec.trigger_radius > 0 && dec.event_id > 0 {
+                commands
+                    .entity(child_id)
+                    .insert(crate::game::interaction::DecorationTrigger::new(
+                        dec.event_id as u16,
+                        dec.trigger_radius as f32,
+                    ));
+            }
             if dec.flicker_rate > 0.0 {
                 let phase = (pos.x * 0.137 + pos.z * 0.031).abs().fract();
                 commands
@@ -718,6 +742,7 @@ fn lazy_spawn(
         let (s2, m2, w2, h2) = sprites::load_entity_sprites(
             &actor.standing_sprite,
             &actor.walking_sprite,
+            &actor.attacking_sprite,
             game_assets.lod_manager(),
             &mut images,
             &mut materials,
@@ -819,6 +844,11 @@ fn lazy_spawn(
                 wander_target: pos,
                 facing_yaw: 0.0,
                 hostile: false,
+                sound_ids: actor.sound_ids,
+                fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                attack_range: actor.radius as f32 * 2.0,
+                attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
+                attack_anim_remaining: 0.0,
             },
             crate::game::interaction::NpcInteractable {
                 name: hover_name,
@@ -836,6 +866,7 @@ fn lazy_spawn(
         let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
             &m.standing_sprite,
             &m.walking_sprite,
+            &m.attacking_sprite,
             game_assets.lod_manager(),
             &mut images,
             &mut materials,
@@ -887,6 +918,11 @@ fn lazy_spawn(
                 wander_target: pos,
                 facing_yaw: 0.0,
                 hostile: true,
+                sound_ids: m.sound_ids,
+                fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                attack_range: m.radius as f32 * 2.0,
+                attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
+                attack_anim_remaining: 0.0,
             },
         ));
         spawned += 1;

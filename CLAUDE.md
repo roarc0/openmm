@@ -16,6 +16,10 @@ Faithful open-source reimplementation of the Might and Magic VI engine in Rust. 
 - Indoor map rendering (BLV files) with face-based geometry and collision
 - Indoor door interaction: clickable faces dispatch EVT events, door animation state machine
 - Full in-game calendar clock (1 real second = 1 game minute, starts Jan 1 Year 1000 9am) with day/night cycle, sun arc, and ambient lighting
+- Actor ambient sounds: nearby actors play fidget sounds (index 3 from dmonlist sound_ids) with spatial attenuation, rate limiting, and per-actor stagger
+- Decoration proximity triggers: decorations with `trigger_radius > 0` fire EVT events on player approach (rising edge only)
+- Decoration dawn/dusk sounds: decorations with `sound_on_dawn`/`sound_on_dusk` flags play their `sound_id` at the day/night transition
+- Quest NPC event dispatch: clicking a quest NPC runs their `event_a` EVT script; street NPCs fall back to `SpeakNPC`
 
 ## Goal
 
@@ -332,4 +336,6 @@ Ordered roughly by impact and readiness:
 - **Save / load** — `GameSave` JSON skeleton exists; full round-trip persistence (party stats, map state, quest bits) is not yet implemented.
 - **Street NPC identity randomization** — `peasant_identity()` currently uses spawn index as a deterministic seed; in MM6 each map load assigns fresh random names/professions. Should seed from a per-load RNG. Once save/load exists, identities should be persisted so NPCs don't re-roll on every visit.
 - **Sky texture day/night variation** — ODM has a single `sky_texture` field; no format-level time-of-day variants. Need to investigate: does the original MM6 engine swap sky textures based on time (e.g. `plansky1` at day vs a darker variant at night), or does it rely purely on color tinting? Check what sky bitmap names exist in the LOD (`bitmaps` archive), look for naming patterns like `plansky1`/`plansky2` or morning/night variants, and check MMExtension docs. Currently the sky texture is static — only `ClearColor` changes with time of day.
+- **NPC time-of-day schedules** — `Actor.schedules: [MonsterSchedule; 8]` carries time-based position/action schedules from the DDM file (8 slots: position, action, time-of-day). These are fully parsed and stored on `lod::game::actors::Actor` and the openmm `Actor` component. Implementing them requires a schedule-following AI system that moves NPCs between waypoints based on `GameTime.hour()` and the schedule's time range. Not yet implemented.
+- **Faction and diplomacy** — `Actor.group: i32` (faction group) and `Actor.ally: i32` (ally faction) are parsed and stored. In MM6 these control whether monsters attack each other and the player. Needs a diplomacy table and aggression logic in the AI system. Not yet implemented.
 - support for mm7/8: requires better isolation of mm6 specific formats and game logic.

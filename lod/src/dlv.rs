@@ -394,7 +394,9 @@ mod tests {
 
     #[test]
     fn parse_d01_dlv_with_doors() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
         let dlv = Dlv::new(&lod_manager, "d01.blv", blv.door_count, blv.doors_data_size).unwrap();
 

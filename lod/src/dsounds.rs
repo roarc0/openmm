@@ -99,7 +99,9 @@ mod tests {
 
     #[test]
     fn read_dsounds_data_works() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let dsounds = DSounds::new(&lod_manager).unwrap();
         assert_eq!(dsounds.items.len(), 1355);
         // Record [1] should be "campfire" with id=4
@@ -110,7 +112,9 @@ mod tests {
 
     #[test]
     fn get_by_id_works() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let dsounds = DSounds::new(&lod_manager).unwrap();
         let campfire = dsounds.get_by_id(4).expect("sound id 4 should exist");
         assert_eq!(campfire.name(), Some("campfire".to_string()));

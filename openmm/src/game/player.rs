@@ -373,13 +373,12 @@ fn toggle_fly_mode(
         info!("Fly mode: OFF");
     }
     // Disengage fly when touching ground or a BSP floor surface
-    if world_state.player.fly_mode {
-        if let Ok(physics) = physics_query.single() {
-            if physics.on_ground {
-                world_state.player.fly_mode = false;
-                info!("Fly mode: OFF (landed)");
-            }
-        }
+    if world_state.player.fly_mode
+        && let Ok(physics) = physics_query.single()
+        && physics.on_ground
+    {
+        world_state.player.fly_mode = false;
+        info!("Fly mode: OFF (landed)");
     }
 }
 
@@ -529,9 +528,12 @@ fn player_movement(
                 let from = transform.translation;
                 let dest = from + movement;
                 transform.translation = move_with_substeps(
-                    from, dest,
-                    settings.collision_radius, settings.eye_height,
-                    colliders.as_deref(), door_colliders.as_deref(),
+                    from,
+                    dest,
+                    settings.collision_radius,
+                    settings.eye_height,
+                    colliders.as_deref(),
+                    door_colliders.as_deref(),
                 );
             } else {
                 let from = transform.translation;
@@ -594,9 +596,12 @@ fn player_movement(
                 }
 
                 let resolved = move_with_substeps(
-                    from, dest,
-                    settings.collision_radius, settings.eye_height,
-                    colliders.as_deref(), door_colliders.as_deref(),
+                    from,
+                    dest,
+                    settings.collision_radius,
+                    settings.eye_height,
+                    colliders.as_deref(),
+                    door_colliders.as_deref(),
                 );
                 transform.translation.x = resolved.x;
                 transform.translation.z = resolved.z;

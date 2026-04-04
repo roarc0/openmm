@@ -16,13 +16,24 @@ pub struct PlayUiSoundEvent {
     pub sound_id: u32,
 }
 
+/// Message to play a one-shot spatial sound (plays once then despawns).
+#[derive(Message)]
+pub struct PlayOnceSoundEvent {
+    pub sound_id: u32,
+    pub position: Vec3,
+}
+
 pub struct EffectsPlugin;
 
 impl Plugin for EffectsPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<PlaySoundEvent>()
             .add_message::<PlayUiSoundEvent>()
-            .add_systems(Update, (handle_play_sound, handle_play_ui_sound));
+            .add_message::<PlayOnceSoundEvent>()
+            .add_systems(
+                Update,
+                (handle_play_sound, handle_play_ui_sound, handle_play_once_sound),
+            );
     }
 }
 
@@ -83,6 +94,38 @@ fn handle_play_ui_sound(
                 mode: bevy::audio::PlaybackMode::Despawn,
                 ..default()
             },
+            InGame,
+        ));
+    }
+}
+
+fn handle_play_once_sound(
+    mut commands: Commands,
+    mut sound_manager: Option<ResMut<SoundManager>>,
+    mut audio_sources: ResMut<Assets<AudioSource>>,
+    mut events: MessageReader<PlayOnceSoundEvent>,
+    cfg: Res<crate::config::GameConfig>,
+) {
+    let Some(ref mut sound_manager) = sound_manager else {
+        for _ in events.read() {}
+        return;
+    };
+
+    if cfg.sfx_volume <= 0.0 {
+        for _ in events.read() {}
+        return;
+    }
+
+    for ev in events.read() {
+        let Some(handle) = sound_manager.load_sound(ev.sound_id, &mut audio_sources) else {
+            continue;
+        };
+        commands.spawn((
+            AudioPlayer(handle),
+            PlaybackSettings::ONCE
+                .with_spatial(true)
+                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 4.0)),
+            Transform::from_translation(ev.position),
             InGame,
         ));
     }

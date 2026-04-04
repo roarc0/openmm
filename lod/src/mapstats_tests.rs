@@ -104,7 +104,9 @@ fn monster_for_index_difficulty_0_always_a() {
 
 #[test]
 fn mapstats_loads_from_lod() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let stats = MapStats::new(&lod).unwrap();
     assert!(!stats.maps.is_empty(), "mapstats should have map entries");
     // New Sorpigal (oute3.odm) should be present

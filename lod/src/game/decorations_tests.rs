@@ -9,13 +9,17 @@ fn load_oute3_decorations() -> Option<Decorations> {
 
 #[test]
 fn decorations_loads_oute3() {
-    let Some(dec) = load_oute3_decorations() else { return; };
+    let Some(dec) = load_oute3_decorations() else {
+        return;
+    };
     assert!(!dec.entries.is_empty(), "oute3 should have decorations");
 }
 
 #[test]
 fn all_entries_have_sprite_name() {
-    let Some(dec) = load_oute3_decorations() else { return; };
+    let Some(dec) = load_oute3_decorations() else {
+        return;
+    };
     for entry in dec.iter() {
         assert!(
             !entry.sprite_name.is_empty(),
@@ -26,7 +30,9 @@ fn all_entries_have_sprite_name() {
 
 #[test]
 fn directional_entries_have_zero_dimensions() {
-    let Some(dec) = load_oute3_decorations() else { return; };
+    let Some(dec) = load_oute3_decorations() else {
+        return;
+    };
     for entry in dec.iter().filter(|e| e.is_directional) {
         assert_eq!(
             entry.width, 0.0,
@@ -43,7 +49,9 @@ fn directional_entries_have_zero_dimensions() {
 
 #[test]
 fn non_directional_entries_have_dimensions() {
-    let Some(dec) = load_oute3_decorations() else { return; };
+    let Some(dec) = load_oute3_decorations() else {
+        return;
+    };
     let non_dir: Vec<_> = dec.iter().filter(|e| !e.is_directional).collect();
     assert!(!non_dir.is_empty(), "oute3 should have non-directional decorations");
     for entry in non_dir {

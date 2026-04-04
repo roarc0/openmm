@@ -20,6 +20,8 @@ pub struct Monster {
     pub standing_sprite: String,
     /// DSFT-resolved walking sprite root (falls back to standing_sprite).
     pub walking_sprite: String,
+    /// Sprite root for the attack1 animation (sprite_names[2], lowercased).
+    pub attacking_sprite: String,
     /// DSFT palette_id for this variant.
     pub palette_id: u16,
     /// Difficulty variant: 1=A (base), 2=B, 3=C. From mapstats difficulty + RNG seed.
@@ -32,6 +34,10 @@ pub struct Monster {
     pub hostile: bool,
     /// Collision radius for the actor AI tether.
     pub radius: u16,
+    /// Sound IDs from dmonlist.bin: [attack, die, got_hit, fidget].
+    pub sound_ids: [u16; 4],
+    /// Melee attack reach in MM6 world units (from dmonlist.bin).
+    pub to_hit_radius: u16,
 }
 
 /// Per-map resolved monster spawn roster. Created once per map load via `Monsters::new()`.
@@ -67,6 +73,7 @@ impl Monsters {
 
                 let st_group = &desc.sprite_names[0];
                 let wa_group = &desc.sprite_names[1];
+                let at_group = &desc.sprite_names[2];
                 let Some((st_root, palette_id)) = resolve_sprite_group(st_group, &game_data.dsft, lod) else {
                     log::warn!(
                         "Monster '{}' standing sprite '{}' not found in DSFT — skipping",
@@ -78,6 +85,7 @@ impl Monsters {
                 let wa_root = resolve_sprite_group(wa_group, &game_data.dsft, lod)
                     .map(|(n, _)| n)
                     .unwrap_or_else(|| st_root.clone());
+                let at_root = at_group.to_lowercase();
 
                 entries.push(Monster {
                     name: mon_name.to_string(),
@@ -86,12 +94,15 @@ impl Monsters {
                     group_index: g,
                     standing_sprite: st_root,
                     walking_sprite: wa_root,
+                    attacking_sprite: at_root,
                     palette_id: palette_id as u16,
                     variant: dif,
                     height: desc.height,
                     move_speed: desc.move_speed,
                     hostile: true,
                     radius: sp.radius.max(300),
+                    sound_ids: desc.sound_ids,
+                    to_hit_radius: desc.to_hit_radius,
                 });
             }
         }
@@ -119,9 +130,14 @@ impl Monsters {
 pub struct MonsterEntry {
     pub standing_sprite: String,
     pub walking_sprite: String,
+    /// Sprite root for the attack1 animation (sprite_names[2], lowercased).
+    pub attacking_sprite: String,
     pub palette_id: u16,
     pub is_peasant: bool,
     pub is_female: bool,
+    /// Melee attack reach in MM6 world units (from dmonlist.bin).
+    pub to_hit_radius: u16,
+    pub sound_ids: [u16; 4],
 }
 
 /// Resolve a DSFT group name to a sprite file root and palette_id.
@@ -173,6 +189,7 @@ pub fn resolve_entry(monlist_id: u8, game_data: &GameData, lod: &LodManager) -> 
     let desc = game_data.monlist.get(monlist_id as usize)?;
     let st_group = &desc.sprite_names[0];
     let wa_group = &desc.sprite_names[1];
+    let at_group = &desc.sprite_names[2];
     if st_group.is_empty() {
         return None;
     }
@@ -180,12 +197,16 @@ pub fn resolve_entry(monlist_id: u8, game_data: &GameData, lod: &LodManager) -> 
     let walking_sprite = resolve_sprite_group(wa_group, &game_data.dsft, lod)
         .map(|(n, _)| n)
         .unwrap_or_else(|| standing_sprite.clone());
+    let attacking_sprite = at_group.to_lowercase();
     Some(MonsterEntry {
         standing_sprite,
         walking_sprite,
+        attacking_sprite,
         palette_id: palette_id as u16,
         is_peasant: game_data.monlist.is_peasant(monlist_id),
         is_female: game_data.monlist.is_female_peasant(monlist_id),
+        to_hit_radius: desc.to_hit_radius,
+        sound_ids: desc.sound_ids,
     })
 }
 

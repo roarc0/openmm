@@ -7,9 +7,9 @@ use crate::GameState;
 use crate::game::blv::{ClickableFaces, OccluderFaces};
 use crate::game::entities::sprites::{AlphaMask, SpriteSheet};
 use crate::game::event_dispatch::EventQueue;
-use crate::game::events::MapEvents;
+use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
 use crate::game::hud::{FooterText, HudView, OverlayImage};
-use crate::game::player::PlayerCamera;
+use crate::game::player::{Player, PlayerCamera};
 use crate::game::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 
 // --- Components & Resources ---
@@ -26,6 +26,25 @@ pub struct DecorationInfo {
     pub half_h: f32,
     /// Alpha mask for pixel-accurate hit testing of static decorations. None for directional.
     pub mask: Option<Arc<AlphaMask>>,
+}
+
+/// Component on decoration entities that fire an EVT event when the player enters their radius.
+/// Tracks whether the player was already in range to avoid re-firing every frame.
+#[derive(Component)]
+pub struct DecorationTrigger {
+    pub event_id: u16,
+    pub trigger_radius: f32,
+    was_in_range: bool,
+}
+
+impl DecorationTrigger {
+    pub fn new(event_id: u16, trigger_radius: f32) -> Self {
+        Self {
+            event_id,
+            trigger_radius,
+            was_in_range: false,
+        }
+    }
 }
 
 /// Component on NPC actor entities for hover/click interaction.
@@ -55,6 +74,12 @@ impl Plugin for InteractionPlugin {
                 .chain()
                 .run_if(in_state(GameState::Game))
                 .run_if(crate::game::hud::game_input_active),
+        )
+        .add_systems(
+            Update,
+            decoration_proximity_system
+                .run_if(in_state(GameState::Game))
+                .run_if(resource_equals(HudView::World)),
         )
         .add_systems(
             Update,
@@ -194,7 +219,7 @@ fn world_interact_system(
             half_h,
             mask,
         ) && t < occluder_t
-            && nearest.as_ref().map_or(true, |n| t < n.0)
+            && nearest.as_ref().is_none_or(|n| t < n.0)
         {
             nearest = Some((t, Hit::Decoration(info.event_id)));
         }
@@ -213,7 +238,7 @@ fn world_interact_system(
             sh / 2.0,
             sheet.current_mask.as_deref(),
         ) && t < occluder_t
-            && nearest.as_ref().map_or(true, |n| t < n.0)
+            && nearest.as_ref().is_none_or(|n| t < n.0)
         {
             nearest = Some((t, Hit::Npc(info.npc_id)));
         }
@@ -228,9 +253,58 @@ fn world_interact_system(
             }
         }
         Some((_, Hit::Npc(npc_id))) => {
-            event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: npc_id as i32 });
+            let npc_id_i32 = npc_id as i32;
+            // For quest NPCs (from npcdata.txt), run their event_a script if available.
+            // event_a is the "speak to" script — it typically contains SpeakNPC + dialogue options.
+            let ran_event = if npc_id_i32 > 0 && npc_id_i32 < GENERATED_NPC_ID_BASE {
+                if let Some(me) = map_events.as_ref()
+                    && let Some(evt) = me.evt.as_ref()
+                    && let Some(entry) = me.npc_table.as_ref().and_then(|t| t.get(npc_id_i32))
+                    && entry.event_a > 0
+                {
+                    event_queue.push_all(entry.event_a as u16, evt);
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            if !ran_event {
+                event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: npc_id_i32 });
+            }
         }
         None => {}
+    }
+}
+
+/// Fire EVT events when the player enters a decoration's trigger radius.
+/// Only fires on the rising edge (entering range), not while staying in range.
+fn decoration_proximity_system(
+    player_query: Query<&Transform, With<Player>>,
+    mut triggers: Query<(&GlobalTransform, &mut DecorationTrigger)>,
+    map_events: Option<Res<MapEvents>>,
+    mut event_queue: ResMut<EventQueue>,
+) {
+    let Ok(player_tf) = player_query.single() else {
+        return;
+    };
+    let player_pos = player_tf.translation;
+
+    for (g_tf, mut trigger) in triggers.iter_mut() {
+        let dist_sq = g_tf.translation().distance_squared(player_pos);
+        let radius_sq = trigger.trigger_radius * trigger.trigger_radius;
+        let in_range = dist_sq <= radius_sq;
+        if in_range && !trigger.was_in_range {
+            // Rising edge: player just entered the trigger radius
+            if let Some(me) = map_events.as_ref()
+                && let Some(evt) = me.evt.as_ref()
+                && trigger.event_id > 0
+            {
+                event_queue.push_all(trigger.event_id, evt);
+            }
+        }
+        trigger.was_in_range = in_range;
     }
 }
 

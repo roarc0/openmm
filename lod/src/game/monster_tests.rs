@@ -8,7 +8,9 @@ fn game_data(lod: &LodManager) -> GameData {
 
 #[test]
 fn monsters_loads_oute3() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     assert!(!monsters.is_empty(), "oute3 should have monster spawns");
@@ -16,7 +18,9 @@ fn monsters_loads_oute3() {
 
 #[test]
 fn monsters_all_have_sprites() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     for m in monsters.iter() {
@@ -29,7 +33,9 @@ fn monsters_all_have_sprites() {
 
 #[test]
 fn monsters_variant_in_range() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     for m in monsters.iter() {
@@ -43,7 +49,9 @@ fn monsters_variant_in_range() {
 
 #[test]
 fn monsters_group_index_within_group_size() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     // group_size is 3..=5, so group_index must be < 6
@@ -54,7 +62,9 @@ fn monsters_group_index_within_group_size() {
 
 #[test]
 fn goblin_a_resolves_standing_sprite() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     let entry = resolve_entry(0, &gd, &lod);
     assert!(entry.is_some(), "GoblinA (monlist_id=0) should resolve");
@@ -65,7 +75,9 @@ fn goblin_a_resolves_standing_sprite() {
 
 #[test]
 fn resolve_sprite_group_goblin_standing() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     let goblin_a = gd.monlist.find_by_name("Goblin", 1).unwrap();
     let group = &goblin_a.sprite_names[0];
@@ -75,14 +87,18 @@ fn resolve_sprite_group_goblin_standing() {
 
 #[test]
 fn resolve_sprite_group_empty_name_returns_none() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     assert!(resolve_sprite_group("", &gd.dsft, &lod).is_none());
 }
 
 #[test]
 fn resolve_entry_peasant_male_is_flagged() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     // PeasantM1A is monlist_id 132 (from monlist tests)
     let entry = resolve_entry(132, &gd, &lod);
@@ -94,7 +110,9 @@ fn resolve_entry_peasant_male_is_flagged() {
 
 #[test]
 fn resolve_entry_peasant_female_is_flagged() {
-    let Some(lod) = test_lod() else { return; };
+    let Some(lod) = test_lod() else {
+        return;
+    };
     let gd = game_data(&lod);
     // PeasantF1A is monlist_id 120
     let entry = resolve_entry(120, &gd, &lod);
@@ -102,4 +120,47 @@ fn resolve_entry_peasant_female_is_flagged() {
     let entry = entry.unwrap();
     assert!(entry.is_peasant);
     assert!(entry.is_female);
+}
+
+#[test]
+fn goblin_to_hit_radius_nonzero() {
+    let Some(lod) = test_lod() else { return; };
+    let gd = game_data(&lod);
+    let goblin = gd.monlist.find_by_name("Goblin", 1).expect("Goblin A should exist");
+    println!("Goblin to_hit_radius={} sound_ids={:?}", goblin.to_hit_radius, goblin.sound_ids);
+    // to_hit_radius must be > 0 for attack system to fire
+    assert!(goblin.to_hit_radius > 0, "Goblin should have a non-zero melee attack range");
+}
+
+#[test]
+fn goblin_raw_fields() {
+    let Some(lod) = test_lod() else { return; };
+    let gd = game_data(&lod);
+    let g = gd.monlist.get(0).expect("monlist[0] = GoblinA");
+    println!("name={:?} height={} radius={} move_speed={} to_hit_radius={} sound_ids={:?}",
+        g.internal_name, g.height, g.radius, g.move_speed, g.to_hit_radius, g.sound_ids);
+}
+
+#[test]
+fn print_first_ten_monsters() {
+    let Some(lod) = test_lod() else { return; };
+    let gd = game_data(&lod);
+    for i in 0..10 {
+        if let Some(m) = gd.monlist.get(i) {
+            println!("monlist[{i}] name={:?} radius={} to_hit_radius={} move_speed={}",
+                m.internal_name, m.radius, m.to_hit_radius, m.move_speed);
+        }
+    }
+}
+
+#[test]
+fn goblin_radius_values() {
+    let Some(lod) = test_lod() else { return; };
+    let gd = game_data(&lod);
+    for i in 0..gd.monlist.monsters.len() {
+        let m = &gd.monlist.monsters[i];
+        if m.internal_name.to_lowercase().contains("goblin") {
+            println!("monlist[{i}] {:?} radius={} to_hit_radius={}", m.internal_name, m.radius, m.to_hit_radius);
+        }
+    }
 }

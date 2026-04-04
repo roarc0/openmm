@@ -60,7 +60,9 @@ mod tests {
 
     #[test]
     fn parse_dchest() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let chestlist = ChestList::new(&lod_manager).unwrap();
         assert!(!chestlist.chests.is_empty(), "should have chests");
         println!("dchest: {} entries", chestlist.chests.len());

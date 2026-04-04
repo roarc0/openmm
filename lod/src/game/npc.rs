@@ -94,8 +94,24 @@ pub struct NpcEntry {
     pub name: String,
     /// Index for the portrait image: portrait=81 → "NPC081".
     pub portrait: u32,
-    /// Profession index (into npcprof.txt).
+    /// NPC status (col 3): 0=active, 1=dead, etc.
+    pub state: u32,
+    /// Fame score (col 4).
+    pub fame: i32,
+    /// Reputation score (col 5).
+    pub reputation: i32,
+    /// 2D map location ID (col 6).
+    pub location_id: u32,
+    /// Profession index (into npcprof.txt) (col 7).
     pub profession_id: u32,
+    /// Hire/join cost in gold (col 8).
+    pub join_cost: i32,
+    /// News string ID (col 9).
+    pub news: u32,
+    /// Event script IDs A/B/C (cols 10-12).
+    pub event_a: u32,
+    pub event_b: u32,
+    pub event_c: u32,
 }
 
 /// The complete NPC data table parsed from `npcdata.txt`.
@@ -143,7 +159,16 @@ impl StreetNpcs {
             };
             let name = cols[1].trim().to_string();
             let portrait: u32 = cols[2].trim().parse().unwrap_or(0);
+            let state: u32 = cols.get(3).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let fame: i32 = cols.get(4).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let reputation: i32 = cols.get(5).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let location_id: u32 = cols.get(6).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
             let profession_id: u32 = cols.get(7).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let join_cost: i32 = cols.get(8).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let news: u32 = cols.get(9).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let event_a: u32 = cols.get(10).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let event_b: u32 = cols.get(11).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let event_c: u32 = cols.get(12).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
 
             npcs.insert(
                 id,
@@ -151,7 +176,16 @@ impl StreetNpcs {
                     id,
                     name,
                     portrait,
+                    state,
+                    fame,
+                    reputation,
+                    location_id,
                     profession_id,
+                    join_cost,
+                    news,
+                    event_a,
+                    event_b,
+                    event_c,
                 },
             );
         }

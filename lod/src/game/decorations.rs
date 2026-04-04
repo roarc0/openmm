@@ -36,6 +36,22 @@ pub struct DecorationEntry {
     pub flicker_rate: f32,
     /// Point-light emission radius in MM6 world units (0 = no light).
     pub light_radius: u16,
+    /// Decoration type from ddeclist.bin.
+    pub dec_type: u16,
+    /// Event variable / parameter passed to the event script on activation.
+    pub event_variable: i16,
+    /// Proximity radius in MM6 units for trigger activations (0 = no trigger).
+    pub trigger_radius: i16,
+    /// If true, this decoration does not block player movement.
+    pub no_block_movement: bool,
+    /// If true, decoration emits fire particles.
+    pub emit_fire: bool,
+    /// If true, decoration plays its sound at dawn.
+    pub sound_on_dawn: bool,
+    /// If true, decoration plays its sound at dusk.
+    pub sound_on_dusk: bool,
+    /// If true, decoration emits smoke particles.
+    pub emit_smoke: bool,
 }
 
 /// Per-map decoration roster built from ODM billboard data.
@@ -136,6 +152,14 @@ impl Decorations {
                 frame_duration,
                 flicker_rate,
                 light_radius: declist_item.light_radius,
+                dec_type: declist_item.dec_type,
+                event_variable: bb.data.event_variable,
+                trigger_radius: bb.data.trigger_radius,
+                no_block_movement: declist_item.is_no_block_movement(),
+                emit_fire: declist_item.is_emit_fire(),
+                sound_on_dawn: declist_item.is_sound_on_dawn(),
+                sound_on_dusk: declist_item.is_sound_on_dusk(),
+                emit_smoke: declist_item.is_emit_smoke(),
             });
         }
 

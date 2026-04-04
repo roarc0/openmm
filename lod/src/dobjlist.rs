@@ -110,7 +110,9 @@ mod tests {
 
     #[test]
     fn parse_dobjlist() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let objlist = ObjectList::new(&lod_manager).unwrap();
         assert!(!objlist.objects.is_empty(), "should have objects");
         println!("dobjlist: {} entries", objlist.objects.len());

@@ -56,7 +56,9 @@ mod tests {
 
     #[test]
     fn parse_doverlay() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let overlaylist = OverlayList::new(&lod_manager).unwrap();
         assert!(!overlaylist.overlays.is_empty(), "should have overlays");
         println!("doverlay: {} entries", overlaylist.overlays.len());

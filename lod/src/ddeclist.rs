@@ -151,7 +151,9 @@ mod tests {
 
     #[test]
     fn read_declist_data_works() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let d_declist = DDecList::new(&lod_manager).unwrap();
         assert_eq!(d_declist.items.len(), 230);
         assert_eq!(d_declist.items[6].name(), Some("fount1".to_string()));

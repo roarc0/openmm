@@ -144,15 +144,16 @@ impl SpriteSheet {
     }
 }
 
-/// Load a complete entity's sprite set (standing + walking) using the cache.
-/// Returns (states, quad_width, quad_height) where the quad uses the max
-/// dimensions across both states so neither gets stretched.
-/// Load entity sprites. `palette_id` is the DSFT palette for this variant —
+/// Load a complete entity's sprite set (standing + walking + attacking) using the cache.
+/// Returns (states, state_masks, quad_width, quad_height) where the quad uses the max
+/// dimensions across all states so none gets stretched.
+/// `palette_id` is the DSFT palette for this variant —
 /// when non-zero and variant > 1, used directly for palette swap instead of
 /// the offset-from-sprite-header approach (which uses a different numbering).
 pub fn load_entity_sprites(
     standing_root: &str,
     walking_root: &str,
+    attacking_root: &str,
     lod_manager: &LodManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
@@ -215,11 +216,28 @@ pub fn load_entity_sprites(
         (walking, walking_masks)
     };
 
+    // Load attacking animation (state 2), padded to the unified quad size.
+    let (attacking, attacking_masks, _, _) = load_sprite_frames(
+        attacking_root,
+        lod_manager,
+        images,
+        materials,
+        cache,
+        variant,
+        qw as u32,
+        qh as u32,
+        palette_id,
+    );
+
     let mut states = vec![standing];
     let mut state_masks = vec![standing_masks];
     if !walking.is_empty() {
         states.push(walking);
         state_masks.push(walking_masks);
+    }
+    if !attacking.is_empty() {
+        states.push(attacking);
+        state_masks.push(attacking_masks);
     }
 
     (states, state_masks, qw, qh)
@@ -528,6 +546,7 @@ pub fn update_sprite_sheets(
         }
 
         let state_idx = match anim_state {
+            AnimationState::Attacking if sprites.states.len() > 2 && !sprites.states[2].is_empty() => 2,
             AnimationState::Walking if sprites.states.len() > 1 && !sprites.states[1].is_empty() => 1,
             _ => 0,
         };

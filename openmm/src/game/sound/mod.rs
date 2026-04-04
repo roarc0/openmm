@@ -1,3 +1,5 @@
+pub(crate) mod actor_sounds;
+pub(crate) mod decoration_sounds;
 pub(crate) mod effects;
 pub(crate) mod footsteps;
 pub(crate) mod music;
@@ -64,11 +66,17 @@ pub struct SoundPlugin;
 impl Plugin for SoundPlugin {
     fn build(&self, app: &mut App) {
         // MM6 world units are large (512 per tile). Scale so ~2 tiles = normal attenuation distance.
-        app.add_plugins((music::MusicPlugin, effects::EffectsPlugin, footsteps::FootstepsPlugin))
-            .insert_resource(bevy::audio::DefaultSpatialScale(bevy::audio::SpatialScale::new(
-                1.0 / 800.0,
-            )))
-            .add_systems(Startup, init_sound_manager);
+        app.add_plugins((
+            music::MusicPlugin,
+            effects::EffectsPlugin,
+            footsteps::FootstepsPlugin,
+            actor_sounds::ActorSoundsPlugin,
+            decoration_sounds::DecorationSoundsPlugin,
+        ))
+        .insert_resource(bevy::audio::DefaultSpatialScale(bevy::audio::SpatialScale::new(
+            1.0 / 800.0,
+        )))
+        .add_systems(Startup, init_sound_manager);
     }
 }
 

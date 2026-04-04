@@ -424,7 +424,9 @@ mod tests {
 
     #[test]
     fn get_map_works() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
 
         let model_crate = &map.bsp_models[17];

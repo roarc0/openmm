@@ -110,14 +110,18 @@ mod tests {
 
     #[test]
     fn parse_loads_houses() {
-        let Some(lod) = test_lod() else { return; };
+        let Some(lod) = test_lod() else {
+            return;
+        };
         let events = TwoDEvents::parse(&lod).unwrap();
         assert!(!events.houses.is_empty(), "2devents.txt should have house entries");
     }
 
     #[test]
     fn house_id_1_has_valid_fields() {
-        let Some(lod) = test_lod() else { return; };
+        let Some(lod) = test_lod() else {
+            return;
+        };
         let events = TwoDEvents::parse(&lod).unwrap();
         let house = events.houses.get(&1).expect("house id 1 should exist in MM6");
         assert!(!house.building_type.is_empty(), "building_type should not be empty");
@@ -127,7 +131,9 @@ mod tests {
 
     #[test]
     fn house_ids_match_keys() {
-        let Some(lod) = test_lod() else { return; };
+        let Some(lod) = test_lod() else {
+            return;
+        };
         let events = TwoDEvents::parse(&lod).unwrap();
         // Every entry's id field should match its map key
         for (&key, entry) in &events.houses {

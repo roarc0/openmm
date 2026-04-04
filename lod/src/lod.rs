@@ -170,7 +170,9 @@ mod tests {
     fn save_works() {
         let lod_path = get_lod_path();
         let lod_path = Path::new(&lod_path);
-        if !lod_path.exists() { return; }
+        if !lod_path.exists() {
+            return;
+        }
 
         let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
 
@@ -194,7 +196,9 @@ mod tests {
     fn get_image_works() {
         let lod_path = get_lod_path();
         let lod_path = Path::new(&lod_path);
-        if !lod_path.exists() { return; }
+        if !lod_path.exists() {
+            return;
+        }
 
         let bitmaps_lod = Lod::open(lod_path.join("BITMAPS.LOD")).unwrap();
         let palettes = palette::Palettes::try_from(&bitmaps_lod).unwrap();
@@ -212,7 +216,9 @@ mod tests {
     fn get_sprite() {
         let lod_path = get_lod_path();
         let lod_path = Path::new(&lod_path);
-        if !lod_path.exists() { return; }
+        if !lod_path.exists() {
+            return;
+        }
 
         let sprites_lod = Lod::open(lod_path.join("SPRITES.LOD")).unwrap();
         let rok1 = sprites_lod.try_get_bytes("rok1");

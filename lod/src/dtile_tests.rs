@@ -6,14 +6,18 @@ use crate::{
 
 #[test]
 fn read_dtile_data_works() {
-    let Some(lod_manager) = test_lod() else { return; };
+    let Some(lod_manager) = test_lod() else {
+        return;
+    };
     let dtile = Dtile::new(&lod_manager).unwrap();
     assert_eq!(dtile.tiles.len(), 882);
 }
 
 #[test]
 fn atlas_generation_works() {
-    let Some(lod_manager) = test_lod() else { return; };
+    let Some(lod_manager) = test_lod() else {
+        return;
+    };
     let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
     let dtile = Dtile::new(&lod_manager).unwrap();
 
@@ -27,7 +31,9 @@ fn atlas_generation_works() {
 
 #[test]
 fn tileset_lookup_grass_map() {
-    let Some(lod_manager) = test_lod() else { return; };
+    let Some(lod_manager) = test_lod() else {
+        return;
+    };
     let odm = Odm::new(&lod_manager, "oute3.odm").unwrap();
     let dtile = Dtile::new(&lod_manager).unwrap();
     let lookup = dtile.tileset_lookup(odm.tile_data);
@@ -56,7 +62,9 @@ fn tileset_lookup_grass_map() {
 
 #[test]
 fn tileset_lookup_snow_map() {
-    let Some(lod_manager) = test_lod() else { return; };
+    let Some(lod_manager) = test_lod() else {
+        return;
+    };
     let odm = Odm::new(&lod_manager, "outc1.odm").unwrap();
     let dtile = Dtile::new(&lod_manager).unwrap();
     println!("outc1 tile_data: {:?}", odm.tile_data);

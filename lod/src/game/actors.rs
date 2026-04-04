@@ -7,6 +7,7 @@
 use super::global::GameData;
 use super::monster;
 use crate::LodManager;
+use crate::ddm::{MonsterSchedule, SpellBuff};
 use std::error::Error;
 
 /// Stub for future map-state persistence. When populated, actors whose index
@@ -20,6 +21,8 @@ pub struct Actor {
     pub position: [i32; 3],
     pub standing_sprite: String,
     pub walking_sprite: String,
+    /// Sprite root for the attack1 animation (from MonsterEntry.attacking_sprite).
+    pub attacking_sprite: String,
     pub palette_id: u16,
     /// Palette variant: 1=A (base), 2=B, 3=C. Pre-computed from palette_id offset within
     /// actors sharing the same standing_sprite root. Never 0 after construction.
@@ -36,6 +39,24 @@ pub struct Actor {
     pub monlist_id: u8,
     pub is_peasant: bool,
     pub is_female: bool,
+    /// Melee attack reach in MM6 world units (from dmonlist.bin).
+    pub to_hit_radius: u16,
+    /// Sound IDs from DDM: [attack, die, got_hit, fidget].
+    pub sound_ids: [u16; 4],
+    /// Actor attribute bitflags (DDM Bits field). Controls behavior (flee, NPC flags, etc.).
+    pub attributes: u32,
+    /// Range-attack type indicator from DDM (0 = melee only).
+    pub range_attack: i16,
+    /// Secondary monster type ID from DDM (Id2).
+    pub monster_id_type: i16,
+    /// Faction group ID for diplomacy (0 = none).
+    pub group: i32,
+    /// Ally faction ID (0 = none).
+    pub ally: i32,
+    /// Active spell buffs (14 slots). Typically zero in freshly saved maps.
+    pub spell_buffs: [SpellBuff; 14],
+    /// Time-based AI schedules (8 slots: position + action + time of day).
+    pub schedules: [MonsterSchedule; 8],
 }
 
 impl Actor {
@@ -132,6 +153,7 @@ impl Actors {
                 position: [raw.position[0] as i32, raw.position[1] as i32, raw.position[2] as i32],
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
+                attacking_sprite: entry.attacking_sprite,
                 palette_id: entry.palette_id,
                 variant: 1, // overwritten by compute_variants() before return
                 name,
@@ -146,6 +168,15 @@ impl Actors {
                 monlist_id: raw.monlist_id,
                 is_peasant: entry.is_peasant,
                 is_female: entry.is_female,
+                to_hit_radius: entry.to_hit_radius,
+                sound_ids: raw.sound_ids,
+                attributes: raw.attributes,
+                range_attack: raw.range_attack,
+                monster_id_type: raw.monster_id_type,
+                group: raw.group,
+                ally: raw.ally,
+                spell_buffs: raw.spell_buffs,
+                schedules: raw.schedules,
             });
         }
 
@@ -205,6 +236,7 @@ impl Actors {
                 position: [raw.position[0] as i32, raw.position[1] as i32, raw.position[2] as i32],
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
+                attacking_sprite: entry.attacking_sprite,
                 palette_id: entry.palette_id,
                 variant: 1, // overwritten by compute_variants() before return
                 name,
@@ -219,6 +251,15 @@ impl Actors {
                 monlist_id: raw.monlist_id,
                 is_peasant: entry.is_peasant,
                 is_female: entry.is_female,
+                to_hit_radius: entry.to_hit_radius,
+                sound_ids: raw.sound_ids,
+                attributes: raw.attributes,
+                range_attack: raw.range_attack,
+                monster_id_type: raw.monster_id_type,
+                group: raw.group,
+                ally: raw.ally,
+                spell_buffs: raw.spell_buffs,
+                schedules: raw.schedules,
             });
         }
 

@@ -86,7 +86,9 @@ mod tests {
 
     #[test]
     fn parse_dtft() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
         let tft = TextureFrameTable::new(&lod_manager).unwrap();
         assert!(!tft.entries.is_empty(), "should have TFT entries");
         println!("dtft: {} entries", tft.entries.len());

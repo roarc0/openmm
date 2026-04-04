@@ -396,7 +396,9 @@ mod test {
 
     #[test]
     fn join_images() {
-        let Some(lod_manager) = test_lod() else { return; };
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
 
         let atlas_image = get_atlas(&lod_manager, &["grastyl", "dirttyl", "voltyl", "wtrtyl", "pending"], 2).unwrap();
         let slot = 128 + 2 * ATLAS_TILE_PAD;
