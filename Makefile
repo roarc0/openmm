@@ -3,16 +3,16 @@
 # --- Build ---
 
 build:
-	cargo build
+	cargo build -p openmm --features openmm/dev
 
 release:
-	cargo build --release
+	cargo build --release -p openmm
 
 run:
 ifdef map
-	cargo run -p openmm -- --map $(map) --skip-intro true
+	cargo run -p openmm --features openmm/dev -- --map $(map) --skip-intro true
 else
-	cargo run -p openmm
+	cargo run -p openmm --features openmm/dev
 endif
 
 run-release:

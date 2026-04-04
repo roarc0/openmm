@@ -5,9 +5,12 @@ edition.workspace = true
 authors.workspace = true
 publish = false
 
+[features]
+dev = ["bevy/dynamic_linking"]
+
 [dependencies]
 lod = { path = "../lod" }
-bevy = { version = "0.18", features = ["dynamic_linking", "mp3", "symphonia-wav"] }
+bevy = { version = "0.18", features = ["mp3", "symphonia-wav"] }
 bevy-inspector-egui = "0.36"
 random_color = "0.8"
 serde = { version = "1", features = ["derive"] }
