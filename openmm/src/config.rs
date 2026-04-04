@@ -315,7 +315,7 @@ impl Default for GameConfig {
             width: 2880,
             height: 2160,
             aspect_ratio: "".into(),
-            window_mode: "windowed".into(),
+            window_mode: "borderless".into(),
             vsync: "auto".into(),
             fps_cap: 60,
             draw_distance: 16000.0,
