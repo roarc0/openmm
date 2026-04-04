@@ -12,6 +12,8 @@ pub struct GameAssets {
     game_data: lod::game::global::GameData,
     /// Billboard manager (DDecList + DSFT) for decoration sprite lookups.
     billboard_manager: lod::billboard::BillboardManager,
+    /// QBit ID → human-readable label for debug logging.
+    quest_bits: lod::quest_bits::QuestBitNames,
 }
 
 impl GameAssets {
@@ -19,10 +21,12 @@ impl GameAssets {
         let lod_manager = LodManager::new(path)?;
         let game_data = lod::game::global::GameData::new(&lod_manager)?;
         let billboard_manager = lod::billboard::BillboardManager::new(&lod_manager)?;
+        let quest_bits = lod::quest_bits::QuestBitNames::load(&lod_manager);
         Ok(Self {
             lod_manager,
             game_data,
             billboard_manager,
+            quest_bits,
         })
     }
 
@@ -36,6 +40,10 @@ impl GameAssets {
 
     pub fn billboard_manager(&self) -> &lod::billboard::BillboardManager {
         &self.billboard_manager
+    }
+
+    pub fn quest_bits(&self) -> &lod::quest_bits::QuestBitNames {
+        &self.quest_bits
     }
 
     /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).

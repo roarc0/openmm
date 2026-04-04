@@ -22,6 +22,7 @@ pub mod twodevents;
 
 pub mod awards;
 pub mod billboard;
+pub mod quest_bits;
 pub mod class;
 pub mod dchest;
 pub mod ddeclist;

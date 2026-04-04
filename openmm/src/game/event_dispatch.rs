@@ -373,6 +373,7 @@ fn process_events(
     };
 
     let steps = &sequence.steps;
+    let qb = game_assets.quest_bits();
     let mut pc = 0usize; // program counter (index into steps vec)
     let mut iterations = 0u32;
     const MAX_ITERATIONS: u32 = 500;
@@ -390,7 +391,7 @@ fn process_events(
         let EvtStep { step, ref event } = steps[pc];
         pc += 1; // advance past current instruction
 
-        info!("  ▶ [step {}] {}", step, event);
+        info!("  ▶ [step {}] {}", step, qb.annotate(&event.to_string()));
 
         match event {
             // ── Already implemented (side-effects) ───────────────────
