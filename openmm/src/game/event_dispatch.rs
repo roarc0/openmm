@@ -144,22 +144,16 @@ fn get_variable(
     }
 }
 
-// ANSI escape helpers — Bevy's tracing-subscriber passes these through to the terminal.
-const ANSI_SKIP: &str  = "\x1b[2;33m"; // dim yellow — skipped steps
-const ANSI_DEAD: &str  = "\x1b[2;37m"; // dim gray   — unreachable tail
-const ANSI_RST:  &str  = "\x1b[0m";
-
 /// Log steps skipped by a forward jump. `from_pc`..`to_pc` are step *indices* (not step numbers).
-/// For backward jumps, just notes the loop; for no-op, silent.
 fn log_skipped(steps: &[EvtStep], from_pc: usize, to_pc: usize, reason: &str) {
     match to_pc.cmp(&from_pc) {
         std::cmp::Ordering::Equal => {}
         std::cmp::Ordering::Less => {
-            debug!("  {}↺ backward jump ({}){}", ANSI_SKIP, reason, ANSI_RST);
+            debug!("  ↺ backward jump ({})", reason);
         }
         std::cmp::Ordering::Greater => {
             for s in &steps[from_pc..to_pc.min(steps.len())] {
-                info!("  {}↷ [step {}] skip({}): {}{}", ANSI_SKIP, s.step, reason, s.event, ANSI_RST);
+                info!("  ↷ [step {}] skip({}): {}", s.step, reason, s.event);
             }
         }
     }
@@ -168,7 +162,7 @@ fn log_skipped(steps: &[EvtStep], from_pc: usize, to_pc: usize, reason: &str) {
 /// Log all remaining steps in the sequence as unreachable (sequence ended early).
 fn log_tail_unreachable(steps: &[EvtStep], from_pc: usize) {
     for s in steps.get(from_pc..).unwrap_or(&[]) {
-        info!("  {}⊘ [step {}] unreachable: {}{}", ANSI_DEAD, s.step, s.event, ANSI_RST);
+        info!("  ⊘ [step {}] unreachable: {}", s.step, s.event);
     }
 }
 
@@ -396,7 +390,7 @@ fn process_events(
         let EvtStep { step, ref event } = steps[pc];
         pc += 1; // advance past current instruction
 
-        info!("  \x1b[32m▶\x1b[0m [step {}] {}", step, event);
+        info!("  ▶ [step {}] {}", step, event);
 
         match event {
             // ── Already implemented (side-effects) ───────────────────
