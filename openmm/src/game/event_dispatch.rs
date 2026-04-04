@@ -144,6 +144,34 @@ fn get_variable(
     }
 }
 
+// ANSI escape helpers — Bevy's tracing-subscriber passes these through to the terminal.
+const ANSI_SKIP: &str  = "\x1b[2;33m"; // dim yellow — skipped steps
+const ANSI_DEAD: &str  = "\x1b[2;37m"; // dim gray   — unreachable tail
+const ANSI_RST:  &str  = "\x1b[0m";
+
+/// Log steps skipped by a forward jump. `from_pc`..`to_pc` are step *indices* (not step numbers).
+/// For backward jumps, just notes the loop; for no-op, silent.
+fn log_skipped(steps: &[EvtStep], from_pc: usize, to_pc: usize, reason: &str) {
+    match to_pc.cmp(&from_pc) {
+        std::cmp::Ordering::Equal => {}
+        std::cmp::Ordering::Less => {
+            debug!("  {}↺ backward jump ({}){}", ANSI_SKIP, reason, ANSI_RST);
+        }
+        std::cmp::Ordering::Greater => {
+            for s in &steps[from_pc..to_pc.min(steps.len())] {
+                info!("  {}↷ [step {}] skip({}): {}{}", ANSI_SKIP, s.step, reason, s.event, ANSI_RST);
+            }
+        }
+    }
+}
+
+/// Log all remaining steps in the sequence as unreachable (sequence ended early).
+fn log_tail_unreachable(steps: &[EvtStep], from_pc: usize) {
+    for s in steps.get(from_pc..).unwrap_or(&[]) {
+        info!("  {}⊘ [step {}] unreachable: {}{}", ANSI_DEAD, s.step, s.event, ANSI_RST);
+    }
+}
+
 /// Returns true if this variable is per-character (not global).
 fn is_character_var(var: EvtVariable) -> bool {
     matches!(var.0, 0x01..=0x68)
@@ -368,7 +396,7 @@ fn process_events(
         let EvtStep { step, ref event } = steps[pc];
         pc += 1; // advance past current instruction
 
-        info!("  [step {}] {}", step, event);
+        info!("  \x1b[32m▶\x1b[0m [step {}] {}", step, event);
 
         match event {
             // ── Already implemented (side-effects) ───────────────────
@@ -475,34 +503,34 @@ fn process_events(
             // ── Control flow (NOW WORKING) ───────────────────────────
             GameEvent::Compare { var, value, jump_step } => {
                 if evaluate_compare(&world_state.game_vars, &party, audio.game_time.as_deref(), *var, *value) {
-                    // Condition met — jump to target step (e.g. "already done", skip action)
                     if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                        debug!("  Compare met -> jumping to step {}", jump_step);
+                        log_skipped(steps, pc, target_idx, "Compare true");
                         pc = target_idx;
                     } else {
-                        debug!("  Compare met -> jump target step {} not found, ending", jump_step);
+                        log_tail_unreachable(steps, pc);
                         return;
                     }
                 }
             }
             GameEvent::Jmp { target_step } => {
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *target_step) {
-                    debug!("  Jmp -> step {}", target_step);
+                    log_skipped(steps, pc, target_idx, "Jmp");
                     pc = target_idx;
                 } else {
-                    debug!("  Jmp -> step {} not found, ending", target_step);
+                    log_tail_unreachable(steps, pc);
                     return;
                 }
             }
             GameEvent::RandomGoTo { steps: goto_steps } => {
                 if !goto_steps.is_empty() {
-                    // Simple deterministic pick (first option) — proper RNG can be added later
                     let idx = (step as usize) % goto_steps.len();
                     let target_step = goto_steps[idx];
                     debug!("  RandomGoTo -> picked step {} from {:?}", target_step, goto_steps);
                     if let Some(target_idx) = sequence.steps.iter().position(|s| s.step >= target_step) {
+                        log_skipped(steps, pc, target_idx, "RandomGoTo");
                         pc = target_idx;
                     } else {
+                        log_tail_unreachable(steps, pc);
                         return;
                     }
                 }
@@ -630,13 +658,12 @@ fn process_events(
                 jump_step,
             } => {
                 // TODO: check actual inventory count; for now, always fail (jump)
-                warn!(
-                    "STUB CheckItemsCount: item={} count={} -> failing, jumping to step {}",
-                    item_id, count, jump_step
-                );
+                warn!("STUB CheckItemsCount: item={} count={} (assuming fail)", item_id, count);
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    log_skipped(steps, pc, target_idx, "CheckItemsCount fail");
                     pc = target_idx;
                 } else {
+                    log_tail_unreachable(steps, pc);
                     return;
                 }
             }
@@ -731,14 +758,12 @@ fn process_events(
                 count,
                 jump_step,
             } => {
-                // TODO: check actual kill count; for now, always fail (jump)
-                warn!(
-                    "STUB IsActorKilled: group={} count={} -> failing, jumping to step {}",
-                    actor_group, count, jump_step
-                );
+                warn!("STUB IsActorKilled: group={} count={} (assuming fail)", actor_group, count);
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    log_skipped(steps, pc, target_idx, "IsActorKilled fail");
                     pc = target_idx;
                 } else {
+                    log_tail_unreachable(steps, pc);
                     return;
                 }
             }
@@ -752,74 +777,64 @@ fn process_events(
                 let pass = best >= *skill_level;
                 info!(
                     "  CheckSkill: {} level {} required, best={} target={:?} -> {}",
-                    var,
-                    skill_level,
-                    best,
-                    party.active_target,
-                    if pass { "pass" } else { "fail -> jump" }
+                    var, skill_level, best, party.active_target,
+                    if pass { "pass" } else { "fail" }
                 );
                 if !pass {
                     if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                        log_skipped(steps, pc, target_idx, "CheckSkill fail");
                         pc = target_idx;
                     } else {
+                        log_tail_unreachable(steps, pc);
                         return;
                     }
                 }
             }
             GameEvent::CheckSeason { season, jump_step } => {
-                // MM6 seasons: 0=Winter(12,1,2), 1=Spring(3,4,5), 2=Summer(6,7,8), 3=Autumn(9,10,11)
                 let current_season = audio.game_time.as_deref().map(|gt| {
                     let (_, month, _) = gt.calendar_date();
                     match month {
-                        3..=5 => 1u8, // Spring
-                        6..=8 => 2,   // Summer
-                        9..=11 => 3,  // Autumn
-                        _ => 0,       // Winter (12, 1, 2)
+                        3..=5 => 1u8,
+                        6..=8 => 2,
+                        9..=11 => 3,
+                        _ => 0,
                     }
                 });
                 let season_name = match season {
-                    0 => "Winter",
-                    1 => "Spring",
-                    2 => "Summer",
-                    3 => "Autumn",
-                    _ => "Unknown",
+                    0 => "Winter", 1 => "Spring", 2 => "Summer", 3 => "Autumn", _ => "?",
                 };
-                // Jump if season does NOT match (CheckSeason fails → jump past quest step)
                 let matches = current_season == Some(*season as u8);
                 info!(
                     "  CheckSeason: want {} current={:?} -> {}",
-                    season_name,
-                    current_season,
-                    if matches { "pass" } else { "fail -> jump" }
+                    season_name, current_season, if matches { "pass" } else { "fail" }
                 );
                 if !matches {
                     if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                        log_skipped(steps, pc, target_idx, "CheckSeason fail");
                         pc = target_idx;
                     } else {
+                        log_tail_unreachable(steps, pc);
                         return;
                     }
                 }
             }
             GameEvent::IsNPCInParty { npc_id, jump_step } => {
-                // Always fail for now (NPC not in party)
-                warn!(
-                    "STUB IsNPCInParty: npc={} -> failing, jumping to step {}",
-                    npc_id, jump_step
-                );
+                warn!("STUB IsNPCInParty: npc={} (assuming fail)", npc_id);
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    log_skipped(steps, pc, target_idx, "IsNPCInParty fail");
                     pc = target_idx;
                 } else {
+                    log_tail_unreachable(steps, pc);
                     return;
                 }
             }
             GameEvent::IsTotalBountyHuntingAwardInRange { min, max, jump_step } => {
-                warn!(
-                    "STUB IsTotalBountyHuntingAwardInRange: min={} max={} -> failing, jumping to step {}",
-                    min, max, jump_step
-                );
+                warn!("STUB IsTotalBountyHuntingAwardInRange: min={} max={} (assuming fail)", min, max);
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                    log_skipped(steps, pc, target_idx, "BountyHuntingRange fail");
                     pc = target_idx;
                 } else {
+                    log_tail_unreachable(steps, pc);
                     return;
                 }
             }
@@ -850,13 +865,12 @@ fn process_events(
                 warn!("STUB ToggleChestFlag: chest={} flag=0x{:x} on={}", chest_id, flag, on);
             }
             GameEvent::SpecialJump { jump_value } => {
-                // Treat as unconditional jump to step N (same semantics as Jmp).
                 let target_step = *jump_value as u8;
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= target_step) {
-                    debug!("  SpecialJump -> step {}", target_step);
+                    log_skipped(steps, pc, target_idx, "SpecialJump");
                     pc = target_idx;
                 } else {
-                    debug!("  SpecialJump -> step {} not found, ending", target_step);
+                    log_tail_unreachable(steps, pc);
                     return;
                 }
             }
