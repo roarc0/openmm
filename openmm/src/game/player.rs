@@ -22,6 +22,7 @@ use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 // --- Constants ---
 
 const WALK_SPEED: f32 = 1024.0;
+const RUN_SPEED: f32 = WALK_SPEED * 1.25;
 const FLY_SPEED: f32 = 2048.0;
 const ROTATION_SPEED: f32 = 1.8;
 const EYE_HEIGHT: f32 = 140.0;
@@ -61,6 +62,7 @@ pub struct MouseSensitivity {
 pub struct PlayerSettings {
     pub sensitivity: f32,
     pub speed: f32,
+    pub run_speed: f32,
     pub fly_speed: f32,
     pub rotation_speed: f32,
     pub eye_height: f32,
@@ -76,6 +78,7 @@ impl Default for PlayerSettings {
         Self {
             sensitivity: 0.00006,
             speed: WALK_SPEED,
+            run_speed: RUN_SPEED,
             fly_speed: FLY_SPEED,
             rotation_speed: ROTATION_SPEED,
             eye_height: EYE_HEIGHT,
@@ -100,6 +103,7 @@ pub struct PlayerKeyBindings {
     pub fly_up: KeyCode,
     pub fly_down: KeyCode,
     pub toggle_fly: KeyCode,
+    pub toggle_run: KeyCode,
     pub toggle_grab_cursor: KeyCode,
 }
 
@@ -116,6 +120,7 @@ impl Default for PlayerKeyBindings {
             fly_up: KeyCode::Insert,
             fly_down: KeyCode::PageUp,
             toggle_fly: KeyCode::Home,
+            toggle_run: KeyCode::KeyR,
             toggle_grab_cursor: KeyCode::Escape,
         }
     }
@@ -139,6 +144,7 @@ impl Plugin for PlayerPlugin {
             .add_systems(
                 Update,
                 (
+                    toggle_run_mode,
                     toggle_fly_mode,
                     toggle_mouse_look,
                     player_movement,
@@ -343,6 +349,17 @@ fn right_stick_with_fallback(gp: &Gamepad) -> Vec2 {
 
 // --- Movement ---
 
+fn toggle_run_mode(
+    keys: Res<ButtonInput<KeyCode>>,
+    key_bindings: Res<PlayerKeyBindings>,
+    mut world_state: ResMut<crate::game::world_state::WorldState>,
+) {
+    if keys.just_pressed(key_bindings.toggle_run) {
+        world_state.player.is_running = !world_state.player.is_running;
+        info!("Run mode: {}", if world_state.player.is_running { "ON" } else { "OFF" });
+    }
+}
+
 fn toggle_fly_mode(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<PlayerKeyBindings>,
@@ -443,13 +460,12 @@ fn player_movement(
         return;
     }
 
-    // always_run: use full speed; walk would be half speed
     let base_speed = if world_state.player.fly_mode {
         settings.fly_speed
-    } else if cfg.always_run {
-        settings.speed
+    } else if world_state.player.is_running {
+        settings.run_speed
     } else {
-        settings.speed * 0.5
+        settings.speed
     };
 
     // turn_speed from config (degrees/sec → radians/sec)

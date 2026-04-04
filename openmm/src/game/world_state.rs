@@ -39,6 +39,7 @@ pub struct PlayerRuntimeState {
     pub position: Vec3,
     pub yaw: f32,
     pub fly_mode: bool,
+    pub is_running: bool,
 }
 
 impl Default for PlayerRuntimeState {
@@ -47,6 +48,7 @@ impl Default for PlayerRuntimeState {
             position: Vec3::ZERO,
             yaw: 0.0,
             fly_mode: false,
+            is_running: true,
         }
     }
 }
