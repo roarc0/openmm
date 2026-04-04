@@ -55,10 +55,16 @@ impl QuestBitNames {
             if let Some(end) = rest.find(']') {
                 let num_str = &rest[..end];
                 if let Ok(id) = num_str.parse::<u16>() {
-                    result.push_str(num_str);
                     if let Some(name) = self.name(id) {
-                        result.push(':');
-                        result.push_str(name);
+                        // Show name instead of number; truncate at 100 chars
+                        if name.len() <= 100 {
+                            result.push_str(name);
+                        } else {
+                            result.push_str(&name[..100]);
+                            result.push_str("…");
+                        }
+                    } else {
+                        result.push_str(num_str);
                     }
                 } else {
                     result.push_str(num_str);
@@ -126,8 +132,8 @@ mod tests {
         let Some(names) = load() else { return };
         let input = "Compare(QBit[302] set? skip step 8)";
         let out = names.annotate(input);
-        assert!(out.contains("QBit[302:"), "expected QBit[302:<name>], got: {}", out);
-        assert!(!out.contains("QBit[302]"), "original should be replaced, got: {}", out);
+        assert!(out.contains("QBit[Sword"), "expected QBit[Sword...], got: {}", out);
+        assert!(!out.contains("QBit[302]"), "number should be replaced by name, got: {}", out);
     }
 
     #[test]
