@@ -1135,9 +1135,13 @@ fn extract_blv_collision(
         let mm6n = face.normal_f32();
         let normal = Vec3::new(mm6n[0], mm6n[2], -mm6n[1]);
 
-        let is_floor = normal.y > 0.5;
+        // Any upward-facing surface is walkable (includes stairs, slopes).
+        // Threshold of 0.1 ≈ 6° from horizontal — shallow enough to catch all stair geometry.
+        let is_floor = normal.y > 0.1;
         let is_ceiling = normal.y < -0.5;
-        let is_wall = normal.y.abs() < 0.7;
+        // Walls are everything that is neither floor nor ceiling and is mostly vertical.
+        // Deriving from is_floor ensures stair faces are never treated as blocking walls.
+        let is_wall = !is_floor && !is_ceiling && normal.y.abs() < 0.7;
 
         // Collect vertices in Bevy coords
         let verts: Vec<Vec3> = face

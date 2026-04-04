@@ -3,7 +3,8 @@ use bevy::prelude::*;
 use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 
 /// Maximum height the player can step up onto a BSP floor (e.g. climbing stairs).
-pub const MAX_STEP_UP: f32 = 70.0;
+/// 128 units covers typical MM6 discrete stair step heights.
+pub const MAX_STEP_UP: f32 = 128.0;
 
 /// Maximum wall height that is silently stepped over (like a low curb).
 /// Walls taller than this are treated as solid obstacles in resolve_movement.
@@ -192,28 +193,54 @@ impl BuildingColliders {
     /// above `feet_y`. Pass `MAX_STEP_UP` when already on BSP geometry; `TERRAIN_ENTRY_STEP`
     /// when on outdoor terrain to avoid stepping onto elevated outdoor objects.
     pub fn floor_height_at(&self, x: f32, z: f32, feet_y: f32, max_step: f32) -> Option<f32> {
-        let mut best: Option<f32> = None;
-        let point = Vec2::new(x, z);
+        // Tolerance for edge-of-triangle cases: if the player is right on the seam between
+        // two adjacent triangles, exact containment may fail for both. We search twice —
+        // first exact, then with a small expansion — and return the first hit.
+        const EDGE_TOLERANCE: f32 = 8.0;
 
-        for floor in &self.floors {
-            if !floor.near_xz(x, z, 0.0) {
-                continue;
-            }
-            if floor.min_y > feet_y + max_step {
-                continue;
-            }
-            let a = Vec2::new(floor.v0.x, floor.v0.z);
-            let b = Vec2::new(floor.v1.x, floor.v1.z);
-            let c = Vec2::new(floor.v2.x, floor.v2.z);
-            if point_in_triangle_2d(point, a, b, c) {
-                let (u, v, w) = barycentric_2d(point, a, b, c);
-                let h = u * floor.v0.y + v * floor.v1.y + w * floor.v2.y;
-                if h <= feet_y + max_step {
-                    best = Some(best.map_or(h, |prev: f32| prev.max(h)));
+        for tolerance in [0.0_f32, EDGE_TOLERANCE] {
+            let mut best: Option<f32> = None;
+            let point = Vec2::new(x, z);
+
+            for floor in &self.floors {
+                if !floor.near_xz(x, z, tolerance) {
+                    continue;
+                }
+                if floor.min_y > feet_y + max_step {
+                    continue;
+                }
+                let a = Vec2::new(floor.v0.x, floor.v0.z);
+                let b = Vec2::new(floor.v1.x, floor.v1.z);
+                let c = Vec2::new(floor.v2.x, floor.v2.z);
+
+                // Exact containment first; on the tolerance pass also accept near-edge points.
+                let inside = if tolerance == 0.0 {
+                    point_in_triangle_2d(point, a, b, c)
+                } else {
+                    point_in_triangle_2d(point, a, b, c)
+                        || point_to_segment_dist_sq(point, a, b) < tolerance * tolerance
+                        || point_to_segment_dist_sq(point, b, c) < tolerance * tolerance
+                        || point_to_segment_dist_sq(point, c, a) < tolerance * tolerance
+                };
+
+                if inside {
+                    // Clamp barycentric coords so edge-proximity hits don't extrapolate wildly.
+                    let (u_raw, v_raw, _) = barycentric_2d(point, a, b, c);
+                    let u = u_raw.clamp(0.0, 1.0);
+                    let v = v_raw.clamp(0.0, 1.0);
+                    let w = (1.0 - u - v).clamp(0.0, 1.0);
+                    let h = u * floor.v0.y + v * floor.v1.y + w * floor.v2.y;
+                    if h <= feet_y + max_step {
+                        best = Some(best.map_or(h, |prev: f32| prev.max(h)));
+                    }
                 }
             }
+
+            if best.is_some() {
+                return best;
+            }
         }
-        best
+        None
     }
 
     /// Sample the lowest ceiling height at XZ above the player's head.
