@@ -56,7 +56,7 @@ jobs:
           key: ${{ runner.os }}-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
       
       - name: Generate coverage
-        run: cargo tarpaulin --verbose --workspace --timeout 300 --out xml
+        run: cargo tarpaulin --verbose --workspace --timeout 300 --out xml --no-default-features
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

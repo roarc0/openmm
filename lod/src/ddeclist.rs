@@ -145,13 +145,13 @@ impl DDecList {
 
 #[cfg(test)]
 mod tests {
-    use crate::{LodManager, get_lod_path};
+    use crate::test_lod;
 
     use super::DDecList;
 
     #[test]
     fn read_declist_data_works() {
-        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let d_declist = DDecList::new(&lod_manager).unwrap();
         assert_eq!(d_declist.items.len(), 230);
         assert_eq!(d_declist.items[6].name(), Some("fount1".to_string()));

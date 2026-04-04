@@ -56,11 +56,11 @@ impl ChestList {
 #[cfg(test)]
 mod tests {
     use super::ChestList;
-    use crate::{LodManager, get_lod_path};
+    use crate::test_lod;
 
     #[test]
     fn parse_dchest() {
-        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let chestlist = ChestList::new(&lod_manager).unwrap();
         assert!(!chestlist.chests.is_empty(), "should have chests");
         println!("dchest: {} entries", chestlist.chests.len());

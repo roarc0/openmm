@@ -560,7 +560,12 @@ mod tests {
 
     #[test]
     fn read_snd_archive_works() {
-        let archive = SndArchive::open(snd_path()).unwrap();
+        let path = snd_path();
+        if !std::path::Path::new(&path).exists() {
+            eprintln!("test: Audio.snd not found at '{path}' — skipping");
+            return;
+        }
+        let archive = SndArchive::open(path).unwrap();
         let entries = archive.list();
         assert!(
             entries.len() > 1000,
@@ -572,7 +577,12 @@ mod tests {
 
     #[test]
     fn extract_wav_works() {
-        let archive = SndArchive::open(snd_path()).unwrap();
+        let path = snd_path();
+        if !std::path::Path::new(&path).exists() {
+            eprintln!("test: Audio.snd not found at '{path}' — skipping");
+            return;
+        }
+        let archive = SndArchive::open(path).unwrap();
         let wav = archive.get("01archera_attack").expect("should extract sound");
         assert!(wav.len() > 44, "WAV should be longer than header");
         assert_eq!(&wav[0..4], b"RIFF", "should start with RIFF");

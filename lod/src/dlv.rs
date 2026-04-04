@@ -390,11 +390,11 @@ fn skip_slice(offset: &mut usize, count: usize) {
 mod tests {
     use super::*;
     use crate::blv::Blv;
-    use crate::get_lod_path;
+    use crate::test_lod;
 
     #[test]
     fn parse_d01_dlv_with_doors() {
-        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
         let dlv = Dlv::new(&lod_manager, "d01.blv", blv.door_count, blv.doors_data_size).unwrap();
 

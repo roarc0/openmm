@@ -1,5 +1,5 @@
 use super::*;
-use crate::{LodManager, get_lod_path};
+use crate::test_lod;
 
 fn make_map_info(monster_names: [&str; 3], difficulty: [u8; 3]) -> MapInfo {
     MapInfo {
@@ -104,7 +104,7 @@ fn monster_for_index_difficulty_0_always_a() {
 
 #[test]
 fn mapstats_loads_from_lod() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let stats = MapStats::new(&lod).unwrap();
     assert!(!stats.maps.is_empty(), "mapstats should have map entries");
     // New Sorpigal (oute3.odm) should be present

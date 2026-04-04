@@ -1,6 +1,6 @@
 use super::super::global::GameData;
 use super::*;
-use crate::{LodManager, get_lod_path};
+use crate::{LodManager, test_lod};
 
 fn game_data(lod: &LodManager) -> GameData {
     GameData::new(lod).expect("GameData::new failed")
@@ -8,7 +8,7 @@ fn game_data(lod: &LodManager) -> GameData {
 
 #[test]
 fn actors_loads_oute3() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
     assert!(!actors.get_actors().is_empty(), "oute3 should have actors");
@@ -16,7 +16,7 @@ fn actors_loads_oute3() {
 
 #[test]
 fn get_npcs_all_have_sprites() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
     for npc in actors.get_npcs() {
@@ -31,7 +31,7 @@ fn get_npcs_all_have_sprites() {
 
 #[test]
 fn get_npcs_returns_only_npcs() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
     for npc in actors.get_npcs() {
@@ -44,7 +44,7 @@ fn get_npcs_returns_only_npcs() {
 
 #[test]
 fn npc_portrait_name_format() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
     for npc in actors.get_npcs() {
@@ -61,7 +61,7 @@ fn npc_portrait_name_format() {
 
 #[test]
 fn state_snapshot_empty_filters_nothing() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let actors_all = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
     let all_count = actors_all.get_actors().len();
@@ -76,7 +76,7 @@ fn state_snapshot_empty_filters_nothing() {
 
 #[test]
 fn variant_is_precomputed() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
     // Every actor should have variant 1, 2, or 3 — never 0 (unless there is truly only one palette).

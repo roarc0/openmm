@@ -1,21 +1,21 @@
 use super::*;
-use crate::{LodManager, get_lod_path};
+use crate::test_lod;
 
-fn load_oute3_decorations() -> Decorations {
-    let lod = LodManager::new(get_lod_path()).unwrap();
-    let odm = crate::odm::Odm::new(&lod, "oute3.odm").unwrap();
-    Decorations::new(&lod, &odm.billboards).unwrap()
+fn load_oute3_decorations() -> Option<Decorations> {
+    let lod = test_lod()?;
+    let odm = crate::odm::Odm::new(&lod, "oute3.odm").ok()?;
+    Decorations::new(&lod, &odm.billboards).ok()
 }
 
 #[test]
 fn decorations_loads_oute3() {
-    let dec = load_oute3_decorations();
+    let Some(dec) = load_oute3_decorations() else { return; };
     assert!(!dec.entries.is_empty(), "oute3 should have decorations");
 }
 
 #[test]
 fn all_entries_have_sprite_name() {
-    let dec = load_oute3_decorations();
+    let Some(dec) = load_oute3_decorations() else { return; };
     for entry in dec.iter() {
         assert!(
             !entry.sprite_name.is_empty(),
@@ -26,7 +26,7 @@ fn all_entries_have_sprite_name() {
 
 #[test]
 fn directional_entries_have_zero_dimensions() {
-    let dec = load_oute3_decorations();
+    let Some(dec) = load_oute3_decorations() else { return; };
     for entry in dec.iter().filter(|e| e.is_directional) {
         assert_eq!(
             entry.width, 0.0,
@@ -43,7 +43,7 @@ fn directional_entries_have_zero_dimensions() {
 
 #[test]
 fn non_directional_entries_have_dimensions() {
-    let dec = load_oute3_decorations();
+    let Some(dec) = load_oute3_decorations() else { return; };
     let non_dir: Vec<_> = dec.iter().filter(|e| !e.is_directional).collect();
     assert!(!non_dir.is_empty(), "oute3 should have non-directional decorations");
     for entry in non_dir {

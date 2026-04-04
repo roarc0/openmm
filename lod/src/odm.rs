@@ -362,11 +362,11 @@ impl OdmData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LodManager, get_lod_path};
+    use crate::test_lod;
 
     #[test]
     fn get_map_works() {
-        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
         assert_eq!(map.bsp_models.len(), 85)
     }

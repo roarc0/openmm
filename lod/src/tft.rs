@@ -82,11 +82,11 @@ impl TextureFrameTable {
 #[cfg(test)]
 mod tests {
     use super::TextureFrameTable;
-    use crate::{LodManager, get_lod_path};
+    use crate::test_lod;
 
     #[test]
     fn parse_dtft() {
-        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let tft = TextureFrameTable::new(&lod_manager).unwrap();
         assert!(!tft.entries.is_empty(), "should have TFT entries");
         println!("dtft: {} entries", tft.entries.len());

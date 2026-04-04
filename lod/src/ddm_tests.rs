@@ -1,9 +1,9 @@
 use super::*;
-use crate::{LodManager, get_lod_path};
+use crate::test_lod;
 
 #[test]
 fn parse_new_sorpigal_actors() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let ddm = Ddm::new(&lod, "oute3.odm").unwrap();
     assert!(!ddm.actors.is_empty(), "oute3 DDM should have actors");
     for actor in &ddm.actors {
@@ -13,7 +13,7 @@ fn parse_new_sorpigal_actors() {
 
 #[test]
 fn actor_monlist_id_is_zero_indexed() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let ddm = Ddm::new(&lod, "oute3.odm").unwrap();
     let monlist = crate::monlist::MonsterList::new(&lod).unwrap();
     for actor in &ddm.actors {
@@ -28,7 +28,7 @@ fn actor_monlist_id_is_zero_indexed() {
 
 #[test]
 fn actor_attributes_typed_access() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let ddm = Ddm::new(&lod, "oute3.odm").unwrap();
     // actor_attributes() should parse without panicking
     for actor in &ddm.actors {
@@ -38,7 +38,7 @@ fn actor_attributes_typed_access() {
 
 #[test]
 fn parse_multiple_maps() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     // These maps are known to have actors
     for map in &["oute3.odm", "oute2.odm"] {
         if let Ok(ddm) = Ddm::new(&lod, map) {

@@ -44,22 +44,34 @@ The goal is to reproduce original MM6 gameplay — movement, combat, dialogue, q
 
 ## Game Data Setup
 
-OpenMM requires the original Might and Magic VI data files. These are the `.lod` archive files from your MM6 installation (`games.lod`, `bitmaps.lod`, `icons.lod`, `sprites.lod`, etc.).
+OpenMM requires the original Might and Magic VI data files — the `.lod` archives from your MM6 installation (`games.lod`, `bitmaps.lod`, `icons.lod`, `sprites.lod`, etc.).
 
-**Option 1 — Environment variable (recommended):**
-```bash
-export OPENMM_6_PATH=/path/to/your/mm6/installation
+> MM6 is available on [GOG](https://www.gog.com). The GOG version installs directly to a folder you can point the engine at.
+
+The engine searches for game data in this order:
+
+**Option 1 — `mm6/` folder next to the binary (recommended for release builds):**
+
+Place your MM6 installation folder (or a copy of it) as `mm6/` in the same directory as the executable. The engine expects the `.lod` files inside `mm6/data/`:
+
+```
+openmm          ← the executable
+mm6/
+  data/
+    games.lod
+    bitmaps.lod
+    icons.lod
+    sprites.lod
+    …
 ```
 
-**Option 2 — Default directory:**
+**Option 2 — Environment variable:**
 ```bash
-mkdir -p ./target/mm6/data
-cp /path/to/your/mm6/*.lod ./target/mm6/data/
+export OPENMM_6_PATH=/path/to/your/mm6
+./openmm
 ```
 
-The engine looks for LOD files in the directory pointed to by `OPENMM_6_PATH`, defaulting to `./target/mm6/data/`.
-
-> MM6 is available on [GOG](https://www.gog.com). The GOG version installs directly to a folder you can point `OPENMM_6_PATH` at.
+Point `OPENMM_6_PATH` at your MM6 installation directory (the one that contains the `data/` subfolder with the `.lod` files).
 
 ## Build from Source
 

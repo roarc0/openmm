@@ -52,11 +52,11 @@ impl OverlayList {
 #[cfg(test)]
 mod tests {
     use super::OverlayList;
-    use crate::{LodManager, get_lod_path};
+    use crate::test_lod;
 
     #[test]
     fn parse_doverlay() {
-        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let overlaylist = OverlayList::new(&lod_manager).unwrap();
         assert!(!overlaylist.overlays.is_empty(), "should have overlays");
         println!("doverlay: {} entries", overlaylist.overlays.len());

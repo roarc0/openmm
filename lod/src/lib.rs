@@ -197,9 +197,11 @@ fn default_data_path() -> String {
     // Try workspace root (two levels up from lod crate manifest)
     let manifest = env!("CARGO_MANIFEST_DIR");
     let workspace = Path::new(manifest).parent().unwrap_or(Path::new("."));
-    let candidate = workspace.join("target/mm6");
-    if candidate.exists() {
-        return candidate.to_string_lossy().into_owned();
+    for subdir in &["mm6", "target/mm6"] {
+        let candidate = workspace.join(subdir);
+        if candidate.exists() {
+            return candidate.to_string_lossy().into_owned();
+        }
     }
     "./target/mm6".into()
 }
@@ -207,9 +209,11 @@ fn default_data_path() -> String {
 fn default_lod_path() -> String {
     let manifest = env!("CARGO_MANIFEST_DIR");
     let workspace = Path::new(manifest).parent().unwrap_or(Path::new("."));
-    let candidate = workspace.join("target/mm6/data");
-    if candidate.exists() {
-        return candidate.to_string_lossy().into_owned();
+    for subdir in &["mm6/data", "target/mm6/data"] {
+        let candidate = workspace.join(subdir);
+        if candidate.exists() {
+            return candidate.to_string_lossy().into_owned();
+        }
     }
     "./target/mm6/data".into()
 }
@@ -242,16 +246,14 @@ mod tests {
 
     #[test]
     fn lod_manager_works() {
-        let lod_path = get_lod_path();
-        let lod_manager = LodManager::new(lod_path).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let grastyl = lod_manager.try_get_bytes("bitmaps/grastyl");
         assert_eq!(17676, grastyl.unwrap().len());
     }
 
     #[test]
     fn font_loading_works() {
-        let lod_path = get_lod_path();
-        let lod_manager = LodManager::new(lod_path).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
 
         let names = lod_manager.game().font_names();
         assert!(!names.is_empty(), "should find .fnt files");
@@ -272,8 +274,7 @@ mod tests {
 
     #[test]
     fn sprite_works() {
-        let lod_path = get_lod_path();
-        let lod_manager = LodManager::new(lod_path).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let rock = lod_manager.game().sprite("rok1");
         assert!(rock.is_some());
     }
@@ -282,8 +283,7 @@ mod tests {
     /// This is the mechanism used for monster variant B/C coloring (ghosts, skeletons, etc.).
     #[test]
     fn sprite_with_palette_produces_different_pixels() {
-        let lod_path = get_lod_path();
-        let lod_manager = LodManager::new(lod_path).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let dsft = crate::dsft::DSFT::new(&lod_manager).unwrap();
         let monlist = crate::monlist::MonsterList::new(&lod_manager).unwrap();
 

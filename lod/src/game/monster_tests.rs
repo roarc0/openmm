@@ -1,6 +1,6 @@
 use super::super::global::GameData;
 use super::*;
-use crate::{LodManager, get_lod_path};
+use crate::{LodManager, test_lod};
 
 fn game_data(lod: &LodManager) -> GameData {
     GameData::new(lod).expect("GameData::new failed")
@@ -8,7 +8,7 @@ fn game_data(lod: &LodManager) -> GameData {
 
 #[test]
 fn monsters_loads_oute3() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     assert!(!monsters.is_empty(), "oute3 should have monster spawns");
@@ -16,7 +16,7 @@ fn monsters_loads_oute3() {
 
 #[test]
 fn monsters_all_have_sprites() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     for m in monsters.iter() {
@@ -29,7 +29,7 @@ fn monsters_all_have_sprites() {
 
 #[test]
 fn monsters_variant_in_range() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     for m in monsters.iter() {
@@ -43,7 +43,7 @@ fn monsters_variant_in_range() {
 
 #[test]
 fn monsters_group_index_within_group_size() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
     // group_size is 3..=5, so group_index must be < 6
@@ -54,7 +54,7 @@ fn monsters_group_index_within_group_size() {
 
 #[test]
 fn goblin_a_resolves_standing_sprite() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let entry = resolve_entry(0, &gd, &lod);
     assert!(entry.is_some(), "GoblinA (monlist_id=0) should resolve");
@@ -65,7 +65,7 @@ fn goblin_a_resolves_standing_sprite() {
 
 #[test]
 fn resolve_sprite_group_goblin_standing() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     let goblin_a = gd.monlist.find_by_name("Goblin", 1).unwrap();
     let group = &goblin_a.sprite_names[0];
@@ -75,14 +75,14 @@ fn resolve_sprite_group_goblin_standing() {
 
 #[test]
 fn resolve_sprite_group_empty_name_returns_none() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     assert!(resolve_sprite_group("", &gd.dsft, &lod).is_none());
 }
 
 #[test]
 fn resolve_entry_peasant_male_is_flagged() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     // PeasantM1A is monlist_id 132 (from monlist tests)
     let entry = resolve_entry(132, &gd, &lod);
@@ -94,7 +94,7 @@ fn resolve_entry_peasant_male_is_flagged() {
 
 #[test]
 fn resolve_entry_peasant_female_is_flagged() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = game_data(&lod);
     // PeasantF1A is monlist_id 120
     let entry = resolve_entry(120, &gd, &lod);

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{LodManager, get_lod_path};
+use crate::test_lod;
 
 #[test]
 fn npc_name_pool_parse_and_lookup() {
@@ -84,7 +84,7 @@ fn street_npc_table_peasant_portrait_selection_wraps() {
 
 #[test]
 fn street_npc_table_from_lod() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     // npcdata.txt may be zlib-compressed in the LOD archive
     let raw = lod.get_decompressed("icons/npcdata.txt").unwrap();
     let table = StreetNpcs::parse(&raw, None).unwrap();
@@ -97,7 +97,7 @@ fn street_npc_table_from_lod() {
 
 #[test]
 fn street_npc_table_portrait_name_format() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let raw = lod.get_decompressed("icons/npcdata.txt").unwrap();
     let table = StreetNpcs::parse(&raw, None).unwrap();
     // portrait_name should format as "NPC###" with 3-digit zero-padded number

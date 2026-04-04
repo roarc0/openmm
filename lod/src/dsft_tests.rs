@@ -1,10 +1,10 @@
-use crate::{LodManager, get_lod_path};
+use crate::test_lod;
 
 use super::DSFT;
 
 #[test]
 fn read_declist_data_works() {
-    let lod_manager = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod_manager) = test_lod() else { return; };
     let dsft = DSFT::new(&lod_manager).unwrap();
     assert_eq!(dsft.frames.len(), 6455);
     assert_eq!(dsft.frames[0].group_name(), Some("null".to_string()));
@@ -27,7 +27,7 @@ fn find_frame_by_group<'a>(dsft: &'a DSFT, group: &str) -> Option<&'a super::DSF
 /// causing all goblins to get palette_id=225 (variant A's palette).
 #[test]
 fn goblin_variants_have_distinct_dsft_palettes() {
-    let lod_manager = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod_manager) = test_lod() else { return; };
     let dsft = DSFT::new(&lod_manager).unwrap();
     let monlist = crate::monlist::MonsterList::new(&lod_manager).unwrap();
 
@@ -69,7 +69,7 @@ fn goblin_variants_have_distinct_dsft_palettes() {
 /// Regression: using sprite header palette offset gave wrong colors for ghosts.
 #[test]
 fn ghost_dsft_palette_differs_from_header() {
-    let lod_manager = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod_manager) = test_lod() else { return; };
     let dsft = DSFT::new(&lod_manager).unwrap();
     let monlist = crate::monlist::MonsterList::new(&lod_manager).unwrap();
 
@@ -113,7 +113,7 @@ fn ghost_dsft_palette_differs_from_header() {
 /// - Lizardman B/C failing to load (DSFT group names ≠ file names)
 #[test]
 fn monster_variants_resolve_through_dsft() {
-    let lod_manager = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod_manager) = test_lod() else { return; };
     let dsft = DSFT::new(&lod_manager).unwrap();
     let monlist = crate::monlist::MonsterList::new(&lod_manager).unwrap();
 

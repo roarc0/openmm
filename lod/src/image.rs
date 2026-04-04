@@ -391,13 +391,12 @@ pub fn tint_variant(image: &mut DynamicImage, variant: u8) {
 #[cfg(test)]
 mod test {
     use super::{ATLAS_TILE_PAD, get_atlas};
-    use crate::{LodManager, get_lod_path};
+    use crate::test_lod;
     use image::GenericImageView;
 
     #[test]
     fn join_images() {
-        let lod_path = get_lod_path();
-        let lod_manager = LodManager::new(lod_path).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
 
         let atlas_image = get_atlas(&lod_manager, &["grastyl", "dirttyl", "voltyl", "wtrtyl", "pending"], 2).unwrap();
         let slot = 128 + 2 * ATLAS_TILE_PAD;

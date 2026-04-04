@@ -1,11 +1,11 @@
 use super::MonsterList;
-use crate::{LodManager, get_lod_path};
+use crate::test_lod;
 
 /// Peasant detection and gender must be derived from monlist internal_name,
 /// not from hardcoded ranges. Verifies against actual dmonlist.bin data.
 #[test]
 fn peasant_detection_from_monlist_data() {
-    let lod_manager = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod_manager) = test_lod() else { return; };
     let monlist = MonsterList::new(&lod_manager).unwrap();
 
     // PeasantF1A-C (ids 120-122) must be detected as female peasants
@@ -29,7 +29,7 @@ fn peasant_detection_from_monlist_data() {
 /// Add new rows as we discover variant resolution issues.
 #[test]
 fn find_by_name_returns_correct_variant() {
-    let lod_manager = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod_manager) = test_lod() else { return; };
     let monlist = MonsterList::new(&lod_manager).unwrap();
 
     let test_cases: &[(&str, u8, &str)] = &[
@@ -67,7 +67,7 @@ fn find_by_name_returns_correct_variant() {
 /// giving all variants the same sprite group and palette.
 #[test]
 fn variants_have_distinct_sprite_groups() {
-    let lod_manager = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod_manager) = test_lod() else { return; };
     let monlist = MonsterList::new(&lod_manager).unwrap();
 
     // (monster_name, variants that must have distinct sprite groups)
@@ -109,7 +109,7 @@ fn variants_have_distinct_sprite_groups() {
 /// to display the wrong color during walking in outc3.
 #[test]
 fn ghost_walking_and_standing_palette_match() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
+    let Some(lod) = test_lod() else { return; };
     let gd = crate::game::global::GameData::new(&lod).unwrap();
     for dif in 1..=3u8 {
         let desc = gd

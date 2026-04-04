@@ -106,11 +106,11 @@ impl ObjectList {
 #[cfg(test)]
 mod tests {
     use super::ObjectList;
-    use crate::{LodManager, get_lod_path};
+    use crate::test_lod;
 
     #[test]
     fn parse_dobjlist() {
-        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let Some(lod_manager) = test_lod() else { return; };
         let objlist = ObjectList::new(&lod_manager).unwrap();
         assert!(!objlist.objects.is_empty(), "should have objects");
         println!("dobjlist: {} entries", objlist.objects.len());
