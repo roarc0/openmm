@@ -19,7 +19,6 @@ pub struct SpawnProgress {
 struct PendingSpawns {
     billboard_order: Vec<usize>,
     actor_order: Vec<usize>,
-    monster_order: Vec<usize>,
     idx: usize,
     frames_elapsed: u32,
     sprite_cache: sprites::SpriteCache,
@@ -36,9 +35,11 @@ struct PendingSpawns {
     >,
     /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).
     decorations: lod::game::decorations::Decorations,
-    monsters: lod::game::monster::Monsters,
-    /// Pre-resolved DDM actors (NPCs and monsters) for this map.
+    /// Pre-resolved DDM actors (NPCs only for outdoor maps) for this map.
     actors: Option<lod::game::actors::Actors>,
+    /// ODM spawn-point monsters (outdoor only). Each entry is one group member.
+    monsters: Option<lod::game::monster::Monsters>,
+    monster_order: Vec<usize>,
     terrain_entity: Entity,
 }
 use crate::states::loading::PreparedWorld;
@@ -365,13 +366,8 @@ fn spawn_world(
     }
 
     let decorations = prepared.decorations.clone();
-
-    // Reuse Actors and Monsters resolved during preloading — avoids duplicate LOD parsing.
-    let monsters = prepared
-        .resolved_monsters
-        .take()
-        .unwrap_or_else(lod::game::monster::Monsters::default_empty);
     let actors = prepared.resolved_actors.take();
+    let monsters = prepared.resolved_monsters.take();
 
     // Sort spawn order by distance from player (closest first)
     let player_spawn = Vec3::new(
@@ -398,12 +394,16 @@ fn spawn_world(
         Vec::new()
     };
 
-    let monster_order = sort_by_distance_mm6(
-        monsters.entries(),
-        player_spawn,
-        |m| m.spawn_position[0] as f32,
-        |m| m.spawn_position[1] as f32,
-    );
+    let monster_order = if let Some(ref m) = monsters {
+        sort_by_distance_mm6(
+            m.entries(),
+            player_spawn,
+            |mon| mon.spawn_position[0] as f32,
+            |mon| mon.spawn_position[1] as f32,
+        )
+    } else {
+        Vec::new()
+    };
 
     let total = bb_order.len() + actor_order.len() + monster_order.len();
     // Play map music
@@ -416,14 +416,14 @@ fn spawn_world(
     commands.insert_resource(PendingSpawns {
         billboard_order: bb_order,
         actor_order,
-        monster_order,
         idx: 0,
         frames_elapsed: 0,
         sprite_cache: prepared.sprite_cache.clone(),
         dec_sprite_cache: prepared.dec_sprite_cache.clone(),
         decorations,
-        monsters,
         actors,
+        monsters,
+        monster_order,
         terrain_entity,
     });
 }
@@ -479,6 +479,15 @@ fn lazy_spawn(
     let mut bb_idx = p.idx.min(bb_len);
     let mut actor_idx = p.idx.saturating_sub(bb_len).min(actor_len);
     let mut monster_idx = p.idx.saturating_sub(bb_len + actor_len).min(monster_len);
+
+    // One-time summary on first frame — useful for diagnosing missing actor/monster spawns
+    if p.frames_elapsed == 1 {
+        let n_ddm_npcs = p.actors.as_ref().map(|a| a.get_npcs().count()).unwrap_or(0);
+        warn!(
+            "lazy_spawn: {} decorations, {} DDM NPCs, {} ODM monsters",
+            bb_len, n_ddm_npcs, monster_len
+        );
+    }
 
     // Billboards — directional decorations (e.g. ships) get SpriteSheet + FacingYaw
     // so they show the correct side based on camera angle.
@@ -737,7 +746,77 @@ fn lazy_spawn(
             None => continue,
         };
 
-        let variant = actor.variant;
+        // DDM monsters (npc_id==0): spawn hostile with MonsterInteractable.
+        if actor.is_monster() {
+            warn!(
+                "Spawning DDM monster '{}' monlist_id={} sprite='{}' variant={} pos={:?}",
+                actor.name, actor.monlist_id, actor.standing_sprite, actor.variant, actor.position
+            );
+            let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
+                &actor.standing_sprite,
+                &actor.walking_sprite,
+                &actor.attacking_sprite,
+                game_assets.lod_manager(),
+                &mut images,
+                &mut materials,
+                &mut Some(&mut p.sprite_cache),
+                actor.variant,
+                actor.palette_id,
+            );
+            if states.is_empty() || states[0].is_empty() {
+                error!(
+                    "Monster '{}' monlist_id={} sprite '{}' failed to load — skipping",
+                    actor.name, actor.monlist_id, actor.standing_sprite
+                );
+                continue;
+            }
+            let dsft_scale = bb_mgr.dsft_scale_for_group(&actor.standing_sprite);
+            let sw = raw_w * dsft_scale;
+            let sh = raw_h * dsft_scale;
+            let state_count = states.len();
+            let initial_mat = states[0][0][0].clone();
+            let quad = meshes.add(Rectangle::new(sw, sh));
+            let wx = actor.position[0] as f32;
+            let wz = -(actor.position[1] as f32);
+            let terrain_y = crate::game::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
+            let ddm_y = actor.position[2] as f32;
+            let gy = terrain_y.max(ddm_y);
+            let pos = Vec3::new(wx, gy + sh / 2.0, wz);
+            commands.entity(terrain_entity).with_child((
+                Name::new(format!("monster:{}", actor.name)),
+                Mesh3d(quad),
+                MeshMaterial3d(initial_mat),
+                Transform::from_translation(pos),
+                crate::game::entities::WorldEntity,
+                crate::game::entities::EntityKind::Monster,
+                crate::game::entities::AnimationState::Idle,
+                sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
+                crate::game::interaction::MonsterInteractable {
+                    name: actor.name.clone(),
+                },
+                actor::Actor {
+                    name: actor.name.clone(),
+                    hp: actor.hp,
+                    max_hp: actor.hp,
+                    move_speed: actor.move_speed as f32,
+                    initial_position: pos,
+                    guarding_position: pos,
+                    tether_distance: actor.tether_distance as f32,
+                    wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
+                    wander_target: pos,
+                    facing_yaw: 0.0,
+                    hostile: true,
+                    variant: actor.variant,
+                    sound_ids: actor.sound_ids,
+                    fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                    attack_range: actor.radius as f32 * 2.0,
+                    attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
+                    attack_anim_remaining: 0.0,
+                },
+            ));
+            spawned += 1;
+            continue;
+        }
 
         let (s2, m2, w2, h2) = sprites::load_entity_sprites(
             &actor.standing_sprite,
@@ -747,7 +826,7 @@ fn lazy_spawn(
             &mut images,
             &mut materials,
             &mut Some(&mut p.sprite_cache),
-            variant,
+            actor.variant,
             actor.palette_id,
         );
         if s2.is_empty() || s2[0].is_empty() {
@@ -844,6 +923,7 @@ fn lazy_spawn(
                 wander_target: pos,
                 facing_yaw: 0.0,
                 hostile: false,
+                variant: actor.variant,
                 sound_ids: actor.sound_ids,
                 fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
                 attack_range: actor.radius as f32 * 2.0,
@@ -858,46 +938,53 @@ fn lazy_spawn(
         spawned += 1;
     }
 
-    // Monsters
+    // ODM spawn-point monsters (outdoor only)
     while monster_idx < monster_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
-        let m = &p.monsters.entries()[p.monster_order[monster_idx]];
+        let i = p.monster_order[monster_idx];
         monster_idx += 1;
         p.idx += 1;
+
+        let mon = match p.monsters.as_ref().and_then(|m| m.entries().get(i)) {
+            Some(m) => m,
+            None => continue,
+        };
+
         let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
-            &m.standing_sprite,
-            &m.walking_sprite,
-            &m.attacking_sprite,
+            &mon.standing_sprite,
+            &mon.walking_sprite,
+            &mon.attacking_sprite,
             game_assets.lod_manager(),
             &mut images,
             &mut materials,
             &mut Some(&mut p.sprite_cache),
-            m.variant,
-            m.palette_id,
+            mon.variant,
+            mon.palette_id,
         );
         if states.is_empty() || states[0].is_empty() {
             error!(
-                "Monster sprite '{}'/'{}'  failed to load — skipping",
-                m.standing_sprite, m.walking_sprite
+                "ODM monster '{}' sprite '{}' failed to load — skipping",
+                mon.name, mon.standing_sprite
             );
             continue;
         }
-        // Apply DSFT scale (same as decorations — sprite group name lookup)
-        let dsft_scale = bb_mgr.dsft_scale_for_group(&m.standing_sprite);
+
+        let dsft_scale = bb_mgr.dsft_scale_for_group(&mon.standing_sprite);
         let sw = raw_w * dsft_scale;
         let sh = raw_h * dsft_scale;
         let state_count = states.len();
         let initial_mat = states[0][0][0].clone();
         let quad = meshes.add(Rectangle::new(sw, sh));
-        // Compute spread position (was done inside resolve_monsters, now done here)
-        let angle = m.group_index as f32 * 2.094;
-        let spread = m.spawn_radius as f32 * 0.5;
-        let wx = m.spawn_position[0] as f32 + angle.cos() * spread * m.group_index as f32;
-        let wz = -(m.spawn_position[1] as f32 + angle.sin() * spread * m.group_index as f32);
-        let gy = crate::game::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
-        let pos = Vec3::new(wx, gy + sh / 2.0, wz);
+
+        // Spread group members around the spawn point center using golden angle distribution.
+        let angle = mon.group_index as f32 * 2.399_f32; // ~137.5° golden angle in radians
+        let r = mon.spawn_radius as f32;
+        let wx = mon.spawn_position[0] as f32 + r * angle.cos();
+        let wz = -(mon.spawn_position[1] as f32 + r * angle.sin());
+        let terrain_y = crate::game::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
+        let pos = Vec3::new(wx, terrain_y + sh / 2.0, wz);
 
         commands.entity(terrain_entity).with_child((
-            Name::new(format!("monster:{}", m.name)),
+            Name::new(format!("monster:{}", mon.name)),
             Mesh3d(quad),
             MeshMaterial3d(initial_mat),
             Transform::from_translation(pos),
@@ -905,22 +992,23 @@ fn lazy_spawn(
             crate::game::entities::EntityKind::Monster,
             crate::game::entities::AnimationState::Idle,
             sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
-            crate::game::interaction::MonsterInteractable { name: m.name.clone() },
+            crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
             actor::Actor {
-                name: m.name.clone(),
-                hp: 10,
-                max_hp: 10,
-                move_speed: m.move_speed as f32,
+                name: mon.name.clone(),
+                hp: mon.hp,
+                max_hp: mon.hp,
+                move_speed: mon.move_speed as f32,
                 initial_position: pos,
                 guarding_position: pos,
-                tether_distance: m.radius.max(200) as f32,
+                tether_distance: mon.radius as f32 * 2.0,
                 wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
                 wander_target: pos,
                 facing_yaw: 0.0,
                 hostile: true,
-                sound_ids: m.sound_ids,
+                variant: mon.variant,
+                sound_ids: mon.sound_ids,
                 fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
-                attack_range: m.radius as f32 * 2.0,
+                attack_range: mon.to_hit_radius as f32,
                 attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
                 attack_anim_remaining: 0.0,
             },

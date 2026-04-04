@@ -450,6 +450,7 @@ fn spawn_indoor_world(
                     wander_target: pos,
                     facing_yaw: 0.0,
                     hostile: false,
+                    variant: actor.variant,
                     sound_ids: actor.sound_ids,
                     fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
                     attack_range: actor.radius as f32 * 2.0,

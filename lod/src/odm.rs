@@ -59,7 +59,7 @@ pub struct SpawnPoint {
     pub position: [i32; 3],
     /// Wander radius around spawn position.
     pub radius: u16,
-    /// 1 = monster, 2 = item/treasure.
+    /// ObjectRefKind: 2=Object/item, 3=Monster.
     pub spawn_type: u16,
     /// Monster index or treasure level.
     pub monster_index: u16,

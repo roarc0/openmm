@@ -24,7 +24,7 @@ pub struct Actor {
     /// Sprite root for the attack1 animation (from MonsterEntry.attacking_sprite).
     pub attacking_sprite: String,
     pub palette_id: u16,
-    /// Palette variant: 1=A (base), 2=B, 3=C. Pre-computed from palette_id offset within
+    /// Variant: 1=A (base), 2=B, 3=C. Derived from dmonlist internal_name suffix (e.g. "GoblinB" → 2).
     /// actors sharing the same standing_sprite root. Never 0 after construction.
     pub variant: u8,
     pub name: String,
@@ -71,28 +71,6 @@ impl Actor {
     }
 }
 
-/// Compute palette variant for each actor based on the minimum palette_id of actors
-/// sharing the same standing_sprite root.
-fn compute_variants(actors: &mut [Actor]) {
-    use std::collections::HashMap;
-
-    let mut base_pals: HashMap<&str, u16> = HashMap::new();
-    for a in actors.iter() {
-        let e = base_pals.entry(&a.standing_sprite).or_insert(a.palette_id);
-        if a.palette_id < *e {
-            *e = a.palette_id;
-        }
-    }
-
-    // base_pals keys borrow from actors, so we need to collect first
-    let base_pals: HashMap<String, u16> = base_pals.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
-
-    for actor in actors.iter_mut() {
-        let base = base_pals[&actor.standing_sprite];
-        actor.variant = ((actor.palette_id - base + 1) as u8).min(3);
-    }
-}
-
 /// Per-map roster of pre-resolved DDM actors. Created once per map load.
 pub struct Actors {
     actors: Vec<Actor>,
@@ -113,23 +91,32 @@ impl Actors {
 
         let dead_ids: &[u16] = state.map(|s| s.dead_actor_ids.as_slice()).unwrap_or(&[]);
 
+        let raw_monsters = ddm.actors.iter().filter(|a| a.npc_id == 0).count();
+        let raw_npcs = ddm.actors.iter().filter(|a| a.npc_id > 0).count();
+        log::warn!(
+            "Actors::new {}: {} raw actors ({} monsters npc_id=0, {} NPCs)",
+            map_name,
+            ddm.actors.len(),
+            raw_monsters,
+            raw_npcs
+        );
+
         let mut actors = Vec::with_capacity(ddm.actors.len());
 
         for (idx, raw) in ddm.actors.iter().enumerate() {
             if dead_ids.contains(&(idx as u16)) {
                 continue;
             }
-            if raw.hp <= 0 {
-                continue;
-            }
-            if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 {
-                continue;
-            }
+            // Do NOT filter by hp == 0 here. Fresh DDM files (never saved) have hp=0 for all
+            // monsters because the original engine initialises HP from monsters.txt at load time.
+            // Dead actors are tracked by dead_actor_ids once map-state persistence is implemented.
 
             let Some(entry) = monster::resolve_entry(raw.monlist_id, game_data, lod) else {
                 log::warn!(
-                    "Actor '{}' monlist_id={} has no DSFT sprite — skipping",
+                    "Actor '{}' idx={} npc_id={} monlist_id={} has no DSFT sprite — skipping",
                     raw.name,
+                    idx,
+                    raw.npc_id,
                     raw.monlist_id
                 );
                 continue;
@@ -149,20 +136,28 @@ impl Actors {
                 (None, None, raw.name.clone())
             };
 
+            // Initialise HP from monsters.txt when the DDM value is 0 (fresh/unvisited map).
+            let hp = if raw.hp > 0 {
+                raw.hp
+            } else {
+                let prefix = entry.internal_name.trim_end_matches(|c: char| c.is_ascii_uppercase());
+                game_data.monsters_txt.max_hp(prefix, entry.variant).unwrap_or(1)
+            };
+
             actors.push(Actor {
                 position: [raw.position[0] as i32, raw.position[1] as i32, raw.position[2] as i32],
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
                 attacking_sprite: entry.attacking_sprite,
                 palette_id: entry.palette_id,
-                variant: 1, // overwritten by compute_variants() before return
+                variant: entry.variant,
                 name,
                 portrait_name,
                 profession_id,
                 radius: raw.radius,
                 height: raw.height,
                 move_speed: raw.move_speed,
-                hp: raw.hp,
+                hp,
                 tether_distance: raw.tether_distance,
                 npc_id: raw.npc_id,
                 monlist_id: raw.monlist_id,
@@ -180,7 +175,16 @@ impl Actors {
             });
         }
 
-        compute_variants(&mut actors);
+        let n_monsters = actors.iter().filter(|a| a.npc_id == 0).count();
+        let n_npcs = actors.iter().filter(|a| a.npc_id > 0).count();
+        log::warn!(
+            "Actors::new {}: resolved {} actors ({} monsters, {} NPCs)",
+            map_name,
+            actors.len(),
+            n_monsters,
+            n_npcs
+        );
+
         Ok(Actors { actors })
     }
 
@@ -202,12 +206,7 @@ impl Actors {
             if dead_ids.contains(&(idx as u16)) {
                 continue;
             }
-            if raw.hp <= 0 {
-                continue;
-            }
-            if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 {
-                continue;
-            }
+            // See Actors::new — hp=0 means uninitialized in fresh DDM files, not dead.
 
             let Some(entry) = monster::resolve_entry(raw.monlist_id, game_data, lod) else {
                 log::warn!(
@@ -232,20 +231,27 @@ impl Actors {
                 (None, None, raw.name.clone())
             };
 
+            let hp = if raw.hp > 0 {
+                raw.hp
+            } else {
+                let prefix = entry.internal_name.trim_end_matches(|c: char| c.is_ascii_uppercase());
+                game_data.monsters_txt.max_hp(prefix, entry.variant).unwrap_or(1)
+            };
+
             actors.push(Actor {
                 position: [raw.position[0] as i32, raw.position[1] as i32, raw.position[2] as i32],
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
                 attacking_sprite: entry.attacking_sprite,
                 palette_id: entry.palette_id,
-                variant: 1, // overwritten by compute_variants() before return
+                variant: entry.variant,
                 name,
                 portrait_name,
                 profession_id,
                 radius: raw.radius,
                 height: raw.height,
                 move_speed: raw.move_speed,
-                hp: raw.hp,
+                hp,
                 tether_distance: raw.tether_distance,
                 npc_id: raw.npc_id,
                 monlist_id: raw.monlist_id,
@@ -263,7 +269,6 @@ impl Actors {
             });
         }
 
-        compute_variants(&mut actors);
         Ok(Actors { actors })
     }
 

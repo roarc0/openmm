@@ -6,6 +6,7 @@ fn make_map_info(monster_names: [&str; 3], difficulty: [u8; 3]) -> MapInfo {
         name: "Test Map".to_string(),
         filename: "test.odm".to_string(),
         monster_names: monster_names.map(|s| s.to_string()),
+        monster_display_names: monster_names.map(|s| s.to_string()),
         difficulty,
         reset_count: 0,
         first_visit_day: 0,
@@ -43,63 +44,101 @@ fn parse_count_range_empty_is_zero() {
 #[test]
 fn monster_for_index_out_of_range_returns_none() {
     let info = make_map_info(["Goblin", "Orc", "Troll"], [2, 2, 2]);
-    assert!(info.monster_for_index(0, 0).is_none());
-    assert!(info.monster_for_index(13, 0).is_none());
-    assert!(info.monster_for_index(100, 0).is_none());
+    assert!(info.monster_for_index(0).is_none());
+    assert!(info.monster_for_index(13).is_none());
+    assert!(info.monster_for_index(100).is_none());
 }
 
 #[test]
 fn monster_for_index_forced_a_variant() {
-    // Indices 4-6 always produce variant 1 (A), regardless of seed
+    // Indices 4-6 always produce forced_variant=1 (A)
     let info = make_map_info(["Goblin", "Orc", "Troll"], [5, 5, 5]);
-    assert_eq!(info.monster_for_index(4, 0).map(|(_, v)| v), Some(1));
-    assert_eq!(info.monster_for_index(5, 99999).map(|(_, v)| v), Some(1));
-    assert_eq!(info.monster_for_index(6, 42).map(|(_, v)| v), Some(1));
+    assert_eq!(info.monster_for_index(4).map(|(_, _, _, v)| v), Some(1));
+    assert_eq!(info.monster_for_index(5).map(|(_, _, _, v)| v), Some(1));
+    assert_eq!(info.monster_for_index(6).map(|(_, _, _, v)| v), Some(1));
 }
 
 #[test]
 fn monster_for_index_forced_b_variant() {
     let info = make_map_info(["Goblin", "Orc", "Troll"], [1, 1, 1]);
-    assert_eq!(info.monster_for_index(7, 0).map(|(_, v)| v), Some(2));
-    assert_eq!(info.monster_for_index(8, 12345).map(|(_, v)| v), Some(2));
-    assert_eq!(info.monster_for_index(9, 99999).map(|(_, v)| v), Some(2));
+    assert_eq!(info.monster_for_index(7).map(|(_, _, _, v)| v), Some(2));
+    assert_eq!(info.monster_for_index(8).map(|(_, _, _, v)| v), Some(2));
+    assert_eq!(info.monster_for_index(9).map(|(_, _, _, v)| v), Some(2));
 }
 
 #[test]
 fn monster_for_index_forced_c_variant() {
     let info = make_map_info(["Goblin", "Orc", "Troll"], [1, 1, 1]);
-    assert_eq!(info.monster_for_index(10, 0).map(|(_, v)| v), Some(3));
-    assert_eq!(info.monster_for_index(11, 12345).map(|(_, v)| v), Some(3));
-    assert_eq!(info.monster_for_index(12, 99999).map(|(_, v)| v), Some(3));
+    assert_eq!(info.monster_for_index(10).map(|(_, _, _, v)| v), Some(3));
+    assert_eq!(info.monster_for_index(11).map(|(_, _, _, v)| v), Some(3));
+    assert_eq!(info.monster_for_index(12).map(|(_, _, _, v)| v), Some(3));
+}
+
+/// Random indices (1-3) return forced_variant=0; the caller must call roll_variant().
+#[test]
+fn monster_for_index_random_returns_zero_forced_variant() {
+    let info = make_map_info(["Goblin", "Orc", "Troll"], [2, 2, 2]);
+    assert_eq!(info.monster_for_index(1).map(|(_, _, _, v)| v), Some(0));
+    assert_eq!(info.monster_for_index(2).map(|(_, _, _, v)| v), Some(0));
+    assert_eq!(info.monster_for_index(3).map(|(_, _, _, v)| v), Some(0));
 }
 
 #[test]
 fn monster_for_index_name_slot_mapping() {
     let info = make_map_info(["Goblin", "Orc", "Troll"], [2, 2, 2]);
-    assert_eq!(info.monster_for_index(1, 0).map(|(n, _)| n), Some("Goblin"));
-    assert_eq!(info.monster_for_index(2, 0).map(|(n, _)| n), Some("Orc"));
-    assert_eq!(info.monster_for_index(3, 0).map(|(n, _)| n), Some("Troll"));
+    assert_eq!(info.monster_for_index(1).map(|(n, _, _, _)| n), Some("Goblin"));
+    assert_eq!(info.monster_for_index(2).map(|(n, _, _, _)| n), Some("Orc"));
+    assert_eq!(info.monster_for_index(3).map(|(n, _, _, _)| n), Some("Troll"));
     // Forced variants use the same slot mapping
-    assert_eq!(info.monster_for_index(4, 0).map(|(n, _)| n), Some("Goblin")); // slot 0
-    assert_eq!(info.monster_for_index(8, 0).map(|(n, _)| n), Some("Orc")); // slot 1
-    assert_eq!(info.monster_for_index(12, 0).map(|(n, _)| n), Some("Troll")); // slot 2
+    assert_eq!(info.monster_for_index(4).map(|(n, _, _, _)| n), Some("Goblin")); // slot 0
+    assert_eq!(info.monster_for_index(8).map(|(n, _, _, _)| n), Some("Orc")); // slot 1
+    assert_eq!(info.monster_for_index(12).map(|(n, _, _, _)| n), Some("Troll")); // slot 2
 }
 
 #[test]
 fn monster_for_index_empty_name_returns_none() {
     let info = make_map_info(["Goblin", "", "Troll"], [2, 2, 2]);
     // Slot 1 (Mon2) is empty — indices 2, 5, 8, 11 all map to slot 1
-    assert!(info.monster_for_index(2, 0).is_none());
-    assert!(info.monster_for_index(5, 0).is_none());
+    assert!(info.monster_for_index(2).is_none());
+    assert!(info.monster_for_index(5).is_none());
 }
 
 #[test]
-fn monster_for_index_difficulty_0_always_a() {
-    // Difficulty 0 => 100% A variant
-    let info = make_map_info(["Goblin", "Orc", "Troll"], [0, 0, 0]);
-    for seed in [0u32, 1, 100, 99999, u32::MAX] {
-        assert_eq!(info.monster_for_index(1, seed).map(|(_, v)| v), Some(1));
-    }
+fn variant_from_roll_difficulty1() {
+    // MM6 table for diff=1: A=90%, B=8%, C=2%.
+    let info = make_map_info(["Goblin", "", ""], [1, 0, 0]);
+    assert_eq!(info.variant_from_roll(0, 0), 1, "roll 0 → A");
+    assert_eq!(info.variant_from_roll(0, 89), 1, "roll 89 → A (last A)");
+    assert_eq!(info.variant_from_roll(0, 90), 2, "roll 90 → B (first B)");
+    assert_eq!(info.variant_from_roll(0, 97), 2, "roll 97 → B (last B)");
+    assert_eq!(info.variant_from_roll(0, 98), 3, "roll 98 → C (first C)");
+    assert_eq!(info.variant_from_roll(0, 99), 3, "roll 99 → C");
+}
+
+#[test]
+fn variant_from_roll_difficulty5() {
+    // MM6 table for diff=5: A=10%, B=50%, C=40%.
+    let info = make_map_info(["Goblin", "", ""], [5, 0, 0]);
+    assert_eq!(info.variant_from_roll(0, 0), 1, "roll 0 → A");
+    assert_eq!(info.variant_from_roll(0, 9), 1, "roll 9 → A (last A)");
+    assert_eq!(info.variant_from_roll(0, 10), 2, "roll 10 → B");
+    assert_eq!(info.variant_from_roll(0, 59), 2, "roll 59 → B (last B)");
+    assert_eq!(info.variant_from_roll(0, 60), 3, "roll 60 → C");
+    assert_eq!(info.variant_from_roll(0, 99), 3, "roll 99 → C");
+}
+
+#[test]
+fn monster_display_name_differs_from_internal() {
+    let Some(lod) = test_lod() else {
+        return;
+    };
+    let stats = MapStats::new(&lod).unwrap();
+    // New Sorpigal has PeasantM2 (internal) → "Apprentice Mage" (display)
+    let ns = stats.get("oute3.odm").expect("oute3.odm missing");
+    // PeasantM2 is mon2 (slot 1), index 2 or 5 or 8 or 11
+    let (internal, display, _, _) = ns.monster_for_index(2).expect("mon2 missing");
+    assert_eq!(internal, "PeasantM2");
+    assert_eq!(display, "Apprentice Mage");
 }
 
 #[test]

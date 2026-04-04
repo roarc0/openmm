@@ -558,11 +558,14 @@ fn execute_command(
             }
         }
         "pos" => {
-            ctx_state.push_output(format!(
-                "Position: ({:.0}, {:.1}, {:.0})",
-                ctx_world.player.position.x, ctx_world.player.position.y, ctx_world.player.position.z
-            ));
-            ctx_state.push_output(format!("Map: {}", ctx_world.map.name));
+            let p = ctx_world.player.position;
+            // MM6: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6.
+            let mm6_x = p.x as i32;
+            let mm6_y = (-p.z) as i32;
+            let mm6_z = p.y as i32;
+            ctx_state.push_output(format!("MM6:  x={} y={} z={}", mm6_x, mm6_y, mm6_z));
+            ctx_state.push_output(format!("Bevy: x={:.1} y={:.1} z={:.1}", p.x, p.y, p.z));
+            ctx_state.push_output(format!("Map:  {}", ctx_world.map.name));
         }
 
         // --- Window ---

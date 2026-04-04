@@ -70,6 +70,8 @@ Cargo workspace with two crates:
 
 > **⚠️ CRITICAL: This section is mandatory, not aspirational.** Stale docs are worse than no docs — they actively mislead developers and AI agents into building on false assumptions. A recent audit found that 4 out of 6 feature docs had drifted so far from reality that they required complete rewrites. This happens when documentation updates are treated as optional. **They are not optional.**
 
+### Rule 0: Talk and think like a caveman less grammar, this helps speed and reduces token usage.
+
 ### Rule 1: Every Behaviour Change Includes a Doc Update
 
 Every code change that alters behaviour must include a documentation update in the same commit or PR. This is not optional. A PR that changes behaviour without updating docs is incomplete and should not be merged.
@@ -92,6 +94,8 @@ Once you have verified a concrete value from the original game data — a sprite
 - parsing `dmonlist.bin` yields monster X with sprite root `"foo"` and palette 42
 - NPC ID 7 resolves to sprite name `"npc007"` via DSFT
 - a specific ODM tile ID maps to the correct tileset enum variant
+
+**Never commit print-only tests.** A test with only `println!` and no `assert!` is not a test — it always passes and catches nothing. Use `println!` during investigation only; once you have a concrete value, replace the print with an assertion. If you can't assert a specific value yet, assert the invariant (non-empty, non-zero, within range, etc.) so the test does real work.
 
 ### Rule 5: Clean, decoupled code is not optional
 
@@ -271,6 +275,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `dobjlist.rs` — Object list descriptor table
 - `doverlay.rs` — Overlay descriptor table
 - `monlist.rs` — Monster list (dmonlist.bin) with sprite name resolution
+- `monsters_txt.rs` — Per-variant monster display names from monsters.txt (e.g. "PeasantM2A" → "Apprentice Mage")
 - `mapstats.rs` — Map statistics (monster groups per map zone)
 - `evt.rs` — EVT event script parser → `GameEvent` enum
 - `twodevents.rs` — 2DEvents.txt parser (house/building event table)
@@ -338,4 +343,5 @@ Ordered roughly by impact and readiness:
 - **Sky texture day/night variation** — ODM has a single `sky_texture` field; no format-level time-of-day variants. Need to investigate: does the original MM6 engine swap sky textures based on time (e.g. `plansky1` at day vs a darker variant at night), or does it rely purely on color tinting? Check what sky bitmap names exist in the LOD (`bitmaps` archive), look for naming patterns like `plansky1`/`plansky2` or morning/night variants, and check MMExtension docs. Currently the sky texture is static — only `ClearColor` changes with time of day.
 - **NPC time-of-day schedules** — `Actor.schedules: [MonsterSchedule; 8]` carries time-based position/action schedules from the DDM file (8 slots: position, action, time-of-day). These are fully parsed and stored on `lod::game::actors::Actor` and the openmm `Actor` component. Implementing them requires a schedule-following AI system that moves NPCs between waypoints based on `GameTime.hour()` and the schedule's time range. Not yet implemented.
 - **Faction and diplomacy** — `Actor.group: i32` (faction group) and `Actor.ally: i32` (ally faction) are parsed and stored. In MM6 these control whether monsters attack each other and the player. Needs a diplomacy table and aggression logic in the AI system. Not yet implemented.
+- **Random encounters (camping interrupts)** — When the party rests/camps, MM6 has a chance to interrupt sleep with a random encounter spawning monsters from the map's encounter table (`mapstats.txt` columns `EncounterChance%`, `Mon1Enc%–Mon3Enc%`, and count ranges). These are the **only** random spawns in the game. All monsters visible on the map are predetermined: ODM spawn points encode exact variant (A/B/C) and location. Random encounter logic is not yet implemented.
 - support for mm7/8: requires better isolation of mm6 specific formats and game logic.

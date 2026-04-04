@@ -16,6 +16,7 @@ pub mod dtile;
 pub mod evt;
 pub mod mapstats;
 pub mod monlist;
+pub mod monsters_txt;
 pub mod odm;
 pub mod twodevents;
 

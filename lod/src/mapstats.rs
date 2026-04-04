@@ -7,6 +7,23 @@
 //!   9: EncounterChance%, 10: Mon1Enc%, 11: Mon2Enc%, 12: Mon3Enc%,
 //!   13: Mon1Pic, 14: Mon1Name, 15: Mon1Dif(1-5), 16: Mon1Count(e.g."2-4"),
 //!   17-20: Mon2 same, 21-24: Mon3 same, 25: RedbookTrack, 26: Designer
+//!
+//! ## ODM spawn groups
+//!
+//! The `Mon1-3Dif` and `Mon1-3Count` fields are used for **both** ODM spawn points and camping
+//! interrupts. When the map loads, each ODM spawn point with `spawn_type=3` (monster) expands
+//! to a group of monsters:
+//!
+//! - **Group size**: `MonNLow + Rand() % (MonNHi - MonNLow + 1)` — random within the range.
+//!   In MM6 this uses the global MSVC LCG, so exact sizes differ each map load. Our deterministic
+//!   implementation seeds from spawn position so the same spawn always produces the same group.
+//!
+//! - **Variant per monster**: each member independently rolls `Rand() % 100` against a
+//!   difficulty-based table (A=90%/B=8%/C=2% at diff 1, … A=10%/B=50%/C=40% at diff 5).
+//!   All members roll independently — there is no "champion gets the strongest variant" rule.
+//!
+//! - **EncounterChance%** and **Mon1-3Enc%** are used exclusively for camping interrupts
+//!   (not yet implemented).
 
 use std::error::Error;
 
@@ -19,8 +36,12 @@ pub struct MapInfo {
     pub name: String,
     /// File name (e.g. "oute3.odm").
     pub filename: String,
-    /// Monster picture/dmonlist prefix for each of 3 slots.
+    /// Monster internal name prefix for each of 3 slots (cols 13/17/21).
+    /// Used to look up dmonlist.bin entries (e.g. "PeasantM2", "Goblin").
     pub monster_names: [String; 3],
+    /// Human-readable monster display name for each slot (cols 14/18/22).
+    /// Shown in the game UI (e.g. "Apprentice Mage", "Goblin").
+    pub monster_display_names: [String; 3],
     /// Difficulty level for each monster (1-5, controls A/B/C variant odds).
     pub difficulty: [u8; 3],
     /// Number of map resets.
@@ -94,10 +115,14 @@ impl MapStats {
             let enc2: u8 = cols.get(11).unwrap_or(&"0").trim().parse().unwrap_or(0);
             let enc3: u8 = cols.get(12).unwrap_or(&"0").trim().parse().unwrap_or(0);
 
-            // Monster names (cols 13, 17, 21)
+            // Monster internal name prefixes (cols 13, 17, 21) — used to look up dmonlist.bin
             let m1_name = cols.get(13).unwrap_or(&"").trim().to_string();
             let m2_name = cols.get(17).unwrap_or(&"").trim().to_string();
             let m3_name = cols.get(21).unwrap_or(&"").trim().to_string();
+            // Monster display names (cols 14, 18, 22) — shown in the game UI
+            let m1_display = cols.get(14).unwrap_or(&"").trim().to_string();
+            let m2_display = cols.get(18).unwrap_or(&"").trim().to_string();
+            let m3_display = cols.get(22).unwrap_or(&"").trim().to_string();
 
             // Monster difficulty (cols 15, 19, 23)
             let m1_dif: u8 = cols.get(15).unwrap_or(&"0").trim().parse().unwrap_or(1);
@@ -115,6 +140,7 @@ impl MapStats {
                 name,
                 filename,
                 monster_names: [m1_name, m2_name, m3_name],
+                monster_display_names: [m1_display, m2_display, m3_display],
                 difficulty: [m1_dif, m2_dif, m3_dif],
                 reset_count,
                 first_visit_day,
@@ -157,63 +183,97 @@ fn parse_count_range(s: &str) -> (u8, u8) {
 #[path = "mapstats_tests.rs"]
 mod tests;
 
-/// Weighted odds for A/B/C variant selection per difficulty level.
-/// From OpenEnroth word_4E8152: [A%, B%, C%] for each difficulty 0-5.
-const VARIANT_ODDS: [[u8; 3]; 6] = [
-    [100, 0, 0],  // difficulty 0: all A
-    [90, 8, 2],   // difficulty 1: mostly A
-    [70, 20, 10], // difficulty 2
-    [50, 30, 20], // difficulty 3
-    [30, 40, 30], // difficulty 4
-    [10, 50, 40], // difficulty 5: mostly B/C
-];
-
 impl MapInfo {
-    /// Resolve a spawn point's monster_index to (monster_name_prefix, variant).
+    /// Resolve a spawn point's monster_index to (internal_name_prefix, display_name, slot, forced_variant).
     ///
-    /// MM6 spawn index mapping (from OpenEnroth SpawnEncounter):
-    /// - 1-3: Mon1/Mon2/Mon3 with random A/B/C based on difficulty odds
-    /// - 4-6: Mon1/Mon2/Mon3, forced variant A
-    /// - 7-9: Mon1/Mon2/Mon3, forced variant B
-    /// - 10-12: Mon1/Mon2/Mon3, forced variant C
+    /// MM6 spawn index mapping (from MMExtension SpawnPoint.Index):
+    /// - 1-3: Mon1/Mon2/Mon3 — random A/B/C per difficulty odds; caller rolls per group member
+    /// - 4-6: Mon1a/Mon2a/Mon3a — forced variant A for every member
+    /// - 7-9: Mon1b/Mon2b/Mon3b — forced variant B for every member
+    /// - 10-12: Mon1c/Mon2c/Mon3c — forced variant C for every member
     ///
-    /// Returns (name, difficulty_for_variant_selection).
-    /// The `difficulty` here encodes: 1=A, 2=B, 3=C for forced variants,
-    /// or the random roll result for indices 1-3.
-    pub fn monster_for_index(&self, index: u16, seed: u32) -> Option<(&str, u8)> {
+    /// Returns `(internal_prefix, display_name, slot, forced_variant)`:
+    /// - `internal_prefix`: dmonlist.bin lookup key (e.g. "Goblin")
+    /// - `display_name`: human-readable UI name (e.g. "Goblin")
+    /// - `slot`: 0/1/2 = Mon1/Mon2/Mon3 — index into `difficulty[]` and `encounter_min/max[]`
+    /// - `forced_variant`: 1=A, 2=B, 3=C for forced indices; **0** for unforced (index 1-3)
+    ///   When 0, call `variant_from_roll(slot, roll)` with a 0-99 roll for probabilistic selection.
+    pub fn monster_for_index(&self, index: u16) -> Option<(&str, &str, usize, u8)> {
         if index == 0 || index > 12 {
             return None;
         }
 
         let idx0 = (index - 1) as usize;
         let slot = idx0 % 3; // 0=Mon1, 1=Mon2, 2=Mon3
-        let group = idx0 / 3; // 0=base, 1=A, 2=B, 3=C
+        let group = idx0 / 3; // 0=random, 1=A, 2=B, 3=C
 
-        let name = &self.monster_names[slot];
-        if name.is_empty() || name == "0" {
+        let internal = &self.monster_names[slot];
+        if internal.is_empty() || internal == "0" {
             return None;
         }
 
-        let variant = match group {
-            0 => {
-                let dif = (self.difficulty[slot] as usize).min(5);
-                let odds = &VARIANT_ODDS[dif];
-                let h = seed.wrapping_mul(2654435761);
-                let roll = ((h >> 16) % 100) as u8;
-                if roll < odds[0] {
-                    1
-                } else if roll < odds[0] + odds[1] {
-                    2
-                } else {
-                    3
-                }
+        // Display name falls back to internal if the display name column is empty or "0".
+        let display = {
+            let d = &self.monster_display_names[slot];
+            if d.is_empty() || d == "0" {
+                internal.as_str()
+            } else {
+                d.as_str()
             }
+        };
+
+        let forced_variant = match group {
+            0 => 0, // random — caller rolls per member with roll_variant()
             1 => 1, // forced A
             2 => 2, // forced B
             3 => 3, // forced C
             _ => return None,
         };
 
-        Some((name, variant))
+        Some((internal, display, slot, forced_variant))
+    }
+
+    /// Select A/B/C variant (1/2/3) from a 0-99 roll based on difficulty for this slot.
+    ///
+    /// MM6 probability table (verified from MM6.exe data at 0x4C0388):
+    ///   diff 1: A=90%, B=8%,  C=2%
+    ///   diff 2: A=70%, B=20%, C=10%
+    ///   diff 3: A=50%, B=30%, C=20%
+    ///   diff 4: A=30%, B=40%, C=30%
+    ///   diff 5: A=10%, B=50%, C=40%
+    ///
+    /// Each monster in a group rolls independently — there is no "champion variant" rule.
+    pub fn variant_from_roll(&self, slot: usize, roll_0_99: u8) -> u8 {
+        // (A threshold, B threshold); C covers the rest.
+        const TABLE: [(u8, u8); 5] = [
+            (90, 8),  // diff 1
+            (70, 20), // diff 2
+            (50, 30), // diff 3
+            (30, 40), // diff 4
+            (10, 50), // diff 5
+        ];
+        let diff = self.difficulty[slot].clamp(1, 5) as usize;
+        let (a_pct, b_pct) = TABLE[diff - 1];
+        if roll_0_99 < a_pct {
+            1 // A
+        } else if roll_0_99 < a_pct + b_pct {
+            2 // B
+        } else {
+            3 // C
+        }
+    }
+
+    /// Group size range for a spawn slot from mapstats `#` column.
+    ///
+    /// Returns `(min, max)` for the number of monsters per spawn point.
+    /// Falls back to `(1, 1)` when the range is zero or unset.
+    pub fn count_range_for_slot(&self, slot: usize) -> (u8, u8) {
+        let min = self.encounter_min[slot];
+        let max = self.encounter_max[slot];
+        if min == 0 && max == 0 {
+            (1, 1)
+        } else {
+            (min.max(1), max.max(min.max(1)))
+        }
     }
 }

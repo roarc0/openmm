@@ -11,7 +11,6 @@ use crate::{
 };
 use lod::{
     blv::Blv,
-    ddm::{Ddm, DdmActor},
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData},
 };
@@ -53,7 +52,6 @@ struct LoadingProgress {
     water_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
     decorations: Option<lod::game::decorations::Decorations>,
-    actors: Option<Vec<DdmActor>>,
     resolved_actors: Option<lod::game::actors::Actors>,
     resolved_monsters: Option<lod::game::monster::Monsters>,
     start_points: Option<Vec<StartPoint>>,
@@ -235,7 +233,6 @@ pub struct PreparedWorld {
     pub water_texture: Option<Image>,
     pub models: Vec<PreparedModel>,
     pub decorations: lod::game::decorations::Decorations,
-    pub actors: Vec<DdmActor>,
     pub resolved_actors: Option<lod::game::actors::Actors>,
     pub resolved_monsters: Option<lod::game::monster::Monsters>,
     pub start_points: Vec<StartPoint>,
@@ -324,7 +321,6 @@ fn loading_setup(
         water_texture: None,
         models: None,
         decorations: None,
-        actors: None,
         resolved_actors: None,
         resolved_monsters: None,
         start_points: None,
@@ -424,12 +420,6 @@ fn loading_step(
                                 progress.water_cells = Some(water_cells);
                                 progress.terrain_lookup = Some(lod::terrain::TerrainLookup::new(&dtile, odm.tile_data));
                             }
-                            // Load actors from DDM
-                            let actors = Ddm::new(game_assets.lod_manager(), &map_name)
-                                .map(|ddm| ddm.actors)
-                                .unwrap_or_default();
-                            progress.actors = Some(actors);
-
                             progress.tile_table = Some(tile_table);
                             progress.odm = Some(odm);
                             progress.step = progress.step.next();
@@ -919,7 +909,7 @@ fn loading_step(
                 let mut sprite_roots: Vec<(String, u8, u16)> = Vec::new();
                 let mut seen = std::collections::HashSet::new();
 
-                // NPC sprites: resolve once, cache for spawn_world reuse
+                // DDM actors (NPCs): resolve once, cache for spawn_world reuse
                 let lod_actors = lod::game::actors::Actors::new(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
@@ -929,7 +919,11 @@ fn loading_step(
                 .ok();
                 if let Some(ref actors) = lod_actors {
                     for actor in actors.get_actors() {
-                        for root in [actor.standing_sprite.clone(), actor.walking_sprite.clone()] {
+                        for root in [
+                            actor.standing_sprite.clone(),
+                            actor.walking_sprite.clone(),
+                            actor.attacking_sprite.clone(),
+                        ] {
                             let key = format!("{}@v{}p{}", root, actor.variant, actor.palette_id);
                             if seen.insert(key) {
                                 sprite_roots.push((root, actor.variant, actor.palette_id));
@@ -939,16 +933,24 @@ fn loading_step(
                 }
                 progress.resolved_actors = lod_actors;
 
-                // Monster sprites: use Monsters::new() for exact same seeds as spawn_world
-                let resolved_monsters = lod::game::monster::Monsters::new(
-                    game_assets.lod_manager(),
-                    &load_request.map_name.to_string(),
-                    game_assets.game_data(),
-                )
-                .ok();
-                if let Some(ref monsters) = resolved_monsters {
+                // ODM spawn-point monsters (outdoor only): one Monster per group member
+                let lod_monsters = if load_request.map_name.is_outdoor() {
+                    lod::game::monster::Monsters::new(
+                        game_assets.lod_manager(),
+                        &load_request.map_name.to_string(),
+                        game_assets.game_data(),
+                    )
+                    .ok()
+                } else {
+                    None
+                };
+                if let Some(ref monsters) = lod_monsters {
                     for m in monsters.iter() {
-                        for root in [m.standing_sprite.clone(), m.walking_sprite.clone()] {
+                        for root in [
+                            m.standing_sprite.clone(),
+                            m.walking_sprite.clone(),
+                            m.attacking_sprite.clone(),
+                        ] {
                             let key = format!("{}@v{}p{}", root, m.variant, m.palette_id);
                             if seen.insert(key) {
                                 sprite_roots.push((root, m.variant, m.palette_id));
@@ -956,7 +958,7 @@ fn loading_step(
                         }
                     }
                 }
-                progress.resolved_monsters = resolved_monsters;
+                progress.resolved_monsters = lod_monsters;
 
                 progress.preload_queue = Some(PreloadQueue {
                     sprite_roots,
@@ -1071,7 +1073,6 @@ fn loading_step(
             if let (Some(map), Some(mesh), Some(texture), Some(models)) = (odm, terrain_mesh, terrain_texture, models) {
                 let water_cells = progress.water_cells.take().unwrap_or_default();
                 let water_texture = progress.water_texture.take();
-                let actors = progress.actors.take().unwrap_or_default();
                 commands.insert_resource(PreparedWorld {
                     map,
                     terrain_mesh: mesh,
@@ -1084,7 +1085,6 @@ fn loading_step(
                         .decorations
                         .take()
                         .unwrap_or_else(lod::game::decorations::Decorations::empty),
-                    actors,
                     resolved_actors: progress.resolved_actors.take(),
                     resolved_monsters: progress.resolved_monsters.take(),
                     start_points: progress.start_points.take().unwrap_or_default(),

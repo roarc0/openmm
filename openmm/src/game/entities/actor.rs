@@ -16,6 +16,8 @@ pub struct Actor {
     pub wander_target: Vec3,
     pub facing_yaw: f32,
     pub hostile: bool,
+    /// A/B/C difficulty variant: 1=A (base), 2=B, 3=C.
+    pub variant: u8,
     /// Sound IDs: [attack, die, got_hit, fidget]. Zero = no sound for that slot.
     pub sound_ids: [u16; 4],
     /// Seconds until next fidget sound attempt.

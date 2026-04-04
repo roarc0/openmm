@@ -84,6 +84,25 @@ fn state_snapshot_empty_filters_nothing() {
     );
 }
 
+/// Regression: outdoor DDM files (oute3.odm) place only NPCs — zero monster actors (npc_id=0).
+/// Outdoor encounter monsters come exclusively from ODM spawn points via Monsters::new().
+/// This test guards against accidentally re-filtering out DDM actors by hp==0.
+#[test]
+fn outdoor_ddm_has_only_npcs_no_ddm_monsters() {
+    let Some(lod) = test_lod() else {
+        return;
+    };
+    let gd = game_data(&lod);
+    let actors = Actors::new(&lod, "oute3.odm", None, &gd).unwrap();
+    // oute3.ddm contains NPCs only — DDM monster actors (npc_id=0) are absent in outdoor maps.
+    assert_eq!(
+        actors.get_monsters().count(),
+        0,
+        "oute3 DDM should have no monster actors (npc_id=0); outdoor monsters spawn from ODM spawn points"
+    );
+    assert!(actors.get_npcs().count() > 0, "oute3 DDM should have NPC actors");
+}
+
 #[test]
 fn variant_is_precomputed() {
     let Some(lod) = test_lod() else {

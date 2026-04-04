@@ -38,6 +38,8 @@ pub struct Monster {
     pub sound_ids: [u16; 4],
     /// Melee attack reach in MM6 world units (from dmonlist.bin).
     pub to_hit_radius: u16,
+    /// Max HP from monsters.txt (initialized at spawn, variant-specific).
+    pub hp: i16,
 }
 
 /// Per-map resolved monster spawn roster. Created once per map load via `Monsters::new()`.
@@ -61,15 +63,48 @@ impl Monsters {
 
         let mut entries = Vec::new();
         for sp in &odm.spawn_points {
-            let group_size = 3 + ((sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs()) % 3) as usize;
+            // Skip item/treasure spawns (spawn_type=2); only process monsters (spawn_type=3).
+            if sp.spawn_type != 3 {
+                continue;
+            }
+
+            // Resolve monster type and variant class for this spawn point.
+            let Some((mon_name, mapstats_display, slot, forced_variant)) = cfg.monster_for_index(sp.monster_index)
+            else {
+                continue;
+            };
+
+            // Group size from mapstats Mon1Low/Mon1Hi range.
+            // Seed from |x|*|y| gives better spread across spawns than |x|+|y|.
+            let pos_seed = sp.position[0]
+                .unsigned_abs()
+                .wrapping_mul(sp.position[1].unsigned_abs());
+            let (count_min, count_max) = cfg.count_range_for_slot(slot);
+            let range = (count_max - count_min) as u32 + 1;
+            let group_size = count_min as usize + (pos_seed % range) as usize;
+
             for g in 0..group_size {
-                let seed = sp.position[0].unsigned_abs() + sp.position[1].unsigned_abs() + g as u32;
-                let Some((mon_name, dif)) = cfg.monster_for_index(sp.monster_index, seed) else {
+                // Each monster independently rolls for A/B/C variant from the difficulty table.
+                // No special "champion" rule — all members use the same probability distribution.
+                let variant = if forced_variant != 0 {
+                    forced_variant
+                } else {
+                    // Mix position seed with member index using Knuth multiplicative hash.
+                    let member_seed = pos_seed.wrapping_add((g as u32).wrapping_mul(2654435761));
+                    let roll = (member_seed % 100) as u8;
+                    cfg.variant_from_roll(slot, roll)
+                };
+
+                let Some(desc) = game_data.monlist.find_by_name(mon_name, variant) else {
                     continue;
                 };
-                let Some(desc) = game_data.monlist.find_by_name(mon_name, dif) else {
-                    continue;
-                };
+
+                // Per-variant name from monsters.txt takes priority over the mapstats base name.
+                // e.g. PeasantM2 A="Apprentice Mage", B="Journeyman Mage", C="Mage".
+                let display_name = game_data
+                    .monsters_txt
+                    .display_name(mon_name, variant)
+                    .unwrap_or(mapstats_display);
 
                 let st_group = &desc.sprite_names[0];
                 let wa_group = &desc.sprite_names[1];
@@ -86,23 +121,25 @@ impl Monsters {
                     .map(|(n, _)| n)
                     .unwrap_or_else(|| st_root.clone());
                 let at_root = at_group.to_lowercase();
+                let hp = game_data.monsters_txt.max_hp(mon_name, variant).unwrap_or(1);
 
                 entries.push(Monster {
-                    name: mon_name.to_string(),
+                    name: display_name.to_string(),
                     spawn_position: sp.position,
-                    spawn_radius: sp.radius.max(200),
+                    spawn_radius: sp.radius,
                     group_index: g,
                     standing_sprite: st_root,
                     walking_sprite: wa_root,
                     attacking_sprite: at_root,
                     palette_id: palette_id as u16,
-                    variant: dif,
+                    variant,
                     height: desc.height,
                     move_speed: desc.move_speed,
                     hostile: true,
                     radius: sp.radius.max(300),
                     sound_ids: desc.sound_ids,
                     to_hit_radius: desc.to_hit_radius,
+                    hp,
                 });
             }
         }
@@ -133,11 +170,26 @@ pub struct MonsterEntry {
     /// Sprite root for the attack1 animation (sprite_names[2], lowercased).
     pub attacking_sprite: String,
     pub palette_id: u16,
+    /// Variant derived from internal_name suffix: 1=A, 2=B, 3=C.
+    pub variant: u8,
+    /// Full internal name from dmonlist.bin (e.g. "GoblinA"). Used for monsters.txt HP lookup.
+    pub internal_name: String,
     pub is_peasant: bool,
     pub is_female: bool,
     /// Melee attack reach in MM6 world units (from dmonlist.bin).
     pub to_hit_radius: u16,
     pub sound_ids: [u16; 4],
+}
+
+/// Derive A/B/C variant (1/2/3) from a dmonlist internal_name suffix.
+/// "GoblinA" → 1, "GoblinB" → 2, "GoblinC" → 3, anything else → 1.
+pub fn variant_from_internal_name(name: &str) -> u8 {
+    match name.chars().last() {
+        Some('A') | Some('a') => 1,
+        Some('B') | Some('b') => 2,
+        Some('C') | Some('c') => 3,
+        _ => 1,
+    }
 }
 
 /// Resolve a DSFT group name to a sprite file root and palette_id.
@@ -203,6 +255,8 @@ pub fn resolve_entry(monlist_id: u8, game_data: &GameData, lod: &LodManager) -> 
         walking_sprite,
         attacking_sprite,
         palette_id: palette_id as u16,
+        variant: variant_from_internal_name(&desc.internal_name),
+        internal_name: desc.internal_name.clone(),
         is_peasant: game_data.monlist.is_peasant(monlist_id),
         is_female: game_data.monlist.is_female_peasant(monlist_id),
         to_hit_radius: desc.to_hit_radius,

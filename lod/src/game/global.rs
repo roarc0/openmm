@@ -12,6 +12,8 @@ pub struct GameData {
     pub dsft: crate::dsft::DSFT,
     /// Monster species list (icons/dmonlist.bin) — sprite names, heights, speeds.
     pub monlist: crate::monlist::MonsterList,
+    /// Per-variant monster display names and stats (icons/monsters.txt).
+    pub monsters_txt: crate::monsters_txt::MonstersTxt,
     /// Per-map monster configuration (icons/mapstats.txt).
     pub mapstats: crate::mapstats::MapStats,
     /// Global NPC metadata table (icons/npcdata.txt). `None` if the file is missing.
@@ -37,6 +39,7 @@ impl GameData {
     pub fn new(lod: &LodManager) -> Result<Self, Box<dyn Error>> {
         let dsft = crate::dsft::DSFT::new(lod)?;
         let monlist = crate::monlist::MonsterList::new(lod)?;
+        let monsters_txt = crate::monsters_txt::MonstersTxt::new(lod)?;
         let mapstats = crate::mapstats::MapStats::new(lod)?;
 
         let name_pool = lod
@@ -58,6 +61,7 @@ impl GameData {
         Ok(Self {
             dsft,
             monlist,
+            monsters_txt,
             mapstats,
             street_npcs,
             name_pool,
