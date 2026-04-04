@@ -24,7 +24,7 @@ use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 const WALK_SPEED: f32 = 1024.0;
 const FLY_SPEED: f32 = 2048.0;
 const ROTATION_SPEED: f32 = 1.8;
-const EYE_HEIGHT: f32 = 160.0;
+const EYE_HEIGHT: f32 = 140.0;
 const GRAVITY: f32 = 9800.0;
 const MAX_SLOPE_HEIGHT: f32 = 200.0;
 const JUMP_VELOCITY: f32 = 1300.0;
@@ -347,12 +347,22 @@ fn toggle_fly_mode(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<PlayerKeyBindings>,
     gamepads: Query<&Gamepad>,
+    physics_query: Query<&PlayerPhysics, With<Player>>,
     mut world_state: ResMut<crate::game::world_state::WorldState>,
 ) {
     let gamepad_toggle = gamepads.iter().any(|gp| gp.just_pressed(GamepadButton::Select));
     if keys.just_pressed(key_bindings.toggle_fly) || gamepad_toggle {
         world_state.player.fly_mode = false;
         info!("Fly mode: OFF");
+    }
+    // Disengage fly when touching ground or a BSP floor surface
+    if world_state.player.fly_mode {
+        if let Ok(physics) = physics_query.single() {
+            if physics.on_ground {
+                world_state.player.fly_mode = false;
+                info!("Fly mode: OFF (landed)");
+            }
+        }
     }
 }
 

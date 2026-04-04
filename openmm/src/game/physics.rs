@@ -184,6 +184,7 @@ fn gravity_system(
             physics.on_ground = false;
             if transform.translation.y < ground_y {
                 transform.translation.y = ground_y;
+                physics.on_ground = true;
             }
             if transform.translation.y > ceiling_y - settings.eye_height {
                 transform.translation.y = ceiling_y - settings.eye_height;
