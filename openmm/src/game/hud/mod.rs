@@ -1,5 +1,6 @@
 mod borders;
 mod crosshair;
+mod debug_hud;
 mod footer;
 mod map_overlay;
 mod minimap;
@@ -73,7 +74,8 @@ pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<FooterText>()
+        app.add_plugins(debug_hud::DebugHudCoordsPlugin)
+            .init_resource::<FooterText>()
             .init_resource::<HudView>()
             .add_systems(OnEnter(GameState::Game), spawn_hud)
             .add_systems(Update, close_ui_system.run_if(in_state(GameState::Game)))
