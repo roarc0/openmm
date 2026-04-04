@@ -665,35 +665,25 @@ fn process_events(
                     npc_id, portrait_name, npc_display_name
                 );
 
-                // Resolve profession name from npcprof.txt for both generated and quest NPCs.
-                let profession = if *npc_id >= crate::game::events::GENERATED_NPC_ID_BASE {
+                // Resolve profession data from npcprof.txt for both generated and quest NPCs.
+                let profession_id = if *npc_id >= crate::game::events::GENERATED_NPC_ID_BASE {
                     map_events
                         .as_ref()
                         .and_then(|me| me.generated_npcs.get(npc_id))
                         .filter(|g| g.profession_id > 0)
-                        .and_then(|g| {
-                            game_assets
-                                .game_data()
-                                .prof_table
-                                .as_ref()
-                                .and_then(|pt| pt.get(g.profession_id as u16))
-                                .map(|p| p.name.clone())
-                        })
+                        .map(|g| g.profession_id as u16)
                 } else {
                     map_events
                         .as_ref()
                         .and_then(|me| me.npc_table.as_ref())
                         .and_then(|t| t.get(*npc_id))
-                        .filter(|entry| entry.profession_id > 0)
-                        .and_then(|entry| {
-                            game_assets
-                                .game_data()
-                                .prof_table
-                                .as_ref()
-                                .and_then(|pt| pt.get(entry.profession_id as u16))
-                                .map(|p| p.name.clone())
-                        })
+                        .filter(|e| e.profession_id > 0)
+                        .map(|e| e.profession_id as u16)
                 };
+                let prof_entry = profession_id.and_then(|id| {
+                    game_assets.game_data().prof_table.as_ref().and_then(|pt| pt.get(id))
+                });
+                let profession = prof_entry.map(|p| p.name.clone());
 
                 let portrait_img = game_assets
                     .game_lod()
@@ -714,6 +704,11 @@ fn process_events(
                     commands.insert_resource(crate::game::hud::NpcProfile {
                         name: first_name,
                         profession,
+                        join_text: prof_entry.map(|p| p.join_text.clone()).filter(|s| !s.is_empty()),
+                        in_party_benefit: prof_entry.map(|p| p.in_party_benefit.clone()).filter(|s| !s.is_empty()),
+                        cost_per_week: prof_entry.map(|p| p.cost_per_week).filter(|&c| c > 0),
+                        personality: prof_entry.map(|p| p.personality.clone()).filter(|s| !s.is_empty()),
+                        action_text: prof_entry.map(|p| p.action_text.clone()).filter(|s| !s.is_empty()),
                     });
                     *hud_view = HudView::NpcDialogue;
                     grab_cursor(&mut cursor_query, false);

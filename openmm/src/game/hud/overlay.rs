@@ -25,11 +25,16 @@ pub struct NpcPortrait {
     pub size: Vec2,
 }
 
-/// Resource holding the NPC name and profession for display under the portrait.
-#[derive(Resource)]
+/// Resource holding the NPC name and all profession data for display under the portrait.
+#[derive(Resource, Default)]
 pub struct NpcProfile {
     pub name: String,
     pub profession: Option<String>,
+    pub join_text: Option<String>,
+    pub in_party_benefit: Option<String>,
+    pub cost_per_week: Option<u32>,
+    pub personality: Option<String>,
+    pub action_text: Option<String>,
 }
 
 /// Marker component for the overlay UI node.
@@ -185,7 +190,7 @@ pub(super) fn spawn_npc_portrait(
                 },
             ));
 
-            // Name and profession from NpcProfile
+            // Name and all profession data from NpcProfile
             if let Some(profile) = &profile {
                 if !profile.name.is_empty()
                     && let Some(handle) = game_fonts.render(&profile.name, "arrus", YELLOW, &mut images)
@@ -195,6 +200,42 @@ pub(super) fn spawn_npc_portrait(
                 if let Some(prof) = &profile.profession {
                     let text = format!("the {}", prof);
                     if let Some(handle) = game_fonts.render(&text, "arrus", WHITE, &mut images) {
+                        parent.spawn(ImageNode::new(handle));
+                    }
+                }
+                if let Some(text) = &profile.join_text {
+                    if !text.is_empty()
+                        && let Some(handle) = game_fonts.render(text, "arrus", WHITE, &mut images)
+                    {
+                        parent.spawn(ImageNode::new(handle));
+                    }
+                }
+                if let Some(text) = &profile.in_party_benefit {
+                    if !text.is_empty()
+                        && let Some(handle) = game_fonts.render(text, "arrus", WHITE, &mut images)
+                    {
+                        parent.spawn(ImageNode::new(handle));
+                    }
+                }
+                if let Some(cost) = profile.cost_per_week {
+                    if cost > 0 {
+                        let text = format!("Hire: {} gold/week", cost);
+                        if let Some(handle) = game_fonts.render(&text, "arrus", WHITE, &mut images) {
+                            parent.spawn(ImageNode::new(handle));
+                        }
+                    }
+                }
+                if let Some(text) = &profile.personality {
+                    if !text.is_empty()
+                        && let Some(handle) = game_fonts.render(text, "arrus", WHITE, &mut images)
+                    {
+                        parent.spawn(ImageNode::new(handle));
+                    }
+                }
+                if let Some(text) = &profile.action_text {
+                    if !text.is_empty()
+                        && let Some(handle) = game_fonts.render(text, "arrus", WHITE, &mut images)
+                    {
                         parent.spawn(ImageNode::new(handle));
                     }
                 }

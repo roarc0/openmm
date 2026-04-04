@@ -11,17 +11,24 @@ pub use footer::FooterText;
 pub use overlay::{NpcPortrait, NpcProfile, OverlayImage, viewport_inner_rect};
 
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::InGame;
+use crate::game::debug::console::ConsoleState;
 use crate::ui_assets::{UiAssets, make_black_transparent};
 
 use borders::*;
 use footer::*;
 use minimap::*;
+
+/// Run condition: game input is fully active — HudView is World and no console open.
+/// Use this on all player/world input systems instead of manual per-system checks.
+pub fn game_input_active(view: Res<HudView>, console: Res<ConsoleState>) -> bool {
+    matches!(*view, HudView::World) && !console.open
+}
 
 /// Marker for HUD UI entities.
 #[derive(Component)]
@@ -58,6 +65,10 @@ impl Plugin for HudPlugin {
             .add_systems(OnEnter(GameState::Game), spawn_hud)
             .add_systems(
                 Update,
+                close_ui_system.run_if(in_state(GameState::Game)),
+            )
+            .add_systems(
+                Update,
                 (
                     update_hud_layout,
                     update_minimap,
@@ -79,6 +90,31 @@ impl Plugin for HudPlugin {
                     .chain()
                     .run_if(in_state(GameState::Game)),
             );
+    }
+}
+
+/// Close the active UI overlay on Escape and return to World.
+/// Clears the EventQueue and removes overlay resources so stale events can't reopen a UI.
+/// Does nothing when the console is open (console handles its own Escape).
+fn close_ui_system(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut view: ResMut<HudView>,
+    console: Res<ConsoleState>,
+    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    mut commands: Commands,
+    mut event_queue: ResMut<crate::game::event_dispatch::EventQueue>,
+) {
+    if console.open || !keys.just_pressed(KeyCode::Escape) || matches!(*view, HudView::World) {
+        return;
+    }
+    event_queue.clear();
+    commands.remove_resource::<overlay::OverlayImage>();
+    commands.remove_resource::<overlay::NpcPortrait>();
+    commands.remove_resource::<overlay::NpcProfile>();
+    *view = HudView::World;
+    if let Ok(mut cursor) = cursor_query.single_mut() {
+        cursor.grab_mode = CursorGrabMode::Confined;
+        cursor.visible = false;
     }
 }
 

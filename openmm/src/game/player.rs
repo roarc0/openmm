@@ -138,8 +138,7 @@ impl Plugin for PlayerPlugin {
                     .chain()
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(crate::game::hud::HudView::World))
-                    .run_if(|console: Res<crate::game::debug::console::ConsoleState>| !console.open),
+                    .run_if(crate::game::hud::game_input_active),
             );
     }
 }

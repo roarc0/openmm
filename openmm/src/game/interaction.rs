@@ -51,10 +51,10 @@ impl Plugin for InteractionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (hover_hint_system, decoration_interact_system, npc_interact_system)
+            (hover_hint_system, world_interact_system)
                 .chain()
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(HudView::World)),
+                .run_if(crate::game::hud::game_input_active),
         )
         .add_systems(
             Update,
@@ -106,15 +106,18 @@ fn facing_rotation(cam_origin: Vec3, center: Vec3) -> Quat {
 
 // --- Systems ---
 
-/// Handle exit input when in Building or Chest overlay views.
+/// Handle exit input when an overlay UI is active.
+/// Clears the EventQueue to discard any events that were queued alongside the now-dismissed UI.
 fn interaction_input(
     keys: Res<ButtonInput<KeyCode>>,
     gamepads: Query<&Gamepad>,
     mut view: ResMut<HudView>,
     mut commands: Commands,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    mut event_queue: ResMut<EventQueue>,
 ) {
     if check_exit_input(&keys, &gamepads) {
+        event_queue.clear();
         commands.remove_resource::<OverlayImage>();
         commands.remove_resource::<crate::game::hud::NpcPortrait>();
         commands.remove_resource::<crate::game::hud::NpcProfile>();
@@ -126,13 +129,16 @@ fn interaction_input(
     }
 }
 
-/// Detect click on a decoration and push its events. Uses billboard hit test with alpha mask.
-fn decoration_interact_system(
+/// Detect click/interact on the nearest interactable in the world (decoration OR NPC) and push
+/// exactly one event. By finding the global nearest hit before pushing, this guarantees only
+/// one UI can open per interaction — no stacking of events from overlapping targets.
+fn world_interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
+    npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
     occluder_faces: Option<Res<OccluderFaces>>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
@@ -160,7 +166,13 @@ fn decoration_interact_system(
         .map(|of| of.min_hit_t(origin, dir))
         .unwrap_or(f32::MAX);
 
-    let mut nearest: Option<(f32, u16)> = None;
+    // Find the single nearest hit across all interactable types.
+    enum Hit {
+        Decoration(u16),
+        Npc(i16),
+    }
+    let mut nearest: Option<(f32, Hit)> = None;
+
     for (info, g_tf, sheet_opt) in decorations.iter() {
         let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
             let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
@@ -182,52 +194,12 @@ fn decoration_interact_system(
             half_h,
             mask,
         ) && t < occluder_t
-            && (nearest.is_none() || t < nearest.unwrap().0)
+            && nearest.as_ref().map_or(true, |n| t < n.0)
         {
-            nearest = Some((t, info.event_id));
+            nearest = Some((t, Hit::Decoration(info.event_id)));
         }
     }
 
-    let Some((_, event_id)) = nearest else { return };
-    let Some(me) = map_events else { return };
-    let Some(evt) = me.evt.as_ref() else { return };
-    event_queue.push_all(event_id, evt);
-}
-
-/// Detect click on an NPC and push a SpeakNPC event. Uses billboard hit test with alpha mask.
-fn npc_interact_system(
-    keys: Res<ButtonInput<KeyCode>>,
-    mouse: Res<ButtonInput<MouseButton>>,
-    gamepads: Query<&Gamepad>,
-    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
-    occluder_faces: Option<Res<OccluderFaces>>,
-    mut event_queue: ResMut<EventQueue>,
-    cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
-) {
-    let Ok((cam_global, _)) = camera_query.single() else {
-        return;
-    };
-    let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
-    if !key && !click && !gamepad {
-        return;
-    }
-    let cursor_grabbed = cursor_query
-        .single()
-        .map(|c| !matches!(c.grab_mode, CursorGrabMode::None))
-        .unwrap_or(true);
-    if click && !cursor_grabbed {
-        return;
-    }
-
-    let origin = cam_global.translation();
-    let dir = cam_global.forward().as_vec3();
-    let occluder_t = occluder_faces
-        .as_ref()
-        .map(|of| of.min_hit_t(origin, dir))
-        .unwrap_or(f32::MAX);
-
-    let mut nearest: Option<(f32, i16)> = None;
     for (info, g_tf, sheet) in npcs.iter() {
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
@@ -241,14 +213,25 @@ fn npc_interact_system(
             sh / 2.0,
             sheet.current_mask.as_deref(),
         ) && t < occluder_t
-            && (nearest.is_none() || t < nearest.unwrap().0)
+            && nearest.as_ref().map_or(true, |n| t < n.0)
         {
-            nearest = Some((t, info.npc_id));
+            nearest = Some((t, Hit::Npc(info.npc_id)));
         }
     }
 
-    let Some((_, npc_id)) = nearest else { return };
-    event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: npc_id as i32 });
+    match nearest {
+        Some((_, Hit::Decoration(event_id))) => {
+            if let Some(me) = map_events.as_ref()
+                && let Some(evt) = me.evt.as_ref()
+            {
+                event_queue.push_all(event_id, evt);
+            }
+        }
+        Some((_, Hit::Npc(npc_id))) => {
+            event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: npc_id as i32 });
+        }
+        None => {}
+    }
 }
 
 /// Show the nearest interactive object's name in the footer — pixel-accurate for all types.

@@ -87,7 +87,17 @@ fn toggle_console(
     cfg: Res<GameConfig>,
     ui_assets: Res<UiAssets>,
 ) {
-    if !keys.just_pressed(KeyCode::Tab) || !cfg.console {
+    let tab = keys.just_pressed(KeyCode::Tab) && cfg.console;
+    let escape_close = keys.just_pressed(KeyCode::Escape) && state.open;
+    if !tab && !escape_close {
+        return;
+    }
+    // Escape only closes; Tab toggles
+    if escape_close && !tab {
+        state.open = false;
+        for entity in existing.iter() {
+            commands.entity(entity).despawn();
+        }
         return;
     }
 

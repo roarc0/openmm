@@ -25,18 +25,19 @@ pub(super) fn map_overlay_rect(inner_left: f32, inner_top: f32, inner_w: f32, in
 }
 
 /// Toggle the fullscreen map view on M key press.
-/// Opens only when in World view and an outdoor map is loaded.
-/// Closes from Map view back to World.
+/// Opens only when game input is active (World view, console closed) and an outdoor map is loaded.
+/// Closes from Map view back to World (always, even with console open).
 pub(super) fn map_input_system(
     keys: Res<ButtonInput<KeyCode>>,
     mut view: ResMut<HudView>,
     map_image: Option<Res<MapOverviewImage>>,
+    console: Res<crate::game::debug::console::ConsoleState>,
 ) {
     if !keys.just_pressed(KeyCode::KeyM) {
         return;
     }
     match *view {
-        HudView::World => {
+        HudView::World if !console.open => {
             if map_image.as_ref().and_then(|m| m.0.as_ref()).is_some() {
                 *view = HudView::Map;
             }
