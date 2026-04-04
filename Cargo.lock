@@ -3846,7 +3846,7 @@ dependencies = [
 
 [[package]]
 name = "lod"
-version = "0.0.1"
+version = "0.0.0"
 dependencies = [
  "bitflags 2.11.0",
  "byteorder",
@@ -4591,7 +4591,7 @@ dependencies = [
 
 [[package]]
 name = "openmm"
-version = "0.0.1"
+version = "0.0.0"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",

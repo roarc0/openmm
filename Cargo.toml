@@ -4,7 +4,7 @@ resolver = "2"
 members = ["lod", "openmm"]
 
 [workspace.package]
-version = "0.0.1"
+version = "0.0.0"
 authors = ["Alessandro Rosetti <alessandro.rosetti@gmail.com>"]
 edition = "2024"
 
