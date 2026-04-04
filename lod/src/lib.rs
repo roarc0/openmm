@@ -40,7 +40,9 @@ pub mod npcprof;
 pub mod snd;
 pub mod spells;
 pub mod terrain;
+pub mod smk;
 pub mod tft;
+pub mod vid;
 
 // ── Game-engine API (decoded, game-ready assets) ──────────────────────────
 pub mod game;
