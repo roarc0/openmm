@@ -40,7 +40,11 @@ const ATTRIBUTE_MAP_SIZE: usize = ODM_AREA;
 #[derive(Debug)]
 pub struct Odm {
     /// Map file name.
+    /// Map display name from the ODM header (first 32 bytes, e.g. "Harmondale").
     pub name: String,
+    /// Map file name from the ODM header (bytes 32-63, e.g. "oute3.odm").
+    /// Typically matches the LOD archive key used to load the map.
+    pub file_name: String,
     /// ODM format version string (e.g. "91 MM6").
     pub odm_version: String,
     /// Sky texture name (e.g. "plansky1").
@@ -88,7 +92,10 @@ impl Odm {
         let data = data.data.as_slice();
 
         let mut cursor = Cursor::new(data);
-        cursor.seek(std::io::SeekFrom::Start(2 * 32))?;
+        // 0x00: Name[32] — map display name (e.g. "Harmondale")
+        let name = try_read_string_block(&mut cursor, 32)?;
+        // 0x20: FileName[32] — file name (e.g. "oute3.odm")
+        let file_name = try_read_string_block(&mut cursor, 32)?;
         let odm_version = try_read_string_block(&mut cursor, 32)?;
         let sky_texture = try_read_string_block(&mut cursor, 32)?;
         let ground_texture = try_read_string_block(&mut cursor, 32)?;
@@ -126,7 +133,8 @@ impl Odm {
         let spawn_points = Self::read_spawn_points(data);
 
         Ok(Self {
-            name: "test".into(),
+            name,
+            file_name,
             odm_version,
             sky_texture,
             ground_texture,

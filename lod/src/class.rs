@@ -4,6 +4,9 @@
 //! First line is a header row.
 
 use std::error::Error;
+use std::io::Cursor;
+
+use csv::ReaderBuilder;
 
 use crate::LodManager;
 
@@ -32,18 +35,22 @@ impl ClassTable {
     }
 
     fn parse(text: &str) -> Result<Self, Box<dyn Error>> {
+        let body: String = text.lines().skip(1).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
+
         let mut classes = Vec::new();
-        // Skip the single header line ("Class    Descriptions")
-        for line in text.lines().skip(1) {
-            let cols: Vec<&str> = line.splitn(2, '\t').collect();
-            if cols.is_empty() {
-                continue;
-            }
-            let name = cols[0].trim().to_string();
+        for result in rdr.records() {
+            let rec = result?;
+
+            let name = rec.get(0).unwrap_or("").trim().to_string();
             if name.is_empty() {
                 continue;
             }
-            let description = cols.get(1).unwrap_or(&"").trim().trim_matches('"').to_string();
+            let description = rec.get(1).unwrap_or("").trim().to_string();
             classes.push(ClassInfo { name, description });
         }
         Ok(ClassTable { classes })

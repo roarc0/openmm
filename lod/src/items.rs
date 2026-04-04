@@ -7,6 +7,9 @@
 //!   11: SpriteIndex, 12: Shape, 13: EquipX, 14: EquipY, 15: Notes/Description
 
 use std::error::Error;
+use std::io::Cursor;
+
+use csv::ReaderBuilder;
 
 use crate::LodManager;
 
@@ -63,14 +66,18 @@ impl ItemsTable {
     }
 
     fn parse(text: &str) -> Result<Self, Box<dyn Error>> {
+        let body: String = text.lines().skip(2).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
+
         let mut items = Vec::new();
-        // Skip 2 header lines (blank + column headers)
-        for line in text.lines().skip(2) {
-            let cols: Vec<&str> = line.split('\t').collect();
-            if cols.len() < 12 {
-                continue;
-            }
-            let id: u16 = match cols[0].trim().parse() {
+        for result in rdr.records() {
+            let rec = result?;
+
+            let id: u16 = match rec.get(0).unwrap_or("").trim().parse() {
                 Ok(v) => v,
                 Err(_) => continue,
             };
@@ -78,43 +85,28 @@ impl ItemsTable {
                 continue;
             }
 
-            let pic_file = cols.get(1).unwrap_or(&"").trim().to_string();
-            let name = cols.get(2).unwrap_or(&"").trim().to_string();
+            let name = rec.get(2).unwrap_or("").trim().to_string();
             if name.is_empty() {
                 continue;
             }
 
-            let value: u32 = cols.get(3).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let equip_stat = cols.get(4).unwrap_or(&"").trim().to_string();
-            let skill_group = cols.get(5).unwrap_or(&"").trim().to_string();
-            let mod1 = cols.get(6).unwrap_or(&"0").trim().to_string();
-            let mod2: i32 = cols.get(7).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let material: u8 = cols.get(8).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let id_rep_st: u8 = cols.get(9).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let not_identified_name = cols.get(10).unwrap_or(&"").trim().to_string();
-            let sprite_index: u16 = cols.get(11).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let shape: u8 = cols.get(12).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let equip_x: u8 = cols.get(13).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let equip_y: u8 = cols.get(14).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let notes = cols.get(15).unwrap_or(&"").trim().trim_matches('"').to_string();
-
             items.push(ItemInfo {
                 id,
-                pic_file,
+                pic_file: rec.get(1).unwrap_or("").trim().to_string(),
                 name,
-                value,
-                equip_stat,
-                skill_group,
-                mod1,
-                mod2,
-                material,
-                id_rep_st,
-                not_identified_name,
-                sprite_index,
-                shape,
-                equip_x,
-                equip_y,
-                notes,
+                value: rec.get(3).unwrap_or("0").trim().parse().unwrap_or(0),
+                equip_stat: rec.get(4).unwrap_or("").trim().to_string(),
+                skill_group: rec.get(5).unwrap_or("").trim().to_string(),
+                mod1: rec.get(6).unwrap_or("0").trim().to_string(),
+                mod2: rec.get(7).unwrap_or("0").trim().parse().unwrap_or(0),
+                material: rec.get(8).unwrap_or("0").trim().parse().unwrap_or(0),
+                id_rep_st: rec.get(9).unwrap_or("0").trim().parse().unwrap_or(0),
+                not_identified_name: rec.get(10).unwrap_or("").trim().to_string(),
+                sprite_index: rec.get(11).unwrap_or("0").trim().parse().unwrap_or(0),
+                shape: rec.get(12).unwrap_or("0").trim().parse().unwrap_or(0),
+                equip_x: rec.get(13).unwrap_or("0").trim().parse().unwrap_or(0),
+                equip_y: rec.get(14).unwrap_or("0").trim().parse().unwrap_or(0),
+                notes: rec.get(15).unwrap_or("").trim().to_string(),
             });
         }
         Ok(ItemsTable { items })

@@ -26,6 +26,9 @@
 //!   (not yet implemented).
 
 use std::error::Error;
+use std::io::Cursor;
+
+use csv::ReaderBuilder;
 
 use crate::LodManager;
 
@@ -86,13 +89,18 @@ impl MapStats {
     }
 
     fn parse(text: &str) -> Result<Self, Box<dyn Error>> {
+        let body: String = text.lines().skip(3).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
+
         let mut maps = Vec::new();
-        for line in text.lines().skip(3) {
-            let cols: Vec<&str> = line.split('\t').collect();
-            if cols.len() < 25 {
-                continue;
-            }
-            let filename = cols[2].trim().to_lowercase();
+        for result in rdr.records() {
+            let rec = result?;
+
+            let filename = rec.get(2).unwrap_or("").trim().to_lowercase();
             if filename.is_empty() {
                 continue;
             }
@@ -101,40 +109,40 @@ impl MapStats {
                 continue;
             }
 
-            let name = cols[1].trim().to_string();
-            let reset_count: u16 = cols.get(3).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let first_visit_day: u16 = cols.get(4).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let respawn_days: u16 = cols.get(5).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let lock: u8 = cols.get(6).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let trap_d20_count: u8 = cols.get(7).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let treasure_level: u8 = cols.get(8).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let encounter_chance: u8 = cols.get(9).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let name = rec.get(1).unwrap_or("").trim().to_string();
+            let reset_count: u16 = cs_u16(&rec, 3);
+            let first_visit_day: u16 = cs_u16(&rec, 4);
+            let respawn_days: u16 = cs_u16(&rec, 5);
+            let lock: u8 = cs_u8(&rec, 6);
+            let trap_d20_count: u8 = cs_u8(&rec, 7);
+            let treasure_level: u8 = cs_u8(&rec, 8);
+            let encounter_chance: u8 = cs_u8(&rec, 9);
 
             // Encounter slot chances (cols 10-12)
-            let enc1: u8 = cols.get(10).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let enc2: u8 = cols.get(11).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let enc3: u8 = cols.get(12).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let enc1: u8 = cs_u8(&rec, 10);
+            let enc2: u8 = cs_u8(&rec, 11);
+            let enc3: u8 = cs_u8(&rec, 12);
 
             // Monster internal name prefixes (cols 13, 17, 21) — used to look up dmonlist.bin
-            let m1_name = cols.get(13).unwrap_or(&"").trim().to_string();
-            let m2_name = cols.get(17).unwrap_or(&"").trim().to_string();
-            let m3_name = cols.get(21).unwrap_or(&"").trim().to_string();
+            let m1_name = cs_str(&rec, 13);
+            let m2_name = cs_str(&rec, 17);
+            let m3_name = cs_str(&rec, 21);
             // Monster display names (cols 14, 18, 22) — shown in the game UI
-            let m1_display = cols.get(14).unwrap_or(&"").trim().to_string();
-            let m2_display = cols.get(18).unwrap_or(&"").trim().to_string();
-            let m3_display = cols.get(22).unwrap_or(&"").trim().to_string();
+            let m1_display = cs_str(&rec, 14);
+            let m2_display = cs_str(&rec, 18);
+            let m3_display = cs_str(&rec, 22);
 
             // Monster difficulty (cols 15, 19, 23)
-            let m1_dif: u8 = cols.get(15).unwrap_or(&"0").trim().parse().unwrap_or(1);
-            let m2_dif: u8 = cols.get(19).unwrap_or(&"0").trim().parse().unwrap_or(1);
-            let m3_dif: u8 = cols.get(23).unwrap_or(&"0").trim().parse().unwrap_or(1);
+            let m1_dif: u8 = cs_u8(&rec, 15).max(1);
+            let m2_dif: u8 = cs_u8(&rec, 19).max(1);
+            let m3_dif: u8 = cs_u8(&rec, 23).max(1);
 
             // Monster count ranges (cols 16, 20, 24) — format "min-max" or just a number
-            let (min1, max1) = parse_count_range(cols.get(16).unwrap_or(&"0"));
-            let (min2, max2) = parse_count_range(cols.get(20).unwrap_or(&"0"));
-            let (min3, max3) = parse_count_range(cols.get(24).unwrap_or(&"0"));
+            let (min1, max1) = parse_count_range(rec.get(16).unwrap_or("0"));
+            let (min2, max2) = parse_count_range(rec.get(20).unwrap_or("0"));
+            let (min3, max3) = parse_count_range(rec.get(24).unwrap_or("0"));
 
-            let music_track: u8 = cols.get(25).unwrap_or(&"0").trim().parse().unwrap_or(0);
+            let music_track: u8 = cs_u8(&rec, 25);
 
             maps.push(MapInfo {
                 name,
@@ -163,6 +171,18 @@ impl MapStats {
         let lower = map_filename.to_lowercase();
         self.maps.iter().find(|m| m.filename == lower)
     }
+}
+
+fn cs_str(rec: &csv::StringRecord, i: usize) -> String {
+    rec.get(i).unwrap_or("").trim().to_string()
+}
+
+fn cs_u8(rec: &csv::StringRecord, i: usize) -> u8 {
+    rec.get(i).unwrap_or("").trim().parse().unwrap_or(0)
+}
+
+fn cs_u16(rec: &csv::StringRecord, i: usize) -> u16 {
+    rec.get(i).unwrap_or("").trim().parse().unwrap_or(0)
 }
 
 /// Parse a count range like "2-4" or " 2-4" into (min, max).

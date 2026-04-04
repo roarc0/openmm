@@ -10,7 +10,7 @@ const RECORD_SIZE: usize = 148;
 ///   0x00: height(u16), 0x02: radius(u16), 0x04: move_speed(u16),
 ///   0x06: to_hit_radius(u16, always 0 in MM6),
 ///   0x08: sound_ids[4](u16 each), 0x10: internal_name[32],
-///   0x30: sprite_names[8×10], 0x80: padding[20]
+///   0x30: sprite_names[8×10], 0x80: unused[20] (2 spare frame-name slots, always empty)
 pub struct MonsterDesc {
     /// Sprite height in MM6 units. Offset 0x00.
     pub height: u16,
@@ -86,10 +86,9 @@ impl MonsterList {
             *sn = String::from_utf8_lossy(&bytes[..end]).to_lowercase();
         }
 
-        // Bytes 128-147: 20 bytes of padding/unused data at end of each record.
-        // The full monster stats (level, HP, AC, resistances, attacks, spells)
-        // come from monstxt.txt (text table), not from this binary file.
-        // Kept unread for now; will need to be preserved for round-trip LOD writing.
+        // Bytes 128-147: two unused 10-byte frame-name slots (FramesUnk1/FramesUnk2).
+        // MMExtension's MonListItem struct also skips these with `.skip(20)` — they are
+        // intentionally empty even in the original engine.
 
         MonsterDesc {
             height,

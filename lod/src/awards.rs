@@ -5,6 +5,9 @@
 //!   0: ID (1-based), 1: Award text, 2: Notes (optional)
 
 use std::error::Error;
+use std::io::Cursor;
+
+use csv::ReaderBuilder;
 
 use crate::LodManager;
 
@@ -35,29 +38,33 @@ impl AwardsTable {
     }
 
     fn parse(text: &str) -> Result<Self, Box<dyn Error>> {
+        let body: String = text.lines().skip(1).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
+
         let mut awards = Vec::new();
-        // Skip 1 header line ("A Bit  Awards  Notes")
-        for line in text.lines().skip(1) {
-            let cols: Vec<&str> = line.split('\t').collect();
-            if cols.is_empty() {
-                continue;
-            }
-            let id: u16 = match cols[0].trim().parse() {
+        for result in rdr.records() {
+            let rec = result?;
+
+            let id: u16 = match rec.get(0).unwrap_or("").trim().parse() {
                 Ok(v) => v,
                 Err(_) => continue,
             };
             if id == 0 {
                 continue;
             }
-            let text_val = cols.get(1).unwrap_or(&"").trim().to_string();
+            let text_val = rec.get(1).unwrap_or("").trim().to_string();
             if text_val.is_empty() {
                 continue;
             }
-            let notes = cols.get(2).unwrap_or(&"").trim().to_string();
+
             awards.push(Award {
                 id,
                 text: text_val,
-                notes,
+                notes: rec.get(2).unwrap_or("").trim().to_string(),
             });
         }
         Ok(AwardsTable { awards })

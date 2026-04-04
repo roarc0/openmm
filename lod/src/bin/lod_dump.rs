@@ -117,8 +117,8 @@ fn dump_ddeclist(lod: &lod::LodManager, filter: &Option<String>) {
     let mut first = true;
     for (i, item) in ddeclist.items.iter().enumerate() {
         let name = item.name().unwrap_or_default();
-        let game_name = item.game_name().unwrap_or_default();
-        if !matches_filter(filter, &[&name, &game_name]) {
+        let display_name = item.display_name().unwrap_or_default();
+        if !matches_filter(filter, &[&name, &display_name]) {
             continue;
         }
 
@@ -127,10 +127,10 @@ fn dump_ddeclist(lod: &lod::LodManager, filter: &Option<String>) {
         }
         first = false;
         print!(
-            "  {{ \"id\": {}, \"name\": \"{}\", \"game_name\": \"{}\", \"type\": {}, \"height\": {}, \"radius\": {}, \"light_radius\": {}, \"sft_index\": {}, \"sound_id\": {}, \"attrs\": \"0x{:04x}\" }}",
+            "  {{ \"id\": {}, \"name\": \"{}\", \"display_name\": \"{}\", \"type\": {}, \"height\": {}, \"radius\": {}, \"light_radius\": {}, \"sft_index\": {}, \"sound_id\": {}, \"attrs\": \"0x{:04x}\" }}",
             i,
             name,
-            game_name,
+            display_name,
             item.dec_type,
             item.height,
             item.radius,

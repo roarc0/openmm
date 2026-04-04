@@ -5,6 +5,9 @@
 //!   0: #, 1: Map (MapStats ID), 2: Topic, 3: News Text
 
 use std::error::Error;
+use std::io::Cursor;
+
+use csv::ReaderBuilder;
 
 use crate::LodManager;
 
@@ -37,29 +40,30 @@ impl NpcNewsTable {
     }
 
     fn parse(text: &str) -> Result<Self, Box<dyn Error>> {
+        let body: String = text.lines().skip(2).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
+
         let mut items = Vec::new();
-        // Skip 2 header lines ("Regional News..." + column header)
-        for line in text.lines().skip(2) {
-            let cols: Vec<&str> = line.split('\t').collect();
-            if cols.len() < 4 {
-                continue;
-            }
-            let index: u16 = match cols[0].trim().parse() {
+        for result in rdr.records() {
+            let rec = result?;
+
+            let index: u16 = match rec.get(0).unwrap_or("").trim().parse() {
                 Ok(v) => v,
                 Err(_) => continue,
             };
             if index == 0 {
                 continue;
             }
-            let map_id: u16 = cols.get(1).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let topic = cols.get(2).unwrap_or(&"").trim().to_string();
-            let text_val = cols.get(3).unwrap_or(&"").trim().trim_matches('"').to_string();
 
             items.push(NpcNewsItem {
                 index,
-                map_id,
-                topic,
-                text: text_val,
+                map_id: rec.get(1).unwrap_or("0").trim().parse().unwrap_or(0),
+                topic: rec.get(2).unwrap_or("").trim().to_string(),
+                text: rec.get(3).unwrap_or("").trim().to_string(),
             });
         }
         Ok(NpcNewsTable { items })

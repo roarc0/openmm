@@ -22,13 +22,28 @@ fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, 
     Ok(String::from_utf8_lossy(&buf[..end]).to_string())
 }
 
-/// BLV header (136 bytes): 104 bytes padding, then size fields, then 16 bytes padding.
+/// BLV file header. 136 bytes (0x88). Layout from MMExtension `BlvHeader` struct:
+///   0x00: unknown[4]
+///   0x04: name[60]  — map display name
+///   0x40: unknown[40]
+///   0x68: face_data_size(i32), room_data_size(i32), room_light_data_size(i32), door_data_size(i32)
+///   0x78: unknown[16]  — not described in MMExtension
 #[derive(Debug)]
+#[allow(dead_code)]
 struct BlvHeader {
+    /// Map display name from the BLV header. Offset 0x04, 60 bytes.
+    pub name: String,
+    /// Unknown 4 bytes at offset 0x00. Preserved for analysis/round-tripping.
+    pub unknown_head: [u8; 4],
+    /// Unknown 40 bytes at offset 0x40. Preserved for analysis/round-tripping.
+    pub unknown_mid: [u8; 40],
     face_data_size: i32,
     sector_data_size: i32,
     sector_light_data_size: i32,
     doors_data_size: i32,
+    /// Unknown 16 bytes at offset 0x78 (after the four size fields).
+    /// Not documented in MMExtension — preserved for analysis/round-tripping.
+    pub unknown_tail: [u8; 16],
 }
 
 /// A vertex in MM6 coordinates.
@@ -89,6 +104,27 @@ pub struct BlvFace {
     pub event_id: u16,
     /// Cog number from face extras — groups faces for doors and scripted actions.
     pub cog_number: i16,
+}
+
+/// A face-extras record from section 6 of a BLV file. 36 bytes each.
+///
+/// Only offsets 0x14–0x1B are documented (from field names in MM6 decompilations).
+/// The head (0x00–0x13, 20 bytes) and tail (0x1C–0x23, 8 bytes) are unknown.
+/// All bytes are stored for future analysis and round-trip saving.
+#[derive(Debug, Clone)]
+pub struct BlvFaceExtra {
+    /// Unknown bytes at offset 0x00–0x13 (20 bytes). Purpose unknown — preserved for analysis.
+    pub unknown_head: [u8; 20],
+    /// Texture UV delta U. Offset 0x14.
+    pub texture_delta_u: i16,
+    /// Texture UV delta V. Offset 0x16.
+    pub texture_delta_v: i16,
+    /// Cog group number — groups faces for doors/scripted actions. Offset 0x18.
+    pub cog_number: i16,
+    /// EVT event ID triggered by this face (click/step/monster). Offset 0x1A.
+    pub event_id: u16,
+    /// Unknown bytes at offset 0x1C–0x23 (8 bytes). Purpose unknown — preserved for analysis.
+    pub unknown_tail: [u8; 8],
 }
 
 impl BlvFace {
@@ -322,10 +358,20 @@ pub struct BlvTexturedMesh {
 /// Parsed BLV indoor map.
 #[derive(Debug)]
 pub struct Blv {
+    /// Map display name from the BLV header (offset 0x04, 60 bytes).
+    pub header_name: String,
     pub vertices: Vec<BlvVertex>,
     pub faces: Vec<BlvFace>,
     pub texture_names: Vec<String>,
+    /// All face-extras records (section 6). Full 36 bytes each, including unknowns.
+    pub face_extras: Vec<BlvFaceExtra>,
+    /// Texture names for face extras (one per face extra, section 7 of BLV).
+    /// Parallel to `face_extras`. May be empty strings.
+    pub face_extra_texture_names: Vec<String>,
     pub sectors: Vec<BlvSector>,
+    /// Sector light data blob (section 10). Raw u16 values — structure unknown,
+    /// preserved for future analysis and round-trip saving.
+    pub sector_light_data: Vec<u16>,
     pub decorations: Vec<BlvDecoration>,
     pub lights: Vec<BlvLight>,
     pub bsp_nodes: Vec<BlvBspNode>,
@@ -333,7 +379,6 @@ pub struct Blv {
     pub map_outlines: Vec<BlvMapOutline>,
     pub door_count: u32,
     pub doors_data_size: i32,
-    pub face_extras_count: usize,
     pub face_data_size: i32,
 }
 
@@ -431,33 +476,43 @@ impl Blv {
             texture_names.push(read_string_lossy(&mut cursor, 10)?);
         }
 
-        // 6. Face extras: u32 count, then count x 36 bytes
-        //    sTextureDeltaU at offset 0x14, sTextureDeltaV at offset 0x16, eventId at offset 0x1A.
+        // 6. Face extras: u32 count, then count x 36 bytes each.
+        //    Layout: unknown_head[20] | delta_u(i16) | delta_v(i16) | cog_number(i16) | event_id(u16) | unknown_tail[8]
         let face_extras_count = cursor.read_u32::<LittleEndian>()? as usize;
-        let face_extra_size = 36u64;
-        let mut face_extra_data: Vec<(i16, i16, i16, u16)> = Vec::with_capacity(face_extras_count);
+        let mut face_extras: Vec<BlvFaceExtra> = Vec::with_capacity(face_extras_count);
         for _ in 0..face_extras_count {
-            let start = cursor.position();
-            cursor.seek(std::io::SeekFrom::Current(0x14))?;
-            let delta_u = cursor.read_i16::<LittleEndian>()?;
-            let delta_v = cursor.read_i16::<LittleEndian>()?;
+            let mut unknown_head = [0u8; 20];
+            std::io::Read::read_exact(&mut cursor, &mut unknown_head)?;
+            let texture_delta_u = cursor.read_i16::<LittleEndian>()?;
+            let texture_delta_v = cursor.read_i16::<LittleEndian>()?;
             let cog_number = cursor.read_i16::<LittleEndian>()?;
             let event_id = cursor.read_u16::<LittleEndian>()?;
-            face_extra_data.push((delta_u, delta_v, cog_number, event_id));
-            cursor.seek(std::io::SeekFrom::Start(start + face_extra_size))?;
+            let mut unknown_tail = [0u8; 8];
+            std::io::Read::read_exact(&mut cursor, &mut unknown_tail)?;
+            face_extras.push(BlvFaceExtra {
+                unknown_head,
+                texture_delta_u,
+                texture_delta_v,
+                cog_number,
+                event_id,
+                unknown_tail,
+            });
         }
         // Assign deltas, cog_number, and event_id to faces via face_extra_id
         for face in &mut faces {
-            if let Some(&(du, dv, cog, eid)) = face_extra_data.get(face.face_extra_id as usize) {
-                face.texture_delta_u = du;
-                face.texture_delta_v = dv;
-                face.cog_number = cog;
-                face.event_id = eid;
+            if let Some(fe) = face_extras.get(face.face_extra_id as usize) {
+                face.texture_delta_u = fe.texture_delta_u;
+                face.texture_delta_v = fe.texture_delta_v;
+                face.cog_number = fe.cog_number;
+                face.event_id = fe.event_id;
             }
         }
 
-        // 7. Face extra texture names: face_extras.len x 10 bytes (skip)
-        cursor.seek(std::io::SeekFrom::Current(face_extras_count as i64 * 10))?;
+        // 7. Face extra texture names: face_extras.len x 10 bytes
+        let mut face_extra_texture_names = Vec::with_capacity(face_extras_count);
+        for _ in 0..face_extras_count {
+            face_extra_texture_names.push(read_string_lossy(&mut cursor, 10)?);
+        }
 
         // 8. Sectors: u32 count, then count x 116 bytes each
         let sector_count = cursor.read_u32::<LittleEndian>()? as usize;
@@ -474,9 +529,13 @@ impl Blv {
         }
         Self::unpack_sector_data(&mut sectors, &sector_data_blob);
 
-        // 10. Sector light data blob: (header.sector_light_data_size / 2) x u16
+        // 10. Sector light data blob: (header.sector_light_data_size / 2) x u16.
+        //     Structure unknown — preserved for future analysis and round-trip saving.
         let sector_light_count = (header.sector_light_data_size / 2) as usize;
-        cursor.seek(std::io::SeekFrom::Current(sector_light_count as i64 * 2))?;
+        let mut sector_light_data = Vec::with_capacity(sector_light_count);
+        for _ in 0..sector_light_count {
+            sector_light_data.push(cursor.read_u16::<LittleEndian>()?);
+        }
 
         // 11. Door count (actual doors stored in DLV)
         let door_count = cursor.read_u32::<LittleEndian>()?;
@@ -554,10 +613,14 @@ impl Blv {
         }
 
         Ok(Blv {
+            header_name: header.name,
             vertices,
             faces,
             texture_names,
+            face_extras,
+            face_extra_texture_names,
             sectors,
+            sector_light_data,
             decorations,
             lights,
             bsp_nodes,
@@ -565,23 +628,36 @@ impl Blv {
             map_outlines,
             door_count,
             doors_data_size: header.doors_data_size,
-            face_extras_count,
             face_data_size: header.face_data_size,
         })
     }
 
     fn read_header(cursor: &mut Cursor<&[u8]>) -> Result<BlvHeader, Box<dyn Error>> {
-        cursor.seek(std::io::SeekFrom::Current(104))?;
+        // 0x00: unknown[4]
+        let mut unknown_head = [0u8; 4];
+        std::io::Read::read_exact(cursor, &mut unknown_head)?;
+        // 0x04: name[60]
+        let name = read_string_lossy(cursor, 60)?;
+        // 0x40: unknown[40]
+        let mut unknown_mid = [0u8; 40];
+        std::io::Read::read_exact(cursor, &mut unknown_mid)?;
+        // 0x68: four size fields
         let face_data_size = cursor.read_i32::<LittleEndian>()?;
         let sector_data_size = cursor.read_i32::<LittleEndian>()?;
         let sector_light_data_size = cursor.read_i32::<LittleEndian>()?;
         let doors_data_size = cursor.read_i32::<LittleEndian>()?;
-        cursor.seek(std::io::SeekFrom::Current(16))?;
+        // 0x78: unknown[16]
+        let mut unknown_tail = [0u8; 16];
+        std::io::Read::read_exact(cursor, &mut unknown_tail)?;
         Ok(BlvHeader {
+            name,
+            unknown_head,
+            unknown_mid,
             face_data_size,
             sector_data_size,
             sector_light_data_size,
             doors_data_size,
+            unknown_tail,
         })
     }
 
@@ -1434,7 +1510,7 @@ mod tests {
             let resolved = ddeclist
                 .items
                 .get(d.decoration_desc_id as usize)
-                .and_then(|item| item.game_name());
+                .and_then(|item| item.display_name());
             println!(
                 "    [{}] desc_id={} resolved={:?} pos={:?}",
                 i, d.decoration_desc_id, resolved, d.position

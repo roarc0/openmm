@@ -260,10 +260,7 @@ fn oute3_forced_variant_spawns_produce_one_monster() {
         let cfg = gd.mapstats.get("oute3.odm").unwrap();
         if let Some((_, _, _, fv)) = cfg.monster_for_index(sp.monster_index) {
             if fv != 0 {
-                let count = monsters
-                    .iter()
-                    .filter(|m| m.spawn_position == sp.position)
-                    .count();
+                let count = monsters.iter().filter(|m| m.spawn_position == sp.position).count();
                 assert_eq!(
                     count, 1,
                     "forced-variant spawn at {:?} should produce exactly 1 monster, got {}",

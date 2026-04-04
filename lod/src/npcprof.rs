@@ -6,6 +6,9 @@
 //!   4: Personality, 5: ActionText, 6: InPartyBenefit, 7: JoinText
 
 use std::error::Error;
+use std::io::Cursor;
+
+use csv::ReaderBuilder;
 
 use crate::LodManager;
 
@@ -46,40 +49,38 @@ impl NpcProfTable {
     }
 
     fn parse(text: &str) -> Result<Self, Box<dyn Error>> {
+        let body: String = text.lines().skip(4).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
+
         let mut professions = Vec::new();
-        // Skip 4 header lines
-        for line in text.lines().skip(4) {
-            let cols: Vec<&str> = line.split('\t').collect();
-            if cols.len() < 5 {
-                continue;
-            }
-            let id: u16 = match cols[0].trim().parse() {
+        for result in rdr.records() {
+            let rec = result?;
+
+            let id: u16 = match rec.get(0).unwrap_or("").trim().parse() {
                 Ok(v) => v,
                 Err(_) => continue,
             };
             if id == 0 {
                 continue;
             }
-            let name = cols.get(1).unwrap_or(&"").trim().to_string();
+            let name = rec.get(1).unwrap_or("").trim().to_string();
             if name.is_empty() {
                 continue;
             }
-            let random_chance: u8 = cols.get(2).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let cost_per_week: u32 = cols.get(3).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let personality = cols.get(4).unwrap_or(&"").trim().to_string();
-            let action_text = cols.get(5).unwrap_or(&"").trim().to_string();
-            let in_party_benefit = cols.get(6).unwrap_or(&"").trim().trim_matches('"').to_string();
-            let join_text = cols.get(7).unwrap_or(&"").trim().trim_matches('"').to_string();
 
             professions.push(NpcProfession {
                 id,
                 name,
-                random_chance,
-                cost_per_week,
-                personality,
-                action_text,
-                in_party_benefit,
-                join_text,
+                random_chance: rec.get(2).unwrap_or("0").trim().parse().unwrap_or(0),
+                cost_per_week: rec.get(3).unwrap_or("0").trim().parse().unwrap_or(0),
+                personality: rec.get(4).unwrap_or("").trim().to_string(),
+                action_text: rec.get(5).unwrap_or("").trim().to_string(),
+                in_party_benefit: rec.get(6).unwrap_or("").trim().to_string(),
+                join_text: rec.get(7).unwrap_or("").trim().to_string(),
             });
         }
         Ok(NpcProfTable { professions })

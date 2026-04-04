@@ -16,7 +16,10 @@ pub struct BSPModel {
     pub header: BSPModelHeader,
     pub vertices: Vec<[f32; 3]>,
     pub faces: Vec<BSPModelFace>,
-    unk: Vec<u8>,
+    /// Painter's-algorithm draw-order index table: faces_count i16 entries.
+    /// Each value is a face index; entries are sorted back-to-front for software rendering.
+    /// Not needed for BSP tree traversal — stored for completeness and round-tripping.
+    pub face_order_indices: Vec<i16>,
     pub texture_names: Vec<String>,
     pub bsp_nodes: Vec<BSPNode>,
     pub indices: Vec<u32>,
@@ -29,14 +32,12 @@ pub struct BSPModelHeader {
     pub name2: String,
     pub attributes: i32,
     pub vertex_count: i32,
-    // p_vertexes: *mut i32,
-    pub faces_count: i32, // faces_order_count ?
-    // convexFacetsCount: i32, ?? u16
-    // p_faces: *mut i32,
-    // p_unk_array: *mut i32,
+    // [+4 bytes skipped: p_vertexes runtime pointer]
+    pub faces_count: i32,
+    // [+12 bytes skipped: p_faces(4), p_face_order(4), p_extra(4) runtime pointers]
     pub bsp_nodes_count: i32,
-    //unk03a: i32,
-    //unk03b: i32,
+    // [+8 bytes skipped: p_bsp_nodes(4), p_bsp_nodes2(4) runtime pointers]
+    /// Grid cell counts [x, y] — number of collision grid cells spanning this model.
     pub grid: [i32; 2],
     pub position: [i32; 3],
     pub bounding_box: BoundingBox<i32>,
@@ -302,7 +303,7 @@ fn read_bsp_model(cursor: &mut Cursor<&[u8]>, header: BSPModelHeader) -> Result<
     let mut model = BSPModel {
         vertices: Vec::with_capacity(header.vertex_count as usize),
         faces: Vec::with_capacity(header.faces_count as usize),
-        unk: Vec::with_capacity((header.faces_count * 2) as usize),
+        face_order_indices: Vec::with_capacity(header.faces_count as usize),
         texture_names: Vec::with_capacity(header.faces_count as usize),
         bsp_nodes: Vec::new(),
         indices: Vec::new(),
@@ -320,8 +321,8 @@ fn read_bsp_model(cursor: &mut Cursor<&[u8]>, header: BSPModelHeader) -> Result<
         })?;
         model.faces.push(face);
     }
-    for _i in 0..model.header.faces_count * 2 {
-        model.unk.push(cursor.read_u8()?);
+    for _i in 0..model.header.faces_count {
+        model.face_order_indices.push(cursor.read_i16::<LittleEndian>()?);
     }
     for _i in 0..model.header.faces_count {
         let texture_name: String = try_read_string_block(cursor, TEXTURE_NAME_MAX_SIZE)?;
@@ -362,7 +363,8 @@ fn read_bsp_model_header(cursor: &mut Cursor<&[u8]>) -> Result<BSPModelHeader, B
     header.faces_count = cursor.read_i32::<LittleEndian>()?;
     cursor.seek(std::io::SeekFrom::Current(12))?;
     header.bsp_nodes_count = cursor.read_i32::<LittleEndian>()?;
-    cursor.seek(std::io::SeekFrom::Current(16))?;
+    cursor.seek(std::io::SeekFrom::Current(8))?;
+    header.grid = [cursor.read_i32::<LittleEndian>()?, cursor.read_i32::<LittleEndian>()?];
     header.position = [
         cursor.read_i32::<LittleEndian>()?,
         cursor.read_i32::<LittleEndian>()?,

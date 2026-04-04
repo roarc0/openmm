@@ -8,8 +8,24 @@ use crate::blv::{BlvDoor, DoorState};
 use crate::ddm::{Ddm, DdmActor};
 use crate::lod_data::LodData;
 
-/// Parsed DLV indoor delta file. The indoor equivalent of DDM.
-/// Contains actors and doors for an indoor (BLV) map.
+/// Parsed DLV (indoor) delta file. The indoor equivalent of DDM.
+///
+/// On-disk layout (sections in order — sizes presized from BLV header values):
+///   1. FaceAttributes  — face_count × u16 (mutable face flags, no count prefix)
+///   2. DecorationFlags — decoration_count × u16 (no count prefix)
+///   3. FaceExtras      — face_extras_count × u32 (no count prefix)
+///   4. FaceData        — face_data_size bytes blob (no count prefix)
+///   5. MapObjects      — u32 count + count × 0x64 bytes
+///   6. MapSprites      — u32 count + count × 0x1C bytes
+///   7. SoundSprites    — 10 × i32
+///   8. MapChests       — u32 count + count × ~4204 bytes
+///   9. MapMonsters     — u32 count + count × 548 bytes
+///  10. DoorHeaders     — door_count × 80 bytes (presized)
+///  11. DoorsData       — doors_data_size bytes blob (presized)
+///
+/// **Save support:** only actors (9) and doors (10–11) are currently parsed; sections
+/// 1–8 are skipped. Round-trip saving requires storing all sections' raw bytes and
+/// re-serialising in the exact same order with correct C struct layout.
 pub struct Dlv {
     pub actors: Vec<DdmActor>,
     pub doors: Vec<BlvDoor>,
@@ -48,7 +64,7 @@ impl Dlv {
         let blv = crate::blv::Blv::new(lod_manager, &blv_name)?;
         let face_count = blv.faces.len();
         let decoration_count = blv.decorations.len();
-        let face_extras_count = blv.face_extras_count;
+        let face_extras_count = blv.face_extras.len();
         let face_data_size = blv.face_data_size;
 
         let raw = lod_manager.try_get_bytes(format!("games/{}", dlv_name))?;
@@ -402,7 +418,9 @@ mod tests {
 
         println!(
             "d01.blv: door_count={}, doors_data_size={}, face_extras_count={}",
-            blv.door_count, blv.doors_data_size, blv.face_extras_count
+            blv.door_count,
+            blv.doors_data_size,
+            blv.face_extras.len()
         );
         println!("d01.dlv: {} actors, {} doors", dlv.actors.len(), dlv.doors.len());
         let nonempty: Vec<_> = dlv

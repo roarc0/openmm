@@ -20,6 +20,9 @@
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::io::Cursor;
+
+use csv::ReaderBuilder;
 
 /// A name+portrait+profession for a dynamically generated street NPC (peasant).
 #[derive(Debug, Clone)]
@@ -42,23 +45,25 @@ pub struct NpcNamePool {
 impl NpcNamePool {
     pub fn parse(data: &[u8]) -> Result<Self, Box<dyn Error>> {
         let text: String = data.iter().map(|&b| b as char).collect();
+        // Skip "Male\tFemale" header line
+        let body: String = text.lines().skip(1).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
+
         let mut male = Vec::new();
         let mut female = Vec::new();
-        let mut lines = text.lines();
-        lines.next(); // skip "Male\tFemale" header
-        for line in lines {
-            let cols: Vec<&str> = line.split('\t').collect();
-            if let Some(m) = cols.first() {
-                let m = m.trim();
-                if !m.is_empty() {
-                    male.push(m.to_string());
-                }
+        for result in rdr.records() {
+            let rec = result?;
+            let m = rec.get(0).unwrap_or("").trim();
+            if !m.is_empty() {
+                male.push(m.to_string());
             }
-            if let Some(f) = cols.get(1) {
-                let f = f.trim();
-                if !f.is_empty() {
-                    female.push(f.to_string());
-                }
+            let f = rec.get(1).unwrap_or("").trim();
+            if !f.is_empty() {
+                female.push(f.to_string());
             }
         }
         Ok(Self { male, female })
@@ -139,53 +144,39 @@ impl StreetNpcs {
         let text: String = data.iter().map(|&b| b as char).collect();
         let mut npcs = HashMap::new();
 
-        let mut lines = text.lines();
         // Skip the two header rows
-        lines.next();
-        lines.next();
+        let body: String = text.lines().skip(2).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
 
-        for line in lines {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let cols: Vec<&str> = line.split('\t').collect();
-            if cols.len() < 3 {
-                continue;
-            }
-            let id: u32 = match cols[0].trim().parse() {
+        for result in rdr.records() {
+            let rec = result?;
+
+            let id: u32 = match rec.get(0).unwrap_or("").trim().parse() {
                 Ok(v) if v > 0 => v,
                 _ => continue,
             };
-            let name = cols[1].trim().to_string();
-            let portrait: u32 = cols[2].trim().parse().unwrap_or(0);
-            let state: u32 = cols.get(3).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let fame: i32 = cols.get(4).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let reputation: i32 = cols.get(5).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let location_id: u32 = cols.get(6).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let profession_id: u32 = cols.get(7).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let join_cost: i32 = cols.get(8).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let news: u32 = cols.get(9).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let event_a: u32 = cols.get(10).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let event_b: u32 = cols.get(11).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
-            let event_c: u32 = cols.get(12).and_then(|s| s.trim().parse().ok()).unwrap_or(0);
+            let name = rec.get(1).unwrap_or("").trim().to_string();
 
             npcs.insert(
                 id,
                 NpcEntry {
                     id,
                     name,
-                    portrait,
-                    state,
-                    fame,
-                    reputation,
-                    location_id,
-                    profession_id,
-                    join_cost,
-                    news,
-                    event_a,
-                    event_b,
-                    event_c,
+                    portrait: rec.get(2).unwrap_or("0").trim().parse().unwrap_or(0),
+                    state: rec.get(3).unwrap_or("0").trim().parse().unwrap_or(0),
+                    fame: rec.get(4).unwrap_or("0").trim().parse().unwrap_or(0),
+                    reputation: rec.get(5).unwrap_or("0").trim().parse().unwrap_or(0),
+                    location_id: rec.get(6).unwrap_or("0").trim().parse().unwrap_or(0),
+                    profession_id: rec.get(7).unwrap_or("0").trim().parse().unwrap_or(0),
+                    join_cost: rec.get(8).unwrap_or("0").trim().parse().unwrap_or(0),
+                    news: rec.get(9).unwrap_or("0").trim().parse().unwrap_or(0),
+                    event_a: rec.get(10).unwrap_or("0").trim().parse().unwrap_or(0),
+                    event_b: rec.get(11).unwrap_or("0").trim().parse().unwrap_or(0),
+                    event_c: rec.get(12).unwrap_or("0").trim().parse().unwrap_or(0),
                 },
             );
         }

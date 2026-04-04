@@ -7,6 +7,9 @@
 //!   9: NormalEffect, 10: ExpertEffect, 11: MasterEffect
 
 use std::error::Error;
+use std::io::Cursor;
+
+use csv::ReaderBuilder;
 
 use crate::LodManager;
 
@@ -55,14 +58,18 @@ impl SpellsTable {
     }
 
     fn parse(text: &str) -> Result<Self, Box<dyn Error>> {
+        let body: String = text.lines().skip(3).collect::<Vec<_>>().join("\n");
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b'\t')
+            .has_headers(false)
+            .flexible(true)
+            .from_reader(Cursor::new(body.as_bytes()));
+
         let mut spells = Vec::new();
-        // Skip 3 header lines (2 blank + column header)
-        for line in text.lines().skip(3) {
-            let cols: Vec<&str> = line.split('\t').collect();
-            if cols.len() < 8 {
-                continue;
-            }
-            let index: u16 = match cols[0].trim().parse() {
+        for result in rdr.records() {
+            let rec = result?;
+
+            let index: u16 = match rec.get(0).unwrap_or("").trim().parse() {
                 Ok(v) => v,
                 Err(_) => continue,
             };
@@ -70,34 +77,24 @@ impl SpellsTable {
                 continue;
             }
 
-            let spell_number: u8 = cols.get(1).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let name = cols.get(2).unwrap_or(&"").trim().to_string();
+            let name = rec.get(2).unwrap_or("").trim().to_string();
             if name.is_empty() {
                 continue;
             }
-            let resistance = cols.get(3).unwrap_or(&"none").trim().to_string();
-            let short_name = cols.get(4).unwrap_or(&"").trim().to_string();
-            let sp_cost_normal: u8 = cols.get(5).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let sp_cost_expert: u8 = cols.get(6).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let sp_cost_master: u8 = cols.get(7).unwrap_or(&"0").trim().parse().unwrap_or(0);
-            let description = cols.get(8).unwrap_or(&"").trim().trim_matches('"').to_string();
-            let effect_normal = cols.get(9).unwrap_or(&"").trim().to_string();
-            let effect_expert = cols.get(10).unwrap_or(&"").trim().to_string();
-            let effect_master = cols.get(11).unwrap_or(&"").trim().to_string();
 
             spells.push(SpellInfo {
                 index,
-                spell_number,
+                spell_number: rec.get(1).unwrap_or("0").trim().parse().unwrap_or(0),
                 name,
-                resistance,
-                short_name,
-                sp_cost_normal,
-                sp_cost_expert,
-                sp_cost_master,
-                description,
-                effect_normal,
-                effect_expert,
-                effect_master,
+                resistance: rec.get(3).unwrap_or("none").trim().to_string(),
+                short_name: rec.get(4).unwrap_or("").trim().to_string(),
+                sp_cost_normal: rec.get(5).unwrap_or("0").trim().parse().unwrap_or(0),
+                sp_cost_expert: rec.get(6).unwrap_or("0").trim().parse().unwrap_or(0),
+                sp_cost_master: rec.get(7).unwrap_or("0").trim().parse().unwrap_or(0),
+                description: rec.get(8).unwrap_or("").trim().to_string(),
+                effect_normal: rec.get(9).unwrap_or("").trim().to_string(),
+                effect_expert: rec.get(10).unwrap_or("").trim().to_string(),
+                effect_master: rec.get(11).unwrap_or("").trim().to_string(),
             });
         }
         Ok(SpellsTable { spells })

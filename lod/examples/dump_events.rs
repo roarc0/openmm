@@ -17,15 +17,15 @@ fn main() {
                 let has_var = bb.data.event_variable != 0;
                 let has_attrs = bb.data.attributes != 0;
                 if has_event || has_var || has_attrs {
-                    let game_name = bb_mgr
+                    let display_name = bb_mgr
                         .as_ref()
                         .and_then(|mgr| mgr.get_declist_item(bb.data.declist_id))
-                        .and_then(|item| item.game_name())
+                        .and_then(|item| item.display_name())
                         .unwrap_or_default();
                     println!(
                         "  [{i:3}] '{}' (game='{}') declist={} event={} var={} trigger_r={} attrs=0x{:04X}",
                         bb.declist_name,
-                        game_name,
+                        display_name,
                         bb.data.declist_id,
                         bb.data.event,
                         bb.data.event_variable,

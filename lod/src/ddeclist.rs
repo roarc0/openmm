@@ -14,7 +14,7 @@ pub struct DDecList {
 /// A decoration descriptor from ddeclist.bin. 80 bytes per record.
 ///
 /// Layout:
-///   0x00: name[32], 0x20: game_name[32],
+///   0x00: name[32], 0x20: display_name[32],
 ///   0x40: dec_type(u16), 0x42: height(u16), 0x44: radius(u16),
 ///   0x46: light_radius(u16), 0x48: sft(i16), 0x4A: attributes(u16),
 ///   0x4C: sound_id(u16), 0x4E: skip(u16)
@@ -25,7 +25,7 @@ pub struct DDecListItem {
     /// Internal/file name (e.g. "fount1"). Null-terminated, 32 bytes. Offset 0x00.
     name: [u8; 32],
     /// Display/game name (e.g. "fountain"). Null-terminated, 32 bytes. Offset 0x20.
-    game_name: [u8; 32],
+    display_name: [u8; 32],
     /// Decoration category type. Offset 0x40.
     pub dec_type: u16,
     /// Sprite height in MM6 units. Offset 0x42.
@@ -48,7 +48,7 @@ impl Default for DDecListItem {
     fn default() -> Self {
         DDecListItem {
             name: [0; 32],
-            game_name: [0; 32],
+            display_name: [0; 32],
             dec_type: 0,
             height: 0,
             radius: 0,
@@ -131,8 +131,8 @@ impl DDecListItem {
         try_read_name(&self.name[..])
     }
 
-    pub fn game_name(&self) -> Option<String> {
-        try_read_name(&self.game_name)
+    pub fn display_name(&self) -> Option<String> {
+        try_read_name(&self.display_name)
     }
 
     pub fn sft_index(&self) -> i16 {
@@ -174,6 +174,6 @@ mod tests {
         let d_declist = DDecList::new(&lod_manager).unwrap();
         assert_eq!(d_declist.items.len(), 230);
         assert_eq!(d_declist.items[6].name(), Some("fount1".to_string()));
-        assert_eq!(d_declist.items[6].game_name(), Some("fountain".to_string()));
+        assert_eq!(d_declist.items[6].display_name(), Some("fountain".to_string()));
     }
 }

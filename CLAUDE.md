@@ -4,22 +4,9 @@ Faithful open-source reimplementation of the Might and Magic VI engine in Rust. 
 
 ## Current State
 
-- Terrain rendering with textures (outdoor maps / ODM files)
-- BSP model rendering (buildings) with textures
-- Billboards (decorations: trees, rocks, fountains) with sprite caching, animation, flicker, and point lights
-- NPCs and monsters with directional sprites, wander AI, and animation
-- Player entity with terrain-following movement and first-person camera
-- Loading screen with step-based map loader and sprite preloading
-- Splash screen and menu scaffolding
-- Developer console (Tab key) with commands: load, msaa, fullscreen, borderless, windowed, exit, time
-- Seamless map boundary transitions between adjacent outdoor zones
-- Indoor map rendering (BLV files) with face-based geometry and collision
-- Indoor door interaction: clickable faces dispatch EVT events, door animation state machine
-- Full in-game calendar clock (1 real second = 1 game minute, starts Jan 1 Year 1000 9am) with day/night cycle, sun arc, and ambient lighting
-- Actor ambient sounds: nearby actors play fidget sounds (index 3 from dmonlist sound_ids) with spatial attenuation, rate limiting, and per-actor stagger
-- Decoration proximity triggers: decorations with `trigger_radius > 0` fire EVT events on player approach (rising edge only)
-- Decoration dawn/dusk sounds: decorations with `sound_on_dawn`/`sound_on_dusk` flags play their `sound_id` at the day/night transition
-- Quest NPC event dispatch: clicking a quest NPC runs their `event_a` EVT script; street NPCs fall back to `SpeakNPC`
+Core systems implemented: terrain + BSP rendering, outdoor/indoor maps (ODM/BLV), collision, billboards, NPCs/monsters with wander AI, EVT event dispatch, doors, in-game clock with day/night cycle, spatial audio, loading pipeline, splash/menu/HUD scaffolding, developer console, seamless boundary transitions.
+
+Not yet implemented: combat, dialogue text rendering, chest/item system, save/load, NPC schedules. See `docs/todo.md` for the full list.
 
 ## Goal
 
@@ -54,15 +41,6 @@ Cargo workspace with two crates:
 
 - MMExtension from grayface that is just a modding engine for mm6, it can tell you much more accurately the data structures. You should find a copies of resources in the target folder.
 - OpenEnroth (C++ MM7 decompilation) when investigating MM6 formats but be careful because mm7 are different. Use it as a last resort because if we take the wrong path here we might introduce very nasty bugs. mm7 is different in many ways. Only look at this resource if you are desperate.
-
-## Reference Documentation
-
-- [The Rust Book](https://doc.rust-lang.org/book/) — authoritative guide to Rust language features and idioms
-- [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/) — naming, error handling, and API design conventions to follow in the `lod` crate
-- [Rust Reference](https://doc.rust-lang.org/reference/) — language specification for edge cases
-- [Bevy Book](https://bevyengine.org/learn/book/introduction/) — ECS concepts, plugins, systems, schedules
-- [Bevy Migration Guides](https://bevyengine.org/learn/migration-guides/) — what changed between versions; consult before upgrading
-- [Bevy Examples](https://github.com/bevyengine/bevy/tree/main/examples) — canonical usage patterns for rendering, audio, UI, input
 
 ## Rules
 
@@ -99,13 +77,15 @@ Once you have verified a concrete value from the original game data — a sprite
 
 ### Rule 5: Clean, decoupled code is not optional
 
-This project will be maintained and extended over years. Taking shortcuts now means paying a steep price later. Separation of concerns, clear naming, low coupling, and minimal duplication are not style preferences — they are the foundation that makes new features and bug fixes possible without breaking everything else. Before adding code, ask: is this in the right place? Can I simplify this? A 20-line refactor that makes the next 100 lines obvious is always worth it.
+- Separation of concerns, clear naming, low coupling, no duplication.
+- Before adding code: is this the right place? Can it be simpler?
+- A refactor that makes the next change obvious is always worth it.
 
 ### Rule 6: One concern per module
 
-Always separate concerns: `lod` owns data parsing, `openmm` owns rendering and gameplay. Within `openmm`, each plugin owns one system (rendering, AI, input, audio). Avoid monolithic systems that do too much. If a system needs many unrelated resources, it is doing too much.
-
-Bevy-specific: systems communicate via `Commands`, events, and resources — not by reaching directly into unrelated entities or calling other systems. Parsing logic in `lod` must be pure (same input → same output, no side effects). Prefer `Result`/`Option` over panicking in library code; `unwrap()` is only acceptable when the case is truly unreachable and a comment explains why. Avoid `unsafe` unless there is no alternative; document the invariant it relies on.
+- `lod` = data parsing only. `openmm` = rendering + gameplay. Each plugin owns one system.
+- Bevy: systems communicate via `Commands`, events, resources — never reach into unrelated entities.
+- `lod` logic must be pure (same input → same output). `Result`/`Option` over panics. No `unsafe` without documented invariant.
 
 ### Rule 7: Logging is cheap, use it
 
@@ -129,14 +109,8 @@ The test: if you can describe the new file in one sentence with a clear noun —
 
 ### Rule 10: Review before you ship
 
-Before committing, run `make fix` — this auto-applies clippy suggestions and formats the code. Then verify `make lint` passes cleanly. These steps are mandatory, not optional.
-
-Re-read the diff with fresh eyes:
-- Does every public function and type have a name that explains what it does without a comment?
-- Is there dead code, unused imports, or `todo!()` left behind?
-- Did you run `make fix` and does `make lint` pass cleanly?
-
-A clean diff is a sign of respect for the next person who reads it — which is often you, six months later.
+- Run `make fix` (auto-applies clippy + fmt). Then `make lint` must pass cleanly.
+- Re-read the diff: clear names? dead code? unused imports? leftover `todo!()`?
 
 ### Coordinate conversion
 
@@ -258,37 +232,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### lod crate structure
 
-- `lod.rs` — LOD archive reader (MM6's container format)
-- `lod_data.rs` — raw LOD entry data helpers
-- `odm.rs` — Outdoor map parser (heightmap, tiles, models, billboards, spawn points), `mm6_to_bevy()` coordinate helper
-- `blv.rs` — Indoor map parser (BLV): vertices, faces, sectors, BSP nodes, lights, decorations, doors
-- `bsp_model.rs` — BSP model geometry (buildings, structures)
-- `dtile.rs` — Tile table and texture atlas generation
-- `terrain.rs` — `TerrainLookup`: tileset queries by world position
-- `palette.rs` — Color palette handling (8-bit indexed color)
-- `image.rs` — Sprite/texture image decoding, `tint_variant()` for monster color variants
-- `billboard.rs` — Billboard/decoration sprite manager
-- `ddeclist.rs`, `dsft.rs` — Decoration and sprite frame tables
-- `dlv.rs` — DLV file parser (indoor delta: actors and doors per BLV map)
-- `ddm.rs` — DDM file parser (actors/NPCs per map)
-- `dchest.rs` — Chest descriptor table
-- `dobjlist.rs` — Object list descriptor table
-- `doverlay.rs` — Overlay descriptor table
-- `monlist.rs` — Monster list (dmonlist.bin) with sprite name resolution
-- `monsters_txt.rs` — Per-variant monster display names from monsters.txt (e.g. "PeasantM2A" → "Apprentice Mage")
-- `mapstats.rs` — Map statistics (monster groups per map zone)
-- `evt.rs` — EVT event script parser → `GameEvent` enum
-- `twodevents.rs` — 2DEvents.txt parser (house/building event table)
-- `enums.rs` — Shared MM6 enums (face flags, object types, etc.)
-- `tft.rs` — TFT (tile frame table) parser
-- `dsounds.rs` — Sound descriptor table (dsounds.bin): sound ID -> filename mapping
-- `snd.rs` — Audio.snd container reader: extracts/decompresses WAV files
-- `game/actors.rs` — `Actor`/`Actors`: per-map DDM actor roster with pre-resolved sprites and palette variants
-- `game/decorations.rs` — `DecorationEntry`/`Decorations`: per-map ODM billboard roster with pre-resolved sprite names, dimensions, and DSFT metadata
-- `game/monster.rs` — `Monster`/`Monsters`: per-map spawn resolution (MapStats + monlist + DSFT → one `Monster` per group member); also `resolve_entry()` and `resolve_sprite_group()` for DDM actor sprite resolution
-- `game/npc.rs` — `NpcEntry`/`StreetNpcs`: street NPC roster with generated names
-- `game/font.rs` — Font loading from LOD bitmaps
-- `game/global.rs` — `GameData`: top-level container for all global game tables
+See `docs/lod-crate.md` for full module listing.
 
 ## Documentation Index
 
@@ -301,8 +245,35 @@ Files in `docs/` — keep this list in sync (Rule 2):
 - `docs/player-physics.md` — PlayerSettings, camera, input, gravity, collision, slopes, doors
 - `docs/game-state.md` — WorldState, GameVariables, Party, MapEvents, save system
 - `docs/hud-rendering.md` — HUD camera, elements, FooterText, minimap, lighting, sky, terrain shaders
+- `docs/lod-crate.md` — full lod crate module listing
+- `docs/todo.md` — upcoming work, ordered by priority
 - `docs/superpowers/plans/` — implementation plans for completed features (BLV, doors, HUD, events, sound, party, actors)
 - `docs/superpowers/specs/` — design specs for completed features
+
+## Debugging Game Data
+
+**Never dig through LOD binary data by hand when investigating a bug or format.** The `assets/` directory is a pre-dumped, human-readable cache of game data — always start there.
+
+Dump commands:
+```
+make dump_assets   # runs lod::bin::dump_assets — writes maps, actors, decorations, etc. to assets/
+make dump_sounds   # extracts audio metadata to assets/sounds/
+cargo run --example dump_events -- oute3   # EVT / billboard events for a specific map
+cargo run --example dump_npc_json          # NPC table → assets/npc.json, assets/npc2.json
+```
+
+File naming convention in `assets/`:
+- `<map>.odm.txt` — outdoor map: heightmap summary, tile IDs, spawn points, billboard list
+- `<map>.blv.txt` — indoor map: vertices, faces, sector info, light positions, door list
+- `<map>.ddm.txt` — actor/NPC roster for a map (parsed from DDM)
+- `*.json` — structured tables (NPCs, etc.) — useful for small-to-medium datasets
+- Prefer `.txt` over `.json` for large geometry data (mesh faces, vertex lists) — JSON is too verbose there
+
+**Workflow:** if you're unsure what a field contains or suspect a parsing bug, re-run the relevant dump, diff the output against expectations in `assets/`, then write the test. Do not add `println!` to the parser and re-run the game. Dumps are faster, repeatable, and leave no debug noise in production code.
+
+When adding a new parser or extending an existing one, add a corresponding dump path so future investigators can inspect the data without reading binary.
+
+If a field is missing from the dump output, or the output is confusing or wrong, **fix the dump first** — do not work around it. A better dump is a permanent improvement that helps every future investigation. Treat bad dump output the same way you treat a failing test: the dump is broken, fix it before moving on.
 
 ## Common Mistakes
 
@@ -332,16 +303,4 @@ Known pitfalls that have caused bugs or wasted time — read before starting any
 
 ## Upcoming Work / TODOs
 
-Ordered roughly by impact and readiness:
-
-- **Texture animation (TFT)** — `tft.rs` parses the tile frame table but animated tile cycling is not yet implemented in the terrain shader; some water and lava tiles should cycle frames.
-- **NPC dialogue text rendering** — `SpeakInHouse` events open a `HudView::NpcDialogue` placeholder; actual text rendering (font from LOD, scrolling lines) is not yet wired up.
-- **Monster combat stats** — `MonList` entries have attack, HP, speed, resistances; combat is not yet implemented; needed for a playable state.
-- **Chest / item system** — `DChest` and `DObjList` parsers exist; spawning items inside chests and allowing the player to pick them up is the next inventory step.
-- **Save / load** — `GameSave` JSON skeleton exists; full round-trip persistence (party stats, map state, quest bits) is not yet implemented.
-- **Street NPC identity randomization** — `peasant_identity()` currently uses spawn index as a deterministic seed; in MM6 each map load assigns fresh random names/professions. Should seed from a per-load RNG. Once save/load exists, identities should be persisted so NPCs don't re-roll on every visit.
-- **Sky texture day/night variation** — ODM has a single `sky_texture` field; no format-level time-of-day variants. Need to investigate: does the original MM6 engine swap sky textures based on time (e.g. `plansky1` at day vs a darker variant at night), or does it rely purely on color tinting? Check what sky bitmap names exist in the LOD (`bitmaps` archive), look for naming patterns like `plansky1`/`plansky2` or morning/night variants, and check MMExtension docs. Currently the sky texture is static — only `ClearColor` changes with time of day.
-- **NPC time-of-day schedules** — `Actor.schedules: [MonsterSchedule; 8]` carries time-based position/action schedules from the DDM file (8 slots: position, action, time-of-day). These are fully parsed and stored on `lod::game::actors::Actor` and the openmm `Actor` component. Implementing them requires a schedule-following AI system that moves NPCs between waypoints based on `GameTime.hour()` and the schedule's time range. Not yet implemented.
-- **Faction and diplomacy** — `Actor.group: i32` (faction group) and `Actor.ally: i32` (ally faction) are parsed and stored. In MM6 these control whether monsters attack each other and the player. Needs a diplomacy table and aggression logic in the AI system. Not yet implemented.
-- **Random encounters (camping interrupts)** — When the party rests/camps, MM6 has a chance to interrupt sleep with a random encounter spawning monsters from the map's encounter table (`mapstats.txt` columns `EncounterChance%`, `Mon1Enc%–Mon3Enc%`, and count ranges). These are the **only** random spawns in the game. All monsters visible on the map are predetermined: ODM spawn points encode exact variant (A/B/C) and location. Random encounter logic is not yet implemented.
-- support for mm7/8: requires better isolation of mm6 specific formats and game logic.
+See `docs/todo.md`.

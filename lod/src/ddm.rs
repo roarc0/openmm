@@ -10,6 +10,112 @@ use crate::{LodManager, lod_data::LodData};
 /// Layout from MMExtension: Scripts/Structs/01 common structs.lua (MapMonster).
 const ACTOR_SIZE_MM6: usize = 548;
 
+/// One monster attack definition (5 bytes). Used in `CommonMonsterProps`.
+///
+/// Layout: Type(1) + DamageDiceCount(1) + DamageDiceSides(1) + DamageAdd(1) + Missile(1)
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MonsterAttackInfo {
+    /// Attack type (damage kind enum). Offset 0x00.
+    pub attack_type: u8,
+    /// Number of damage dice. Offset 0x01.
+    pub damage_dice_count: u8,
+    /// Sides per damage die. Offset 0x02.
+    pub damage_dice_sides: u8,
+    /// Flat damage bonus added after dice roll. Offset 0x03.
+    pub damage_add: u8,
+    /// Missile/projectile type (0 = melee). Offset 0x04.
+    pub missile: u8,
+}
+
+/// Per-actor combat and loot properties embedded in each `DdmActor` at offset 0x2C.
+///
+/// MM6 `CommonMonsterProps` struct, 72 bytes (0x48). Fields verified against
+/// MMExtension `Scripts/Structs/01 common structs.lua` — MM6 branch only.
+///
+/// Layout (relative to struct start):
+///   0x00: skip(8) [Name/Picture runtime pointers, always 0 in file]
+///   0x08: monlist_id(1), level(1), treasure_item_pct(1), treasure_dice_count(1)
+///   0x0C: treasure_dice_sides(1), treasure_item_level(1), treasure_item_type(1), fly(1)
+///   0x10: move_type(1), ai_type(1), hostile_type(1), pref_class(1)
+///   0x14: bonus(1), bonus_mul(1)
+///   0x16: attack1(5), attack2_chance(1), attack2(5)
+///   0x21: spell_chance(1), spell(1), spell_skill(1)
+///   0x24: fire_res(1), elec_res(1), cold_res(1), poison_res(1), phys_res(1), magic_res(1)
+///   0x2A: pref_num(1), pad(1), quest_item(2), skip(2)[pad]
+///   0x30: full_hp(4), armor_class(4), experience(4), move_speed(4), attack_recovery(4)
+///   0x44: _unknown(4) [MM6-only trailing field]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CommonMonsterProps {
+    /// Index into dmonlist.bin (1-based in file, stored 0-based here). Offset 0x08.
+    pub monlist_id: u8,
+    /// Monster level used for scaling. Offset 0x09.
+    pub level: u8,
+    /// Chance (0-100) that this monster drops a treasure item. Offset 0x0A.
+    pub treasure_item_percent: u8,
+    /// Number of gold dice rolled on death. Offset 0x0B.
+    pub treasure_dice_count: u8,
+    /// Sides on each gold die. Offset 0x0C.
+    pub treasure_dice_sides: u8,
+    /// Item level for random loot table. Offset 0x0D.
+    pub treasure_item_level: u8,
+    /// Item type for random loot table. Offset 0x0E.
+    pub treasure_item_type: u8,
+    /// Non-zero if this monster can fly. Offset 0x0F.
+    pub fly: u8,
+    /// Movement style (0=stand, 1=walk, 2=fly, 3=water). Offset 0x10.
+    pub move_type: u8,
+    /// AI archetype (0=wimp, 1=normal, 2=aggressive, 3=suicide). Offset 0x11.
+    pub ai_type: u8,
+    /// How the monster chooses targets. Offset 0x12.
+    pub hostile_type: u8,
+    /// Preferred target class (MM6 only). Offset 0x13.
+    pub pref_class: u8,
+    /// Special on-hit bonus effect type (steal, curse, etc.). Offset 0x14.
+    pub bonus: u8,
+    /// Chance multiplier for bonus effect (`level * bonus_mul`). Offset 0x15.
+    pub bonus_mul: u8,
+    /// Primary melee/ranged attack definition. Offset 0x16.
+    pub attack1: MonsterAttackInfo,
+    /// Percentage chance to use attack2 instead of attack1. Offset 0x1B.
+    pub attack2_chance: u8,
+    /// Secondary attack definition. Offset 0x1C.
+    pub attack2: MonsterAttackInfo,
+    /// Percentage chance to cast the assigned spell. Offset 0x21.
+    pub spell_chance: u8,
+    /// Spell ID to cast (0 = none). Offset 0x22.
+    pub spell: u8,
+    /// Skill rank/mastery for the spell. Offset 0x23.
+    pub spell_skill: u8,
+    /// Fire resistance (0-200, 200=immune). Offset 0x24.
+    pub fire_resistance: u8,
+    /// Electrical resistance. Offset 0x25.
+    pub elec_resistance: u8,
+    /// Cold resistance. Offset 0x26.
+    pub cold_resistance: u8,
+    /// Poison resistance. Offset 0x27.
+    pub poison_resistance: u8,
+    /// Physical resistance. Offset 0x28.
+    pub phys_resistance: u8,
+    /// Magic resistance. Offset 0x29.
+    pub magic_resistance: u8,
+    /// Number of party members targeted per attack. Offset 0x2A.
+    pub pref_num: u8,
+    /// Quest item index (carried quest item ID, 0 = none). Offset 0x2C.
+    pub quest_item: i16,
+    /// Maximum HP for this actor instance. Offset 0x30.
+    pub full_hp: i32,
+    /// Armor class. Offset 0x34.
+    pub armor_class: i32,
+    /// Experience awarded on death. Offset 0x38.
+    pub experience: i32,
+    /// Movement speed in MM6 units/tick. Offset 0x3C.
+    pub move_speed: i32,
+    /// Recovery time between attacks in game ticks. Offset 0x40.
+    pub attack_recovery: i32,
+    /// Unknown MM6-only trailing field. Offset 0x44.
+    pub _unknown: i32,
+}
+
 /// A spell buff on an actor (16 bytes each, 14 per actor).
 ///
 /// Layout: ExpireTime(8) + Power(2) + Skill(2) + OverlayId(2) + Caster(1) + Bits(1)
@@ -56,8 +162,8 @@ pub struct MonsterSchedule {
 pub struct DdmActor {
     /// Actor name. Offset 0x00 (32 bytes, null-terminated).
     pub name: String,
-    /// Index into dmonlist.bin (MonsterList). Contains both NPCs and monsters.
-    /// Offset 0x34 (CommonMonsterProps.Id, u8). 1-indexed in file, stored as 0-indexed.
+    /// Index into dmonlist.bin (MonsterList). Mirrors `common_props.monlist_id`.
+    /// Convenience shortcut — both are 0-indexed (file stores 1-indexed, we subtract 1).
     pub monlist_id: u8,
     /// NPC dialogue index (Game.StreetNPC + 1). Zero for monsters.
     /// Offset 0x20 (i16).
@@ -71,9 +177,10 @@ pub struct DdmActor {
     pub hp: i16,
     /// Padding at offset 0x2A.
     pub _pad0x2a: i16,
-    /// CommonMonsterProps raw bytes (72 bytes at offset 0x2C).
-    /// Stored raw for round-tripping; monlist_id is extracted separately.
-    pub common_props: [u8; 72],
+    /// Per-actor combat and loot properties. Offset 0x2C (72 bytes).
+    /// Contains level, HP, AC, XP, attacks, resistances, loot table, etc.
+    /// The `monlist_id` field here matches the separately-extracted top-level field.
+    pub common_props: CommonMonsterProps,
     /// Range attack type. Offset 0x74 (i16).
     pub range_attack: i16,
     /// Monster ID type (Id2). Offset 0x76 (i16).
@@ -142,7 +249,21 @@ impl DdmActor {
     }
 }
 
-/// Parsed DDM delta file.
+/// Parsed DDM (outdoor) delta file.
+///
+/// On-disk layout (sections in order):
+///   1. MapVars     — 200 × u8 event/barrel state variables (no count prefix)
+///   2. MapObjects  — u32 count + count × 0x64 bytes each (projectiles / dropped items)
+///   3. MapSprites  — u32 count + count × 0x1C bytes each (decoration instances)
+///   4. SoundSprites — 10 × i32 (ambient sound positions, no count prefix)
+///   5. MapChests   — u32 count + count × ~4204 bytes each (chest contents)
+///   6. MapMonsters — u32 count + count × 548 bytes each (actors)
+///
+/// **Save support:** sections 1–5 are currently skipped by the heuristic actor-finder.
+/// To implement round-trip saving, parse all sections sequentially and store their raw
+/// bytes (or typed structs). Every section must be re-serialised in order with the
+/// correct C struct layout — all padding fields in `DdmActor` are already preserved for
+/// this purpose.
 #[derive(Debug)]
 pub struct Ddm {
     pub actors: Vec<DdmActor>,
@@ -257,12 +378,62 @@ impl Ddm {
         let hp = c.read_i16::<LittleEndian>().ok()?;
         let _pad0x2a = c.read_i16::<LittleEndian>().ok()?;
 
-        // CommonMonsterProps: 72 bytes at offset 0x2C. Store raw for round-tripping.
-        let mut common_props = [0u8; 72];
-        common_props.copy_from_slice(&data[0x2C..0x2C + 72]);
-
+        // CommonMonsterProps at offset 0x2C (72 bytes).
+        // Offsets within props are relative to 0x2C.
+        // 0x00-0x07: Name/Picture runtime pointers — always 0 in file, skip.
+        let p = &data[0x2C..0x2C + 72];
+        let common_props = CommonMonsterProps {
+            monlist_id: p[0x08].saturating_sub(1), // 1-indexed → 0-indexed
+            level: p[0x09],
+            treasure_item_percent: p[0x0A],
+            treasure_dice_count: p[0x0B],
+            treasure_dice_sides: p[0x0C],
+            treasure_item_level: p[0x0D],
+            treasure_item_type: p[0x0E],
+            fly: p[0x0F],
+            move_type: p[0x10],
+            ai_type: p[0x11],
+            hostile_type: p[0x12],
+            pref_class: p[0x13],
+            bonus: p[0x14],
+            bonus_mul: p[0x15],
+            attack1: MonsterAttackInfo {
+                attack_type: p[0x16],
+                damage_dice_count: p[0x17],
+                damage_dice_sides: p[0x18],
+                damage_add: p[0x19],
+                missile: p[0x1A],
+            },
+            attack2_chance: p[0x1B],
+            attack2: MonsterAttackInfo {
+                attack_type: p[0x1C],
+                damage_dice_count: p[0x1D],
+                damage_dice_sides: p[0x1E],
+                damage_add: p[0x1F],
+                missile: p[0x20],
+            },
+            spell_chance: p[0x21],
+            spell: p[0x22],
+            spell_skill: p[0x23],
+            fire_resistance: p[0x24],
+            elec_resistance: p[0x25],
+            cold_resistance: p[0x26],
+            poison_resistance: p[0x27],
+            phys_resistance: p[0x28],
+            magic_resistance: p[0x29],
+            pref_num: p[0x2A],
+            // 0x2B: padding byte
+            quest_item: i16::from_le_bytes([p[0x2C], p[0x2D]]),
+            // 0x2E-0x2F: padding
+            full_hp: i32::from_le_bytes([p[0x30], p[0x31], p[0x32], p[0x33]]),
+            armor_class: i32::from_le_bytes([p[0x34], p[0x35], p[0x36], p[0x37]]),
+            experience: i32::from_le_bytes([p[0x38], p[0x39], p[0x3A], p[0x3B]]),
+            move_speed: i32::from_le_bytes([p[0x3C], p[0x3D], p[0x3E], p[0x3F]]),
+            attack_recovery: i32::from_le_bytes([p[0x40], p[0x41], p[0x42], p[0x43]]),
+            _unknown: i32::from_le_bytes([p[0x44], p[0x45], p[0x46], p[0x47]]),
+        };
         // The Id field is 1-indexed in the game engine; subtract 1 for our 0-based monlist array.
-        let monlist_id = data[0x34].saturating_sub(1);
+        let monlist_id = common_props.monlist_id;
 
         // Offset 0x74: RangeAttack(2) + MonsterIdType(2)
         c.seek(std::io::SeekFrom::Start(0x74)).ok()?;
