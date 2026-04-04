@@ -39,30 +39,46 @@ const ATTRIBUTE_MAP_SIZE: usize = ODM_AREA;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Odm {
+    /// Map file name.
     pub name: String,
+    /// ODM format version string (e.g. "91 MM6").
     pub odm_version: String,
+    /// Sky texture name (e.g. "plansky1").
     pub sky_texture: String,
+    /// Ground/road texture name used where no tile is defined.
     pub ground_texture: String,
+    /// Tileset texture indices for the 4 tile slots (each slot repeated twice: normal + blend).
     pub tile_data: [u16; 8],
+    /// 128×128 heightmap, one u8 per cell. World height = value × ODM_HEIGHT_SCALE (32).
     pub height_map: [u8; HEIGHT_MAP_SIZE],
+    /// 128×128 tile map, one u8 per cell. Indexes into dtile.bin.
     pub tile_map: [u8; TILEMAP_SIZE],
+    /// 128×128 attribute map, one u8 per cell. Bit flags per tile (passable, etc.).
     pub attribute_map: [u8; ATTRIBUTE_MAP_SIZE],
+    /// BSP building models placed on this map.
     pub bsp_models: Vec<BSPModel>,
+    /// Billboard decorations (trees, rocks, fountains, etc.).
     pub billboards: Vec<Billboard>,
+    /// Monster and item spawn points.
     pub spawn_points: Vec<SpawnPoint>,
 }
 
-/// A spawn point for monsters/NPCs/items in the map.
+/// A spawn point for monsters or items in an ODM outdoor map.
+///
+/// MM6 record: 20 bytes (SpawnPoint struct from MMExtension, no MM7 Group field at 0x14).
+/// Layout: 0x00: pos[3](i32), 0x0C: radius(i16), 0x0E: kind(i16), 0x10: index(i16), 0x12: bits(u16)
 #[derive(Debug)]
 pub struct SpawnPoint {
-    /// Position in MM6 coordinates (x, y, z).
+    /// Spawn center in MM6 world coordinates (x, y, z). Offset 0x00.
     pub position: [i32; 3],
-    /// Wander radius around spawn position.
+    /// Group spread radius — members are scattered within this radius of `position`. Offset 0x0C.
     pub radius: u16,
-    /// ObjectRefKind: 2=Object/item, 3=Monster.
+    /// Spawn category (ObjectRefKind): 2 = item/treasure, 3 = monster. Offset 0x0E.
     pub spawn_type: u16,
-    /// Monster index or treasure level.
+    /// Monster slot index (1-12) or treasure level (1-7).
+    /// 1-3 = random M1/M2/M3 variant; 4-6 = forced A variant; 7-9 = B; 10-12 = C. Offset 0x10.
     pub monster_index: u16,
+    /// Spawn attribute flags (e.g. bit 0 = OnAlertMap). Offset 0x12.
     pub attributes: u16,
 }
 

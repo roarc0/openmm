@@ -243,6 +243,37 @@ fn oute3_goblin_spawn_near_player_position() {
     }
 }
 
+/// Forced-variant spawn points (monster_index 4-12) always produce exactly 1 monster.
+/// Confirmed from MM6.exe fcn_00455910: ebx=1 at function start, never updated for
+/// forced cases (they jump to label_4, bypassing the Rand() group-size calculation).
+#[test]
+fn oute3_forced_variant_spawns_produce_one_monster() {
+    let Some(lod) = test_lod() else {
+        return;
+    };
+    let gd = game_data(&lod);
+    let odm = crate::odm::Odm::new(&lod, "oute3.odm").unwrap();
+    let monsters = Monsters::new(&lod, "oute3.odm", &gd).unwrap();
+
+    // For each forced-variant spawn point, count how many monsters share its position.
+    for sp in odm.spawn_points.iter().filter(|sp| sp.spawn_type == 3) {
+        let cfg = gd.mapstats.get("oute3.odm").unwrap();
+        if let Some((_, _, _, fv)) = cfg.monster_for_index(sp.monster_index) {
+            if fv != 0 {
+                let count = monsters
+                    .iter()
+                    .filter(|m| m.spawn_position == sp.position)
+                    .count();
+                assert_eq!(
+                    count, 1,
+                    "forced-variant spawn at {:?} should produce exactly 1 monster, got {}",
+                    sp.position, count
+                );
+            }
+        }
+    }
+}
+
 /// Spawn positions may be shared within a group; verify spawn points → monsters mapping.
 #[test]
 fn oute3_spawn_count_at_least_spawn_points() {

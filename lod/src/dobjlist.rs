@@ -26,20 +26,40 @@ bitflags! {
     }
 }
 
+/// A projectile/object visual descriptor from dobjlist.bin. 52 bytes per record.
+///
+/// Layout:
+///   0x00: name[32], 0x20: id(i16), 0x22: radius(i16), 0x24: height(i16),
+///   0x26: flags(u16), 0x28: sft_index(i16), 0x2A: lifetime(i16),
+///   0x2C: particles_color(u16), 0x2E: speed(u16),
+///   0x30: particle_r(u8), 0x31: particle_g(u8), 0x32: particle_b(u8), 0x33: pad(u8)
 #[derive(Debug)]
 pub struct ObjectDesc {
+    /// Internal name (e.g. "arrow01"). Null-terminated, 32 bytes. Offset 0x00.
     pub name: String,
+    /// Object type ID used in scripting. Offset 0x20.
     pub id: i16,
+    /// Collision/hit radius in MM6 units. Offset 0x22.
     pub radius: i16,
+    /// Collision height in MM6 units. Offset 0x24.
     pub height: i16,
+    /// Behavior flags (ObjectDescFlags). Offset 0x26.
     pub flags: ObjectDescFlags,
+    /// DSFT sprite frame table index. Offset 0x28.
     pub sft_index: i16,
+    /// Lifetime in game ticks before auto-removal. Offset 0x2A.
     pub lifetime: i16,
+    /// Particle trail color packed as RGB. Offset 0x2C.
     pub particles_color: u16,
+    /// Initial projectile speed in MM6 units/tick. Offset 0x2E.
     pub speed: u16,
+    /// Particle trail red component. Offset 0x30.
     pub particle_r: u8,
+    /// Particle trail green component. Offset 0x31.
     pub particle_g: u8,
+    /// Particle trail blue component. Offset 0x32.
     pub particle_b: u8,
+    /// Padding byte. Offset 0x33.
     pub _pad: u8,
 }
 

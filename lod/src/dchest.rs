@@ -8,11 +8,18 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{LodManager, lod_data::LodData};
 
+/// A chest visual descriptor from dchest.bin. 36 bytes per record.
+///
+/// Layout: 0x00: name[32], 0x20: width(u8), 0x21: height(u8), 0x22: image_index(i16)
 #[derive(Debug)]
 pub struct ChestDesc {
+    /// Internal name (e.g. "chest1"). Null-terminated, 32 bytes. Offset 0x00.
     pub name: String,
+    /// Grid width in inventory slots (columns). Offset 0x20.
     pub width: u8,
+    /// Grid height in inventory slots (rows). Offset 0x21.
     pub height: u8,
+    /// Index into the chest graphic/bitmap table. Offset 0x22.
     pub image_index: i16,
 }
 

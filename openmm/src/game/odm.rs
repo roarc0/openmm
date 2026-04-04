@@ -1008,7 +1008,7 @@ fn lazy_spawn(
                 variant: mon.variant,
                 sound_ids: mon.sound_ids,
                 fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
-                attack_range: mon.to_hit_radius as f32,
+                attack_range: mon.body_radius as f32 * 2.0,
                 attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
                 attack_anim_remaining: 0.0,
             },

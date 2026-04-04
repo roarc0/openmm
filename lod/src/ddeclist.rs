@@ -11,19 +11,36 @@ pub struct DDecList {
     pub items: Vec<DDecListItem>,
 }
 
+/// A decoration descriptor from ddeclist.bin. 80 bytes per record.
+///
+/// Layout:
+///   0x00: name[32], 0x20: game_name[32],
+///   0x40: dec_type(u16), 0x42: height(u16), 0x44: radius(u16),
+///   0x46: light_radius(u16), 0x48: sft(i16), 0x4A: attributes(u16),
+///   0x4C: sound_id(u16), 0x4E: skip(u16)
 #[allow(dead_code)]
 #[repr(C)]
 #[derive(Clone)]
 pub struct DDecListItem {
+    /// Internal/file name (e.g. "fount1"). Null-terminated, 32 bytes. Offset 0x00.
     name: [u8; 32],
+    /// Display/game name (e.g. "fountain"). Null-terminated, 32 bytes. Offset 0x20.
     game_name: [u8; 32],
+    /// Decoration category type. Offset 0x40.
     pub dec_type: u16,
+    /// Sprite height in MM6 units. Offset 0x42.
     pub height: u16,
+    /// Collision radius in MM6 units. Offset 0x44.
     pub radius: u16,
+    /// Emitted point-light radius (0 = no light). Offset 0x46.
     pub light_radius: u16,
+    /// DSFT sprite frame table index. Negative = no sprite. Offset 0x48.
     pub sft: SFTType,
+    /// Decoration attribute flags (DecorationDescFlags). Offset 0x4A.
     pub attributes: u16,
+    /// Ambient sound ID played near this decoration (0 = none). Offset 0x4C.
     pub sound_id: u16,
+    /// Padding/unused. Offset 0x4E.
     skip: u16,
 }
 

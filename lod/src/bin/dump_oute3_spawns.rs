@@ -61,8 +61,13 @@ fn main() {
                 .unsigned_abs()
                 .wrapping_mul(sp.position[1].unsigned_abs());
             let (lo, hi) = cfg.count_range_for_slot(slot);
-            let range = (hi - lo) as u32 + 1;
-            let gsz = lo as usize + (seed % range) as usize;
+            // Forced-variant spawns always produce exactly 1 monster (MM6 fcn_00455910).
+            let gsz = if fv != 0 {
+                1
+            } else {
+                let range = (hi - lo) as u32 + 1;
+                lo as usize + (seed % range) as usize
+            };
             // Sample variant for member 0 (representative roll).
             let roll0 = (seed % 100) as u8;
             let cv0 = if fv == 0 {

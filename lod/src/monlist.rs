@@ -5,14 +5,27 @@ use crate::{LodManager, lod_data::LodData};
 const RECORD_SIZE: usize = 148;
 
 /// A monster/NPC description from dmonlist.bin.
+///
+/// Binary record is 148 bytes. Layout:
+///   0x00: height(u16), 0x02: radius(u16), 0x04: move_speed(u16),
+///   0x06: to_hit_radius(u16, always 0 in MM6),
+///   0x08: sound_ids[4](u16 each), 0x10: internal_name[32],
+///   0x30: sprite_names[8×10], 0x80: padding[20]
 pub struct MonsterDesc {
+    /// Sprite height in MM6 units. Offset 0x00.
     pub height: u16,
+    /// Body collision radius in MM6 units. Used for `attack_range * 2` in game. Offset 0x02.
     pub radius: u16,
+    /// Movement speed in MM6 units/tick. Offset 0x04.
     pub move_speed: u16,
+    /// Bytes 6-7. Always 0 in MM6 (this is the MM7+ `Radius2` field). Do not use for attack range.
+    /// Use `radius * 2` for melee reach instead. Offset 0x06.
     pub to_hit_radius: u16,
+    /// Sound IDs: [0]=attack, [1]=die, [2]=got_hit, [3]=fidget. Offset 0x08.
     pub sound_ids: [u16; 4],
+    /// Internal monster name from dmonlist.bin, e.g. "GoblinA". Null-terminated, 32 bytes. Offset 0x10.
     pub internal_name: String,
-    /// Sprite names for each animation state:
+    /// DSFT group names for each animation state (10 bytes each, null-terminated). Offset 0x30.
     /// [0]=standing, [1]=walking, [2]=attack1, [3]=attack2,
     /// [4]=hit, [5]=dying, [6]=dead, [7]=fidget
     pub sprite_names: [String; 8],

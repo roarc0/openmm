@@ -7,24 +7,48 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{LodManager, enums::SpriteFrameFlags, lod_data::LodData, utils::try_read_name};
 
+/// Sprite Frame Table: maps animation group names to sprites and frame timing.
 pub struct DSFT {
     pub frames: Vec<DSFTFrame>,
+    /// Group start indices into `frames`.
     pub groups: Vec<u16>,
 }
 
+/// One entry in the Sprite Frame Table (dsft.bin / SFT archive). 56 bytes per record.
+///
+/// Verified against MMExtension `SFTItem` struct (MM6: Bits=u16, no extra MM7 fields).
+/// Layout:
+///   0x00: group_name[12], 0x0C: sprite_name[12],
+///   0x18: sprite_index[8](i16), 0x28: scale(i32),
+///   0x2C: attributes(u16), 0x2E: light_radius(i16),
+///   0x30: palette_id(i16), 0x32: palette_index(i16),
+///   0x34: time(i16), 0x36: time_total(i16)
 #[allow(dead_code)]
 #[repr(C)]
 #[derive(Default, Clone)]
 pub struct DSFTFrame {
+    /// Animation group name, null-terminated, 12 bytes (e.g. "gob1"). Offset 0x00.
     group_name: [u8; 12],
+    /// Sprite file name, null-terminated, 12 bytes (e.g. "gob1a0"). Offset 0x0C.
     sprite_name: [u8; 12],
+    /// Sprite indices for each of 8 viewing angles. Populated at runtime by `LoadFrames()`.
+    /// Zero in the raw file. Offset 0x18.
     pub sprite_index: [i16; 8],
+    /// Sprite scale factor (fixed-point). Controls billboard display size. Offset 0x28.
     pub scale: i32,
+    /// Frame attribute flags (SpriteFrameFlags). In MM6 this field is 2 bytes (u16).
+    /// Bit meanings: 0=NotGroupEnd, 1=Luminous, 2=GroupStart, 4=Image1(single angle),
+    /// 5=Center, 6=Fidget, 7=Loaded, 8-15=Mirror[0-7]. Offset 0x2C.
     pub attributes: u16,
+    /// Point-light radius emitted by this frame (0 = no light). Offset 0x2E.
     pub light_radius: i16,
+    /// Palette ID for color variant lookup. Offset 0x30.
     pub palette_id: i16,
+    /// Palette index (0 if not yet loaded at runtime). Offset 0x32.
     pub palette_index: i16,
+    /// Duration of this frame in 1/32 second units. Offset 0x34.
     pub time: i16,
+    /// Total duration of the animation group in 1/32 second units. Offset 0x36.
     pub time_total: i16,
 }
 

@@ -34,9 +34,13 @@ pub struct Monster {
     pub hostile: bool,
     /// Collision radius for the actor AI tether.
     pub radius: u16,
+    /// Physical body radius from dmonlist.bin (bytes 2-3). Used for attack reach.
+    /// Note: `to_hit_radius` (bytes 6-7) is always 0 in MM6 (MM7+ field); use this instead.
+    pub body_radius: u16,
     /// Sound IDs from dmonlist.bin: [attack, die, got_hit, fidget].
     pub sound_ids: [u16; 4],
-    /// Melee attack reach in MM6 world units (from dmonlist.bin).
+    /// Bytes 6-7 of dmonlist.bin record. Always 0 in MM6 (this is the MM7 Radius2 field).
+    /// Kept for completeness; use `body_radius * 2` for attack range instead.
     pub to_hit_radius: u16,
     /// Max HP from monsters.txt (initialized at spawn, variant-specific).
     pub hp: i16,
@@ -74,14 +78,23 @@ impl Monsters {
                 continue;
             };
 
-            // Group size from mapstats Mon1Low/Mon1Hi range.
-            // Seed from |x|*|y| gives better spread across spawns than |x|+|y|.
+            // Deterministic substitute for MM6's global LCG Rand(). |x|*|y| gives better
+            // spread across spawn points than |x|+|y|.
             let pos_seed = sp.position[0]
                 .unsigned_abs()
                 .wrapping_mul(sp.position[1].unsigned_abs());
-            let (count_min, count_max) = cfg.count_range_for_slot(slot);
-            let range = (count_max - count_min) as u32 + 1;
-            let group_size = count_min as usize + (pos_seed % range) as usize;
+
+            // MM6 fcn_00455910: forced-variant spawn points (monster_index 4-12) always
+            // produce exactly 1 monster — ebx=1 at function start, never updated for
+            // forced cases (they jump to label_4, bypassing the Rand() group-size calc).
+            // Random spawn points (monster_index 1-3) use Rand() % (max-min+1) + min.
+            let group_size = if forced_variant != 0 {
+                1
+            } else {
+                let (count_min, count_max) = cfg.count_range_for_slot(slot);
+                let range = (count_max - count_min) as u32 + 1;
+                count_min as usize + (pos_seed % range) as usize
+            };
 
             for g in 0..group_size {
                 // Each monster independently rolls for A/B/C variant from the difficulty table.
@@ -137,6 +150,7 @@ impl Monsters {
                     move_speed: desc.move_speed,
                     hostile: true,
                     radius: sp.radius.max(300),
+                    body_radius: desc.radius,
                     sound_ids: desc.sound_ids,
                     to_hit_radius: desc.to_hit_radius,
                     hp,

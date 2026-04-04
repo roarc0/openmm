@@ -16,14 +16,24 @@ pub struct DSounds {
     pub items: Vec<DSoundInfo>,
 }
 
+/// A sound descriptor from dsounds.bin. 112 bytes per record.
+///
+/// Layout:
+///   0x00: name[32], 0x20: sound_id(u32), 0x24: sound_type(u32),
+///   0x28: attributes(u32), 0x2C: _runtime[68]
 #[allow(dead_code)]
 #[repr(C)]
 #[derive(Clone)]
 pub struct DSoundInfo {
+    /// WAV filename (without extension), null-terminated, 32 bytes. Offset 0x00.
     name_bytes: [u8; 32],
+    /// Unique sound ID referenced by dmonlist.bin, EVT scripts, and sound events. Offset 0x20.
     pub sound_id: u32,
+    /// Sound category: determines playback behaviour (SoundType enum). Offset 0x24.
     pub sound_type: u32,
+    /// Sound attribute flags (SoundAttributes): bit 1 = 3D spatial audio. Offset 0x28.
     pub attributes: u32,
+    /// Runtime-only fields (handles, buffers). Always zero in the file. Offset 0x2C.
     _runtime: [u8; 68],
 }
 

@@ -146,30 +146,55 @@ impl BlvFace {
 
 /// A sector in a BLV indoor map (116 bytes on disk).
 #[derive(Debug)]
+/// A sector (room) in a BLV indoor map.
+///
+/// Contains face lists, lighting parameters, and spatial bounds.
 pub struct BlvSector {
+    /// Sector attribute flags (e.g. has sky, underwater, no magic zone).
     pub flags: i32,
+    /// Number of floor faces in this sector.
     pub floor_count: u16,
+    /// Number of wall faces in this sector.
     pub wall_count: u16,
+    /// Number of ceiling faces in this sector.
     pub ceiling_count: u16,
+    /// Number of fluid (water/lava) faces in this sector.
     pub fluid_count: u16,
+    /// Number of portal faces connecting to adjacent sectors.
     pub portal_count: u16,
+    /// Total face count for this sector.
     pub num_faces: u16,
+    /// Number of faces not included in the BSP tree (non-BSP geometry).
     pub num_non_bsp_faces: u16,
+    /// Number of cylinder collision objects in this sector.
     pub cylinder_count: u16,
+    /// Number of cog groups (scripted door/object sets) in this sector.
     pub cog_count: u16,
+    /// Number of decorations (sprites) placed in this sector.
     pub decoration_count: u16,
+    /// Number of marker objects in this sector.
     pub marker_count: u16,
+    /// Number of light sources in this sector.
     pub light_count: u16,
+    /// Water/fluid floor height in MM6 units (used for swimming/drowning logic).
     pub water_level: i16,
+    /// Mist/fog density level.
     pub mist_level: i16,
+    /// Multiplier for light source falloff distance.
     pub light_dist_mul: i16,
+    /// Minimum ambient light level (0-255).
     pub min_ambient_light: i16,
+    /// Index of the first BSP node for this sector's face tree (-1 = none).
     pub first_bsp_node: i16,
+    /// Exit event tag used by level transitions.
     pub exit_tag: i16,
+    /// Bounding box minimum corner (x, y, z) in MM6 units.
     pub bbox_min: [i16; 3],
+    /// Bounding box maximum corner (x, y, z) in MM6 units.
     pub bbox_max: [i16; 3],
 
     // Assigned from sector data blob:
+    /// Face indices (into blv.faces) belonging to this sector.
     pub face_ids: Vec<u16>,
 }
 
@@ -193,42 +218,70 @@ pub struct BlvDecoration {
     pub name: String,
 }
 
-/// A light source (12 bytes, MM6 format).
+/// A point light source in a BLV indoor map. 12 bytes, MM6 format.
+///
+/// Layout: 0x00: pos[3](i16), 0x06: radius(i16), 0x08: attributes(i16), 0x0A: brightness(u16)
 #[derive(Debug)]
 pub struct BlvLight {
+    /// Light position in MM6 coordinates (x, y, z). Offset 0x00.
     pub position: [i16; 3],
+    /// Light falloff radius in MM6 units. Offset 0x06.
     pub radius: i16,
+    /// Light attribute flags (type, dynamic, etc.). Offset 0x08.
     pub attributes: i16,
+    /// Light brightness/intensity (higher = brighter). Offset 0x0A.
     pub brightness: u16,
 }
 
-/// A BSP node (8 bytes).
+/// A BSP tree node in a BLV indoor map. 8 bytes.
+///
+/// Layout: 0x00: front(i16), 0x02: back(i16), 0x04: face_id_offset(i16), 0x06: num_faces(i16)
 #[derive(Debug)]
 pub struct BlvBspNode {
+    /// Index of the front child node (-1 = leaf). Offset 0x00.
     pub front: i16,
+    /// Index of the back child node (-1 = leaf). Offset 0x02.
     pub back: i16,
+    /// Offset into the sector face index list for faces at this node. Offset 0x04.
     pub face_id_offset: i16,
+    /// Number of faces associated with this BSP node. Offset 0x06.
     pub num_faces: i16,
 }
 
-/// A spawn point (20 bytes, MM6 format).
+/// A monster or item spawn point in a BLV indoor map.
+///
+/// Identical layout to ODM `SpawnPoint` — 20 bytes, MM6 format (no MM7 Group field).
+/// Layout: 0x00: pos[3](i32), 0x0C: radius(u16), 0x0E: kind(u16), 0x10: index(u16), 0x12: bits(u16)
 #[derive(Debug)]
 pub struct BlvSpawnPoint {
+    /// Spawn center in MM6 world coordinates (x, y, z). Offset 0x00.
     pub position: [i32; 3],
+    /// Group spread radius — members are scattered within this radius. Offset 0x0C.
     pub radius: u16,
+    /// Spawn category: 2 = item/treasure, 3 = monster. Offset 0x0E.
     pub spawn_type: u16,
+    /// Monster slot index (1-12) or treasure level. Same encoding as ODM SpawnPoint. Offset 0x10.
     pub monster_index: u16,
+    /// Spawn attribute flags. Offset 0x12.
     pub attributes: u16,
 }
 
-/// A map outline entry (12 bytes).
+/// A map outline edge used for the minimap/automap display. 12 bytes.
+///
+/// Layout: 0x00: v1(u16), 0x02: v2(u16), 0x04: face1(u16), 0x06: face2(u16), 0x08: z(i16), 0x0A: flags(u16)
 #[derive(Debug)]
 pub struct BlvMapOutline {
+    /// First vertex index of this outline edge. Offset 0x00.
     pub vertex1_id: u16,
+    /// Second vertex index of this outline edge. Offset 0x02.
     pub vertex2_id: u16,
+    /// Face on the front side of this edge. Offset 0x04.
     pub face1_id: u16,
+    /// Face on the back side of this edge. Offset 0x06.
     pub face2_id: u16,
+    /// Z height of the outline line (for 2D map projection). Offset 0x08.
     pub z: i16,
+    /// Outline flags (visibility, type). Offset 0x0A.
     pub flags: u16,
 }
 

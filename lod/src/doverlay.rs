@@ -8,11 +8,18 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::{LodManager, lod_data::LodData};
 
+/// A spell/buff overlay visual descriptor from doverlay.bin. 8 bytes per record.
+///
+/// Layout: 0x00: id(i16), 0x02: overlay_type(i16), 0x04: sft_index(i16), 0x06: pad(i16)
 #[derive(Debug)]
 pub struct OverlayDesc {
+    /// Overlay ID used in EVT scripts and spell effects. Offset 0x00.
     pub id: i16,
+    /// Overlay category: 0=on character, 1=on map object. Offset 0x02.
     pub overlay_type: i16,
+    /// DSFT sprite frame table index for the overlay animation. Offset 0x04.
     pub sft_index: i16,
+    /// Padding byte. Offset 0x06.
     pub _pad: i16,
 }
 
