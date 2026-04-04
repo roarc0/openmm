@@ -75,7 +75,7 @@ jobs:
 
       - name: Compress binary with UPX
         if: matrix.upx
-        run: upx --best target/${{ matrix.target }}/release/${{ matrix.artifact }}
+        run: upx --lzma target/${{ matrix.target }}/release/${{ matrix.artifact }}
 
       - name: Create archive (Linux/macOS)
         if: matrix.os != 'windows-latest'
@@ -94,16 +94,31 @@ jobs:
           Copy-Item -Recurse openmm/assets release_staging/assets
           Compress-Archive -Path release_staging/* -DestinationPath ${{ matrix.asset }}
 
+      - name: Generate checksum
+        shell: bash
+        run: |
+          if command -v sha256sum &>/dev/null; then
+            sha256sum ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
+          else
+            shasum -a 256 ${{ matrix.asset }} > ${{ matrix.asset }}.sha256
+          fi
+
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.asset }}
+          files: |
+            ${{ matrix.asset }}
+            ${{ matrix.asset }}.sha256
+          generate_release_notes: true
           body: |
             ## Installation
 
             1. Download the binary for your platform below
             2. Extract the archive
-            3. Copy your Might and Magic VI game data files to the `data` directory next to the executable
+            3. Place your Might and Magic VI game data as `mm6/` next to the executable (see [README](https://github.com/${{ github.repository }}/blob/main/README.md#game-data-setup))
             4. Run the executable
 
-            See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed instructions.
+            Verify your download with the `.sha256` file:
+            ```
+            sha256sum -c openmm-linux-x86_64.tar.gz.sha256
+            ```
