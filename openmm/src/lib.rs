@@ -5,7 +5,8 @@ use assets::GameAssets;
 use config::GameConfig;
 use game::InGamePlugin;
 use save::GameSave;
-use states::{loading::LoadingPlugin, menu::MenuPlugin, splash::SplashPlugin};
+use states::{loading::LoadingPlugin, menu::MenuPlugin, video::VideoPlugin};
+use states::video::VideoRequest;
 
 pub(crate) mod assets;
 pub(crate) mod bevy_config;
@@ -21,7 +22,7 @@ const APP_NAME: &str = "openmm";
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
 pub(crate) enum GameState {
     #[default]
-    Splash,
+    Video,
     Menu,
     Loading,
     Game,
@@ -41,8 +42,13 @@ impl Plugin for GamePlugin {
             .insert_resource(game_fonts)
             .insert_resource(save_data)
             .init_resource::<ui_assets::UiAssets>()
-            .add_plugins((BevyConfigPlugin, SplashPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
-            .insert_state(GameState::Splash);
+            .insert_resource(VideoRequest {
+                name: "3dologo".into(),
+                skippable: false,
+                next: GameState::Menu,
+            })
+            .add_plugins((BevyConfigPlugin, VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
+            .insert_state(GameState::Video);
     }
 }
 
