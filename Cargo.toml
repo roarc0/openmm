@@ -14,6 +14,11 @@ edition = "2024"
 [profile.dev.package."*"]
 opt-level = 3
 
+[profile.release]
+strip = true       # remove debug symbols (~40-60% size reduction)
+lto = "thin"       # link-time optimisation (removes dead code across crates)
+codegen-units = 1  # single codegen unit enables better inlining/DCE
+
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 needless_pass_by_value = "allow"      # Bevy systems take Res/Query by value
