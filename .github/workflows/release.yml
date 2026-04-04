@@ -60,13 +60,19 @@ jobs:
       - name: Create archive (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: |
-          tar czf ${{ matrix.asset }} -C target/${{ matrix.target }}/release ${{ matrix.artifact }}
+          mkdir -p release_staging
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact }} release_staging/
+          cp -r openmm/assets release_staging/
+          tar czf ${{ matrix.asset }} -C release_staging .
 
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          Compress-Archive -Path target/${{ matrix.target }}/release/${{ matrix.artifact }} -DestinationPath ${{ matrix.asset }}
+          New-Item -ItemType Directory -Path release_staging
+          Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact }} release_staging/
+          Copy-Item -Recurse openmm/assets release_staging/assets
+          Compress-Archive -Path release_staging/* -DestinationPath ${{ matrix.asset }}
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
