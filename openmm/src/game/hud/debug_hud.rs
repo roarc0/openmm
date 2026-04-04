@@ -1,17 +1,19 @@
-/// Debug overlay: shows HUD reference coordinates (640×480 space) next to the mouse cursor
-/// when `cfg.debug = true` and the HUD is in any non-World view.
+/// Debug overlay: shows HUD pixel coordinates next to the mouse cursor when
+/// `cfg.debug = true` and the HUD is in any non-World view.
 ///
-/// Coordinate mapping: physical mouse pos → logical px → reference px (0‥640, 0‥480)
-/// using the same letterbox origin and scale that all other HUD elements use.
+/// Coordinate space: border1.pcx pixel dimensions (its actual image size).
+/// The full letterboxed area maps 1:1 to border1.pcx, so coordinates directly
+/// correspond to pixel positions in that source image.
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
+use crate::ui_assets::UiAssets;
 
 use super::HudView;
-use super::borders::{REF_H, REF_W, letterbox_rect};
+use super::borders::letterbox_rect;
 
 #[derive(Component)]
 struct HudCoordsLabel;
@@ -49,6 +51,7 @@ fn update_label(
     cfg: Res<GameConfig>,
     hud_view: Res<HudView>,
     windows: Query<&Window, With<PrimaryWindow>>,
+    ui_assets: Res<UiAssets>,
     mut query: Query<(&mut Text, &mut Node, &mut Visibility), With<HudCoordsLabel>>,
 ) {
     let Ok((mut text, mut node, mut vis)) = query.single_mut() else {
@@ -70,6 +73,10 @@ fn update_label(
         return;
     };
 
+    // Reference dimensions = actual border1.pcx pixel size.
+    // The letterboxed area maps 1:1 to that image, so coordinates match source pixels.
+    let (img_w, img_h) = ui_assets.dimensions("border1.pcx").unwrap_or((640, 480));
+
     // Letterbox origin and size in physical pixels → convert to logical
     let sf = window.scale_factor();
     let (lx, ly, lpw, lph) = letterbox_rect(window, &cfg);
@@ -78,9 +85,8 @@ fn update_label(
     let lw = lpw as f32 / sf;
     let lh = lph as f32 / sf;
 
-    // Map cursor into 640×480 reference space
-    let ref_x = (cursor.x - bar_x) * REF_W / lw;
-    let ref_y = (cursor.y - bar_y) * REF_H / lh;
+    let ref_x = (cursor.x - bar_x) * img_w as f32 / lw;
+    let ref_y = (cursor.y - bar_y) * img_h as f32 / lh;
 
     **text = format!("{:.0},{:.0}", ref_x, ref_y);
     node.left = Val::Px(cursor.x + 12.0);
