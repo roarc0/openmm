@@ -24,6 +24,36 @@ pub struct MapEvents {
     pub generated_npcs: std::collections::HashMap<i32, lod::game::npc::GeneratedNpc>,
 }
 
+/// Map building type string → fallback background image name.
+fn building_background(building_type: &str) -> &'static str {
+    let lower = building_type.to_lowercase();
+    if lower.contains("weapon") { return "wepntabl"; }
+    if lower.contains("armor") { return "armory"; }
+    if lower.contains("magic") || lower.contains("guild") || lower.contains("alchemy") { return "magshelf"; }
+    if lower.contains("general") || lower.contains("store") { return "genshelf"; }
+    "evt02"
+}
+
+/// Resolve the background image handle for a building interaction (SpeakInHouse).
+/// Tries the house's picture_id first, falls back to building_type, then "evt02".
+pub fn resolve_building_image(
+    house_id: u32,
+    map_events: &MapEvents,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+) -> Option<bevy::asset::Handle<Image>> {
+    if let Some(houses) = map_events.houses.as_ref()
+        && let Some(entry) = houses.houses.get(&house_id)
+    {
+        let pic_name = format!("evt{:02}", entry.picture_id);
+        if let Some(handle) = game_assets.load_icon(&pic_name, images) {
+            return Some(handle);
+        }
+        return game_assets.load_icon(building_background(&entry.building_type), images);
+    }
+    game_assets.load_icon("evt02", images)
+}
+
 /// Load event data for a map and insert the MapEvents resource.
 /// `map_base` is the map filename stem without extension, e.g. "oute3" or "d01".
 /// `indoor` controls whether to skip loading 2devents.txt (only relevant for outdoor maps).

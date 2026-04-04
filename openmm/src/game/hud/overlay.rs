@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
+use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::fonts::{GameFonts, WHITE, YELLOW};
+use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
 use crate::ui_assets::UiAssets;
 
 use super::HudView;
@@ -35,6 +37,85 @@ pub struct NpcProfile {
     pub cost_per_week: Option<u32>,
     pub personality: Option<String>,
     pub action_text: Option<String>,
+}
+
+/// Resolve and load all data needed to display an NPC dialogue.
+///
+/// Returns `(NpcPortrait, NpcProfile)` ready to insert as resources, or `None` if the
+/// portrait image could not be loaded. Handles both generated street NPCs and quest NPCs.
+pub fn prepare_npc_dialogue(
+    npc_id: i32,
+    map_events: &Option<bevy::ecs::system::Res<'_, MapEvents>>,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+) -> Option<(NpcPortrait, NpcProfile)> {
+    let (portrait_name, display_name) = if npc_id >= GENERATED_NPC_ID_BASE {
+        let entry = map_events.as_ref().and_then(|me| me.generated_npcs.get(&npc_id));
+        let portrait = entry
+            .map(|g| format!("NPC{:03}", g.portrait))
+            .unwrap_or_else(|| format!("NPC{:03}", npc_id));
+        let name = entry.map(|g| g.name.clone());
+        (portrait, name)
+    } else {
+        let portrait = map_events
+            .as_ref()
+            .and_then(|me| me.npc_table.as_ref())
+            .and_then(|t| t.portrait_name(npc_id))
+            .unwrap_or_else(|| format!("NPC{:03}", npc_id));
+        let name = map_events
+            .as_ref()
+            .and_then(|me| me.npc_table.as_ref())
+            .and_then(|t| t.npc_name(npc_id).map(str::to_string));
+        (portrait, name)
+    };
+
+    info!("SpeakNPC: npc_id={} portrait='{}' name={:?}", npc_id, portrait_name, display_name);
+
+    let profession_id = if npc_id >= GENERATED_NPC_ID_BASE {
+        map_events
+            .as_ref()
+            .and_then(|me| me.generated_npcs.get(&npc_id))
+            .filter(|g| g.profession_id > 0)
+            .map(|g| g.profession_id as u16)
+    } else {
+        map_events
+            .as_ref()
+            .and_then(|me| me.npc_table.as_ref())
+            .and_then(|t| t.get(npc_id))
+            .filter(|e| e.profession_id > 0)
+            .map(|e| e.profession_id as u16)
+    };
+    let prof_entry = profession_id
+        .and_then(|id| game_assets.game_data().prof_table.as_ref()?.get(id));
+
+    let portrait_img = game_assets
+        .game_lod()
+        .icon(&portrait_name)
+        .or_else(|| game_assets.game_lod().icon("npc001"))?;
+
+    let size = Vec2::new(portrait_img.width() as f32, portrait_img.height() as f32);
+    let portrait = NpcPortrait {
+        image: game_assets.load_icon(&portrait_name, images)
+            .or_else(|| game_assets.load_icon("npc001", images))?,
+        size,
+    };
+
+    let first_name = display_name
+        .as_deref()
+        .and_then(|n| n.split_whitespace().next())
+        .unwrap_or_default()
+        .to_string();
+    let profile = NpcProfile {
+        name: first_name,
+        profession: prof_entry.map(|p| p.name.clone()),
+        join_text: prof_entry.map(|p| p.join_text.clone()).filter(|s| !s.is_empty()),
+        in_party_benefit: prof_entry.map(|p| p.in_party_benefit.clone()).filter(|s| !s.is_empty()),
+        cost_per_week: prof_entry.map(|p| p.cost_per_week).filter(|&c| c > 0),
+        personality: prof_entry.map(|p| p.personality.clone()).filter(|s| !s.is_empty()),
+        action_text: prof_entry.map(|p| p.action_text.clone()).filter(|s| !s.is_empty()),
+    };
+
+    Some((portrait, profile))
 }
 
 /// Marker component for the overlay UI node.

@@ -111,6 +111,7 @@ The test: if you can describe the new file in one sentence with a clear noun —
 
 - Run `make fix` (auto-applies clippy + fmt). Then `make lint` must pass cleanly.
 - Re-read the diff: clear names? dead code? unused imports? leftover `todo!()`?
+- Add meaningful comments that explain complex stuff or the objective of functions that might not be completely clear or confused.
 
 ### Coordinate conversion
 

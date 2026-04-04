@@ -42,6 +42,15 @@ impl GameAssets {
     pub fn game_lod(&self) -> lod::game::GameLod<'_> {
         self.lod_manager.game()
     }
+
+    /// Load a LOD icon by name as a nearest-neighbor Bevy Image handle.
+    /// Returns `None` if the icon is not found.
+    pub fn load_icon(&self, name: &str, images: &mut bevy::asset::Assets<Image>) -> Option<bevy::asset::Handle<Image>> {
+        let img = self.game_lod().icon(name)?;
+        let mut bevy_img = dynamic_to_bevy_image(img);
+        bevy_img.sampler = bevy::image::ImageSampler::nearest();
+        Some(images.add(bevy_img))
+    }
 }
 
 // ── Shared image/sampler helpers ────────────────────────────

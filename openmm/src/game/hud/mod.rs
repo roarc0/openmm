@@ -3,7 +3,7 @@ mod crosshair;
 mod footer;
 mod map_overlay;
 mod minimap;
-mod overlay;
+pub mod overlay;
 mod stats_bar;
 
 pub use borders::{parse_aspect_ratio, viewport_rect};
@@ -28,6 +28,19 @@ use minimap::*;
 /// Use this on all player/world input systems instead of manual per-system checks.
 pub fn game_input_active(view: Res<HudView>, console: Res<ConsoleState>) -> bool {
     matches!(*view, HudView::World) && !console.open
+}
+
+/// Set cursor grab mode and visibility. grab=true = locked/hidden (gameplay), false = free (UI).
+pub fn grab_cursor(cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>, grab: bool) {
+    if let Ok(mut cursor) = cursor_query.single_mut() {
+        if grab {
+            cursor.grab_mode = CursorGrabMode::Confined;
+            cursor.visible = false;
+        } else {
+            cursor.grab_mode = CursorGrabMode::None;
+            cursor.visible = true;
+        }
+    }
 }
 
 /// Marker for HUD UI entities.

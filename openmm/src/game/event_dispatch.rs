@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use bevy::window::{CursorOptions, PrimaryWindow};
 
 use lod::enums::EvtVariable;
 use lod::evt::{EvtFile, EvtStep, GameEvent};
@@ -83,64 +83,6 @@ impl Plugin for EventDispatchPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EventQueue>()
             .add_systems(Update, process_events.run_if(in_state(GameState::Game)));
-    }
-}
-
-/// Map a building type string from 2devents.txt to its background image name.
-fn building_background(building_type: &str) -> &'static str {
-    let lower = building_type.to_lowercase();
-    if lower.contains("weapon") {
-        return "wepntabl";
-    }
-    if lower.contains("armor") {
-        return "armory";
-    }
-    if lower.contains("magic") || lower.contains("guild") || lower.contains("alchemy") {
-        return "magshelf";
-    }
-    if lower.contains("general") || lower.contains("store") {
-        return "genshelf";
-    }
-    "evt02"
-}
-
-/// Load an icon from the LOD archive as a Bevy Image handle with nearest-neighbor sampling.
-fn load_icon(name: &str, game_assets: &GameAssets, images: &mut Assets<Image>) -> Option<Handle<Image>> {
-    let img = game_assets.game_lod().icon(name)?;
-    let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
-    bevy_img.sampler = bevy::image::ImageSampler::nearest();
-    Some(images.add(bevy_img))
-}
-
-/// Resolve the background image for a building interaction.
-fn resolve_building_image(
-    house_id: u32,
-    map_events: &MapEvents,
-    game_assets: &GameAssets,
-    images: &mut Assets<Image>,
-) -> Option<Handle<Image>> {
-    if let Some(houses) = map_events.houses.as_ref()
-        && let Some(entry) = houses.houses.get(&house_id)
-    {
-        let pic_name = format!("evt{:02}", entry.picture_id);
-        if let Some(handle) = load_icon(&pic_name, game_assets, images) {
-            return Some(handle);
-        }
-        return load_icon(building_background(&entry.building_type), game_assets, images);
-    }
-    load_icon("evt02", game_assets, images)
-}
-
-/// Set cursor grab mode and visibility.
-fn grab_cursor(cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>, grab: bool) {
-    if let Ok(mut cursor) = cursor_query.single_mut() {
-        if grab {
-            cursor.grab_mode = CursorGrabMode::Confined;
-            cursor.visible = false;
-        } else {
-            cursor.grab_mode = CursorGrabMode::None;
-            cursor.visible = true;
-        }
     }
 }
 
@@ -436,16 +378,16 @@ fn process_events(
             GameEvent::SpeakInHouse { house_id } => {
                 let image = map_events
                     .as_ref()
-                    .and_then(|me| resolve_building_image(*house_id, me, &game_assets, &mut images))
-                    .or_else(|| load_icon("evt02", &game_assets, &mut images));
+                    .and_then(|me| crate::game::events::resolve_building_image(*house_id, me, &game_assets, &mut images))
+                    .or_else(|| game_assets.load_icon("evt02", &mut images));
                 if let Some(image) = image {
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Building;
-                    grab_cursor(&mut cursor_query, false);
+                    crate::game::hud::grab_cursor(&mut cursor_query, false);
                 }
             }
             GameEvent::OpenChest { .. } => {
-                if let Some(image) = load_icon("chest01", &game_assets, &mut images) {
+                if let Some(image) = game_assets.load_icon("chest01", &mut images) {
                     // Play chest-open sound if available
                     if let Some(ref sm) = audio.sound_manager
                         && let Some(id) = sm.chest_open_sound_id
@@ -454,7 +396,7 @@ fn process_events(
                     }
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Chest;
-                    grab_cursor(&mut cursor_query, false);
+                    crate::game::hud::grab_cursor(&mut cursor_query, false);
                 }
             }
             GameEvent::MoveToMap {
@@ -716,84 +658,15 @@ fn process_events(
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
-                // For generated street NPCs (npc_id >= GENERATED_NPC_ID_BASE), look up generated_npcs.
-                // For quest NPCs (npc_id < GENERATED_NPC_ID_BASE), look up npcdata.txt.
-                let (portrait_name, npc_display_name) = if *npc_id >= crate::game::events::GENERATED_NPC_ID_BASE {
-                    let entry = map_events.as_ref().and_then(|me| me.generated_npcs.get(npc_id));
-                    let portrait = entry
-                        .map(|g| format!("NPC{:03}", g.portrait))
-                        .unwrap_or_else(|| format!("NPC{:03}", npc_id));
-                    let name = entry.map(|g| g.name.clone());
-                    (portrait, name)
-                } else {
-                    let portrait = map_events
-                        .as_ref()
-                        .and_then(|me| me.npc_table.as_ref())
-                        .and_then(|t| t.portrait_name(*npc_id))
-                        .unwrap_or_else(|| format!("NPC{:03}", npc_id));
-                    let name = map_events
-                        .as_ref()
-                        .and_then(|me| me.npc_table.as_ref())
-                        .and_then(|t| t.npc_name(*npc_id).map(str::to_string));
-                    (portrait, name)
-                };
-
-                info!(
-                    "SpeakNPC: npc_id={} portrait='{}' name={:?}",
-                    npc_id, portrait_name, npc_display_name
-                );
-
-                // Resolve profession data from npcprof.txt for both generated and quest NPCs.
-                let profession_id = if *npc_id >= crate::game::events::GENERATED_NPC_ID_BASE {
-                    map_events
-                        .as_ref()
-                        .and_then(|me| me.generated_npcs.get(npc_id))
-                        .filter(|g| g.profession_id > 0)
-                        .map(|g| g.profession_id as u16)
-                } else {
-                    map_events
-                        .as_ref()
-                        .and_then(|me| me.npc_table.as_ref())
-                        .and_then(|t| t.get(*npc_id))
-                        .filter(|e| e.profession_id > 0)
-                        .map(|e| e.profession_id as u16)
-                };
-                let prof_entry =
-                    profession_id.and_then(|id| game_assets.game_data().prof_table.as_ref().and_then(|pt| pt.get(id)));
-                let profession = prof_entry.map(|p| p.name.clone());
-
-                let portrait_img = game_assets
-                    .game_lod()
-                    .icon(&portrait_name)
-                    .or_else(|| game_assets.game_lod().icon("npc001"));
-                if let Some(portrait_img) = portrait_img {
-                    let size = Vec2::new(portrait_img.width() as f32, portrait_img.height() as f32);
-                    let mut bevy_img = crate::assets::dynamic_to_bevy_image(portrait_img);
-                    bevy_img.sampler = bevy::image::ImageSampler::nearest();
-                    let handle = images.add(bevy_img);
-                    commands.insert_resource(crate::game::hud::NpcPortrait { image: handle, size });
-                    // Original MM6 shows only the first name under the portrait.
-                    let first_name = npc_display_name
-                        .as_deref()
-                        .and_then(|n| n.split_whitespace().next())
-                        .unwrap_or_default()
-                        .to_string();
-                    commands.insert_resource(crate::game::hud::NpcProfile {
-                        name: first_name,
-                        profession,
-                        join_text: prof_entry.map(|p| p.join_text.clone()).filter(|s| !s.is_empty()),
-                        in_party_benefit: prof_entry.map(|p| p.in_party_benefit.clone()).filter(|s| !s.is_empty()),
-                        cost_per_week: prof_entry.map(|p| p.cost_per_week).filter(|&c| c > 0),
-                        personality: prof_entry.map(|p| p.personality.clone()).filter(|s| !s.is_empty()),
-                        action_text: prof_entry.map(|p| p.action_text.clone()).filter(|s| !s.is_empty()),
-                    });
+                if let Some((portrait, profile)) =
+                    crate::game::hud::overlay::prepare_npc_dialogue(*npc_id, &map_events, &game_assets, &mut images)
+                {
+                    commands.insert_resource(portrait);
+                    commands.insert_resource(profile);
                     *hud_view = HudView::NpcDialogue;
-                    grab_cursor(&mut cursor_query, false);
+                    crate::game::hud::grab_cursor(&mut cursor_query, false);
                 } else {
-                    warn!(
-                        "SpeakNPC: no portrait found for npc_id={} portrait='{}'",
-                        npc_id, portrait_name
-                    );
+                    warn!("SpeakNPC: no portrait found for npc_id={}", npc_id);
                 }
             }
             GameEvent::ChangeEvent { target, new_event_id } => {
