@@ -34,7 +34,7 @@ fn spawn_label(mut commands: Commands) {
             font_size: 14.0,
             ..default()
         },
-        TextColor(Color::srgb(1.0, 0.0, 1.0)), // magenta — high contrast on any background
+        TextColor(Color::srgba(1.0, 0.0, 1.0, 0.6)), // magenta semi-transparent
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(0.0),
@@ -92,8 +92,8 @@ fn update_label(
     let ref_x = (cursor.x - bar_x) * ref_w / lw;
     let ref_y = (cursor.y - bar_y) * ref_h / lh;
 
-    **text = format!("{:.0},{:.0}", ref_x, ref_y);
-    node.left = Val::Px(cursor.x + 12.0);
+    **text = format!("[{:.0},{:.0}]", ref_x, ref_y);
+    node.left = Val::Px(cursor.x + 17.0);
     node.top = Val::Px(cursor.y + 12.0);
     *vis = Visibility::Inherited;
 }
