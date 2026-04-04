@@ -23,22 +23,18 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact: openmm
             asset: openmm-linux-x86_64.tar.gz
-            upx: true
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: openmm.exe
             asset: openmm-windows-x86_64.zip
-            upx: true
           - os: macos-latest
             target: x86_64-apple-darwin
             artifact: openmm
             asset: openmm-macos-x86_64.tar.gz
-            upx: false
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: openmm
             asset: openmm-macos-aarch64.tar.gz
-            upx: false
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -58,24 +54,8 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Install UPX (Linux)
-        if: matrix.os == 'ubuntu-latest' && matrix.upx
-        run: sudo apt-get install -y upx
-
-      - name: Install UPX (macOS)
-        if: matrix.os == 'macos-latest' && matrix.upx
-        run: brew install upx
-
-      - name: Install UPX (Windows)
-        if: matrix.os == 'windows-latest' && matrix.upx
-        run: choco install upx --no-progress
-
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Compress binary with UPX
-        if: matrix.upx
-        run: upx --lzma target/${{ matrix.target }}/release/${{ matrix.artifact }}
 
       - name: Create archive (Linux/macOS)
         if: matrix.os != 'windows-latest'
