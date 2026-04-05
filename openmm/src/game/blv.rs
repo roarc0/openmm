@@ -13,7 +13,7 @@ use lod::odm::mm6_to_bevy;
 
 use crate::GameState;
 use crate::game::InGame;
-use crate::game::entities::{actor, sprites};
+use crate::game::entities::{SelfLit, actor, sprites};
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::HudView;
@@ -161,10 +161,12 @@ pub struct ClickableFaceInfo {
     pub vertices: Vec<Vec3>,
 }
 
-/// Resource holding all clickable face data for the current indoor map.
+/// Resource holding all clickable face data for the current map.
 #[derive(Resource)]
 pub struct ClickableFaces {
     pub faces: Vec<ClickableFaceInfo>,
+    /// True when loaded from a BLV (indoor) map; false for ODM outdoor BSP buildings.
+    pub is_indoor: bool,
 }
 
 /// Info about a single solid face used for ray occlusion.
@@ -368,7 +370,7 @@ fn spawn_indoor_world(
             vertices: cf.vertices.clone(),
         })
         .collect();
-    commands.insert_resource(ClickableFaces { faces });
+    commands.insert_resource(ClickableFaces { faces, is_indoor: true });
 
     // Build OccluderFaces resource — all solid indoor geometry for ray occlusion.
     let occ_faces: Vec<OccluderFaceInfo> = prepared
@@ -400,30 +402,229 @@ fn spawn_indoor_world(
         fired: std::collections::HashSet::new(),
     });
 
-    // Indoor ambient lighting — dim for dungeon atmosphere.
-    // TODO: read per-sector light levels from BLV data for proper local lighting.
+    // Indoor: near-zero ambient so dungeons are dark by default.
+    // The party torch (point light on the player) provides local illumination.
     commands.spawn((
         AmbientLight {
-            color: Color::srgb(0.7, 0.65, 0.55),
-            brightness: 50.0,
+            color: Color::srgb(0.05, 0.04, 0.03),
+            brightness: 0.5,
             ..default()
         },
         InGame,
     ));
 
-    // Spawn NPC actors from DLV data using the pre-resolved Actors abstraction.
+    // Spawn decorations from BLV decoration list.
+    let bb_mgr = game_assets.billboard_manager();
     let mut sprite_cache = sprites::SpriteCache::default();
+    for dec in prepared.decorations.entries() {
+        let dec_pos = Vec3::from(mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
+        let key = &dec.sprite_name;
+        // sprite_center is set in each branch to the entity's world position (dec_pos + half-height).
+        // Used afterwards to place the point light at the sprite centre, not the floor.
+        let mut sprite_center = dec_pos;
+        let mut dec_entity: Option<Entity> = None;
 
-    if let Ok(actors) = lod::game::actors::Actors::from_raw_actors(
-        game_assets.lod_manager(),
-        &prepared.actors,
-        None,
-        game_assets.game_data(),
-    ) {
+        if dec.is_directional {
+            let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
+                key,
+                game_assets.lod_manager(),
+                &mut images,
+                &mut materials,
+                &mut Some(&mut sprite_cache),
+            );
+            if px_w == 0.0 {
+                continue;
+            }
+            let dsft_scale = bb_mgr.dsft_scale_for_group(key);
+            let sw = px_w * dsft_scale;
+            let sh = px_h * dsft_scale;
+            let initial_mat = dirs[0].clone();
+            let quad = meshes.add(Rectangle::new(sw, sh));
+            let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
+            sprite_center = pos;
+            let states = vec![vec![dirs]];
+            let state_masks = vec![vec![dir_masks]];
+            let mut ent = commands.spawn((
+                Name::new(format!("decoration:{}", key)),
+                Mesh3d(quad),
+                MeshMaterial3d(initial_mat),
+                Transform::from_translation(pos),
+                crate::game::entities::WorldEntity,
+                crate::game::entities::EntityKind::Decoration,
+                crate::game::entities::Billboard,
+                crate::game::entities::AnimationState::Idle,
+                sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
+                crate::game::entities::FacingYaw(dec.facing_yaw),
+                InGame,
+            ));
+            if dec.event_id > 0 {
+                ent.insert(crate::game::interaction::DecorationInfo {
+                    event_id: dec.event_id as u16,
+                    position: pos,
+                    billboard_index: dec.billboard_index,
+                    declist_id: dec.declist_id,
+                    ground_y: dec_pos.y,
+                    half_w: 0.0,
+                    half_h: 0.0,
+                    mask: None,
+                });
+            }
+            dec_entity = Some(ent.id());
+        } else if dec.num_frames > 1 {
+            // Animated decoration
+            let frame_sprites = bb_mgr.get_animation_frames(game_assets.lod_manager(), key, dec.declist_id);
+            if frame_sprites.is_empty() {
+                continue;
+            }
+            let (w, h) = frame_sprites[0].dimensions();
+            if w == 0.0 || h == 0.0 {
+                continue;
+            }
+            let quad = meshes.add(Rectangle::new(w, h));
+            let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
+            sprite_center = pos;
+            let mut frame_mats = vec![];
+            let mut frame_masks = vec![];
+            for sprite in &frame_sprites {
+                let rgba = sprite.image.to_rgba8();
+                let msk = std::sync::Arc::new(sprites::AlphaMask::from_image(&rgba));
+                let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba)));
+                let mat = materials.add(StandardMaterial {
+                    unlit: true,
+                    base_color_texture: Some(tex),
+                    alpha_mode: AlphaMode::Mask(0.5),
+                    cull_mode: None,
+                    double_sided: true,
+                    perceptual_roughness: 1.0,
+                    reflectance: 0.0,
+                    ..default()
+                });
+                frame_mats.push(std::array::from_fn(|_| mat.clone()));
+                frame_masks.push(std::array::from_fn(|_| msk.clone()));
+            }
+            let initial_mat = frame_mats[0][0].clone();
+            let mut sheet = sprites::SpriteSheet::new(vec![frame_mats], vec![(w, h)], vec![frame_masks]);
+            sheet.frame_duration = dec.frame_duration;
+            let mut ent = commands.spawn((
+                Name::new(format!("decoration:{}", key)),
+                Mesh3d(quad),
+                MeshMaterial3d(initial_mat),
+                Transform::from_translation(pos),
+                crate::game::entities::WorldEntity,
+                crate::game::entities::EntityKind::Decoration,
+                crate::game::entities::Billboard,
+                crate::game::entities::AnimationState::Idle,
+                sheet,
+                InGame,
+            ));
+            if dec.event_id > 0 {
+                ent.insert(crate::game::interaction::DecorationInfo {
+                    event_id: dec.event_id as u16,
+                    position: pos,
+                    billboard_index: dec.billboard_index,
+                    declist_id: dec.declist_id,
+                    ground_y: dec_pos.y,
+                    half_w: 0.0,
+                    half_h: 0.0,
+                    mask: None,
+                });
+            }
+            // Animated flame decorations do NOT get DecorFlicker — the frame cycling
+            // is already the visual effect. Adding visibility toggle on top makes them
+            // blink entirely off, which looks like a bug.
+            // All animated indoor decorations (torches, campfires, cauldrons) are fire
+            // sources — mark them so the tint system skips them.
+            ent.insert(SelfLit);
+            dec_entity = Some(ent.id());
+        } else {
+            // Static single-frame decoration
+            let Some(sprite) = bb_mgr.get(game_assets.lod_manager(), key, dec.declist_id) else {
+                continue;
+            };
+            let (w, h) = sprite.dimensions();
+            if w == 0.0 || h == 0.0 {
+                continue;
+            }
+            let rgba = sprite.image.to_rgba8();
+            let mask = sprites::AlphaMask::from_image(&rgba);
+            let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba)));
+            let mat = materials.add(StandardMaterial {
+                unlit: true,
+                base_color_texture: Some(tex),
+                alpha_mode: AlphaMode::Mask(0.5),
+                cull_mode: None,
+                double_sided: true,
+                perceptual_roughness: 1.0,
+                reflectance: 0.0,
+                ..default()
+            });
+            let quad = meshes.add(Rectangle::new(w, h));
+            let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
+            sprite_center = pos;
+            let mut ent = commands.spawn((
+                Name::new(format!("decoration:{}", key)),
+                Mesh3d(quad),
+                MeshMaterial3d(mat),
+                Transform::from_translation(pos),
+                crate::game::entities::WorldEntity,
+                crate::game::entities::EntityKind::Decoration,
+                crate::game::entities::Billboard,
+                crate::game::entities::AnimationState::Idle,
+                InGame,
+            ));
+            if dec.event_id > 0 {
+                ent.insert(crate::game::interaction::DecorationInfo {
+                    event_id: dec.event_id as u16,
+                    position: pos,
+                    billboard_index: dec.billboard_index,
+                    declist_id: dec.declist_id,
+                    ground_y: dec_pos.y,
+                    half_w: w / 2.0,
+                    half_h: h / 2.0,
+                    mask: Some(std::sync::Arc::new(mask)),
+                });
+            }
+            dec_entity = Some(ent.id());
+        }
+        if dec.light_radius > 0 {
+            commands.spawn((
+                crate::game::odm::decoration_point_light(dec.light_radius),
+                Transform::from_translation(sprite_center),
+                InGame,
+            ));
+            // Mark this decoration sprite as self-lit so it isn't dimmed by the tint system.
+            if let Some(id) = dec_entity {
+                commands.entity(id).insert(SelfLit);
+            }
+        }
+    }
+
+    // Spawn BLV static point lights (designer-placed lights for campfires, cauldrons, etc.).
+    // brightness=64 → small torch range; brightness=640 → campfire range.
+    // radius field is always 0 in MM6 data — brightness alone drives the falloff.
+    for &(pos, brightness) in &prepared.blv_lights {
+        let range = brightness as f32 * 5.0;
+        let intensity = range * range * 150.0;
+        commands.spawn((
+            PointLight {
+                color: Color::srgb(1.0, 0.76, 0.38),
+                intensity,
+                range,
+                shadows_enabled: false,
+                ..default()
+            },
+            Transform::from_translation(pos),
+            InGame,
+        ));
+    }
+
+    // Spawn actors (NPCs and monsters) from pre-resolved DLV data.
+    if let Some(ref actors) = prepared.resolved_actors {
         for (ddm_idx, actor) in actors.get_actors().iter().enumerate() {
             let variant = actor.variant;
+            let is_monster = actor.is_monster();
 
-            let (states, state_masks, sw, sh) = sprites::load_entity_sprites(
+            let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
                 &actor.standing_sprite,
                 &actor.walking_sprite,
                 &actor.attacking_sprite,
@@ -437,11 +638,15 @@ fn spawn_indoor_world(
             );
             if states.is_empty() || states[0].is_empty() {
                 error!(
-                    "Indoor NPC '{}' monlist_id={} sprite '{}'/'{}'  failed to load",
-                    actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite
+                    "Indoor actor '{}' monlist_id={} sprite '{}' failed to load — skipping",
+                    actor.name, actor.monlist_id, actor.standing_sprite
                 );
                 continue;
             }
+            // Apply DSFT scale for consistent sizing
+            let dsft_scale = bb_mgr.dsft_scale_for_group(&actor.standing_sprite);
+            let sw = raw_w * dsft_scale;
+            let sh = raw_h * dsft_scale;
             let state_count = states.len();
             let initial_mat = states[0][0][0].clone();
             let quad = meshes.add(Rectangle::new(sw, sh));
@@ -449,52 +654,78 @@ fn spawn_indoor_world(
             let [bx, by, bz] = mm6_to_bevy(actor.position[0], actor.position[1], actor.position[2]);
             let pos = Vec3::new(bx, by + sh / 2.0, bz);
 
-            // Hover/status text shows the actor TYPE — generic category, never a personal name.
-            // Peasants → "Peasant". Quest NPCs → first name from npcdata.txt.
-            let hover_name = if actor.is_peasant {
-                "Peasant".to_string()
-            } else {
-                actor.name.split_whitespace().next().unwrap_or(&actor.name).to_string()
+            let actor_component = actor::Actor {
+                name: actor.name.clone(),
+                hp: actor.hp,
+                max_hp: actor.hp,
+                move_speed: actor.move_speed as f32,
+                initial_position: pos,
+                guarding_position: pos,
+                tether_distance: actor.tether_distance as f32,
+                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
+                wander_target: pos,
+                facing_yaw: 0.0,
+                hostile: is_monster,
+                variant: actor.variant,
+                sound_ids: actor.sound_ids,
+                fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                attack_range: actor.radius as f32 * 2.0,
+                attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
+                attack_anim_remaining: 0.0,
+                ddm_id: ddm_idx as i32,
+                group_id: actor.group,
+                aggro_range: actor.aggro_range,
+                recovery_secs: actor.recovery_secs,
+                sprite_half_height: sh / 2.0,
+                can_fly: actor.can_fly,
+                ai_type: actor.ai_type.clone(),
             };
+            let ai_mode = crate::game::monster_ai::MonsterAiMode::Wander;
 
-            commands.spawn((
-                Name::new(format!("npc:{}", actor.name)),
-                Mesh3d(quad),
-                MeshMaterial3d(initial_mat),
-                Transform::from_translation(pos),
-                crate::game::entities::WorldEntity,
-                crate::game::entities::EntityKind::Npc,
-                crate::game::entities::AnimationState::Idle,
-                sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
-                actor::Actor {
-                    name: actor.name.clone(),
-                    hp: actor.hp,
-                    max_hp: actor.hp,
-                    move_speed: actor.move_speed as f32,
-                    initial_position: pos,
-                    guarding_position: pos,
-                    tether_distance: actor.tether_distance as f32,
-                    wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
-                    wander_target: pos,
-                    facing_yaw: 0.0,
-                    hostile: false,
-                    variant: actor.variant,
-                    sound_ids: actor.sound_ids,
-                    fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
-                    attack_range: actor.radius as f32 * 2.0,
-                    attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
-                    attack_anim_remaining: 0.0,
-                    ddm_id: ddm_idx as i32,
-                    group_id: actor.group,
-                },
-                crate::game::interaction::NpcInteractable {
-                    name: hover_name,
-                    npc_id: actor.npc_id(),
-                },
-                crate::game::entities::Billboard,
-                InGame,
-            ));
-            info!("Spawned indoor NPC '{}' at {:?}", actor.name, pos);
+            if is_monster {
+                commands.spawn((
+                    Name::new(format!("monster:{}", actor.name)),
+                    Mesh3d(quad),
+                    MeshMaterial3d(initial_mat),
+                    Transform::from_translation(pos),
+                    crate::game::entities::WorldEntity,
+                    crate::game::entities::EntityKind::Monster,
+                    crate::game::entities::AnimationState::Idle,
+                    sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
+                    crate::game::interaction::MonsterInteractable { name: actor.name.clone() },
+                    actor_component,
+                    ai_mode,
+                    crate::game::entities::Billboard,
+                    InGame,
+                ));
+                info!("Spawned indoor monster '{}' at {:?}", actor.name, pos);
+            } else {
+                // NPC: hover name = profession/first name, never a personal name.
+                let hover_name = if actor.is_peasant {
+                    "Peasant".to_string()
+                } else {
+                    actor.name.split_whitespace().next().unwrap_or(&actor.name).to_string()
+                };
+                commands.spawn((
+                    Name::new(format!("npc:{}", actor.name)),
+                    Mesh3d(quad),
+                    MeshMaterial3d(initial_mat),
+                    Transform::from_translation(pos),
+                    crate::game::entities::WorldEntity,
+                    crate::game::entities::EntityKind::Npc,
+                    crate::game::entities::AnimationState::Idle,
+                    sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
+                    actor_component,
+                    ai_mode,
+                    crate::game::interaction::NpcInteractable {
+                        name: hover_name,
+                        npc_id: actor.npc_id(),
+                    },
+                    crate::game::entities::Billboard,
+                    InGame,
+                ));
+                info!("Spawned indoor NPC '{}' at {:?}", actor.name, pos);
+            }
         }
     }
 }
@@ -515,7 +746,8 @@ fn indoor_interact_system(
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
     let Some(clickable) = clickable else { return };
-    if clickable.faces.is_empty() {
+    // Only handle indoor maps — outdoor BSP faces are handled by world_interact_system.
+    if !clickable.is_indoor || clickable.faces.is_empty() {
         return;
     }
 

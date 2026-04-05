@@ -12,6 +12,7 @@ pub(crate) mod hud;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
 pub(crate) mod map_name;
+pub(crate) mod monster_ai;
 pub(crate) mod odm;
 pub(crate) mod party;
 pub(crate) mod physics;
@@ -49,6 +50,7 @@ impl Plugin for InGamePlugin {
             sound::SoundPlugin,
         ))
         .add_plugins(actor_combat::ActorCombatPlugin)
+        .add_plugins(monster_ai::MonsterAiPlugin)
         .add_plugins(MaterialPlugin::<terrain_material::TerrainMaterial>::default())
         .add_plugins(party::PartyPlugin);
     }

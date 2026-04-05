@@ -36,6 +36,14 @@ const COLLISION_RADIUS: f32 = 24.0;
 #[derive(Component)]
 pub struct Player;
 
+/// Marker for the bright inner torch light (close-range hot core).
+#[derive(Component)]
+pub struct PartyTorch;
+
+/// Marker for the dim outer torch fill (wide ambient bleed).
+#[derive(Component)]
+pub struct PartyTorchFill;
+
 #[derive(Component)]
 pub struct PlayerCamera;
 
@@ -156,6 +164,10 @@ impl Plugin for PlayerPlugin {
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
                     .run_if(crate::game::hud::game_input_active),
+            )
+            .add_systems(
+                Update,
+                party_torch_system.run_if(in_state(GameState::Game)),
             );
     }
 }
@@ -319,6 +331,35 @@ fn spawn_player(
                 ..default()
             });
         }
+
+        // Party torch: two overlapping lights for a non-linear profile.
+        // Inner (PartyTorch): bright, tight range — hot core close to the player.
+        // Outer (PartyTorchFill): dim, wide range — gentle ambient bleed.
+        // Both start at intensity 0; party_torch_system activates them.
+        parent.spawn((
+            Name::new("party_torch"),
+            PartyTorch,
+            PointLight {
+                color: Color::srgb(1.0, 0.82, 0.45),
+                intensity: 0.0,
+                range: 3500.0,
+                shadows_enabled: false,
+                ..default()
+            },
+            Transform::from_xyz(0.0, -60.0, 0.0),
+        ));
+        parent.spawn((
+            Name::new("party_torch_fill"),
+            PartyTorchFill,
+            PointLight {
+                color: Color::srgb(0.85, 0.65, 0.30),
+                intensity: 0.0,
+                range: 12000.0,
+                shadows_enabled: false,
+                ..default()
+            },
+            Transform::from_xyz(0.0, -60.0, 0.0),
+        ));
     });
 }
 
@@ -757,5 +798,41 @@ fn cursor_grab(
         && keys.just_pressed(key_bindings.toggle_grab_cursor)
     {
         toggle_grab_cursor(&mut cursor_options);
+    }
+}
+
+/// Show/hide the party torch based on context:
+/// - Indoor: always on (dungeons have no daylight).
+/// - Outdoor: on when dark (before 6am or after 6pm), off during daytime.
+/// Inner light: bright hot core close to the player.
+const TORCH_INTENSITY: f32 = 250_000_000.0;
+/// Outer fill: dim wide bleed so the dungeon fades rather than hard-cuts to black.
+const TORCH_FILL_INTENSITY: f32 = 30_000_000.0;
+
+fn party_torch_system(
+    indoor: Option<Res<PreparedIndoorWorld>>,
+    game_time: Option<Res<crate::game::game_time::GameTime>>,
+    mut torch_query: Query<&mut PointLight, With<PartyTorch>>,
+    mut fill_query: Query<&mut PointLight, (With<PartyTorchFill>, Without<PartyTorch>)>,
+) {
+    let is_indoor = indoor.is_some();
+    let lit = if is_indoor {
+        true
+    } else if let Some(gt) = game_time {
+        let t = gt.time_of_day();
+        t < 0.25 || t > 0.75
+    } else {
+        false
+    };
+    let (target, fill_target) = if lit { (TORCH_INTENSITY, TORCH_FILL_INTENSITY) } else { (0.0, 0.0) };
+    for mut light in &mut torch_query {
+        if (light.intensity - target).abs() > 1.0 {
+            light.intensity = target;
+        }
+    }
+    for mut light in &mut fill_query {
+        if (light.intensity - fill_target).abs() > 1.0 {
+            light.intensity = fill_target;
+        }
     }
 }

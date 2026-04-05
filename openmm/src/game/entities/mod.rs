@@ -56,6 +56,12 @@ pub enum AnimationState {
 #[derive(Component)]
 pub struct Lootable;
 
+/// Marks a billboard sprite that is itself a light source (torch, campfire, brazier, etc.).
+/// The lighting tint system skips these entities so the fire/flame texture stays at full
+/// brightness regardless of time of day or dungeon ambient.
+#[derive(Component)]
+pub struct SelfLit;
+
 /// Visibility flicker for torches, candles, and similar decorations.
 /// Toggles Visibility at a fixed rate; runs after distance_culling so out-of-range
 /// entities stay hidden even when "lit".
@@ -90,7 +96,6 @@ impl Plugin for EntitiesPlugin {
             (
                 distance_culling,
                 flicker_system,
-                wander_system,
                 sprites::update_sprite_sheets,
                 billboard_face_camera,
             )
@@ -122,74 +127,6 @@ fn distance_culling(
         };
         if *vis != new_vis {
             *vis = new_vis;
-        }
-    }
-}
-
-/// Simple wander AI: actors pick a random point within tether distance
-/// and slowly walk toward it, then pick a new target.
-fn wander_system(
-    time: Res<Time>,
-    colliders: Option<Res<crate::game::collision::BuildingColliders>>,
-    mut query: Query<(&mut Transform, &mut actor::Actor, &mut AnimationState), (With<WorldEntity>, Without<crate::game::actor_combat::DyingTimer>)>,
-) {
-    let dt = time.delta_secs();
-
-    for (mut transform, mut actor, mut anim_state) in query.iter_mut() {
-        if actor.move_speed < 1.0 {
-            continue;
-        }
-
-        actor.wander_timer -= dt;
-
-        if actor.wander_timer <= 0.0 {
-            // Position-based seed keeps each actor on its own independent schedule.
-            // Using shared time as seed causes all actors to synchronize and all
-            // fire collision checks in the same frame, causing periodic spikes.
-            let pos_seed = actor.initial_position.x * 7.3 + actor.initial_position.z * 13.7;
-
-            // Toggle between idle and walking
-            if *anim_state == AnimationState::Idle {
-                // Pick a new target and start walking
-                let seed = pos_seed + time.elapsed_secs() * 0.5;
-                let angle = (seed * 2.3).sin() * std::f32::consts::TAU;
-                let dist = actor.tether_distance.max(300.0) * 0.4;
-                actor.wander_target = actor.guarding_position + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
-                actor.wander_timer = 3.0 + (seed.cos().abs()) * 3.0; // walk for 3-6s
-                *anim_state = AnimationState::Walking;
-            } else {
-                // Stop and idle — seed from position, not from shared elapsed time.
-                // Using time.elapsed_secs() here gave all actors the same idle duration
-                // when they transitioned in the same frame, causing synchronized wake-ups.
-                actor.wander_timer = 2.0 + (pos_seed * 3.7).sin().abs() * 3.0; // idle 2-5s
-                *anim_state = AnimationState::Idle;
-            }
-        }
-
-        // Only move when walking
-        if *anim_state == AnimationState::Walking {
-            let dir = actor.wander_target - transform.translation;
-            let flat_dir = Vec3::new(dir.x, 0.0, dir.z);
-            if flat_dir.length() > 20.0 {
-                let speed = actor.move_speed.min(60.0) * dt;
-                let move_vec = flat_dir.normalize() * speed;
-
-                let from = transform.translation;
-                let mut dest = from + Vec3::new(move_vec.x, 0.0, move_vec.z);
-
-                if let Some(ref c) = colliders {
-                    dest = c.resolve_movement(from, dest, 20.0, 140.0);
-                }
-
-                transform.translation.x = dest.x;
-                transform.translation.z = dest.z;
-
-                actor.facing_yaw = move_vec.x.atan2(move_vec.z);
-            } else {
-                // Reached target, switch to idle
-                *anim_state = AnimationState::Idle;
-                actor.wander_timer = 2.0;
-            }
         }
     }
 }

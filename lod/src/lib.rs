@@ -342,4 +342,100 @@ mod tests {
             frame.palette_id
         );
     }
+
+    /// Check which attack/die sprite files actually exist to debug naming.
+    #[test]
+    fn print_archer_sprite_names() {
+        let lod_path = get_lod_path();
+        let mgr = LodManager::new(lod_path).unwrap();
+        let monlist = crate::monlist::MonsterList::new(&mgr).unwrap();
+        let dsft = crate::dsft::DSFT::new(&mgr).unwrap();
+
+        // Print DSFT groups matching arc1* to understand what roots exist
+        println!("DSFT groups matching arc1*:");
+        for frame in &dsft.frames {
+            if let Some(g) = frame.group_name()
+                && g.to_lowercase().starts_with("arc1")
+            {
+                println!("  group='{}' sprite='{:?}'", g, frame.sprite_name());
+            }
+        }
+
+        // Check which arc1di* sprite files exist
+        println!("arc1di* sprites in LOD:");
+        for suffix in &["a0","a1","b0","qa0","qa","q"] {
+            let path = format!("sprites/arc1di{}", suffix);
+            let exists = mgr.try_get_bytes(&path).is_ok();
+            if exists { println!("  EXISTS: {}", path); }
+        }
+        // ArcherA dying sprite_names[5] = "arc1diQ"
+        let archer = monlist.find_by_name("Archer", 1).expect("Archer A");
+        println!("ArcherA sprite_names: {:?}", &archer.sprite_names[..6]);
+    }
+    /// actually exist as sprite files in the LOD. Guards against the previous bug where
+    /// sprite_names[2]/[5] (DSFT group names) were used directly as file roots, causing
+    /// the fallback to load standing sprites for attack/die animations.
+    #[test]
+    fn attacking_and_dying_sprite_roots_exist() {
+        let lod_path = get_lod_path();
+        let mgr = LodManager::new(lod_path).unwrap();
+        let monlist = crate::monlist::MonsterList::new(&mgr).unwrap();
+        let dsft = crate::dsft::DSFT::new(&mgr).unwrap();
+
+        let sample = &monlist.monsters[..monlist.monsters.len().min(30)];
+        let mut missing_att = vec![];
+        let mut missing_die = vec![];
+        for desc in sample {
+            if desc.sprite_names[2].is_empty() || desc.sprite_names[5].is_empty() {
+                continue;
+            }
+            // Resolve via DSFT like the fixed pipeline does
+            let resolve = |group: &str| -> String {
+                // Look up DSFT group → get sprite_name → derive root
+                for frame in &dsft.frames {
+                    if let Some(gname) = frame.group_name()
+                        && gname.eq_ignore_ascii_case(group)
+                    {
+                        if let Some(sprite_name) = frame.sprite_name() {
+                            let without_digits = sprite_name.trim_end_matches(|c: char| c.is_ascii_digit());
+                            if without_digits.len() > 1 {
+                                let last = without_digits.as_bytes()[without_digits.len() - 1];
+                                let root = if (b'a'..=b'f').contains(&last) {
+                                    &without_digits[..without_digits.len() - 1]
+                                } else {
+                                    without_digits
+                                };
+                                return root.to_lowercase();
+                            }
+                        }
+                        break;
+                    }
+                }
+                group.to_lowercase()
+            };
+
+            let at_root = resolve(&desc.sprite_names[2]);
+            let die_root = resolve(&desc.sprite_names[5]);
+            let exists = |root: &str| {
+                mgr.try_get_bytes(&format!("sprites/{}a0", root)).is_ok()
+                    || mgr.try_get_bytes(&format!("sprites/{}", root)).is_ok()
+            };
+            if !exists(&at_root) {
+                missing_att.push(format!("{}: group='{}' resolved='{}'", desc.internal_name, &desc.sprite_names[2], at_root));
+            }
+            if !exists(&die_root) {
+                missing_die.push(format!("{}: group='{}' resolved='{}'", desc.internal_name, &desc.sprite_names[5], die_root));
+            }
+        }
+        assert!(
+            missing_att.is_empty(),
+            "Monsters with unresolvable attack sprite after DSFT lookup: {:?}",
+            missing_att
+        );
+        assert!(
+            missing_die.is_empty(),
+            "Monsters with unresolvable dying sprite after DSFT lookup: {:?}",
+            missing_die
+        );
+    }
 }

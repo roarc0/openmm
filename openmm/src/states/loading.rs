@@ -12,7 +12,7 @@ use crate::{
 use lod::{
     blv::Blv,
     dtile::{Dtile, TileTable},
-    odm::{Odm, OdmData},
+    odm::{Odm, OdmData, mm6_to_bevy},
 };
 
 pub struct LoadingPlugin;
@@ -116,8 +116,28 @@ pub struct PreparedIndoorWorld {
     pub occluder_faces: Vec<OccluderFaceData>,
     /// Map base name for EVT loading (e.g. "d01").
     pub map_base: String,
-    /// Actors (NPCs) from DLV file.
+    /// Raw actors from DLV file (used to build resolved_actors).
     pub actors: Vec<lod::ddm::DdmActor>,
+    /// Resolved decorations from BLV decoration list.
+    pub decorations: lod::game::decorations::Decorations,
+    /// Resolved actors (NPCs + monsters) for spawn, with dead actor filtering applied.
+    pub resolved_actors: Option<lod::game::actors::Actors>,
+    /// Static point lights from the BLV file (position in Bevy coords, brightness 0–65535).
+    /// These are the designer-placed lights that illuminate campfires, cauldrons, etc.
+    pub blv_lights: Vec<(Vec3, u16)>,
+    /// Per-sector ambient data: (bbox_min, bbox_max in Bevy coords, min_ambient_light 0–255).
+    /// Used to set global ambient based on which sector the player currently occupies.
+    pub sector_ambients: Vec<SectorAmbient>,
+}
+
+/// Bounding box + minimum ambient light for one BLV sector.
+/// `min_ambient` is the original MM6 value (0–255); scale to Bevy lux in the lighting system.
+#[derive(Clone)]
+pub struct SectorAmbient {
+    pub bbox_min: Vec3,
+    pub bbox_max: Vec3,
+    /// 0–255 ambient floor. 0 = pitch black, 255 = fully lit.
+    pub min_ambient: u8,
 }
 
 /// Collision-only geometry for a single door face, including invisible blocking surfaces.
@@ -562,7 +582,7 @@ fn loading_step(
                                 base_color: Color::WHITE,
                                 alpha_mode: AlphaMode::Opaque,
                                 cull_mode: None,
-                                double_sided: true,
+                                double_sided: false,
                                 perceptual_roughness: 1.0,
                                 reflectance: 0.0,
                                 metallic: 0.0,
@@ -753,8 +773,13 @@ fn loading_step(
                                 material: StandardMaterial {
                                     base_color: Color::WHITE,
                                     alpha_mode: AlphaMode::Opaque,
+                                    // MM6 BSP uses CW winding; from inside the room these are
+                                    // back faces in Bevy's CCW convention. cull_mode:None renders
+                                    // them, and double_sided MUST be false so normals are not
+                                    // flipped — the stored normals already point into the room,
+                                    // which is correct for PBR lighting from interior lights.
                                     cull_mode: None,
-                                    double_sided: true,
+                                    double_sided: false,
                                     perceptual_roughness: 1.0,
                                     reflectance: 0.0,
                                     metallic: 0.0,
@@ -847,6 +872,67 @@ fn loading_step(
                     crate::game::map_name::MapName::Indoor(name) => name.clone(),
                     _ => load_request.map_name.to_string().replace(".blv", ""),
                 };
+                // Resolve BLV decorations (torches, chests, etc.)
+                let decorations = lod::game::decorations::Decorations::from_blv(
+                    game_assets.lod_manager(),
+                    &blv.decorations,
+                )
+                .unwrap_or_else(|e| {
+                    warn!("Failed to resolve indoor decorations: {e}");
+                    lod::game::decorations::Decorations::empty()
+                });
+
+                // Per-sector ambient data for the lighting system.
+                // Sector 0 is always a sentinel "void" sector — skip it.
+                let sector_ambients: Vec<SectorAmbient> = blv
+                    .sectors
+                    .iter()
+                    .skip(1)
+                    .filter(|s| s.floor_count > 0)
+                    .map(|s| {
+                        let [x0, y0, z0] = s.bbox_min.map(|v| v as i32);
+                        let [x1, y1, z1] = s.bbox_max.map(|v| v as i32);
+                        let bmin = Vec3::from(mm6_to_bevy(x0, y0, z0));
+                        let bmax = Vec3::from(mm6_to_bevy(x1, y1, z1));
+                        // mm6_to_bevy flips Y/Z, so ensure min ≤ max on all axes.
+                        SectorAmbient {
+                            bbox_min: bmin.min(bmax),
+                            bbox_max: bmin.max(bmax),
+                            min_ambient: s.min_ambient_light.clamp(0, 255) as u8,
+                        }
+                    })
+                    .collect();
+
+                // Collect BLV static lights (designer-placed — campfires, braziers, etc.).
+                // radius is always 0 in MM6 data; brightness drives range + intensity.
+                let blv_lights: Vec<(Vec3, u16)> = blv
+                    .lights
+                    .iter()
+                    .filter(|l| l.brightness > 0)
+                    .map(|l| {
+                        let [x, y, z] = l.position;
+                        let pos = Vec3::from(mm6_to_bevy(x as i32, y as i32, z as i32));
+                        (pos, l.brightness)
+                    })
+                    .collect();
+
+                // Resolve DLV actors with dead-actor filtering applied.
+                let map_key = load_request.map_name.to_string();
+                let actor_snapshot = world_state.as_ref().and_then(|ws| {
+                    ws.game_vars.dead_actor_ids.get(&map_key).map(|ids| {
+                        lod::game::actors::MapStateSnapshot {
+                            dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
+                        }
+                    })
+                });
+                let resolved_actors = lod::game::actors::Actors::from_raw_actors(
+                    game_assets.lod_manager(),
+                    &dlv_actors,
+                    actor_snapshot.as_ref(),
+                    game_assets.game_data(),
+                )
+                .ok();
+
                 crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, true);
                 commands.insert_resource(PreparedIndoorWorld {
                     models,
@@ -862,6 +948,10 @@ fn loading_step(
                     occluder_faces,
                     map_base,
                     actors: dlv_actors,
+                    decorations,
+                    resolved_actors,
+                    blv_lights,
+                    sector_ambients,
                 });
                 commands.remove_resource::<LoadingProgress>();
                 commands.remove_resource::<LoadRequest>();
@@ -906,7 +996,7 @@ fn loading_step(
                                     base_color: Color::srgb(1.8, 1.8, 1.8),
                                     alpha_mode: AlphaMode::Opaque,
                                     cull_mode: None,
-                                    double_sided: true,
+                                    double_sided: false,
                                     perceptual_roughness: 1.0,
                                     reflectance: 0.0,
                                     metallic: 0.0,

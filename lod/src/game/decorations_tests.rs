@@ -67,3 +67,40 @@ fn non_directional_entries_have_dimensions() {
         );
     }
 }
+
+#[test]
+fn d01_torches_have_light_radius() {
+    use crate::{blv::Blv, test_lod};
+    let Some(lod) = test_lod() else { return; };
+    let blv = match Blv::new(&lod, "d01.blv") {
+        Ok(b) => b,
+        Err(_) => return,
+    };
+    let decs = Decorations::from_blv(&lod, &blv.decorations).unwrap();
+    let torches: Vec<_> = decs.iter().filter(|e| e.sprite_name.starts_with("torch")).collect();
+    assert!(!torches.is_empty(), "d01 should have torch decorations");
+    for t in &torches {
+        assert!(t.light_radius > 0, "torch '{}' should have light_radius > 0", t.sprite_name);
+    }
+}
+
+#[test]
+fn campfire_has_zero_light_radius_but_exists_in_blv_lights() {
+    // Campfires have light_radius=0 in ddeclist — their illumination comes from
+    // the BLV static lights list (designer-placed point lights), not the decoration radius.
+    use crate::{blv::Blv, test_lod};
+    let Some(lod) = test_lod() else { return; };
+    let blv = match Blv::new(&lod, "zddb01.blv") {
+        Ok(b) => b,
+        Err(_) => return,
+    };
+    let decs = Decorations::from_blv(&lod, &blv.decorations).unwrap();
+    let campfires: Vec<_> = decs.iter().filter(|e| e.sprite_name == "campfireon").collect();
+    assert!(!campfires.is_empty(), "zddb01 should have campfireon decorations");
+    for c in &campfires {
+        assert_eq!(c.light_radius, 0, "campfireon has no decoration light_radius (uses BLV lights instead)");
+    }
+    // The BLV lights list is non-empty — those provide the campfire illumination.
+    assert!(!blv.lights.is_empty(), "zddb01 should have BLV static lights for campfire illumination");
+    assert!(blv.lights.iter().any(|l| l.brightness >= 640), "at least one bright light (campfire) expected");
+}

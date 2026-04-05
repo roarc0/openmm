@@ -376,6 +376,7 @@ fn spawn_world(
         if !outdoor_clickable.is_empty() {
             commands.insert_resource(crate::game::blv::ClickableFaces {
                 faces: outdoor_clickable,
+                is_indoor: false,
             });
         }
         if !outdoor_occluders.is_empty() {
@@ -579,6 +580,7 @@ fn lazy_spawn(
                 if dec.light_radius > 0 {
                     let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
                     commands.entity(child_id).add_child(light_id);
+                    commands.entity(child_id).insert(crate::game::entities::SelfLit);
                 }
                 spawned += 1;
             } else {
@@ -662,15 +664,11 @@ fn lazy_spawn(
                         dec.trigger_radius as f32,
                     ));
             }
-            if dec.flicker_rate > 0.0 {
-                let phase = (pos.x * 0.137 + pos.z * 0.031).abs().fract();
-                commands
-                    .entity(child_id)
-                    .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
-            }
+            // Animated decorations do NOT get DecorFlicker — frame cycling is the visual.
             if dec.light_radius > 0 {
                 let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
                 commands.entity(child_id).add_child(light_id);
+                commands.entity(child_id).insert(crate::game::entities::SelfLit);
             }
             spawned += 1;
         } else {
@@ -749,6 +747,7 @@ fn lazy_spawn(
             if dec.light_radius > 0 {
                 let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
                 commands.entity(child_id).add_child(light_id);
+                commands.entity(child_id).insert(crate::game::entities::SelfLit);
             }
             spawned += 1;
         }
@@ -821,6 +820,7 @@ fn lazy_spawn(
                 crate::game::interaction::MonsterInteractable {
                     name: actor.name.clone(),
                 },
+                crate::game::monster_ai::MonsterAiMode::Wander,
                 actor::Actor {
                     name: actor.name.clone(),
                     hp: actor.hp,
@@ -841,6 +841,11 @@ fn lazy_spawn(
                     attack_anim_remaining: 0.0,
                     ddm_id: i as i32,
                     group_id: actor.group,
+                    aggro_range: actor.aggro_range,
+                    recovery_secs: actor.recovery_secs,
+                    sprite_half_height: sh / 2.0,
+                    can_fly: actor.can_fly,
+                    ai_type: actor.ai_type.clone(),
                 },
             ));
             spawned += 1;
@@ -941,6 +946,7 @@ fn lazy_spawn(
             crate::game::entities::EntityKind::Npc,
             crate::game::entities::AnimationState::Idle,
             sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
+            crate::game::monster_ai::MonsterAiMode::Wander,
             actor::Actor {
                 name: actor.name.clone(),
                 hp: actor.hp,
@@ -961,6 +967,11 @@ fn lazy_spawn(
                 attack_anim_remaining: 0.0,
                 ddm_id: i as i32,
                 group_id: actor.group,
+                aggro_range: actor.aggro_range,
+                recovery_secs: actor.recovery_secs,
+                sprite_half_height: sh / 2.0,
+                can_fly: actor.can_fly,
+                ai_type: actor.ai_type.clone(),
             },
             crate::game::interaction::NpcInteractable {
                 name: hover_name,
@@ -1026,6 +1037,7 @@ fn lazy_spawn(
             crate::game::entities::AnimationState::Idle,
             sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
             crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
+            crate::game::monster_ai::MonsterAiMode::Wander,
             actor::Actor {
                 name: mon.name.clone(),
                 hp: mon.hp,
@@ -1046,6 +1058,11 @@ fn lazy_spawn(
                 attack_anim_remaining: 0.0,
                 ddm_id: -1, // ODM spawn group — no DDM actor index
                 group_id: 0,
+                aggro_range: mon.aggro_range,
+                recovery_secs: mon.recovery_secs,
+                sprite_half_height: sh / 2.0,
+                can_fly: mon.can_fly,
+                ai_type: mon.ai_type.clone(),
             },
         ));
         spawned += 1;
@@ -1063,11 +1080,14 @@ fn lazy_spawn(
 /// Intensity scales with radius² so smaller lights aren't washed out by larger ones.
 /// Color is warm orange (torches, braziers). Shadows disabled for performance.
 /// Flicker is free: the light entity inherits visibility from its parent decoration.
-fn decoration_point_light(light_radius: u16) -> impl Bundle {
+pub(crate) fn decoration_point_light(light_radius: u16) -> impl Bundle {
     let range = light_radius as f32;
+    // Intensity scaled so a radius-512 torch (~medium MM6 torch) reaches ~100k lux at
+    // 1m, which is visible against near-zero indoor ambient.
+    // Formula: range² * 0.4 ≈ 100k for range=512.
     PointLight {
-        color: Color::srgb(1.0, 0.75, 0.35),
-        intensity: range * range * 0.15,
+        color: Color::srgb(1.0, 0.78, 0.40),
+        intensity: range * range * 200.0,
         range,
         shadows_enabled: false,
         ..default()

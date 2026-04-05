@@ -13,11 +13,11 @@ use crate::game::sound::effects::PlayOnceSoundEvent;
 /// Per-attack animation duration in seconds (approx 5 frames at 0.15s).
 const ATTACK_ANIM_SECS: f32 = 0.75;
 /// Min/max seconds between attack attempts per actor (position-staggered).
-const ATTACK_COOLDOWN_MIN: f32 = 2.0;
-const ATTACK_COOLDOWN_MAX: f32 = 4.0;
+const ATTACK_COOLDOWN_MIN: f32 = 0.8;
+const ATTACK_COOLDOWN_MAX: f32 = 1.5;
 /// Max attacks fired globally per budget window.
-const MAX_ATTACKS_PER_WINDOW: u32 = 2;
-const ATTACK_BUDGET_WINDOW: f32 = 2.0;
+const MAX_ATTACKS_PER_WINDOW: u32 = 4;
+const ATTACK_BUDGET_WINDOW: f32 = 1.0;
 /// Seconds the dying animation plays before transitioning to Dead state.
 const DYING_ANIM_SECS: f32 = 1.5;
 
@@ -28,6 +28,11 @@ pub struct KillActorEvent(pub Entity);
 /// Marker added to a monster that is currently playing its dying animation.
 #[derive(Component)]
 pub struct DyingTimer(pub f32);
+
+/// Permanent marker on dead monsters. Excludes them from all AI queries.
+/// The entity stays in the world as a lootable corpse.
+#[derive(Component)]
+pub struct ActorDead;
 
 #[derive(Resource, Default)]
 struct AttackBudget {
@@ -57,7 +62,7 @@ impl Plugin for ActorCombatPlugin {
 fn monster_attack_system(
     time: Res<Time>,
     mut budget: ResMut<AttackBudget>,
-    mut actors: Query<(&Transform, &mut Actor, &mut AnimationState), Without<DyingTimer>>,
+    mut actors: Query<(&Transform, &mut Actor, &mut AnimationState), (Without<DyingTimer>, Without<ActorDead>)>,
     player: Query<&Transform, With<Player>>,
     mut sounds: MessageWriter<PlayOnceSoundEvent>,
 ) {
@@ -92,11 +97,18 @@ fn monster_attack_system(
             continue;
         }
 
-        // Re-arm with position-staggered interval.
+        // Re-arm: use per-monster recovery_secs with a small positional stagger
+        // so a group doesn't all fire in unison. Fall back to hardcoded range
+        // for actors without a valid recovery value.
         let stagger = (transform.translation.x * 0.017 + transform.translation.z * 0.011)
             .abs()
             .fract();
-        actor.attack_timer = ATTACK_COOLDOWN_MIN + stagger * (ATTACK_COOLDOWN_MAX - ATTACK_COOLDOWN_MIN);
+        let base = if actor.recovery_secs > 0.1 {
+            actor.recovery_secs
+        } else {
+            ATTACK_COOLDOWN_MIN + stagger * (ATTACK_COOLDOWN_MAX - ATTACK_COOLDOWN_MIN)
+        };
+        actor.attack_timer = base + stagger * 0.2;
 
         if transform.translation.distance_squared(player_pos) > actor.attack_range * actor.attack_range {
             continue;
@@ -132,8 +144,18 @@ fn monster_die_system(
         let Ok((actor, transform, mut anim_state)) = actors.get_mut(*entity) else {
             continue;
         };
+        if matches!(*anim_state, AnimationState::Dying | AnimationState::Dead) {
+            continue;
+        }
         info!("Actor '{}' (ddm_id={}) killed by player click", actor.name, actor.ddm_id);
         *anim_state = AnimationState::Dying;
+        // Play got_hit immediately (impact grunt), then die as the animation starts.
+        if actor.sound_ids[2] > 0 {
+            sounds.write(PlayOnceSoundEvent {
+                sound_id: actor.sound_ids[2] as u32,
+                position: transform.translation,
+            });
+        }
         if actor.sound_ids[1] > 0 {
             sounds.write(PlayOnceSoundEvent {
                 sound_id: actor.sound_ids[1] as u32,
@@ -167,7 +189,7 @@ fn dying_to_dead_system(
         timer.0 -= time.delta_secs();
         if timer.0 <= 0.0 {
             *anim_state = AnimationState::Dead;
-            commands.entity(entity).remove::<DyingTimer>();
+            commands.entity(entity).remove::<DyingTimer>().insert(ActorDead);
         }
     }
 }

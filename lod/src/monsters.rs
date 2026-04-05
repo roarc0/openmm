@@ -37,7 +37,7 @@ pub struct MonsterStats {
     pub quest_item: u8,
     /// Whether this monster can fly. Column 9 ("Y"/"N").
     pub can_fly: bool,
-    /// Movement type: "Short", "Long", "Global", "StaticMelee", "StaticRanged". Column 10.
+    /// Movement type: "Short", "Med", "Long", "Free". Column 10.
     pub move_type: String,
     /// AI behaviour: "Normal", "Aggress", "Wimp", "Berserk", "Suicidal". Column 11.
     pub ai_type: String,
@@ -185,6 +185,24 @@ impl Monsters {
         self.get(prefix, variant).map(|e| e.hp)
     }
 
+    /// Aggro detection radius in MM6 world units from hostile_type.
+    /// hostile_type 0 = passive; higher = longer sight range.
+    /// Tile size is 512 units; values are ~5/8/10/13 tiles.
+    pub fn aggro_range_for_hostile_type(hostile_type: u8) -> f32 {
+        match hostile_type {
+            0 => 0.0,
+            1 => 2560.0,
+            2 => 4096.0,
+            3 => 5120.0,
+            _ => 6656.0,
+        }
+    }
+
+    /// Attack recovery in seconds.
+    pub fn recovery_secs_for(recovery_ticks: u16) -> f32 {
+        (recovery_ticks as f32 / 26.0).max(0.5)
+    }
+
     fn key(&self, prefix: &str, variant: u8) -> String {
         let suffix = match variant {
             1 => "A",
@@ -192,6 +210,18 @@ impl Monsters {
             _ => "C",
         };
         format!("{}{}", prefix, suffix)
+    }
+}
+
+impl MonsterStats {
+    /// Aggro detection radius in MM6 world units derived from hostile_type.
+    pub fn aggro_range(&self) -> f32 {
+        Monsters::aggro_range_for_hostile_type(self.hostile_type)
+    }
+
+    /// Attack recovery in seconds derived from the recovery ticks field.
+    pub fn recovery_secs(&self) -> f32 {
+        Monsters::recovery_secs_for(self.recovery)
     }
 }
 

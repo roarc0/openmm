@@ -59,6 +59,14 @@ pub struct Actor {
     pub spell_buffs: [SpellBuff; 14],
     /// Time-based AI schedules (8 slots: position + action + time of day).
     pub schedules: [MonsterSchedule; 8],
+    /// Whether this monster can fly (from monsters.txt can_fly column).
+    pub can_fly: bool,
+    /// AI behaviour type: "Normal", "Aggress", "Wimp", "Suicidal" (from monsters.txt ai_type).
+    pub ai_type: String,
+    /// Aggro detection radius in MM6 world units (derived from hostile_type in monsters.txt).
+    pub aggro_range: f32,
+    /// Attack recovery in seconds (derived from recovery ticks in monsters.txt).
+    pub recovery_secs: f32,
 }
 
 impl Actor {
@@ -175,6 +183,10 @@ impl Actors {
                 ally: raw.ally,
                 spell_buffs: raw.spell_buffs,
                 schedules: raw.schedules,
+                aggro_range: entry.aggro_range,
+                recovery_secs: entry.recovery_secs,
+                can_fly: entry.can_fly,
+                ai_type: entry.ai_type.clone(),
             });
         }
 
@@ -270,6 +282,10 @@ impl Actors {
                 ally: raw.ally,
                 spell_buffs: raw.spell_buffs,
                 schedules: raw.schedules,
+                aggro_range: entry.aggro_range,
+                recovery_secs: entry.recovery_secs,
+                can_fly: entry.can_fly,
+                ai_type: entry.ai_type.clone(),
             });
         }
 

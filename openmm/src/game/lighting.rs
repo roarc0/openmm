@@ -3,8 +3,9 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::entities::Billboard;
+use crate::game::entities::{Billboard, SelfLit};
 use crate::game::game_time::GameTime;
+use crate::game::player::Player;
 use crate::game::terrain_material::TerrainMaterial;
 
 pub struct LightingPlugin;
@@ -122,15 +123,21 @@ fn animate_day_cycle(
     mut lighting_state: ResMut<LightingState>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
+    indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
     // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
     model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
-    // Billboard decorations — always unlit; tinted per-frame.
-    billboard_query: Query<&MeshMaterial3d<StandardMaterial>, With<Billboard>>,
+    // Billboard decorations — tinted per-frame (except SelfLit ones like torches/campfires).
+    billboard_query: Query<
+        &MeshMaterial3d<StandardMaterial>,
+        (With<Billboard>, Without<SelfLit>),
+    >,
     // Actor sprites (NPCs/monsters) — SpriteSheet, no Billboard marker.
     actor_query: Query<&MeshMaterial3d<StandardMaterial>, With<crate::game::entities::sprites::SpriteSheet>>,
-    mut sun_query: Query<(&mut Transform, &mut DirectionalLight)>,
+    mut sun_query: Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
+    player_query: Query<&Transform, With<Player>>,
 ) {
+    let is_indoor = indoor.is_some();
     // ── Lighting mode switch ───────────────────────────────────────────────────
     // Sync lit/unlit toggle for model materials when the mode changes.
     // Billboards are always unlit — their day/night effect comes from base_color tinting.
@@ -138,26 +145,30 @@ fn animate_day_cycle(
         lighting_state.last_mode = cfg.lighting.clone();
         let unlit = cfg.lighting != "enhanced";
 
-        let mut toggled = std::collections::HashSet::new();
-        for mat_handle in model_query.iter() {
-            if toggled.insert(mat_handle.id())
-                && let Some(mat) = std_materials.get_mut(mat_handle.id())
-            {
-                mat.unlit = unlit;
-                if unlit {
-                    mat.base_color = Color::srgb(0.69, 0.69, 0.69);
-                } else {
-                    mat.base_color = Color::srgb(1.4, 1.4, 1.4);
+        // Indoor walls must stay PBR regardless of mode — they need to respond
+        // to the party torch and decoration point lights.
+        if !is_indoor {
+            let mut toggled = std::collections::HashSet::new();
+            for mat_handle in model_query.iter() {
+                if toggled.insert(mat_handle.id())
+                    && let Some(mat) = std_materials.get_mut(mat_handle.id())
+                {
+                    mat.unlit = unlit;
+                    if unlit {
+                        mat.base_color = Color::srgb(0.69, 0.69, 0.69);
+                    } else {
+                        mat.base_color = Color::srgb(1.4, 1.4, 1.4);
+                    }
                 }
             }
-        }
 
-        for (_, mat) in terrain_materials.iter_mut() {
-            mat.base.unlit = unlit;
-            if unlit {
-                mat.base.base_color = Color::srgb(0.69, 0.69, 0.69);
-            } else {
-                mat.base.base_color = Color::srgb(1.2, 1.2, 1.2);
+            for (_, mat) in terrain_materials.iter_mut() {
+                mat.base.unlit = unlit;
+                if unlit {
+                    mat.base.base_color = Color::srgb(0.69, 0.69, 0.69);
+                } else {
+                    mat.base.base_color = Color::srgb(1.2, 1.2, 1.2);
+                }
             }
         }
 
@@ -172,14 +183,43 @@ fn animate_day_cycle(
     for (mut transform, mut light) in sun_query.iter_mut() {
         *transform = new_transform;
         light.color = color;
-        light.illuminance = if cfg.lighting == "enhanced" {
+        // Disable the directional sun indoors — dungeon lighting comes entirely
+        // from the party torch (PointLight) and decoration lights.
+        light.illuminance = if is_indoor {
+            0.0
+        } else if cfg.lighting == "enhanced" {
             illuminance * 1.06
         } else {
             0.0
         };
     }
 
-    if cfg.lighting == "enhanced" {
+    if is_indoor {
+        // Set ambient based on the sector the player is currently in.
+        // min_ambient_light (0–255) is the original MM6 floor for that room.
+        // Scale: 0 → 0 lux, 255 → ~200 lux. Typical dark dungeon rooms have ~19,
+        // giving ~15 lux — just enough to prevent absolute black in far corners.
+        let indoor_data = indoor.as_ref().unwrap();
+        let ambient_brightness = if let Ok(player_tf) = player_query.single() {
+            let pos = player_tf.translation;
+            let sector = indoor_data
+                .sector_ambients
+                .iter()
+                .find(|s| {
+                    pos.x >= s.bbox_min.x && pos.x <= s.bbox_max.x
+                        && pos.y >= s.bbox_min.y && pos.y <= s.bbox_max.y
+                        && pos.z >= s.bbox_min.z && pos.z <= s.bbox_max.z
+                })
+                .or_else(|| indoor_data.sector_ambients.first());
+            sector.map_or(0.0, |s| s.min_ambient as f32 * 0.8)
+        } else {
+            0.0
+        };
+        for mut ambient in ambient_query.iter_mut() {
+            ambient.color = Color::srgb(0.85, 0.80, 0.70); // warm stone
+            ambient.brightness = ambient_brightness;
+        }
+    } else if cfg.lighting == "enhanced" {
         let (ambient_color, ambient_brightness) = ambient_from_time(tod);
         for mut ambient in ambient_query.iter_mut() {
             ambient.color = ambient_color;
@@ -193,9 +233,15 @@ fn animate_day_cycle(
     }
 
     // ── Sprite tint ───────────────────────────────────────────────────────────
-    // Sprites are always unlit to avoid directional-light flicker. Apply a
-    // base_color tint derived from time of day so they darken at night.
-    let tint = sprite_tint_from_time(tod);
+    // Sprites are unlit to avoid directional-light flicker.
+    // Outdoors: tint follows time of day. Indoors: fixed dim torch-warm tint so
+    // sprites look naturally lit by the surrounding dungeon ambiance.
+    let tint = if is_indoor {
+        // Mid-dim warm tint — sprites appear somewhat lit even without nearby lights.
+        Color::srgb(0.35, 0.30, 0.22)
+    } else {
+        sprite_tint_from_time(tod)
+    };
     let mut tinted = std::collections::HashSet::new();
     for mat_handle in billboard_query.iter().chain(actor_query.iter()) {
         if tinted.insert(mat_handle.id())

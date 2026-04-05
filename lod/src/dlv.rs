@@ -409,6 +409,20 @@ mod tests {
     use crate::test_lod;
 
     #[test]
+    fn scan_all_dlv_actors() {
+        let Some(lod_manager) = test_lod() else { return };
+        for name in ["d01","d02","d03","d04","d05","cd1","cd2","cd3"] {
+            let blv_name = format!("{}.blv", name);
+            let Ok(blv) = Blv::new(&lod_manager, &blv_name) else { continue };
+            let Ok(dlv) = Dlv::new(&lod_manager, &blv_name, blv.door_count, blv.doors_data_size) else { continue };
+            let monsters: Vec<_> = dlv.actors.iter().filter(|a| a.npc_id == 0).collect();
+            let npcs: Vec<_> = dlv.actors.iter().filter(|a| a.npc_id != 0).collect();
+            println!("{}: {} actors ({} monsters, {} npcs)", name, dlv.actors.len(), monsters.len(), npcs.len());
+            for a in &monsters { println!("  monster: '{}' monlist_id={} pos={:?}", a.name, a.common_props.monlist_id, a.position); }
+        }
+    }
+
+    #[test]
     fn parse_d01_dlv_with_doors() {
         let Some(lod_manager) = test_lod() else {
             return;

@@ -129,6 +129,19 @@ impl BillboardManager {
         self.d_declist.items.get(id as usize)
     }
 
+    /// Find a declist item by case-insensitive name match.
+    /// Returns (index, item) so callers can use the index as declist_id.
+    /// Used for BLV decorations whose `decoration_desc_id` is always 0 in pristine files;
+    /// the name field (e.g. "Torch01") is the only reliable key.
+    pub fn get_declist_item_by_name(&self, name: &str) -> Option<(u16, &DDecListItem)> {
+        let lower = name.to_lowercase();
+        self.d_declist.items.iter().enumerate().find_map(|(i, item)| {
+            item.name()
+                .filter(|n| n.to_lowercase() == lower)
+                .map(|_| (i as u16, item))
+        })
+    }
+
     /// Get the DSFT scale factor for a decoration item (fixed-point 16.16 → f32).
     /// Returns None if scale is 0 or the SFT frame is not found.
     pub fn get_dsft_scale(&self, item: &DDecListItem) -> Option<f32> {

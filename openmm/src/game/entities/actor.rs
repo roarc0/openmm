@@ -33,4 +33,15 @@ pub struct Actor {
     pub ddm_id: i32,
     /// Faction group ID from DDM (0 = none). Used by ToggleActorGroupFlag / ChangeGroup.
     pub group_id: i32,
+    /// Aggro detection radius in world units. 0 = passive (won't aggro).
+    pub aggro_range: f32,
+    /// Attack recovery in seconds. Minimum time between attacks.
+    pub recovery_secs: f32,
+    /// Half the sprite quad height in world units. Used to snap Y to terrain surface.
+    pub sprite_half_height: f32,
+    /// Whether this monster can fly. Flying actors are not terrain-snapped during movement.
+    pub can_fly: bool,
+    /// AI behaviour type from monsters.txt: "Normal", "Aggress", "Wimp", "Suicidal".
+    /// Controls aggro probability and flee behaviour.
+    pub ai_type: String,
 }

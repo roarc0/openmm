@@ -46,6 +46,14 @@ pub struct Monster {
     pub to_hit_radius: u16,
     /// Max HP from monsters.txt (initialized at spawn, variant-specific).
     pub hp: i16,
+    /// Whether this monster can fly (from monsters.txt can_fly column).
+    pub can_fly: bool,
+    /// AI behaviour type: "Normal", "Aggress", "Wimp", "Suicidal" (from monsters.txt ai_type).
+    pub ai_type: String,
+    /// Aggro detection radius in MM6 world units (derived from hostile_type in monsters.txt).
+    pub aggro_range: f32,
+    /// Attack recovery in seconds (derived from recovery ticks in monsters.txt).
+    pub recovery_secs: f32,
 }
 
 /// Per-map resolved monster spawn roster. Created once per map load via `Monsters::new()`.
@@ -135,9 +143,21 @@ impl Monsters {
                 let wa_root = resolve_sprite_group(wa_group, &game_data.dsft, lod)
                     .map(|(n, _)| n)
                     .unwrap_or_else(|| st_root.clone());
-                let at_root = at_group.to_lowercase();
-                let dying_root = desc.sprite_names[5].to_lowercase();
-                let hp = game_data.monsters.max_hp(mon_name, variant).unwrap_or(1);
+                // sprite_names[2] and [5] are DSFT group names, not sprite file roots.
+                // Must resolve through DSFT to get the actual LOD file root.
+                let at_root = resolve_sprite_group(at_group, &game_data.dsft, lod)
+                    .map(|(n, _)| n)
+                    .unwrap_or_else(|| at_group.to_lowercase());
+                let dy_group = &desc.sprite_names[5];
+                let dying_root = resolve_sprite_group(dy_group, &game_data.dsft, lod)
+                    .map(|(n, _)| n)
+                    .unwrap_or_else(|| dy_group.to_lowercase());
+                let stats = game_data.monsters.get(mon_name, variant);
+                let hp = stats.map(|s| s.hp).unwrap_or(1);
+                let aggro_range = stats.map(|s| s.aggro_range()).unwrap_or(2560.0);
+                let recovery_secs = stats.map(|s| s.recovery_secs()).unwrap_or(2.0);
+                let can_fly = stats.map(|s| s.can_fly).unwrap_or(false);
+                let ai_type = stats.map(|s| s.ai_type.clone()).unwrap_or_default();
 
                 entries.push(Monster {
                     name: display_name.to_string(),
@@ -158,6 +178,10 @@ impl Monsters {
                     sound_ids: desc.sound_ids,
                     to_hit_radius: desc.to_hit_radius,
                     hp,
+                    can_fly,
+                    ai_type,
+                    aggro_range,
+                    recovery_secs,
                 });
             }
         }
@@ -199,6 +223,14 @@ pub struct MonsterEntry {
     /// Melee attack reach in MM6 world units (from dmonlist.bin).
     pub to_hit_radius: u16,
     pub sound_ids: [u16; 4],
+    /// Whether this monster can fly (from monsters.txt can_fly column).
+    pub can_fly: bool,
+    /// AI behaviour type: "Normal", "Aggress", "Wimp", "Suicidal" (from monsters.txt ai_type column).
+    pub ai_type: String,
+    /// Aggro detection radius in MM6 world units (derived from hostile_type in monsters.txt).
+    pub aggro_range: f32,
+    /// Attack recovery in seconds (derived from recovery ticks in monsters.txt).
+    pub recovery_secs: f32,
 }
 
 /// Derive A/B/C variant (1/2/3) from a dmonlist internal_name suffix.
@@ -238,6 +270,12 @@ pub fn resolve_sprite_group(group_name: &str, dsft: &crate::dsft::DSFT, lod: &Lo
                 if lod.try_get_bytes(&test).is_ok() {
                     return Some((root.to_lowercase(), frame.palette_id));
                 }
+                // Single-frame sprite: the DSFT sprite_name IS the file name with no
+                // frame/direction suffix (e.g. "arc1diq"). Test it directly.
+                let test_root = format!("sprites/{}", root.to_lowercase());
+                if lod.try_get_bytes(&test_root).is_ok() {
+                    return Some((root.to_lowercase(), frame.palette_id));
+                }
             }
             break;
         }
@@ -269,8 +307,23 @@ pub fn resolve_entry(monlist_id: u8, game_data: &GameData, lod: &LodManager) -> 
     let walking_sprite = resolve_sprite_group(wa_group, &game_data.dsft, lod)
         .map(|(n, _)| n)
         .unwrap_or_else(|| standing_sprite.clone());
-    let attacking_sprite = at_group.to_lowercase();
-    let dying_sprite = desc.sprite_names[5].to_lowercase();
+    // sprite_names[2] and [5] are DSFT group names, not sprite file roots.
+    let at_group = &desc.sprite_names[2];
+    let dy_group = &desc.sprite_names[5];
+    let attacking_sprite = resolve_sprite_group(at_group, &game_data.dsft, lod)
+        .map(|(n, _)| n)
+        .unwrap_or_else(|| at_group.to_lowercase());
+    let dying_sprite = resolve_sprite_group(dy_group, &game_data.dsft, lod)
+        .map(|(n, _)| n)
+        .unwrap_or_else(|| dy_group.to_lowercase());
+    // Look up per-variant stats from monsters.txt for behavior parameters.
+    let prefix = desc.internal_name.trim_end_matches(|c: char| c.is_ascii_uppercase());
+    let v = variant_from_internal_name(&desc.internal_name);
+    let stats = game_data.monsters.get(prefix, v);
+    let aggro_range = stats.map(|s| s.aggro_range()).unwrap_or(2560.0);
+    let recovery_secs = stats.map(|s| s.recovery_secs()).unwrap_or(2.0);
+    let can_fly = stats.map(|s| s.can_fly).unwrap_or(false);
+    let ai_type = stats.map(|s| s.ai_type.clone()).unwrap_or_default();
     Some(MonsterEntry {
         standing_sprite,
         walking_sprite,
@@ -283,6 +336,10 @@ pub fn resolve_entry(monlist_id: u8, game_data: &GameData, lod: &LodManager) -> 
         is_female: game_data.monlist.is_female_peasant(monlist_id),
         to_hit_radius: desc.to_hit_radius,
         sound_ids: desc.sound_ids,
+        can_fly,
+        ai_type,
+        aggro_range,
+        recovery_secs,
     })
 }
 

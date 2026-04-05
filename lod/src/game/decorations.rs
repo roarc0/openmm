@@ -3,6 +3,7 @@ use std::error::Error;
 use crate::{
     LodManager,
     billboard::{Billboard, BillboardManager},
+    blv::BlvDecoration,
 };
 
 /// A single resolved decoration (billboard/spawn point) from an outdoor map.
@@ -155,6 +156,91 @@ impl Decorations {
                 dec_type: declist_item.dec_type,
                 event_variable: bb.data.event_variable,
                 trigger_radius: bb.data.trigger_radius,
+                no_block_movement: declist_item.is_no_block_movement(),
+                emit_fire: declist_item.is_emit_fire(),
+                sound_on_dawn: declist_item.is_sound_on_dawn(),
+                sound_on_dusk: declist_item.is_sound_on_dusk(),
+                emit_smoke: declist_item.is_emit_smoke(),
+            });
+        }
+
+        Ok(Decorations { entries })
+    }
+
+    /// Build a decoration roster from a BLV indoor map's decoration list.
+    ///
+    /// BLV decorations use a string name (e.g. "Torch01") rather than a reliable
+    /// declist_id (pristine files always store 0). We resolve via name-based lookup.
+    /// Markers ("Party Start"), invisible, and no-draw entries are filtered out.
+    pub fn from_blv(lod: &LodManager, blv_decorations: &[BlvDecoration]) -> Result<Self, Box<dyn Error>> {
+        let mgr = BillboardManager::new(lod)?;
+        let mut entries = Vec::new();
+
+        for (billboard_index, dec) in blv_decorations.iter().enumerate() {
+            let name_lower = dec.name.to_lowercase();
+            // Skip spawn markers and empty names
+            if name_lower.is_empty() || name_lower.contains("party start") || name_lower.contains("partystart") {
+                continue;
+            }
+
+            let Some((declist_id, declist_item)) = mgr.get_declist_item_by_name(&dec.name) else {
+                log::warn!(
+                    "blv decoration idx={} name='{}': not found in ddeclist — skipping",
+                    billboard_index, dec.name
+                );
+                continue;
+            };
+
+            if declist_item.is_marker() || declist_item.is_no_draw() {
+                continue;
+            }
+
+            let sound_id = declist_item.sound_id;
+            let event_id = dec.event;
+            // BLV direction_degrees → radians (same 2048-unit circle as ODM)
+            let facing_yaw = dec.direction_degrees as f32 * std::f32::consts::PI / 1024.0;
+
+            let flicker_rate = if declist_item.is_flicker_fast() {
+                4.0_f32
+            } else if declist_item.is_flicker_medium() {
+                2.0_f32
+            } else if declist_item.is_flicker_slow() {
+                1.0_f32
+            } else {
+                0.0_f32
+            };
+            let frame_duration = if declist_item.is_slow_loop() { 0.30_f32 } else { 0.15_f32 };
+
+            let (sprite_name, is_directional, width, height) = if let Some(root) = find_directional_root(&dec.name, lod) {
+                (root, true, 0.0, 0.0)
+            } else {
+                let (w, h) = mgr
+                    .get(lod, &dec.name, declist_id)
+                    .map(|sprite| sprite.dimensions())
+                    .unwrap_or((1.0, 1.0));
+                (dec.name.to_lowercase(), false, w, h)
+            };
+
+            let num_frames = if is_directional { 1 } else { mgr.animation_frame_count(declist_id) };
+
+            entries.push(DecorationEntry {
+                position: dec.position,
+                sprite_name,
+                is_directional,
+                width,
+                height,
+                sound_id,
+                event_id,
+                billboard_index,
+                facing_yaw,
+                declist_id,
+                num_frames,
+                frame_duration,
+                flicker_rate,
+                light_radius: declist_item.light_radius,
+                dec_type: declist_item.dec_type,
+                event_variable: dec.event_variable,
+                trigger_radius: dec.trigger_radius,
                 no_block_movement: declist_item.is_no_block_movement(),
                 emit_fire: declist_item.is_emit_fire(),
                 sound_on_dawn: declist_item.is_sound_on_dawn(),

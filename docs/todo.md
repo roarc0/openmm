@@ -2,6 +2,7 @@
 
 Ordered roughly by impact and readiness.
 
+- **Monster aggro range verification** — All 173 MM6 monsters have `hostile_type=4` in `monsters.txt` col 12. `hostile_type_to_aggro_range()` maps 0-3 explicitly and catches 4 with `_ => 6656.0`, so every hostile monster gets 6656 world units range. Unclear if 6656 is the correct value for type 4 or if the mapping is wrong. Cross-check against MMExtension docs or original engine behaviour; the value may be too large or just right. Only 9 monsters have `hostile_type=0` (passive).
 - **HUD GameTime integration** — `GameTime` is not wired to the HUD. Two things missing: (1) tap frame switching — `TapFrames` resource holds 4 images (tap1=morning, tap2=day, tap3=evening, tap4=night) but `update_minimap` never swaps them based on `time_of_day()`; (2) date/time text display — no text node exists on the right sidebar for the formatted date/time string (`format_datetime()`). The tap frame switch is trivial; the text needs MM6 reference coordinates verified against the sidebar.
 - **Texture animation (TFT)** — `tft.rs` parses the tile frame table but animated tile cycling is not yet implemented in the terrain shader; some water and lava tiles should cycle frames.
 - **NPC dialogue text rendering** — `SpeakInHouse` events open a `HudView::NpcDialogue` placeholder; actual text rendering (font from LOD, scrolling lines) is not yet wired up.

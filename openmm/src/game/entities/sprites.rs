@@ -384,6 +384,28 @@ fn decode_sprite_frames(
     let mut max_w = min_w;
     let mut max_h = min_h;
 
+    // Some dying sprites are stored as a single image with no frame/direction
+    // suffix (e.g. "arc1diq" — the DSFT sprite_name IS the file name). Detect
+    // this by attempting to load the root itself before the frame-letter loop.
+    let single_frame_root = if lod_manager.game().sprite(root).is_some()
+        && lod_manager.game().sprite(&format!("{}a0", root)).is_none()
+        && lod_manager.game().sprite(&format!("{}a", root)).is_none()
+    {
+        true
+    } else {
+        false
+    };
+
+    if single_frame_root {
+        // Load the single image for all 5 directional slots.
+        let img = lod_manager.game().sprite(root);
+        if let Some(ref i) = img {
+            max_w = max_w.max(i.width());
+            max_h = max_h.max(i.height());
+        }
+        raw_sprites.push(vec![img, None, None, None, None]);
+    } else {
+
     for frame_char in b'a'..=b'f' {
         let frame_letter = frame_char as char;
         let test0 = format!("{}{}0", root, frame_letter);
@@ -428,6 +450,7 @@ fn decode_sprite_frames(
         }
         raw_sprites.push(dir_imgs);
     }
+    } // end else (multi-frame sprites)
 
     if raw_sprites.is_empty() || max_w == 0 {
         return (Vec::new(), Vec::new(), 0.0, 0.0);

@@ -14,6 +14,10 @@ use crate::game::player::{Player, PlayerCamera};
 use crate::game::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 use crate::game::world_state::WorldState;
 
+/// Max ray distance for all outdoor interaction (billboards, decorations, BSP faces).
+/// One tile = 512 units — arm's reach, consistent with MM6 feel.
+const MAX_INTERACT_RANGE: f32 = 512.0;
+
 // --- Components & Resources ---
 
 /// Component on billboard/decoration entities that have EVT events.
@@ -212,11 +216,11 @@ fn world_interact_system(
     }
     let mut nearest: Option<(f32, Hit)> = None;
 
-    // BSP faces (buildings, doors) — not occluded by terrain walls.
+    // BSP faces (outdoor buildings) — capped to arm's reach like all other interactables.
     if let Some(faces) = clickable_faces.as_ref() {
         for face in &faces.faces {
             if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist) {
-                if t > crate::game::blv::INDOOR_INTERACT_RANGE {
+                if t > MAX_INTERACT_RANGE {
                     continue;
                 }
                 let hit = origin + dir * t;
@@ -248,6 +252,7 @@ fn world_interact_system(
             half_h,
             mask,
         ) && t < occluder_t
+            && t < MAX_INTERACT_RANGE
             && nearest.as_ref().is_none_or(|n| t < n.0)
         {
             nearest = Some((t, Hit::Decoration(info.event_id, info.billboard_index)));
@@ -267,6 +272,7 @@ fn world_interact_system(
             sh / 2.0,
             sheet.current_mask.as_deref(),
         ) && t < occluder_t
+            && t < MAX_INTERACT_RANGE
             && nearest.as_ref().is_none_or(|n| t < n.0)
         {
             nearest = Some((t, Hit::Npc(info.npc_id)));
@@ -286,6 +292,7 @@ fn world_interact_system(
             sh / 2.0,
             sheet.current_mask.as_deref(),
         ) && t < occluder_t
+            && t < MAX_INTERACT_RANGE
             && nearest.as_ref().is_none_or(|n| t < n.0)
         {
             nearest = Some((t, Hit::Monster(entity)));
@@ -396,12 +403,11 @@ fn hover_hint_system(
 
     let mut nearest: Option<(f32, String)> = None;
 
-    // BSP faces (outdoor and indoor) via ClickableFaces — these are part of buildings so
-    // they are always in front of the occluder boundary; no occlusion check needed here.
+    // BSP faces (outdoor buildings) — capped to same arm's reach as billboards.
     if let Some(faces) = clickable_faces.as_ref() {
         for face in &faces.faces {
             if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist) {
-                if t > crate::game::blv::INDOOR_INTERACT_RANGE {
+                if t > MAX_INTERACT_RANGE {
                     continue;
                 }
                 let hit = origin + dir * t;
@@ -437,6 +443,7 @@ fn hover_hint_system(
             half_h,
             mask,
         ) && t < occluder_t
+            && t < MAX_INTERACT_RANGE
             && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
             && let Some(name) = resolve_event_name(info.event_id, &map_events)
         {
@@ -444,7 +451,7 @@ fn hover_hint_system(
         }
     }
 
-    // NPCs — skip if behind a solid wall.
+    // NPCs — skip if behind a solid wall or out of range.
     for (info, g_tf, sheet) in npcs.iter() {
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
@@ -458,13 +465,14 @@ fn hover_hint_system(
             sh / 2.0,
             sheet.current_mask.as_deref(),
         ) && t < occluder_t
+            && t < MAX_INTERACT_RANGE
             && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
         {
             nearest = Some((t, info.name.clone()));
         }
     }
 
-    // Monsters — skip if behind a solid wall.
+    // Monsters — skip if behind a solid wall or out of range.
     for (info, g_tf, sheet) in monsters.iter() {
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
@@ -478,6 +486,7 @@ fn hover_hint_system(
             sh / 2.0,
             sheet.current_mask.as_deref(),
         ) && t < occluder_t
+            && t < MAX_INTERACT_RANGE
             && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
         {
             nearest = Some((t, info.name.clone()));
