@@ -99,7 +99,10 @@ impl SmkDecoder {
     /// Returns an empty vec if no audio track is active or the chunk is empty.
     pub fn decode_current_audio(&self) -> Vec<u8> {
         let Some(info) = self.audio else { return Vec::new() };
-        self.inner.audio_data(info.track).map(|d| d.to_vec()).unwrap_or_default()
+        self.inner
+            .audio_data(info.track)
+            .map(|d| d.to_vec())
+            .unwrap_or_default()
     }
 
     fn decode_current_frame(&self) -> Vec<u8> {

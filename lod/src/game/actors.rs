@@ -141,7 +141,7 @@ impl Actors {
                 raw.hp
             } else {
                 let prefix = entry.internal_name.trim_end_matches(|c: char| c.is_ascii_uppercase());
-                game_data.monsters_txt.max_hp(prefix, entry.variant).unwrap_or(1)
+                game_data.monsters.max_hp(prefix, entry.variant).unwrap_or(1)
             };
 
             actors.push(Actor {
@@ -235,7 +235,7 @@ impl Actors {
                 raw.hp
             } else {
                 let prefix = entry.internal_name.trim_end_matches(|c: char| c.is_ascii_uppercase());
-                game_data.monsters_txt.max_hp(prefix, entry.variant).unwrap_or(1)
+                game_data.monsters.max_hp(prefix, entry.variant).unwrap_or(1)
             };
 
             actors.push(Actor {

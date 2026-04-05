@@ -687,7 +687,7 @@ fn process_events(
             } => {
                 info!("SetNPCTopic: npc={} topic={} event={}", npc_id, topic_index, event_id);
                 // Store event override keyed by npc_id; topic_index is ignored (MM6 has one active topic).
-                world_state.game_vars.npc_topics.insert((*npc_id), (*event_id));
+                world_state.game_vars.npc_topics.insert(*npc_id, *event_id);
             }
             GameEvent::MoveNPC { npc_id, map_id } => {
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
