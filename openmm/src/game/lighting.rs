@@ -134,6 +134,12 @@ fn animate_day_cycle(
     // Actor sprites (NPCs/monsters) — SpriteSheet, no Billboard marker.
     // Exclude SelfLit: animated fire decorations also have SpriteSheet but must stay full-bright.
     actor_query: Query<&MeshMaterial3d<StandardMaterial>, (With<crate::game::entities::sprites::SpriteSheet>, Without<SelfLit>)>,
+    // SelfLit sprites (campfires, torches, braziers): get a very subtle tint so they don't
+    // feel disconnected from the scene, but remain mostly full-bright as light sources.
+    selflit_query: Query<
+        &MeshMaterial3d<StandardMaterial>,
+        (With<SelfLit>, Or<(With<Billboard>, With<crate::game::entities::sprites::SpriteSheet>)>),
+    >,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
     player_query: Query<&Transform, With<Player>>,
@@ -249,6 +255,23 @@ fn animate_day_cycle(
             && let Some(mat) = std_materials.get_mut(mat_handle.id())
         {
             mat.base_color = tint;
+        }
+    }
+
+    // SelfLit sprites (campfires, torches) blend a small fraction of the ambient tint
+    // so they feel grounded in the scene rather than floating at pure full-bright.
+    const SELFLIT_TINT_BLEND: f32 = 0.12;
+    let t = tint.to_srgba();
+    let selflit_tint = Color::srgb(
+        1.0 - (1.0 - t.red)   * SELFLIT_TINT_BLEND,
+        1.0 - (1.0 - t.green) * SELFLIT_TINT_BLEND,
+        1.0 - (1.0 - t.blue)  * SELFLIT_TINT_BLEND,
+    );
+    for mat_handle in selflit_query.iter() {
+        if tinted.insert(mat_handle.id())
+            && let Some(mat) = std_materials.get_mut(mat_handle.id())
+        {
+            mat.base_color = selflit_tint;
         }
     }
 }

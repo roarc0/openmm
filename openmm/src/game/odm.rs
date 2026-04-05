@@ -672,10 +672,7 @@ fn lazy_spawn(
             } else {
                 let f = &frame_sprites[0];
                 if f.d_sft_frame.is_luminous() && f.d_sft_frame.light_radius > 0 {
-                    // DSFT light_radius (64-256) is calibrated for MM6's linear renderer.
-                    // Scale × 8 so campfires (lr=256 → 2048) fill a dungeon room in Bevy PBR;
-                    // inverse-square falloff needs a much larger nominal radius.
-                    (f.d_sft_frame.light_radius as u16).saturating_mul(8)
+                    (f.d_sft_frame.light_radius as u16).saturating_mul(DSFT_ANIMATED_LR_SCALE)
                 } else {
                     0
                 }
@@ -764,7 +761,7 @@ fn lazy_spawn(
                 dec.light_radius
             } else {
                 let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
-                dsft_lr.saturating_mul(8)
+                dsft_lr.saturating_mul(DSFT_STATIC_LR_SCALE)
             };
             if effective_static_lr > 0 {
                 let light_id = commands.spawn(decoration_point_light(effective_static_lr)).id();
@@ -1097,6 +1094,16 @@ fn lazy_spawn(
     }
 }
 
+/// Pre-scale applied to DSFT light_radius before `decoration_point_light` for animated
+/// decorations (campfires, braziers). MM6 used a linear renderer; PBR inverse-square falloff
+/// needs a much larger nominal radius to match the original visual reach.
+/// campfireon: lr=256 × 16 = 4096 → range=40960, intensity=3.36B.
+pub(crate) const DSFT_ANIMATED_LR_SCALE: u16 = 16;
+
+/// Pre-scale for static DSFT decorations (crystals, chandeliers, sconces).
+/// Smaller than animated because static lights are typically in well-lit areas.
+pub(crate) const DSFT_STATIC_LR_SCALE: u16 = 8;
+
 /// Build a `PointLight` for a decoration with the given MM6 light radius.
 ///
 /// MM6 `light_radius` values (256–512) were calibrated for the original software renderer
@@ -1105,7 +1112,7 @@ fn lazy_spawn(
 /// - `intensity = light_radius² * 200`    — controls brightness; tied to the original radius,
 ///   NOT the scaled range, so doubling the range doesn't quadruple brightness.
 ///
-/// RANGE_SCALE=10: torch (lr=512) → range=5120, campfire (DSFT lr=256×8=2048) → range=20480.
+/// RANGE_SCALE=10: torch (lr=512) → range=5120, campfire (DSFT lr=256×16=4096) → range=40960.
 /// Adjust RANGE_SCALE to taste; increasing it makes lights cover more area without washing
 /// out surfaces close to the source.
 pub(crate) fn decoration_point_light(light_radius: u16) -> impl Bundle {

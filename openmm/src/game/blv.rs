@@ -541,14 +541,10 @@ fn spawn_indoor_world(
             // Luminous animated decorations (campfires, braziers) carry their point-light
             // radius in the DSFT frame, not in the ddeclist.light_radius field.
             // Campfireon: DSFT light_radius=256, is_luminous=true.
-            // DSFT values (64-256) are calibrated for MM6's linear software renderer.
-            // Scale × 8 so campfires (lr=256 → 2048) fill a dungeon room in Bevy PBR;
-            // the inverse-square falloff requires a much larger nominal radius to match
-            // the original engine's reach.
             let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
             if dsft_lr > 0 {
                 commands.spawn((
-                    crate::game::odm::decoration_point_light(dsft_lr.saturating_mul(8)),
+                    crate::game::odm::decoration_point_light(dsft_lr.saturating_mul(crate::game::odm::DSFT_ANIMATED_LR_SCALE)),
                     Transform::from_translation(sprite_center),
                     InGame,
                 ));
@@ -611,7 +607,7 @@ fn spawn_indoor_world(
             drop(ent);
             if dsft_lr > 0 {
                 commands.spawn((
-                    crate::game::odm::decoration_point_light(dsft_lr.saturating_mul(8)),
+                    crate::game::odm::decoration_point_light(dsft_lr.saturating_mul(crate::game::odm::DSFT_STATIC_LR_SCALE)),
                     Transform::from_translation(sprite_center),
                     InGame,
                 ));
@@ -635,10 +631,12 @@ fn spawn_indoor_world(
     // Range and intensity are decoupled: range scales linearly so small lights don't get
     // a range boost from a high-intensity formula.
     // brightness=64 → range~960 (small torch); brightness=640 → range~9600 (campfire room-fill).
+    const BLV_LIGHT_RANGE_SCALE: f32 = 15.0;
+    const BLV_LIGHT_INTENSITY_SCALE: f32 = 300.0;
     for &(pos, brightness) in &prepared.blv_lights {
         let b = brightness as f32;
-        let range = b * 15.0;
-        let intensity = b * b * 300.0;
+        let range = b * BLV_LIGHT_RANGE_SCALE;
+        let intensity = b * b * BLV_LIGHT_INTENSITY_SCALE;
         commands.spawn((
             PointLight {
                 color: Color::srgb(1.0, 0.76, 0.38),
