@@ -84,7 +84,10 @@ pub struct SmkDecoder {
 }
 
 // Safety: SmkDecoder owns its data and handle exclusively; never shared across threads.
+// Sync is safe because the Bevy resource system only provides exclusive access via ResMut,
+// and SmkDecoder is never accessed concurrently from multiple threads.
 unsafe impl Send for SmkDecoder {}
+unsafe impl Sync for SmkDecoder {}
 
 impl SmkDecoder {
     /// Create a decoder from raw SMK bytes (e.g. from `Vid::smk_bytes(...).to_vec()`).
