@@ -223,9 +223,6 @@ fn spawn_indoor_world(
 ) {
     let Some(prepared) = prepared else { return };
 
-    // Load EVT events for this indoor map
-    crate::game::events::load_map_events(&mut commands, &game_assets, &prepared.map_base, true);
-
     // Spawn all static face meshes (grouped by texture)
     let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
     for model in &prepared.models {

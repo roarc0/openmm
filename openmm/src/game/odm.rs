@@ -239,23 +239,14 @@ fn spawn_world(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
     mut prepared: Option<ResMut<PreparedWorld>>,
-    game_assets: Res<GameAssets>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
-    world_state: Res<crate::game::world_state::WorldState>,
     mut music_events: bevy::ecs::message::MessageWriter<crate::game::sound::music::PlayMusicEvent>,
 ) {
     let Some(prepared) = prepared.as_mut() else {
         // No outdoor PreparedWorld — this is an indoor map, skip outdoor spawning
         return;
     };
-
-    // Load event data for this outdoor map (use current_map, not save_data which may be stale)
-    let map_base = match &world_state.map.name {
-        crate::game::map_name::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
-        _ => return, // shouldn't happen — we checked PreparedWorld exists
-    };
-    crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, false);
 
     let mut terrain_texture = prepared.terrain_texture.clone();
     let terrain_mesh = prepared.terrain_mesh.clone();

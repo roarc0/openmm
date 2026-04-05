@@ -769,6 +769,7 @@ fn loading_step(
                     crate::game::map_name::MapName::Indoor(name) => name.clone(),
                     _ => load_request.map_name.to_string().replace(".blv", ""),
                 };
+                crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, true);
                 commands.insert_resource(PreparedIndoorWorld {
                     models,
                     start_points,
@@ -1084,6 +1085,11 @@ fn loading_step(
             if let (Some(map), Some(mesh), Some(texture), Some(models)) = (odm, terrain_mesh, terrain_texture, models) {
                 let water_cells = progress.water_cells.take().unwrap_or_default();
                 let water_texture = progress.water_texture.take();
+                let map_base = match &load_request.map_name {
+                    crate::game::map_name::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
+                    other => other.to_string(),
+                };
+                crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, false);
                 commands.insert_resource(PreparedWorld {
                     map,
                     terrain_mesh: mesh,
