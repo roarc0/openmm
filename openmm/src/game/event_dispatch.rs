@@ -73,6 +73,16 @@ impl EventQueue {
         });
     }
 
+    /// Enqueue steps from index `start` onward (used to skip lifecycle marker steps).
+    pub fn push_from(&mut self, event_id: u16, evt: &EvtFile, start: usize) {
+        if let Some(steps) = evt.events.get(&event_id) {
+            let tail: Vec<_> = steps[start.min(steps.len())..].to_vec();
+            if !tail.is_empty() {
+                self.sequences.push_back(EventSequence { steps: tail });
+            }
+        }
+    }
+
     /// Clear all pending sequences.
     pub fn clear(&mut self) {
         self.sequences.clear();
@@ -111,8 +121,16 @@ fn dispatch_on_map_reload(
         .collect();
     ids.sort();
     for id in ids {
-        info!("OnMapReload: dispatching event {}", id);
-        event_queue.push_all(id, evt);
+        if let Some(steps) = evt.events.get(&id) {
+            info!(
+                "OnMapReload: event {} ({} steps): {}",
+                id,
+                steps.len(),
+                steps.iter().map(|s| format!("[{}]{}", s.step, s.event)).collect::<Vec<_>>().join(" ")
+            );
+        }
+        // Skip step 0 (the OnMapReload marker itself) and run the rest.
+        event_queue.push_from(id, evt, 1);
     }
 }
 
@@ -410,6 +428,14 @@ fn process_events(
 
     let steps = &sequence.steps;
     let qb = game_assets.quest_bits();
+
+    // Log the full event sequence upfront so it's visible without tracing each step.
+    info!(
+        "▶ event ({} steps): {}",
+        steps.len(),
+        steps.iter().map(|s| format!("[{}]{}", s.step, qb.annotate(&s.event.to_string()))).collect::<Vec<_>>().join(" → ")
+    );
+
     let mut pc = 0usize; // program counter (index into steps vec)
     let mut iterations = 0u32;
     const MAX_ITERATIONS: u32 = 500;
