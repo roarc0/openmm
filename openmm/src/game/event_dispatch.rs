@@ -518,6 +518,12 @@ fn process_events(
                 direction,
                 map_name,
             } => {
+                // Reject placeholder/malformed names (e.g. "0" in some pristine EVT records).
+                // A valid map name must contain at least one letter.
+                if !map_name.chars().any(|c| c.is_ascii_alphabetic()) {
+                    warn!("MoveToMap: skipping malformed map name '{}'", map_name);
+                    return;
+                }
                 let Ok(target) = MapName::try_from(map_name.as_str()) else {
                     warn!("MoveToMap: invalid map name '{}'", map_name);
                     return;
