@@ -3876,6 +3876,7 @@ dependencies = [
  "hexdump",
  "image",
  "log",
+ "smk",
 ]
 
 [[package]]
@@ -5531,6 +5532,15 @@ dependencies = [
  "wayland-protocols-wlr",
  "wayland-scanner",
  "xkeysym",
+]
+
+[[package]]
+name = "smk"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "206125ea6519083d366404d5b1b7150d476e7c54db9171aa3aaf3f25ecec1349"
+dependencies = [
+ "log",
 ]
 
 [[package]]
