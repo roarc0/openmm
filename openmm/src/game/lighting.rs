@@ -218,7 +218,7 @@ fn animate_day_cycle(
                         && pos.z >= s.bbox_min.z && pos.z <= s.bbox_max.z
                 })
                 .or_else(|| indoor_data.sector_ambients.first());
-            sector.map_or(0.0, |s| s.min_ambient as f32 * 0.8)
+            sector.map_or(20.0, |s| s.min_ambient as f32 * 0.8 + 20.0)
         } else {
             0.0
         };
