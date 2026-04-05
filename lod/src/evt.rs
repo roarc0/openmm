@@ -175,7 +175,11 @@ pub enum GameEvent {
     PressAnyKey,
     /// Set texture on an outdoor BSP model face (MM6 opcode 0x0C).
     /// model = BSP model index, facet = face index within model, texture_name = new texture.
-    SetTextureOutdoors { model: u32, facet: u32, texture_name: String },
+    SetTextureOutdoors {
+        model: u32,
+        facet: u32,
+        texture_name: String,
+    },
     /// Check items count.
     CheckItemsCount { item_id: i32, count: i32, jump_step: u8 },
     /// Remove items from inventory.
@@ -397,8 +401,16 @@ impl std::fmt::Display for GameEvent {
                 write!(f, "CharacterAnimation(player={} anim={})", player, anim_id)
             }
             Self::PressAnyKey => write!(f, "PressAnyKey"),
-            Self::SetTextureOutdoors { model, facet, texture_name } => {
-                write!(f, "SetTextureOutdoors(model={} facet={} tex='{}')", model, facet, texture_name)
+            Self::SetTextureOutdoors {
+                model,
+                facet,
+                texture_name,
+            } => {
+                write!(
+                    f,
+                    "SetTextureOutdoors(model={} facet={} tex='{}')",
+                    model, facet, texture_name
+                )
             }
             Self::CheckItemsCount {
                 item_id,
@@ -930,7 +942,11 @@ impl EvtFile {
                         let model = u32_at(params, 0);
                         let facet = u32_at(params, 4);
                         let texture_name = read_string(&params[8..]);
-                        Some(GameEvent::SetTextureOutdoors { model, facet, texture_name })
+                        Some(GameEvent::SetTextureOutdoors {
+                            model,
+                            facet,
+                            texture_name,
+                        })
                     } else {
                         None
                     }

@@ -552,7 +552,11 @@ fn execute_command(
                 None => ctx_state.push_output("Usage: qbit <n> [true|false]".to_string()),
                 Some(n) => match value {
                     None => {
-                        let state = if ctx_world.game_vars.has_qbit(n) { "set" } else { "not set" };
+                        let state = if ctx_world.game_vars.has_qbit(n) {
+                            "set"
+                        } else {
+                            "not set"
+                        };
                         ctx_state.push_output(format!("QBit {}: {}", n, state));
                     }
                     Some("true" | "1" | "on") => {

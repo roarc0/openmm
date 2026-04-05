@@ -135,7 +135,11 @@ mod tests {
         let input = "Compare(QBit[302] set? skip step 8)";
         let out = names.annotate(input);
         assert!(out.contains("QBit[302:"), "expected QBit[302:...], got: {}", out);
-        assert!(out.contains("Sword") || out.contains("Stone"), "expected label in output, got: {}", out);
+        assert!(
+            out.contains("Sword") || out.contains("Stone"),
+            "expected label in output, got: {}",
+            out
+        );
     }
 
     #[test]

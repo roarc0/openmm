@@ -1,4 +1,4 @@
-use bevy::prelude::{App, AppExtStates, Commands, Component, Entity, Plugin, Query, States, With};
+use bevy::prelude::{App, AppExtStates, ClearColor, Color, Commands, Component, Entity, Plugin, Query, States, With};
 use bevy_config::BevyConfigPlugin;
 
 use assets::GameAssets;
@@ -45,7 +45,8 @@ impl Plugin for GamePlugin {
             GameState::Video
         };
 
-        app.insert_resource(cfg)
+        app.insert_resource(ClearColor(Color::BLACK))
+            .insert_resource(cfg)
             .insert_resource(game_assets)
             .insert_resource(game_fonts)
             .insert_resource(save_data)

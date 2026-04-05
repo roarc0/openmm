@@ -41,6 +41,7 @@ struct AudioParams<'w> {
 /// An event sequence — a list of steps from one event_id, executed as a script.
 #[derive(Clone)]
 struct EventSequence {
+    event_id: Option<u16>,
     steps: Vec<EvtStep>,
 }
 
@@ -57,7 +58,7 @@ impl EventQueue {
         if let Some(steps) = evt.events.get(&event_id)
             && !steps.is_empty()
         {
-            self.sequences.push_back(EventSequence { steps: steps.clone() });
+            self.sequences.push_back(EventSequence { event_id: Some(event_id), steps: steps.clone() });
         }
     }
 
@@ -69,6 +70,7 @@ impl EventQueue {
     /// Enqueue a single synthesized event (not from an EvtFile).
     pub fn push_single(&mut self, event: lod::evt::GameEvent) {
         self.sequences.push_back(EventSequence {
+            event_id: None,
             steps: vec![lod::evt::EvtStep { step: 0, event }],
         });
     }
@@ -78,7 +80,7 @@ impl EventQueue {
         if let Some(steps) = evt.events.get(&event_id) {
             let tail: Vec<_> = steps[start.min(steps.len())..].to_vec();
             if !tail.is_empty() {
-                self.sequences.push_back(EventSequence { steps: tail });
+                self.sequences.push_back(EventSequence { event_id: Some(event_id), steps: tail });
             }
         }
     }
@@ -99,38 +101,32 @@ impl Plugin for EventDispatchPlugin {
     }
 }
 
-/// On every map entry, dispatch all events whose first step is `OnMapReload`.
-/// These events check QBits and conditionally restore map state (e.g. texture swaps).
-/// This mirrors original MM6 behavior — OnMapReload events are designed to be re-run safely.
-fn dispatch_on_map_reload(
-    map_events: Option<Res<MapEvents>>,
-    mut event_queue: ResMut<EventQueue>,
-) {
+/// On every map entry, dispatch all events that contain an `OnMapReload` step.
+/// Executes from the step immediately after `OnMapReload` — the marker can appear anywhere
+/// in the script (not just as the first step), e.g. the apple tree event embeds its reload
+/// handler mid-script after the interactive click path.
+fn dispatch_on_map_reload(map_events: Option<Res<MapEvents>>, mut event_queue: ResMut<EventQueue>) {
     let Some(me) = map_events else { return };
     let Some(evt) = me.evt.as_ref() else { return };
+
     let mut ids: Vec<u16> = evt
         .events
         .iter()
-        .filter(|(_, steps)| {
-            steps
-                .first()
-                .map(|s| matches!(s.event, GameEvent::OnMapReload))
-                .unwrap_or(false)
-        })
+        .filter(|(_, steps)| steps.iter().any(|s| matches!(s.event, GameEvent::OnMapReload)))
         .map(|(id, _)| *id)
         .collect();
     ids.sort();
+
     for id in ids {
         if let Some(steps) = evt.events.get(&id) {
-            info!(
-                "OnMapReload: event {} ({} steps): {}",
-                id,
-                steps.len(),
-                steps.iter().map(|s| format!("[{}]{}", s.step, s.event)).collect::<Vec<_>>().join(" ")
-            );
+            let Some(reload_idx) = steps.iter().position(|s| matches!(s.event, GameEvent::OnMapReload)) else {
+                continue;
+            };
+            let remaining = steps.len() - reload_idx - 1;
+            info!("OnMapReload: event {} ({} steps after marker)", id, remaining);
+            // Skip the OnMapReload marker itself, run everything after it.
+            event_queue.push_from(id, evt, reload_idx + 1);
         }
-        // Skip step 0 (the OnMapReload marker itself) and run the rest.
-        event_queue.push_from(id, evt, 1);
     }
 }
 
@@ -427,6 +423,8 @@ fn process_events(
     };
 
     let steps = &sequence.steps;
+    let id_str = sequence.event_id.map(|id| format!(" event_id={}", id)).unwrap_or_default();
+    info!("── Event{} ({} steps) ──", id_str, steps.len());
     let qb = game_assets.quest_bits();
     let mut pc = 0usize; // program counter (index into steps vec)
     let mut iterations = 0u32;
@@ -618,7 +616,7 @@ fn process_events(
 
             // ── World operations (stubs with warns) ──────────────────
             GameEvent::SetSnow { on } => {
-                warn!("STUB SetSnow: on={} (no weather system yet)", on);
+                info!("SetSnow: on={} (no weather system)", on);
             }
             GameEvent::SetFacesBit { face_id, bit, on } => {
                 warn!("STUB SetFacesBit: face={} bit=0x{:x} on={}", face_id, bit, on);
@@ -744,7 +742,8 @@ fn process_events(
                 world_state.game_vars.npc_topics.insert(*npc_id, *event_id);
             }
             GameEvent::MoveNPC { npc_id, map_id } => {
-                warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
+                info!("MoveNPC: npc={} -> map={}", npc_id, map_id);
+                world_state.game_vars.npc_locations.insert(*npc_id, *map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
                 if let Some((portrait, profile)) =
@@ -762,23 +761,32 @@ fn process_events(
                 warn!("STUB ChangeEvent: target={} event={}", target, new_event_id);
             }
             GameEvent::SetNPCGreeting { npc_id, greeting_id } => {
-                warn!("STUB SetNPCGreeting: npc={} greeting={}", npc_id, greeting_id);
+                info!("SetNPCGreeting: npc={} greeting={}", npc_id, greeting_id);
+                world_state.game_vars.npc_greetings.insert(*npc_id, *greeting_id);
             }
             GameEvent::SetNPCGroupNews { npc_group, news_id } => {
-                warn!("STUB SetNPCGroupNews: group={} news={}", npc_group, news_id);
+                info!("SetNPCGroupNews: group={} news={}", npc_group, news_id);
+                world_state.game_vars.npc_group_news.insert(*npc_group, *news_id);
             }
             GameEvent::NPCSetItem { npc_id, item_id, on } => {
-                warn!("STUB NPCSetItem: npc={} item={} on={}", npc_id, item_id, on);
+                info!("NPCSetItem: npc={} item={} on={}", npc_id, item_id, on);
             }
 
             // ── Character / UI ───────────────────────────────────────
             GameEvent::ShowFace { player, expression } => {
-                warn!("STUB ShowFace: player={} expr={}", player, expression);
+                debug!("ShowFace: player={} expr={} (no portrait UI)", player, expression);
             }
             GameEvent::CharacterAnimation { player, anim_id } => {
-                warn!("STUB CharacterAnimation: player={} anim={}", player, anim_id);
+                debug!(
+                    "CharacterAnimation: player={} anim={} (no portrait UI)",
+                    player, anim_id
+                );
             }
-            GameEvent::SetTextureOutdoors { model, facet, texture_name } => {
+            GameEvent::SetTextureOutdoors {
+                model,
+                facet,
+                texture_name,
+            } => {
                 audio.texture_outdoors.write(ApplyTextureOutdoors {
                     model: *model,
                     facet: *facet,
@@ -786,10 +794,10 @@ fn process_events(
                 });
             }
             GameEvent::PressAnyKey => {
-                warn!("STUB PressAnyKey");
+                debug!("PressAnyKey (no input prompt, continuing)");
             }
             GameEvent::InputString { params } => {
-                warn!("STUB InputString: params={:02x?}", params);
+                debug!("InputString: params={:02x?} (no text input, continuing)", params);
             }
 
             // ── Timer / conditional hooks ────────────────────────────
@@ -801,7 +809,7 @@ fn process_events(
                 // These are lifecycle hooks, not dispatched via the queue
             }
             GameEvent::EnableDateTimer { timer_id, on } => {
-                warn!("STUB EnableDateTimer: timer={} on={}", timer_id, on);
+                info!("EnableDateTimer: timer={} on={} (no timer system)", timer_id, on);
             }
 
             // ── Dialogue conditions ──────────────────────────────────
@@ -922,28 +930,46 @@ fn process_events(
 
             // ── Actor / group operations ─────────────────────────────
             GameEvent::SetActorGroup { actor_id, group_id } => {
-                warn!("STUB SetActorGroup: actor={} group={}", actor_id, group_id);
+                info!("SetActorGroup: actor={} group={}", actor_id, group_id);
+                world_state.game_vars.actor_groups.insert(*actor_id, *group_id);
             }
             GameEvent::ChangeGroup { old_group, new_group } => {
-                warn!("STUB ChangeGroup: old={} new={}", old_group, new_group);
+                info!("ChangeGroup: {} -> {}", old_group, new_group);
+                // Remap all actors currently in old_group to new_group.
+                for g in world_state.game_vars.actor_groups.values_mut() {
+                    if *g == *old_group {
+                        *g = *new_group;
+                    }
+                }
             }
             GameEvent::ChangeGroupAlly { group_id, ally_group } => {
-                warn!("STUB ChangeGroupAlly: group={} ally={}", group_id, ally_group);
+                info!("ChangeGroupAlly: group={} ally={}", group_id, ally_group);
+                world_state.game_vars.actor_ally_groups.insert(*group_id, *ally_group);
             }
             GameEvent::ToggleActorGroupFlag { group_id, flag, on } => {
                 warn!(
-                    "STUB ToggleActorGroupFlag: group={} flag=0x{:x} on={}",
+                    "STUB ToggleActorGroupFlag: group={} flag=0x{:x} on={} (need actor entity lookup)",
                     group_id, flag, on
                 );
             }
             GameEvent::SetActorItem { actor_id, item_id, on } => {
-                warn!("STUB SetActorItem: actor={} item={} on={}", actor_id, item_id, on);
+                info!("SetActorItem: actor={} item={} on={}", actor_id, item_id, on);
             }
             GameEvent::StopAnimation { decoration_id } => {
-                warn!("STUB StopAnimation: deco={}", decoration_id);
+                info!("StopAnimation: deco={}", decoration_id);
+                world_state.game_vars.stopped_decorations.insert(*decoration_id);
             }
             GameEvent::ToggleChestFlag { chest_id, flag, on } => {
-                warn!("STUB ToggleChestFlag: chest={} flag=0x{:x} on={}", chest_id, flag, on);
+                let flags = world_state.game_vars.chest_flags.entry(*chest_id).or_insert(0);
+                if *on != 0 {
+                    *flags |= flag;
+                } else {
+                    *flags &= !flag;
+                }
+                info!(
+                    "ToggleChestFlag: chest={} flag=0x{:x} on={} (flags now 0x{:x})",
+                    chest_id, flag, on, flags
+                );
             }
             GameEvent::SpecialJump { jump_value } => {
                 let target_step = *jump_value as u8;

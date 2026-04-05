@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::config::GameConfig;
 use crate::game::InGame;
@@ -63,21 +63,22 @@ pub(super) fn spawn_crosshair(commands: &mut Commands, cfg: &GameConfig) {
 }
 
 pub(super) fn update_crosshair(
-    windows: Query<&Window, With<PrimaryWindow>>,
+    windows: Query<(&Window, &CursorOptions), With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
     ui_assets: Res<UiAssets>,
     mut query: Query<(&mut Node, &mut Visibility), With<Crosshair>>,
 ) {
-    let Ok(window) = windows.single() else { return };
+    let Ok((window, cursor)) = windows.single() else { return };
     let (vp_left, vp_top, vp_w, vp_h) = viewport_rect(window, &cfg, &ui_assets);
     let cx = vp_left + vp_w / 2.0;
     let cy = vp_top + vp_h / 2.0;
+    let cursor_free = matches!(cursor.grab_mode, CursorGrabMode::None);
 
     for (mut node, mut vis) in query.iter_mut() {
         // Position the parent so children's absolute offsets are relative to the center
         node.left = Val::Px(cx - 10.0);
         node.top = Val::Px(cy - 10.0);
-        *vis = if cfg.crosshair {
+        *vis = if cfg.crosshair && !cursor_free {
             Visibility::Inherited
         } else {
             Visibility::Hidden

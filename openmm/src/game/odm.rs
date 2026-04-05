@@ -1075,9 +1075,10 @@ fn apply_texture_outdoors(
     cfg: Res<crate::config::GameConfig>,
 ) {
     for ev in events.read() {
-        let Some((mut sub, mut mat_handle)) = query.iter_mut().find(|(sub, _)| {
-            sub.model_index == ev.model && sub.face_indices.contains(&ev.facet)
-        }) else {
+        let Some((mut sub, mut mat_handle)) = query
+            .iter_mut()
+            .find(|(sub, _)| sub.model_index == ev.model && sub.face_indices.contains(&ev.facet))
+        else {
             warn!(
                 "SetTextureOutdoors: no sub-mesh found for model={} facet={}",
                 ev.model, ev.facet

@@ -45,6 +45,20 @@ pub struct GameVariables {
     pub npc_topics: std::collections::HashMap<i32, i32>,
     /// Party item counts: item_id → count. Backing store for CheckItemsCount / RemoveItems.
     pub items: std::collections::HashMap<i32, i32>,
+    /// NPC greeting overrides: npc_id → greeting_id (set by SetNPCGreeting).
+    pub npc_greetings: std::collections::HashMap<i32, i32>,
+    /// NPC location overrides: npc_id → map_id (set by MoveNPC).
+    pub npc_locations: std::collections::HashMap<i32, i32>,
+    /// NPC group news overrides: npc_group → news_id (set by SetNPCGroupNews).
+    pub npc_group_news: std::collections::HashMap<i32, i32>,
+    /// Chest flag bitmasks: chest_id → flags (set by ToggleChestFlag).
+    pub chest_flags: std::collections::HashMap<i32, i32>,
+    /// Decoration indices that have been stopped (set by StopAnimation).
+    pub stopped_decorations: std::collections::HashSet<i32>,
+    /// Actor group overrides: actor_id → group_id (set by SetActorGroup / ChangeGroup).
+    pub actor_groups: std::collections::HashMap<i32, i32>,
+    /// Actor ally-group overrides: group_id → ally_group_id (set by ChangeGroupAlly).
+    pub actor_ally_groups: std::collections::HashMap<i32, i32>,
 }
 
 pub struct PlayerRuntimeState {
@@ -111,6 +125,13 @@ impl Default for GameVariables {
             total_circus_prize: 0,
             npc_topics: std::collections::HashMap::new(),
             items: std::collections::HashMap::new(),
+            npc_greetings: std::collections::HashMap::new(),
+            npc_locations: std::collections::HashMap::new(),
+            npc_group_news: std::collections::HashMap::new(),
+            chest_flags: std::collections::HashMap::new(),
+            stopped_decorations: std::collections::HashSet::new(),
+            actor_groups: std::collections::HashMap::new(),
+            actor_ally_groups: std::collections::HashMap::new(),
         }
     }
 }

@@ -2,6 +2,7 @@
 
 Ordered roughly by impact and readiness.
 
+- **HUD GameTime integration** — `GameTime` is not wired to the HUD. Two things missing: (1) tap frame switching — `TapFrames` resource holds 4 images (tap1=morning, tap2=day, tap3=evening, tap4=night) but `update_minimap` never swaps them based on `time_of_day()`; (2) date/time text display — no text node exists on the right sidebar for the formatted date/time string (`format_datetime()`). The tap frame switch is trivial; the text needs MM6 reference coordinates verified against the sidebar.
 - **Texture animation (TFT)** — `tft.rs` parses the tile frame table but animated tile cycling is not yet implemented in the terrain shader; some water and lava tiles should cycle frames.
 - **NPC dialogue text rendering** — `SpeakInHouse` events open a `HudView::NpcDialogue` placeholder; actual text rendering (font from LOD, scrolling lines) is not yet wired up.
 - **Monster combat stats** — `MonList` entries have attack, HP, speed, resistances; combat is not yet implemented; needed for a playable state.

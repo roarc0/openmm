@@ -83,7 +83,6 @@ fn video_setup(
     mut audio_sources: ResMut<Assets<AudioSource>>,
     request: Res<VideoRequest>,
 ) {
-
     let data_path = lod::get_data_path();
     let anims_dir = std::path::Path::new(&data_path).join("Anims");
 
