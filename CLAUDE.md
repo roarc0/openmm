@@ -26,7 +26,7 @@ make fmt          # auto-format
 make test         # run tests
 ```
 
-Requires MM6 game data files. Set `OPENMM_6_PATH` env var to the game data directory (defaults to `./target/mm6/data` for LOD files).
+Requires MM6 game data files. Set `OPENMM_6_PATH` env var to the game data directory (defaults to `./data/mm6/data` for LOD files).
 
 Uses mold linker for fast linking (`.cargo/config.toml`). Install: `pacman -S mold` or `apt install mold`.
 
@@ -258,24 +258,24 @@ Files in `docs/` — keep this list in sync (Rule 2):
 
 ## Debugging Game Data
 
-**Never dig through LOD binary data by hand when investigating a bug or format.** The `assets/` directory is a pre-dumped, human-readable cache of game data — always start there.
+**Never dig through LOD binary data by hand when investigating a bug or format.** The `data/dump/` directory is a pre-dumped, human-readable cache of game data — always start there.
 
 Dump commands:
 ```
-make dump_assets   # runs lod::bin::dump_assets — writes maps, actors, decorations, etc. to assets/
-make dump_sounds   # extracts audio metadata to assets/sounds/
+make dump_assets   # runs lod::bin::dump_assets — writes maps, actors, decorations, etc. to data/dump/
+make dump_sounds   # extracts audio metadata to data/dump/sounds/
 cargo run --example dump_events -- oute3   # EVT / billboard events for a specific map
-cargo run --example dump_npc_json          # NPC table → assets/npc.json, assets/npc2.json
+cargo run --example dump_npc_json          # NPC table → data/dump/npc.json, data/dump/npc2.json
 ```
 
-File naming convention in `assets/`:
+File naming convention in `data/dump/`:
 - `<map>.odm.txt` — outdoor map: heightmap summary, tile IDs, spawn points, billboard list
 - `<map>.blv.txt` — indoor map: vertices, faces, sector info, light positions, door list
 - `<map>.ddm.txt` — actor/NPC roster for a map (parsed from DDM)
 - `*.json` — structured tables (NPCs, etc.) — useful for small-to-medium datasets
 - Prefer `.txt` over `.json` for large geometry data (mesh faces, vertex lists) — JSON is too verbose there
 
-**Workflow:** if you're unsure what a field contains or suspect a parsing bug, re-run the relevant dump, diff the output against expectations in `assets/`, then write the test. Do not add `println!` to the parser and re-run the game. Dumps are faster, repeatable, and leave no debug noise in production code.
+**Workflow:** if you're unsure what a field contains or suspect a parsing bug, re-run the relevant dump, diff the output against expectations in `data/dump/`, then write the test. Do not add `println!` to the parser and re-run the game. Dumps are faster, repeatable, and leave no debug noise in production code.
 
 When adding a new parser or extending an existing one, add a corresponding dump path so future investigators can inspect the data without reading binary.
 

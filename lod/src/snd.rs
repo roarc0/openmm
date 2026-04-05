@@ -555,7 +555,7 @@ mod tests {
                 return candidate.to_string_lossy().to_string();
             }
         }
-        String::from("../target/mm6/Sounds/Audio.snd")
+        String::from("../data/mm6/Sounds/Audio.snd")
     }
 
     #[test]

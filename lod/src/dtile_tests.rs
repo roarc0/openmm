@@ -3,6 +3,7 @@ use crate::{
     odm::Odm,
     test_lod,
 };
+use image::GenericImageView;
 
 #[test]
 fn read_dtile_data_works() {
@@ -22,11 +23,9 @@ fn atlas_generation_works() {
     let dtile = Dtile::new(&lod_manager).unwrap();
 
     let tile_table = dtile.table(map.tile_data).unwrap();
-    tile_table
-        .atlas_image(&lod_manager)
-        .unwrap()
-        .save("terrain_atlas.png")
-        .unwrap();
+    let atlas = tile_table.atlas_image(&lod_manager).unwrap();
+    let (w, h) = atlas.dimensions();
+    assert!(w > 0 && h > 0, "atlas must be non-empty");
 }
 
 #[test]

@@ -86,11 +86,11 @@ pub struct MonsterStats {
 }
 
 /// All monster stats keyed by full internal name (e.g. "GoblinA").
-pub struct MonstersTxt {
+pub struct Monsters {
     entries: HashMap<String, MonsterStats>,
 }
 
-impl MonstersTxt {
+impl Monsters {
     pub fn new(lod: &LodManager) -> Result<Self, Box<dyn Error>> {
         let raw = lod.try_get_bytes("icons/monsters.txt")?;
         let data = match crate::lod_data::LodData::try_from(raw) {
@@ -165,7 +165,7 @@ impl MonstersTxt {
             entries.insert(internal.to_string(), stats);
         }
 
-        Ok(MonstersTxt { entries })
+        Ok(Monsters { entries })
     }
 
     /// Look up all stats for a specific monster variant.
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn goblin_a_all_stats() {
         let Some(lod) = test_lod() else { return };
-        let txt = MonstersTxt::new(&lod).unwrap();
+        let txt = Monsters::new(&lod).unwrap();
         let g = txt.get("Goblin", 1).expect("GoblinA must exist");
         assert_eq!(g.display_name, "Goblin");
         assert!(g.hp > 0);
@@ -241,7 +241,7 @@ mod tests {
     fn archer_c_has_quoted_exp_and_spell() {
         // ArcherC EXP is "1,131" (quoted with comma) and spell is "Fireball,N,5".
         let Some(lod) = test_lod() else { return };
-        let txt = MonstersTxt::new(&lod).unwrap();
+        let txt = Monsters::new(&lod).unwrap();
         let a = txt.get("Archer", 3).expect("ArcherC must exist");
         assert_eq!(a.experience, 1131, "quoted comma-number must parse correctly");
         assert_eq!(a.spell, "Fireball,N,5");
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn peasant_m2_variants_have_distinct_names() {
         let Some(lod) = test_lod() else { return };
-        let txt = MonstersTxt::new(&lod).unwrap();
+        let txt = Monsters::new(&lod).unwrap();
         assert_eq!(txt.display_name("PeasantM2", 1), Some("Apprentice Mage"));
         assert_eq!(txt.display_name("PeasantM2", 2), Some("Journeyman Mage"));
         assert_eq!(txt.display_name("PeasantM2", 3), Some("Mage"));
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn resistances_are_loaded() {
         let Some(lod) = test_lod() else { return };
-        let txt = MonstersTxt::new(&lod).unwrap();
+        let txt = Monsters::new(&lod).unwrap();
         // ArcherA has 10 resistance across Fire/Elec/Cold/Pois (row 1 of data).
         let a = txt.get("Archer", 1).expect("ArcherA must exist");
         assert_eq!(a.resist_fire, 10);
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn unknown_monster_returns_none() {
         let Some(lod) = test_lod() else { return };
-        let txt = MonstersTxt::new(&lod).unwrap();
+        let txt = Monsters::new(&lod).unwrap();
         assert!(txt.display_name("NonExistentXyz", 1).is_none());
     }
 }

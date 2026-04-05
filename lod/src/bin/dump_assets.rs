@@ -8,8 +8,8 @@ fn main() {
     let lod_path = lod::get_lod_path();
     let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
 
-    let out_dir = Path::new("assets");
-    fs::create_dir_all(out_dir).expect("failed to create assets directory");
+    let out_dir = Path::new("data/dump");
+    fs::create_dir_all(out_dir).expect("failed to create data/dump directory");
 
     // Build asset index
     let mut assets: BTreeMap<String, Vec<String>> = BTreeMap::new();

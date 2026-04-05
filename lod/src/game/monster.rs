@@ -115,7 +115,7 @@ impl Monsters {
                 // Per-variant name from monsters.txt takes priority over the mapstats base name.
                 // e.g. PeasantM2 A="Apprentice Mage", B="Journeyman Mage", C="Mage".
                 let display_name = game_data
-                    .monsters_txt
+                    .monsters
                     .display_name(mon_name, variant)
                     .unwrap_or(mapstats_display);
 
@@ -134,7 +134,7 @@ impl Monsters {
                     .map(|(n, _)| n)
                     .unwrap_or_else(|| st_root.clone());
                 let at_root = at_group.to_lowercase();
-                let hp = game_data.monsters_txt.max_hp(mon_name, variant).unwrap_or(1);
+                let hp = game_data.monsters.max_hp(mon_name, variant).unwrap_or(1);
 
                 entries.push(Monster {
                     name: display_name.to_string(),

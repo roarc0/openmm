@@ -13,7 +13,7 @@ fn main() {
     println!("Opening {:?}", snd_path);
     let archive = lod::snd::SndArchive::open(&snd_path).expect("Failed to open Audio.snd");
 
-    let output_dir = Path::new("assets/sounds");
+    let output_dir = Path::new("data/dump/sounds");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
 
     let mut names: Vec<&str> = archive.list();

@@ -1,4 +1,4 @@
-/// Dump all oute3 NPCs to assets/npc.json with ids, names, portraits, and types.
+/// Dump all oute3 NPCs to data/dump/npc2.json with ids, names, portraits, and types.
 fn main() {
     let lod_path = lod::get_lod_path();
     let mgr = lod::LodManager::new(&lod_path).unwrap();
@@ -79,7 +79,7 @@ fn main() {
         entries.join(",\n"),
     );
 
-    let out_path = std::path::Path::new("assets/npc2.json");
-    std::fs::write(out_path, &json).expect("failed to write assets/npc2.json");
+    let out_path = std::path::Path::new("data/dump/npc2.json");
+    std::fs::write(out_path, &json).expect("failed to write data/dump/npc2.json");
     println!("Wrote {} actors to {}", entries.len(), out_path.display());
 }

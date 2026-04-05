@@ -1,8 +1,8 @@
-/// Dump all embedded SMK files from MM6 VID archives to assets/vid/.
+/// Dump all embedded SMK files from MM6 VID archives to data/dump/vid/.
 ///
 /// Output:
-///   assets/vid/{name}.smk        — raw Smacker video bytes
-///   assets/vid/index.txt         — human-readable index with SMK metadata
+///   data/dump/vid/{name}.smk        — raw Smacker video bytes
+///   data/dump/vid/index.txt         — human-readable index with SMK metadata
 use std::fs;
 use std::path::Path;
 
@@ -12,8 +12,8 @@ fn main() {
     let data_path = lod::get_data_path();
     let anims_dir = Path::new(&data_path).join("Anims");
 
-    let out_dir = Path::new("assets/vid");
-    fs::create_dir_all(out_dir).expect("failed to create assets/vid");
+    let out_dir = Path::new("data/dump/vid");
+    fs::create_dir_all(out_dir).expect("failed to create data/dump/vid");
 
     let vid_files = ["Anims1.vid", "Anims2.vid"];
     let mut index_lines: Vec<String> = Vec::new();

@@ -21,7 +21,7 @@ Library crate for reading all MM6 data formats. No Bevy dependency; pure parsing
 - `dobjlist.rs` — Object list descriptor table
 - `doverlay.rs` — Overlay descriptor table
 - `monlist.rs` — Monster list (dmonlist.bin) with sprite name resolution
-- `monsters_txt.rs` — Per-variant monster display names from monsters.txt (e.g. "PeasantM2A" → "Apprentice Mage")
+- `monsters.rs` — Per-variant monster display names from monsters.txt (e.g. "PeasantM2A" → "Apprentice Mage")
 - `mapstats.rs` — Map statistics (monster groups per map zone)
 - `evt.rs` — EVT event script parser → `GameEvent` enum
 - `twodevents.rs` — 2DEvents.txt parser (house/building event table)

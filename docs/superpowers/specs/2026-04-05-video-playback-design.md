@@ -107,7 +107,7 @@ Game entity cleanup currently lives in `OnExit(GameState::Game)` or uses `StateS
 ```rust
 #[derive(Resource)]
 pub(crate) struct VideoRequest {
-    pub name: String,       // e.g. "3dologo" — looked up in assets/vid/ or VID archive
+    pub name: String,       // e.g. "3dologo" — looked up in data/dump/vid/ or VID archive
     pub skippable: bool,
     pub next: GameState,
 }
@@ -120,7 +120,7 @@ Set before transitioning to `GameState::Video`. App startup inserts it pointing 
 ## 5. VideoPlugin — `openmm/src/states/video.rs`
 
 Systems:
-- `OnEnter(Video)`: load SMK bytes from `assets/vid/{name}.smk` (dumped by `dump_vid`), create `SmkDecoder`, store in resource, spawn fullscreen `Camera2d` + `ImageNode` tagged `OnVideoScreen`, create `Image` asset handle.
+- `OnEnter(Video)`: load SMK bytes from `data/dump/vid/{name}.smk` (dumped by `dump_vid`), create `SmkDecoder`, store in resource, spawn fullscreen `Camera2d` + `ImageNode` tagged `OnVideoScreen`, create `Image` asset handle.
 - `Update` (in Video state): frame timer ticks at `1.0 / fps` seconds. On tick: call `decoder.next_frame()`, write RGBA pixels into the `Image` handle via `assets.insert(handle, image)`. On `None` (video done): transition to `next`.
 - ESC handling (in Video state, if `skippable`): detect `KeyCode::Escape` → transition to `next`.
 - `OnExit(Video)`: despawn `OnVideoScreen` entities, remove `SmkDecoder` resource.

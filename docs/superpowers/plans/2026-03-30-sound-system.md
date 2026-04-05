@@ -182,7 +182,7 @@ git commit --no-gpg-sign -m "feat(lod): add dsounds.bin parser for MM6 sound des
 - Create: `lod/src/snd.rs`
 - Modify: `lod/src/lib.rs`
 
-**Context:** `audio.snd` is at `{OPENMM_6_PATH}/../Sounds/Audio.snd` (path: `target/mm6/Sounds/Audio.snd`). It's a standalone file, NOT inside a LOD archive. Format: `u32` entry count (1526 entries), then 52-byte index entries (`[u8; 40]` name, `u32` offset, `u32` compressed_size, `u32` decompressed_size`), then raw data. Files are zlib-compressed when `decompressed_size > 0`. Decompressed data is standard WAV (RIFF header). Use `flate2` for decompression (already in Cargo.toml).
+**Context:** `audio.snd` is at `{OPENMM_6_PATH}/../Sounds/Audio.snd` (path: `data/mm6/Sounds/Audio.snd`). It's a standalone file, NOT inside a LOD archive. Format: `u32` entry count (1526 entries), then 52-byte index entries (`[u8; 40]` name, `u32` offset, `u32` compressed_size, `u32` decompressed_size`), then raw data. Files are zlib-compressed when `decompressed_size > 0`. Decompressed data is standard WAV (RIFF header). Use `flate2` for decompression (already in Cargo.toml).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -208,7 +208,7 @@ mod tests {
             }
         }
         // Fallback for test environment
-        String::from("../target/mm6/Sounds/Audio.snd")
+        String::from("../data/mm6/Sounds/Audio.snd")
     }
 
     #[test]
@@ -355,7 +355,7 @@ git commit --no-gpg-sign -m "feat(lod): add audio.snd container reader for MM6 s
 
 **Context:** The `SoundManager` resource is the central point for all audio. It holds the `DSounds` table (sound ID -> name mapping) and the `SndArchive` (extracts WAV bytes). It caches loaded sounds as Bevy `Handle<AudioSource>` to avoid re-adding duplicates. The `SoundPlugin` registers this resource, the sub-plugins for music and effects, and adds the `SpatialListener` to the player camera.
 
-The `SndArchive` file path is: the MM6 data path goes up one level then into `Sounds/Audio.snd`. The data path is `lod::get_data_path()` which returns `OPENMM_6_PATH` env or `./target/mm6`. Audio.snd is at `{base}/Sounds/Audio.snd` where `{base}` is the parent of the LOD data directory.
+The `SndArchive` file path is: the MM6 data path goes up one level then into `Sounds/Audio.snd`. The data path is `lod::get_data_path()` which returns `OPENMM_6_PATH` env or `./data/mm6`. Audio.snd is at `{base}/Sounds/Audio.snd` where `{base}` is the parent of the LOD data directory.
 
 - [ ] **Step 1: Create sound/mod.rs with SoundPlugin and SoundManager**
 

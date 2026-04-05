@@ -715,7 +715,7 @@ Add `pub mod blv;` to `lod/src/lib.rs` alongside the existing module declaration
 
 - [ ] **Step 6: Run tests**
 
-Run: `OPENMM_6_PATH=./target/mm6/data cargo test -p lod -- blv --nocapture`
+Run: `OPENMM_6_PATH=./data/mm6/data cargo test -p lod -- blv --nocapture`
 Expected: Both tests pass, prints face/vertex counts for d01.
 
 - [ ] **Step 7: Commit**
@@ -818,7 +818,7 @@ Add `pub mod dlv;` to `lod/src/lib.rs`.
 
 - [ ] **Step 5: Run tests**
 
-Run: `OPENMM_6_PATH=./target/mm6/data cargo test -p lod -- dlv --nocapture`
+Run: `OPENMM_6_PATH=./data/mm6/data cargo test -p lod -- dlv --nocapture`
 
 - [ ] **Step 6: Commit**
 
@@ -1250,7 +1250,7 @@ Fix all compilation errors.
 
 - [ ] **Step 9: Run the game with an indoor map**
 
-Run: `OPENMM_6_PATH=./target/mm6/data cargo run --package openmm -- --map d01 --skip-intro true`
+Run: `OPENMM_6_PATH=./data/mm6/data cargo run --package openmm -- --map d01 --skip-intro true`
 Expected: Game loads d01.blv and renders indoor geometry (walls, floors, ceilings).
 
 - [ ] **Step 10: Commit**
@@ -1321,7 +1321,7 @@ For actors/monsters that reference terrain height, use their BLV-provided Z coor
 - [ ] **Step 4: Build and test**
 
 Run: `cargo check --package openmm`
-Run: `OPENMM_6_PATH=./target/mm6/data cargo run --package openmm -- --map d01 --skip-intro true`
+Run: `OPENMM_6_PATH=./data/mm6/data cargo run --package openmm -- --map d01 --skip-intro true`
 Expected: Indoor map renders, no crashes from missing terrain data.
 
 - [ ] **Step 5: Commit**
@@ -1363,7 +1363,7 @@ if let Some(ref odm) = prepared_world.map {
 
 - [ ] **Step 4: Build and test**
 
-Run: `OPENMM_6_PATH=./target/mm6/data cargo run --package openmm -- --map d01 --skip-intro true`
+Run: `OPENMM_6_PATH=./data/mm6/data cargo run --package openmm -- --map d01 --skip-intro true`
 Expected: Player spawns inside the dungeon and can look around.
 
 - [ ] **Step 5: Commit**
@@ -1381,20 +1381,20 @@ git commit -m "feat: player spawn and movement for indoor maps"
 
 Run each of these and verify geometry renders:
 ```bash
-OPENMM_6_PATH=./target/mm6/data cargo run --package openmm -- --map sewer --skip-intro true
-OPENMM_6_PATH=./target/mm6/data cargo run --package openmm -- --map pyramid --skip-intro true
-OPENMM_6_PATH=./target/mm6/data cargo run --package openmm -- --map t1 --skip-intro true
+OPENMM_6_PATH=./data/mm6/data cargo run --package openmm -- --map sewer --skip-intro true
+OPENMM_6_PATH=./data/mm6/data cargo run --package openmm -- --map pyramid --skip-intro true
+OPENMM_6_PATH=./data/mm6/data cargo run --package openmm -- --map t1 --skip-intro true
 ```
 
 - [ ] **Step 2: Verify outdoor maps still work**
 
 ```bash
-OPENMM_6_PATH=./target/mm6/data cargo run --package openmm -- --map oute3 --skip-intro true
+OPENMM_6_PATH=./data/mm6/data cargo run --package openmm -- --map oute3 --skip-intro true
 ```
 
 - [ ] **Step 3: Run full test suite**
 
-Run: `OPENMM_6_PATH=./target/mm6/data cargo test`
+Run: `OPENMM_6_PATH=./data/mm6/data cargo test`
 Expected: All existing tests pass plus new BLV/DLV tests.
 
 - [ ] **Step 4: Update CLAUDE.md**

@@ -16,7 +16,7 @@ pub mod dtile;
 pub mod evt;
 pub mod mapstats;
 pub mod monlist;
-pub mod monsters_txt;
+pub mod monsters;
 pub mod odm;
 pub mod twodevents;
 
@@ -201,21 +201,21 @@ fn default_data_path() -> String {
     // Try workspace root (two levels up from lod crate manifest)
     let manifest = env!("CARGO_MANIFEST_DIR");
     let workspace = Path::new(manifest).parent().unwrap_or(Path::new("."));
-    let candidate = workspace.join("target/mm6");
+    let candidate = workspace.join("data/mm6");
     if candidate.exists() {
         return candidate.to_string_lossy().into_owned();
     }
-    "./target/mm6".into()
+    "./data/mm6".into()
 }
 
 fn default_lod_path() -> String {
     let manifest = env!("CARGO_MANIFEST_DIR");
     let workspace = Path::new(manifest).parent().unwrap_or(Path::new("."));
-    let candidate = workspace.join("target/mm6/data");
+    let candidate = workspace.join("data/mm6/data");
     if candidate.exists() {
         return candidate.to_string_lossy().into_owned();
     }
-    "./target/mm6/data".into()
+    "./data/mm6/data".into()
 }
 
 /// Returns `Some(LodManager)` when MM6 game data is present, or `None` otherwise.

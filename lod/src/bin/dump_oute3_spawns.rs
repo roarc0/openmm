@@ -1,4 +1,4 @@
-//! Dumps all oute3.odm spawn points to assets/oute3_spawns.txt for investigation.
+//! Dumps all oute3.odm spawn points to data/dump/oute3_spawns.txt for investigation.
 //!
 //! Output format (one line per spawn):
 //!   spawn[N] pos=(x,y,z) index=I attrs=A raw=[...20 bytes...] => "Mon slot=S fv=V seed=K range=L-H gsz=G cv=C"
@@ -29,7 +29,7 @@ fn main() {
     let n = odm.spawn_points.len();
     let section_start = data.len() - (4 + n * 20);
 
-    let out_path = "assets/oute3_spawns.txt";
+    let out_path = "data/dump/oute3_spawns.txt";
     let mut f = fs::File::create(out_path).expect("failed to create output file");
 
     writeln!(f, "oute3.odm — {} spawn points", n).unwrap();
