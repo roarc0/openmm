@@ -1,4 +1,4 @@
-.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds test-ci
+.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds dump_vid test-ci
 
 # --- Build ---
 
@@ -54,6 +54,9 @@ dump_assets:
 dump_sounds:
 	cargo run --release -p lod --bin dump_sounds
 
+dump_vid:
+	cargo run --release -p lod --bin dump_vid
+
 clean:
 	cargo clean
 
@@ -72,4 +75,5 @@ help:
 	@echo "  test-ci       - Run local CI script"
 	@echo "  dump_assets   - Extract assets from LOD"
 	@echo "  dump_sounds   - Extract sounds from LOD"
+	@echo "  dump_vid      - Extract SMK videos from Anims VID archives"
 	@echo "  clean         - Clean cargo target directory"

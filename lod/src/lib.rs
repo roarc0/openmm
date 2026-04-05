@@ -22,7 +22,6 @@ pub mod twodevents;
 
 pub mod awards;
 pub mod billboard;
-pub mod quest_bits;
 pub mod class;
 pub mod dchest;
 pub mod ddeclist;
@@ -37,10 +36,11 @@ pub mod image;
 pub mod items;
 pub mod npcnews;
 pub mod npcprof;
+pub mod quest_bits;
+pub mod smk;
 pub mod snd;
 pub mod spells;
 pub mod terrain;
-pub mod smk;
 pub mod tft;
 pub mod vid;
 
