@@ -18,6 +18,7 @@ struct TransitionParams<'w> {
     save_data: ResMut<'w, crate::save::GameSave>,
     game_state: ResMut<'w, NextState<GameState>>,
 }
+use crate::game::entities::actor::Actor;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
@@ -27,6 +28,23 @@ use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::world_state::GameVariables;
 use crate::states::loading::LoadRequest;
+
+/// Bundles map entity queries to stay within Bevy's 16-param system limit.
+/// Wraps the decoration sprite-swap query and actor visibility/flag query.
+#[derive(SystemParam)]
+struct MapEntityParams<'w, 's> {
+    decorations: Query<
+        'w,
+        's,
+        (
+            &'static DecorationInfo,
+            &'static mut MeshMaterial3d<StandardMaterial>,
+            &'static mut Mesh3d,
+            &'static mut Transform,
+        ),
+    >,
+    actors: Query<'w, 's, (&'static mut Actor, &'static mut Visibility)>,
+}
 
 /// Bundles audio + mesh assets + game_time to stay within Bevy's 16-param limit.
 #[derive(SystemParam)]
@@ -58,7 +76,10 @@ impl EventQueue {
         if let Some(steps) = evt.events.get(&event_id)
             && !steps.is_empty()
         {
-            self.sequences.push_back(EventSequence { event_id: Some(event_id), steps: steps.clone() });
+            self.sequences.push_back(EventSequence {
+                event_id: Some(event_id),
+                steps: steps.clone(),
+            });
         }
     }
 
@@ -80,7 +101,10 @@ impl EventQueue {
         if let Some(steps) = evt.events.get(&event_id) {
             let tail: Vec<_> = steps[start.min(steps.len())..].to_vec();
             if !tail.is_empty() {
-                self.sequences.push_back(EventSequence { event_id: Some(event_id), steps: tail });
+                self.sequences.push_back(EventSequence {
+                    event_id: Some(event_id),
+                    steps: tail,
+                });
             }
         }
     }
@@ -353,6 +377,19 @@ fn subtract_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariab
     }
 }
 
+/// Apply a single ActorAttributes flag change to a live actor entity.
+/// Handles VISIBLE (0x8) → Bevy Visibility and HOSTILE (0x01000000) → actor.hostile.
+fn apply_actor_flags(actor: &mut Actor, vis: &mut Visibility, flag: u32, on: bool) {
+    const VISIBLE: u32 = 0x00000008;
+    const HOSTILE: u32 = 0x01000000;
+    if flag & VISIBLE != 0 {
+        *vis = if on { Visibility::Visible } else { Visibility::Hidden };
+    }
+    if flag & HOSTILE != 0 {
+        actor.hostile = on;
+    }
+}
+
 /// Evaluate a Compare condition. Returns true if condition is met (JUMP to jump_step).
 /// MM6 Compare semantics: jump when condition is TRUE (e.g. "already done" → skip).
 fn evaluate_compare(
@@ -404,12 +441,7 @@ fn process_events(
     mut world_state: ResMut<crate::game::world_state::WorldState>,
     mut party: ResMut<Party>,
     time: Res<Time>,
-    mut decoration_query: Query<(
-        &DecorationInfo,
-        &mut MeshMaterial3d<StandardMaterial>,
-        &mut Mesh3d,
-        &mut Transform,
-    )>,
+    mut entities: MapEntityParams,
 ) {
     // Tick footer timer every frame
     footer.tick(time.elapsed_secs_f64());
@@ -423,7 +455,10 @@ fn process_events(
     };
 
     let steps = &sequence.steps;
-    let id_str = sequence.event_id.map(|id| format!(" event_id={}", id)).unwrap_or_default();
+    let id_str = sequence
+        .event_id
+        .map(|id| format!(" event_id={}", id))
+        .unwrap_or_default();
     info!("── Event{} ({} steps) ──", id_str, steps.len());
     let qb = game_assets.quest_bits();
     let mut pc = 0usize; // program counter (index into steps vec)
@@ -622,7 +657,24 @@ fn process_events(
                 warn!("STUB SetFacesBit: face={} bit=0x{:x} on={}", face_id, bit, on);
             }
             GameEvent::ToggleActorFlag { actor_id, flag, on } => {
-                warn!("STUB ToggleActorFlag: actor={} flag=0x{:x} on={}", actor_id, flag, on);
+                let flag = *flag as u32;
+                let on = *on != 0;
+                // Store in persistent flags map.
+                let entry = world_state.game_vars.actor_flags.entry(*actor_id).or_insert(0);
+                if on {
+                    *entry |= flag;
+                } else {
+                    *entry &= !flag;
+                }
+                // Apply VISIBLE (0x8) and HOSTILE (0x01000000) immediately to live entities.
+                for (mut actor, mut vis) in entities.actors.iter_mut() {
+                    if actor.ddm_id != *actor_id {
+                        continue;
+                    }
+                    apply_actor_flags(&mut actor, &mut vis, flag, on);
+                    break;
+                }
+                info!("ToggleActorFlag: actor={} flag=0x{:x} on={}", actor_id, flag, on);
             }
             GameEvent::SetTexture { face_id, texture_name } => {
                 warn!("STUB SetTexture: face={} tex='{}'", face_id, texture_name);
@@ -634,7 +686,8 @@ fn process_events(
                 info!("SetSprite: deco={} sprite='{}'", decoration_id, sprite_name);
                 let target_idx = *decoration_id as usize;
                 // Find the target entity first to get declist_id and ground_y.
-                let target = decoration_query
+                let target = entities
+                    .decorations
                     .iter()
                     .find(|(d, ..)| d.billboard_index == target_idx)
                     .map(|(d, ..)| (d.declist_id, d.ground_y));
@@ -656,7 +709,7 @@ fn process_events(
                     warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
                     continue;
                 };
-                for (deco_info, mut mat_handle, mut mesh_handle, mut transform) in decoration_query.iter_mut() {
+                for (deco_info, mut mat_handle, mut mesh_handle, mut transform) in entities.decorations.iter_mut() {
                     if deco_info.billboard_index == target_idx {
                         transform.translation.y = ground_y + new_h / 2.0;
                         mesh_handle.0 = new_mesh;
@@ -706,7 +759,9 @@ fn process_events(
                 item_type,
                 item_id,
             } => {
-                warn!("STUB GiveItem: str={} type={} id={}", strength, item_type, item_id);
+                // strength and item_type control enchantment/quality — not tracked yet.
+                world_state.game_vars.give_item(*item_id as i32, 1);
+                info!("GiveItem: id={} str={} type={}", item_id, strength, item_type);
             }
             GameEvent::SummonItem { item_id, x, y, z } => {
                 warn!("STUB SummonItem: id={} pos=({},{},{})", item_id, x, y, z);
@@ -758,7 +813,11 @@ fn process_events(
                 }
             }
             GameEvent::ChangeEvent { target, new_event_id } => {
-                warn!("STUB ChangeEvent: target={} event={}", target, new_event_id);
+                info!("ChangeEvent: billboard {} → event {}", target, new_event_id);
+                world_state
+                    .game_vars
+                    .event_overrides
+                    .insert(*target as usize, *new_event_id as u16);
             }
             GameEvent::SetNPCGreeting { npc_id, greeting_id } => {
                 info!("SetNPCGreeting: npc={} greeting={}", npc_id, greeting_id);
@@ -823,7 +882,18 @@ fn process_events(
                 warn!("STUB SetCanShowDialogItem: on={}", on);
             }
             GameEvent::CanShowTopicIsActorKilled { actor_group, count } => {
-                warn!("STUB CanShowTopicIsActorKilled: group={} count={}", actor_group, count);
+                // No combat yet — kill counts are always 0.
+                let killed = world_state
+                    .game_vars
+                    .killed_groups
+                    .get(actor_group)
+                    .copied()
+                    .unwrap_or(0);
+                let _ = (killed, count); // Used once combat records kills here.
+                debug!(
+                    "CanShowTopicIsActorKilled: group={} need={} have={}",
+                    actor_group, count, killed
+                );
             }
 
             // ── Skills / kill / condition checks ─────────────────────
@@ -832,16 +902,28 @@ fn process_events(
                 count,
                 jump_step,
             } => {
-                warn!(
-                    "STUB IsActorKilled: group={} count={} (assuming fail)",
-                    actor_group, count
+                let killed = world_state
+                    .game_vars
+                    .killed_groups
+                    .get(actor_group)
+                    .copied()
+                    .unwrap_or(0);
+                let pass = killed >= *count as u32;
+                info!(
+                    "  IsActorKilled: group={} need={} have={} → {}",
+                    actor_group,
+                    count,
+                    killed,
+                    if pass { "pass" } else { "fail (jump)" }
                 );
-                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                    log_skipped(steps, pc, target_idx, "IsActorKilled fail");
-                    pc = target_idx;
-                } else {
-                    log_tail_unreachable(steps, pc);
-                    return;
+                if !pass {
+                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                        log_skipped(steps, pc, target_idx, "IsActorKilled fail");
+                        pc = target_idx;
+                    } else {
+                        log_tail_unreachable(steps, pc);
+                        return;
+                    }
                 }
             }
             GameEvent::CheckSkill {
@@ -947,10 +1029,22 @@ fn process_events(
                 world_state.game_vars.actor_ally_groups.insert(*group_id, *ally_group);
             }
             GameEvent::ToggleActorGroupFlag { group_id, flag, on } => {
-                warn!(
-                    "STUB ToggleActorGroupFlag: group={} flag=0x{:x} on={} (need actor entity lookup)",
-                    group_id, flag, on
-                );
+                let flag = *flag as u32;
+                let on = *on != 0;
+                info!("ToggleActorGroupFlag: group={} flag=0x{:x} on={}", group_id, flag, on);
+                for (mut actor, mut vis) in entities.actors.iter_mut() {
+                    // Respect ChangeGroup overrides stored in actor_groups.
+                    let effective_group = world_state
+                        .game_vars
+                        .actor_groups
+                        .get(&actor.ddm_id)
+                        .copied()
+                        .unwrap_or(actor.group_id);
+                    if effective_group != *group_id {
+                        continue;
+                    }
+                    apply_actor_flags(&mut actor, &mut vis, flag, on);
+                }
             }
             GameEvent::SetActorItem { actor_id, item_id, on } => {
                 info!("SetActorItem: actor={} item={} on={}", actor_id, item_id, on);

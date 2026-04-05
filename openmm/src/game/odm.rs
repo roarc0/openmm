@@ -838,6 +838,8 @@ fn lazy_spawn(
                     attack_range: actor.radius as f32 * 2.0,
                     attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
                     attack_anim_remaining: 0.0,
+                    ddm_id: i as i32,
+                    group_id: actor.group,
                 },
             ));
             spawned += 1;
@@ -955,6 +957,8 @@ fn lazy_spawn(
                 attack_range: actor.radius as f32 * 2.0,
                 attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
                 attack_anim_remaining: 0.0,
+                ddm_id: i as i32,
+                group_id: actor.group,
             },
             crate::game::interaction::NpcInteractable {
                 name: hover_name,
@@ -1037,6 +1041,8 @@ fn lazy_spawn(
                 attack_range: mon.body_radius as f32 * 2.0,
                 attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
                 attack_anim_remaining: 0.0,
+                ddm_id: -1, // ODM spawn group — no DDM actor index
+                group_id: 0,
             },
         ));
         spawned += 1;

@@ -59,6 +59,12 @@ pub struct GameVariables {
     pub actor_groups: std::collections::HashMap<i32, i32>,
     /// Actor ally-group overrides: group_id → ally_group_id (set by ChangeGroupAlly).
     pub actor_ally_groups: std::collections::HashMap<i32, i32>,
+    /// Decoration event overrides: billboard_index → new_event_id (set by ChangeEvent).
+    pub event_overrides: std::collections::HashMap<usize, u16>,
+    /// Actor flag overrides: ddm_id → bitflags (set by ToggleActorFlag). Mirrors ActorAttributes bits.
+    pub actor_flags: std::collections::HashMap<i32, u32>,
+    /// Kill counts by faction group: group_id → killed count (incremented when actor HP → 0).
+    pub killed_groups: std::collections::HashMap<i32, u32>,
 }
 
 pub struct PlayerRuntimeState {
@@ -132,6 +138,9 @@ impl Default for GameVariables {
             stopped_decorations: std::collections::HashSet::new(),
             actor_groups: std::collections::HashMap::new(),
             actor_ally_groups: std::collections::HashMap::new(),
+            event_overrides: std::collections::HashMap::new(),
+            actor_flags: std::collections::HashMap::new(),
+            killed_groups: std::collections::HashMap::new(),
         }
     }
 }

@@ -390,7 +390,7 @@ fn spawn_indoor_world(
         None,
         game_assets.game_data(),
     ) {
-        for actor in actors.get_actors() {
+        for (ddm_idx, actor) in actors.get_actors().iter().enumerate() {
             let variant = actor.variant;
 
             let (states, state_masks, sw, sh) = sprites::load_entity_sprites(
@@ -453,6 +453,8 @@ fn spawn_indoor_world(
                     attack_range: actor.radius as f32 * 2.0,
                     attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
                     attack_anim_remaining: 0.0,
+                    ddm_id: ddm_idx as i32,
+                    group_id: actor.group,
                 },
                 crate::game::interaction::NpcInteractable {
                     name: hover_name,

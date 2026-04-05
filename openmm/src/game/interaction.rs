@@ -11,6 +11,7 @@ use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::player::{Player, PlayerCamera};
 use crate::game::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
+use crate::game::world_state::WorldState;
 
 // --- Components & Resources ---
 
@@ -174,6 +175,7 @@ fn world_interact_system(
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
+    world_state: Option<Res<WorldState>>,
 ) {
     let Ok((cam_global, _)) = camera_query.single() else {
         return;
@@ -200,7 +202,8 @@ fn world_interact_system(
     // Find the single nearest hit across all interactable types.
     enum Hit {
         Face(u16),
-        Decoration(u16),
+        /// Carries (event_id, billboard_index) so ChangeEvent overrides can be checked.
+        Decoration(u16, usize),
         Npc(i16),
     }
     let mut nearest: Option<(f32, Hit)> = None;
@@ -243,7 +246,7 @@ fn world_interact_system(
         ) && t < occluder_t
             && nearest.as_ref().is_none_or(|n| t < n.0)
         {
-            nearest = Some((t, Hit::Decoration(info.event_id)));
+            nearest = Some((t, Hit::Decoration(info.event_id, info.billboard_index)));
         }
     }
 
@@ -275,11 +278,17 @@ fn world_interact_system(
                 event_queue.push_all(event_id, evt);
             }
         }
-        Some((_, Hit::Decoration(event_id))) => {
+        Some((_, Hit::Decoration(event_id, billboard_idx))) => {
+            // ChangeEvent can redirect this decoration to a different script at runtime.
+            let effective_id = world_state
+                .as_ref()
+                .and_then(|ws| ws.game_vars.event_overrides.get(&billboard_idx))
+                .copied()
+                .unwrap_or(event_id);
             if let Some(me) = map_events.as_ref()
                 && let Some(evt) = me.evt.as_ref()
             {
-                event_queue.push_all(event_id, evt);
+                event_queue.push_all(effective_id, evt);
             }
         }
         Some((_, Hit::Npc(npc_id))) => {

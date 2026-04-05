@@ -28,4 +28,9 @@ pub struct Actor {
     pub attack_timer: f32,
     /// Seconds remaining in the current attack animation. 0 = not attacking.
     pub attack_anim_remaining: f32,
+    /// Index in the DDM actors array (0-based). -1 for non-DDM actors (ODM spawn groups).
+    /// Used by ToggleActorFlag to target a specific actor.
+    pub ddm_id: i32,
+    /// Faction group ID from DDM (0 = none). Used by ToggleActorGroupFlag / ChangeGroup.
+    pub group_id: i32,
 }
