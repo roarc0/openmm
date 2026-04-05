@@ -45,6 +45,8 @@ pub enum GameEvent {
     LocationName { str_id: u8, text: String },
     /// Show a message box with text.
     ShowMessage { str_id: u8, text: String },
+    /// Play a Smacker video by name. Transitions to GameState::Video; returns to Game when done.
+    PlayVideo { name: String, skippable: bool },
     /// Exit/stop processing this event sequence.
     Exit,
 
@@ -243,6 +245,7 @@ impl std::fmt::Display for GameEvent {
             Self::StatusText { text, .. } => write!(f, "StatusText('{}')", text),
             Self::LocationName { text, .. } => write!(f, "LocationName('{}')", text),
             Self::ShowMessage { text, .. } => write!(f, "ShowMessage('{}')", text),
+            Self::PlayVideo { name, skippable } => write!(f, "PlayVideo('{}' skippable={})", name, skippable),
             Self::Exit => write!(f, "Exit"),
             Self::Compare { var, value, jump_step } => {
                 if *var == EvtVariable::QBITS {

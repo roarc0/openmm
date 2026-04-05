@@ -489,6 +489,16 @@ fn process_events(
             GameEvent::ShowMessage { text, .. } => {
                 footer.set_status(text, 4.0, time.elapsed_secs_f64());
             }
+            GameEvent::PlayVideo { name, skippable } => {
+                commands.insert_resource(crate::states::video::VideoRequest {
+                    name: name.clone(),
+                    skippable: *skippable,
+                    next: GameState::Game,
+                });
+                transition.game_state.set(GameState::Video);
+                event_queue.clear();
+                return;
+            }
             GameEvent::Exit => {
                 log_tail_unreachable(steps, pc);
                 event_queue.clear();
