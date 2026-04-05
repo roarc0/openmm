@@ -29,6 +29,8 @@ Library crate for reading all MM6 data formats. No Bevy dependency; pure parsing
 - `tft.rs` — TFT (tile frame table) parser
 - `dsounds.rs` — Sound descriptor table (dsounds.bin): sound ID → filename mapping
 - `snd.rs` — Audio.snd container reader: extracts/decompresses WAV files
+- `smk.rs` — `SmkDecoder`: safe Rust wrapper around vendored libsmacker C library; decodes SMK2/SMK4 video frames to RGBA pixels one frame at a time
+- `vid.rs` — `Vid`: parses MM6 VID archives (Anims1.vid, Anims2.vid); provides index of embedded SMK files with byte-range access
 
 ## game/ sub-modules
 
