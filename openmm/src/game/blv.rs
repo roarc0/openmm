@@ -77,13 +77,42 @@ pub struct DoorCollisionFace {
 /// Updated each frame by the door animation system.
 #[derive(Resource, Default)]
 pub struct DoorColliders {
-    /// Source data for rebuilding collision each frame.
+    /// Source data for wall-like door faces (normal mostly horizontal).
     pub face_data: Vec<DoorCollisionFace>,
+    /// Source data for horizontal door faces (floor/ceiling panels that block passage).
+    pub horizontal_face_data: Vec<DoorCollisionFace>,
     /// Current collision walls (rebuilt from face_data + door positions).
     pub walls: Vec<crate::game::collision::CollisionWall>,
+    /// Current dynamic ceiling triangles (rebuilt from horizontal_face_data when closed).
+    /// Used to block the player from walking through closed horizontal panels.
+    pub dynamic_ceilings: Vec<crate::game::collision::CollisionTriangle>,
 }
 
 impl DoorColliders {
+    /// Returns true if the player body (from feet_y to eye_y, radius `r`) intersects a
+    /// closed horizontal door panel. Used to block entry into areas closed off by rising
+    /// or lowering door panels.
+    ///
+    /// Uses the panel AABB expanded by `r` so narrow panels (< 2*radius wide) still block
+    /// the player even if their center never enters the exact triangle footprint.
+    pub fn blocks_entry(&self, x: f32, z: f32, feet_y: f32, eye_y: f32, r: f32) -> bool {
+        for ceil in &self.dynamic_ceilings {
+            if !ceil.near_xz(x, z, r) {
+                continue;
+            }
+            // Sample panel height at center; for near-edge (not exactly inside), approximate
+            // with centroid. For horizontal panels all vertices have the same Y so this is exact.
+            let panel_y = ceil
+                .height_at_xz(x, z)
+                .unwrap_or_else(|| (ceil.v0.y + ceil.v1.y + ceil.v2.y) / 3.0);
+            // Panel between feet and eyes → body intersects it → blocked
+            if panel_y > feet_y && panel_y < eye_y {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Push the player out of any door wall they would penetrate.
     /// Same algorithm as BuildingColliders::resolve_movement.
     pub fn resolve_movement(&self, from: Vec3, to: Vec3, radius: f32, eye_height: f32) -> Vec3 {
@@ -292,38 +321,39 @@ fn spawn_indoor_world(
 
     commands.insert_resource(BlvDoors { doors: door_runtimes });
 
-    // Build DoorColliders from door face data for dynamic collision.
-    // Each door face that is a wall (normal mostly horizontal) contributes
-    // a collision polygon that moves with the door.
+    // Build DoorColliders from precomputed door collision geometry (includes invisible
+    // blocking surfaces excluded from door_face_meshes). Uses stored BLV normals for
+    // correct classification — cross-product from base positions gives wrong normals
+    // when all base vertices share the same Y (floor-level retracted position).
+    // Wall-like faces (normal.y < 0.7) → collision walls blocking XZ movement.
+    // Horizontal faces (normal.y >= 0.7) → dynamic ceiling panels blocking vertical passage.
     let mut door_collision_faces = Vec::new();
-    for df in &prepared.door_face_meshes {
-        // Only wall-like faces block movement (normal.y close to 0)
-        // Reconstruct polygon vertices from the triangle mesh base_positions.
-        // Door faces are small enough that using all triangle vertices works.
-        let n = df.base_positions.len();
-        if n < 3 {
+    let mut door_horizontal_faces = Vec::new();
+    for dc in &prepared.door_collision_geometry {
+        if dc.base_positions.len() < 3 {
             continue;
         }
-
-        // Compute face normal from first triangle
-        let p0 = Vec3::from(df.base_positions[0]);
-        let p1 = Vec3::from(df.base_positions[1]);
-        let p2 = Vec3::from(df.base_positions[2]);
-        let normal = (p1 - p0).cross(p2 - p0).normalize_or_zero();
-        if normal.y.abs() > 0.7 {
-            continue;
-        } // Skip floors/ceilings
-
-        door_collision_faces.push(DoorCollisionFace {
-            door_index: df.door_index,
-            base_positions: df.base_positions.iter().map(|p| Vec3::from(*p)).collect(),
-            normal,
-            is_moving: df.is_moving_vertex.clone(),
-        });
+        if dc.normal.y.abs() > 0.7 {
+            door_horizontal_faces.push(DoorCollisionFace {
+                door_index: dc.door_index,
+                base_positions: dc.base_positions.clone(),
+                normal: dc.normal,
+                is_moving: dc.is_moving.clone(),
+            });
+        } else {
+            door_collision_faces.push(DoorCollisionFace {
+                door_index: dc.door_index,
+                base_positions: dc.base_positions.clone(),
+                normal: dc.normal,
+                is_moving: dc.is_moving.clone(),
+            });
+        }
     }
     commands.insert_resource(DoorColliders {
         face_data: door_collision_faces,
+        horizontal_face_data: door_horizontal_faces,
         walls: Vec::new(),
+        dynamic_ceilings: Vec::new(),
     });
 
     // Build ClickableFaces resource
@@ -775,7 +805,7 @@ fn door_animation_system(
         };
 
         // Update vertex positions using stored base positions (Bevy coords).
-        // base_positions are the open/retracted positions; closed = base + dir * distance.
+        // base_positions are the BLV (deployed/blocking) positions; retracted = base + dir * distance.
         if let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION) {
             for (vi, pos) in positions.iter_mut().enumerate() {
                 if !face.is_moving_vertex.get(vi).copied().unwrap_or(false) {
@@ -831,11 +861,12 @@ fn door_animation_system(
                 continue;
             };
 
-            // Only block when the door is not fully open
+            // BLV vertex positions are the deployed (blocking) positions; distance=0 is blocking.
+            // Only skip collision when the door is fully retracted (passable).
             let distance = door_slide_distance(door);
-            if distance < 1.0 {
-                continue;
-            } // Fully open — no collision
+            if door.move_length == 0 || distance >= door.move_length as f32 - 1.0 {
+                continue; // Door fully retracted — no collision
+            }
 
             let dir_bevy = Vec3::new(door.direction[0], door.direction[2], -door.direction[1]);
 
@@ -877,5 +908,44 @@ fn door_animation_system(
             ));
         }
         colliders.walls = new_walls;
+
+        // Rebuild dynamic ceilings from horizontal door faces.
+        // A horizontal panel at height Y blocks the player when Y is between their feet and eyes.
+        let mut new_ceilings = Vec::new();
+        for cf in &colliders.horizontal_face_data {
+            let Some(door) = doors.doors.get(cf.door_index) else {
+                continue;
+            };
+            let distance = door_slide_distance(door);
+            if door.move_length == 0 || distance >= door.move_length as f32 - 1.0 {
+                continue; // Door fully retracted — no collision
+            }
+
+            let dir_bevy = Vec3::new(door.direction[0], door.direction[2], -door.direction[1]);
+
+            // Mesh vertices come in triangle triples; compute current positions for each
+            for (chunk_idx, chunk) in cf.base_positions.chunks(3).enumerate() {
+                if chunk.len() < 3 {
+                    continue;
+                }
+                let base_vi = chunk_idx * 3;
+                let v: Vec<Vec3> = chunk
+                    .iter()
+                    .enumerate()
+                    .map(|(i, base)| {
+                        let vi = base_vi + i;
+                        if cf.is_moving.get(vi).copied().unwrap_or(false) {
+                            *base + dir_bevy * distance
+                        } else {
+                            *base
+                        }
+                    })
+                    .collect();
+                new_ceilings.push(crate::game::collision::CollisionTriangle::new(
+                    v[0], v[1], v[2], cf.normal,
+                ));
+            }
+        }
+        colliders.dynamic_ceilings = new_ceilings;
     }
 }

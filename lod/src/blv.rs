@@ -1039,7 +1039,7 @@ impl Blv {
 
             let vertex_ids: Vec<u16> = vertex_id_set.into_iter().collect();
 
-            // Base offsets = BLV vertex positions (the "open"/state-0 positions)
+            // Base offsets = BLV vertex positions (the deployed/blocking positions, i.e. state-0)
             let x_offsets: Vec<i16> = vertex_ids
                 .iter()
                 .map(|&vid| self.vertices.get(vid as usize).map(|v| v.x).unwrap_or(0))

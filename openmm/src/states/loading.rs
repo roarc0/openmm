@@ -106,6 +106,8 @@ pub struct PreparedIndoorWorld {
     pub doors: Vec<lod::blv::BlvDoor>,
     /// Individual door face meshes for animation.
     pub door_face_meshes: Vec<PreparedDoorFace>,
+    /// Collision geometry for ALL door faces (including invisible), for DoorColliders.
+    pub door_collision_geometry: Vec<PreparedDoorCollision>,
     /// Clickable face data for indoor interaction.
     pub clickable_faces: Vec<ClickableFaceData>,
     /// Touch-triggered faces (EVENT_BY_TOUCH) for proximity events.
@@ -116,6 +118,19 @@ pub struct PreparedIndoorWorld {
     pub map_base: String,
     /// Actors (NPCs) from DLV file.
     pub actors: Vec<lod::ddm::DdmActor>,
+}
+
+/// Collision-only geometry for a single door face, including invisible blocking surfaces.
+/// This covers faces excluded from `door_face_meshes` (e.g. empty-texture invisible blockers)
+/// that still need to block player movement.
+pub struct PreparedDoorCollision {
+    pub door_index: usize,
+    /// Triangulated vertex positions in Bevy coords at door distance=0 (open/retracted state).
+    pub base_positions: Vec<Vec3>,
+    /// Face normal in Bevy coords (from BLV face.normal_f32(), without rendering sign flip).
+    pub normal: Vec3,
+    /// Per triangle-vertex: whether it moves with the door.
+    pub is_moving: Vec<bool>,
 }
 
 /// A prepared door face mesh ready for spawning.
@@ -562,6 +577,68 @@ fn loading_step(
                     })
                     .collect();
 
+                // Build door collision geometry for ALL faces in door_face_set (including
+                // invisible/empty-texture ones). These blocking surfaces are excluded from
+                // door_face_meshes but still need dynamic collision (e.g. face[1944] in d01
+                // is an invisible VerticalWall with empty texture that is the actual blocker).
+                let door_collision_geometry: Vec<PreparedDoorCollision> = {
+                    // Build reverse map: face_index -> door_index
+                    let mut face_to_door: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
+                    for (di, door) in dlv_doors.iter().enumerate() {
+                        for &fid in &door.face_ids {
+                            let fi = fid as usize;
+                            if door_faces.contains(&fi) {
+                                face_to_door.insert(fi, di);
+                            }
+                        }
+                    }
+                    face_to_door
+                        .iter()
+                        .filter_map(|(&face_idx, &door_index)| {
+                            let face = blv.faces.get(face_idx)?;
+                            if face.num_vertices < 3 || face.is_portal() {
+                                return None;
+                            }
+                            let door = dlv_doors.get(door_index)?;
+                            let moving_vids: std::collections::HashSet<u16> = door.vertex_ids.iter().copied().collect();
+
+                            let n = face.num_vertices as usize;
+                            let verts: Vec<Vec3> = face.vertex_ids[..n]
+                                .iter()
+                                .filter_map(|&vid| {
+                                    let v = blv.vertices.get(vid as usize)?;
+                                    Some(Vec3::from(lod::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                })
+                                .collect();
+                            if verts.len() < 3 {
+                                return None;
+                            }
+
+                            // Fan triangulate: tris [0,1,2], [0,2,3], ...
+                            let mut base_positions = Vec::with_capacity((n - 2) * 3);
+                            let mut is_moving = Vec::with_capacity((n - 2) * 3);
+                            for i in 0..n - 2 {
+                                let idxs = [0usize, i + 1, i + 2];
+                                for &k in &idxs {
+                                    base_positions.push(verts[k]);
+                                    is_moving.push(moving_vids.contains(&face.vertex_ids[k]));
+                                }
+                            }
+
+                            // Stored BLV normal in Bevy coords (no ceiling rendering sign flip
+                            // — for collision we use the raw geometric normal).
+                            let mm6n = face.normal_f32();
+                            let normal = Vec3::new(mm6n[0], mm6n[2], -mm6n[1]);
+                            Some(PreparedDoorCollision {
+                                door_index,
+                                base_positions,
+                                normal,
+                                is_moving,
+                            })
+                        })
+                        .collect()
+                };
+
                 // Collect clickable faces
                 let clickable_faces: Vec<ClickableFaceData> = blv
                     .faces
@@ -778,6 +855,7 @@ fn loading_step(
                     collision_ceilings,
                     doors: dlv_doors,
                     door_face_meshes: prepared_door_faces,
+                    door_collision_geometry,
                     clickable_faces,
                     touch_trigger_faces,
                     occluder_faces,

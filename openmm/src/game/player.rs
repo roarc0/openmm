@@ -408,6 +408,7 @@ fn move_with_substeps(
     let step = movement / steps as f32;
     let mut pos = from;
     for _ in 0..steps {
+        let step_start = pos; // saved for rollback if a door panel blocks this substep
         let step_dest = pos + step;
         if let Some(c) = colliders {
             pos = c.resolve_movement(pos, step_dest, radius, eye_height);
@@ -419,6 +420,12 @@ fn move_with_substeps(
         // player walk through static walls whenever the door collider has no active walls.
         if let Some(dc) = door_colliders {
             pos = dc.resolve_movement(pos, pos, radius, eye_height);
+            // Block movement into areas closed off by horizontal door panels (trapdoors, slabs).
+            // If the new position intersects a closed panel, roll back this substep.
+            let feet_y = pos.y - eye_height;
+            if dc.blocks_entry(pos.x, pos.z, feet_y, pos.y, radius) {
+                pos = step_start;
+            }
         }
     }
     pos

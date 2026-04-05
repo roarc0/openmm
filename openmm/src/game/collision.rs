@@ -43,11 +43,28 @@ impl CollisionTriangle {
         }
     }
 
-    fn near_xz(&self, x: f32, z: f32, radius: f32) -> bool {
+    pub(crate) fn near_xz(&self, x: f32, z: f32, radius: f32) -> bool {
         x + radius > self.min_x - radius
             && x - radius < self.max_x + radius
             && z + radius > self.min_z - radius
             && z - radius < self.max_z + radius
+    }
+
+    /// Sample the Y height of this triangle at an XZ position.
+    /// Returns None if the XZ point is outside the triangle.
+    pub fn height_at_xz(&self, x: f32, z: f32) -> Option<f32> {
+        if !self.near_xz(x, z, 0.0) {
+            return None;
+        }
+        let a = Vec2::new(self.v0.x, self.v0.z);
+        let b = Vec2::new(self.v1.x, self.v1.z);
+        let c = Vec2::new(self.v2.x, self.v2.z);
+        let p = Vec2::new(x, z);
+        if !point_in_triangle_2d(p, a, b, c) {
+            return None;
+        }
+        let (u, v, w) = barycentric_2d(p, a, b, c);
+        Some(u * self.v0.y + v * self.v1.y + w * self.v2.y)
     }
 }
 
