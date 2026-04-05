@@ -345,13 +345,19 @@ fn spawn_player(
         // Inner (PartyTorch): bright, tight range — hot core close to the player.
         // Outer (PartyTorchFill): dim, wide range — gentle ambient bleed.
         // Both start at intensity 0; party_torch_system activates them.
+        // Indoor rooms are ~500–3500 units; outdoor is open terrain up to fog distance.
+        let (torch_range, fill_range) = if is_indoor {
+            (1500.0_f32, 3000.0_f32)
+        } else {
+            (3500.0_f32, 7000.0_f32)
+        };
         parent.spawn((
             Name::new("party_torch"),
             PartyTorch,
             PointLight {
                 color: Color::srgb(1.0, 0.82, 0.45),
                 intensity: 0.0,
-                range: 3500.0,
+                range: torch_range,
                 shadows_enabled: false,
                 ..default()
             },
@@ -363,7 +369,7 @@ fn spawn_player(
             PointLight {
                 color: Color::srgb(0.85, 0.65, 0.30),
                 intensity: 0.0,
-                range: 3500.0,
+                range: fill_range,
                 shadows_enabled: false,
                 ..default()
             },
