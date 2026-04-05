@@ -61,7 +61,7 @@ impl QuestBitNames {
                             result.push_str(name);
                         } else {
                             result.push_str(&name[..100]);
-                            result.push_str("…");
+                            result.push('…');
                         }
                     } else {
                         result.push_str(num_str);
@@ -133,7 +133,11 @@ mod tests {
         let input = "Compare(QBit[302] set? skip step 8)";
         let out = names.annotate(input);
         assert!(out.contains("QBit[Sword"), "expected QBit[Sword...], got: {}", out);
-        assert!(!out.contains("QBit[302]"), "number should be replaced by name, got: {}", out);
+        assert!(
+            !out.contains("QBit[302]"),
+            "number should be replaced by name, got: {}",
+            out
+        );
     }
 
     #[test]

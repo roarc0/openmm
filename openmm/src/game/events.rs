@@ -27,10 +27,18 @@ pub struct MapEvents {
 /// Map building type string → fallback background image name.
 fn building_background(building_type: &str) -> &'static str {
     let lower = building_type.to_lowercase();
-    if lower.contains("weapon") { return "wepntabl"; }
-    if lower.contains("armor") { return "armory"; }
-    if lower.contains("magic") || lower.contains("guild") || lower.contains("alchemy") { return "magshelf"; }
-    if lower.contains("general") || lower.contains("store") { return "genshelf"; }
+    if lower.contains("weapon") {
+        return "wepntabl";
+    }
+    if lower.contains("armor") {
+        return "armory";
+    }
+    if lower.contains("magic") || lower.contains("guild") || lower.contains("alchemy") {
+        return "magshelf";
+    }
+    if lower.contains("general") || lower.contains("store") {
+        return "genshelf";
+    }
     "evt02"
 }
 

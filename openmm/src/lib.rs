@@ -5,8 +5,8 @@ use assets::GameAssets;
 use config::GameConfig;
 use game::InGamePlugin;
 use save::GameSave;
-use states::{loading::LoadingPlugin, menu::MenuPlugin, video::VideoPlugin};
 use states::video::VideoRequest;
+use states::{loading::LoadingPlugin, menu::MenuPlugin, video::VideoPlugin};
 
 pub(crate) mod assets;
 pub(crate) mod bevy_config;

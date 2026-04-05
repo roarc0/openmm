@@ -77,7 +77,7 @@ fn update_label(
     //   width  = border1.w + border2.w - 1  (1px overlap between the two panels)
     //   height = border1.h
     let (b1w, b1h) = ui_assets.dimensions("border1.pcx").unwrap_or((0, 480));
-    let (b2w, _)   = ui_assets.dimensions("border2.pcx").unwrap_or((0, 0));
+    let (b2w, _) = ui_assets.dimensions("border2.pcx").unwrap_or((0, 0));
     let ref_w = (b1w + b2w).saturating_sub(1) as f32;
     let ref_h = b1h as f32;
 

@@ -114,20 +114,16 @@ fn get_variable(
         EvtVariable::DAYS_COUNTER4 => vars.days_counters[3],
         EvtVariable::DAYS_COUNTER5 => vars.days_counters[4],
         EvtVariable::DAYS_COUNTER6 => vars.days_counters[5],
-        EvtVariable::MONTH_IS => {
-            game_time.map(|t| t.calendar_date().1 as i32).unwrap_or(1)
-        }
-        EvtVariable::HOUR_IS => {
-            game_time.map(|t| t.hour() as i32).unwrap_or(9)
-        }
-        EvtVariable::DAY_OF_WEEK_IS => {
-            game_time.map(|t| t.day_of_week() as i32).unwrap_or(0)
-        }
+        EvtVariable::MONTH_IS => game_time.map(|t| t.calendar_date().1 as i32).unwrap_or(1),
+        EvtVariable::HOUR_IS => game_time.map(|t| t.hour() as i32).unwrap_or(9),
+        EvtVariable::DAY_OF_WEEK_IS => game_time.map(|t| t.day_of_week() as i32).unwrap_or(0),
         EvtVariable::DAY_OF_YEAR_IS => {
-            game_time.map(|t| {
-                let (_, m, d) = t.calendar_date();
-                ((m - 1) * 28 + d) as i32 // MM6 uses 28-day months
-            }).unwrap_or(1)
+            game_time
+                .map(|t| {
+                    let (_, m, d) = t.calendar_date();
+                    ((m - 1) * 28 + d) as i32 // MM6 uses 28-day months
+                })
+                .unwrap_or(1)
         }
         _ => {
             // Per-character variables (attrs, skills, conditions, etc.)
@@ -359,7 +355,12 @@ fn process_events(
     mut world_state: ResMut<crate::game::world_state::WorldState>,
     mut party: ResMut<Party>,
     time: Res<Time>,
-    mut decoration_query: Query<(&DecorationInfo, &mut MeshMaterial3d<StandardMaterial>, &mut Mesh3d, &mut Transform)>,
+    mut decoration_query: Query<(
+        &DecorationInfo,
+        &mut MeshMaterial3d<StandardMaterial>,
+        &mut Mesh3d,
+        &mut Transform,
+    )>,
 ) {
     // Tick footer timer every frame
     footer.tick(time.elapsed_secs_f64());
@@ -401,7 +402,9 @@ fn process_events(
             GameEvent::SpeakInHouse { house_id } => {
                 let image = map_events
                     .as_ref()
-                    .and_then(|me| crate::game::events::resolve_building_image(*house_id, me, &game_assets, &mut images))
+                    .and_then(|me| {
+                        crate::game::events::resolve_building_image(*house_id, me, &game_assets, &mut images)
+                    })
                     .or_else(|| game_assets.load_icon("evt02", &mut images));
                 if let Some(image) = image {
                     commands.insert_resource(OverlayImage { image });
@@ -684,7 +687,7 @@ fn process_events(
             } => {
                 info!("SetNPCTopic: npc={} topic={} event={}", npc_id, topic_index, event_id);
                 // Store event override keyed by npc_id; topic_index is ignored (MM6 has one active topic).
-                world_state.game_vars.npc_topics.insert(*npc_id as i32, *event_id as i32);
+                world_state.game_vars.npc_topics.insert((*npc_id), (*event_id));
             }
             GameEvent::MoveNPC { npc_id, map_id } => {
                 warn!("STUB MoveNPC: npc={} map={}", npc_id, map_id);
@@ -763,7 +766,10 @@ fn process_events(
                 count,
                 jump_step,
             } => {
-                warn!("STUB IsActorKilled: group={} count={} (assuming fail)", actor_group, count);
+                warn!(
+                    "STUB IsActorKilled: group={} count={} (assuming fail)",
+                    actor_group, count
+                );
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                     log_skipped(steps, pc, target_idx, "IsActorKilled fail");
                     pc = target_idx;
@@ -782,7 +788,10 @@ fn process_events(
                 let pass = best >= *skill_level;
                 info!(
                     "  CheckSkill: {} level {} required, best={} target={:?} -> {}",
-                    var, skill_level, best, party.active_target,
+                    var,
+                    skill_level,
+                    best,
+                    party.active_target,
                     if pass { "pass" } else { "fail" }
                 );
                 if !pass {
@@ -806,12 +815,18 @@ fn process_events(
                     }
                 });
                 let season_name = match season {
-                    0 => "Winter", 1 => "Spring", 2 => "Summer", 3 => "Autumn", _ => "?",
+                    0 => "Winter",
+                    1 => "Spring",
+                    2 => "Summer",
+                    3 => "Autumn",
+                    _ => "?",
                 };
                 let matches = current_season == Some(*season as u8);
                 info!(
                     "  CheckSeason: want {} current={:?} -> {}",
-                    season_name, current_season, if matches { "pass" } else { "fail" }
+                    season_name,
+                    current_season,
+                    if matches { "pass" } else { "fail" }
                 );
                 if !matches {
                     if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
@@ -834,7 +849,10 @@ fn process_events(
                 }
             }
             GameEvent::IsTotalBountyHuntingAwardInRange { min, max, jump_step } => {
-                warn!("STUB IsTotalBountyHuntingAwardInRange: min={} max={} (assuming fail)", min, max);
+                warn!(
+                    "STUB IsTotalBountyHuntingAwardInRange: min={} max={} (assuming fail)",
+                    min, max
+                );
                 if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                     log_skipped(steps, pc, target_idx, "BountyHuntingRange fail");
                     pc = target_idx;

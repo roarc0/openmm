@@ -23,8 +23,8 @@ impl Plugin for LoadingPlugin {
             OnEnter(GameState::Loading),
             (despawn_all::<crate::game::InGame>, loading_setup).chain(),
         )
-            .add_systems(Update, loading_step.run_if(in_state(GameState::Loading)))
-            .add_systems(OnExit(GameState::Loading), despawn_all::<InLoading>);
+        .add_systems(Update, loading_step.run_if(in_state(GameState::Loading)))
+        .add_systems(OnExit(GameState::Loading), despawn_all::<InLoading>);
     }
 }
 

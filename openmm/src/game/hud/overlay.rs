@@ -69,7 +69,10 @@ pub fn prepare_npc_dialogue(
         (portrait, name)
     };
 
-    info!("SpeakNPC: npc_id={} portrait='{}' name={:?}", npc_id, portrait_name, display_name);
+    info!(
+        "SpeakNPC: npc_id={} portrait='{}' name={:?}",
+        npc_id, portrait_name, display_name
+    );
 
     let profession_id = if npc_id >= GENERATED_NPC_ID_BASE {
         map_events
@@ -85,8 +88,7 @@ pub fn prepare_npc_dialogue(
             .filter(|e| e.profession_id > 0)
             .map(|e| e.profession_id as u16)
     };
-    let prof_entry = profession_id
-        .and_then(|id| game_assets.game_data().prof_table.as_ref()?.get(id));
+    let prof_entry = profession_id.and_then(|id| game_assets.game_data().prof_table.as_ref()?.get(id));
 
     let portrait_img = game_assets
         .game_lod()
@@ -95,7 +97,8 @@ pub fn prepare_npc_dialogue(
 
     let size = Vec2::new(portrait_img.width() as f32, portrait_img.height() as f32);
     let portrait = NpcPortrait {
-        image: game_assets.load_icon(&portrait_name, images)
+        image: game_assets
+            .load_icon(&portrait_name, images)
             .or_else(|| game_assets.load_icon("npc001", images))?,
         size,
     };

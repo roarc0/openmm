@@ -128,7 +128,7 @@ pub(super) fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimen
 ///   height = border1.h
 pub fn hud_canvas_dims(ui: &crate::ui_assets::UiAssets) -> (f32, f32) {
     let (b1w, b1h) = ui.dimensions("border1.pcx").unwrap_or((640, 480));
-    let (b2w, _)   = ui.dimensions("border2.pcx").unwrap_or((0, 0));
+    let (b2w, _) = ui.dimensions("border2.pcx").unwrap_or((0, 0));
     ((b1w + b2w).saturating_sub(1) as f32, b1h as f32)
 }
 

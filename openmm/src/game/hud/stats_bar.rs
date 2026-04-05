@@ -99,11 +99,9 @@ pub(super) fn update_stats_bar(
         node.top = Val::Px(food_py);
         node.bottom = Val::Auto;
         node.height = Val::Px(text_h);
-        if needs_update {
-            if let Some(handle) = game_fonts.render(&food.to_string(), "smallnum", YELLOW, &mut images) {
-                img.image = handle;
-                *vis = Visibility::Inherited;
-            }
+        if needs_update && let Some(handle) = game_fonts.render(&food.to_string(), "smallnum", YELLOW, &mut images) {
+            img.image = handle;
+            *vis = Visibility::Inherited;
         }
     }
 
@@ -112,11 +110,9 @@ pub(super) fn update_stats_bar(
         node.top = Val::Px(gold_py);
         node.bottom = Val::Auto;
         node.height = Val::Px(text_h);
-        if needs_update {
-            if let Some(handle) = game_fonts.render(&gold.to_string(), "smallnum", YELLOW, &mut images) {
-                img.image = handle;
-                *vis = Visibility::Inherited;
-            }
+        if needs_update && let Some(handle) = game_fonts.render(&gold.to_string(), "smallnum", YELLOW, &mut images) {
+            img.image = handle;
+            *vis = Visibility::Inherited;
         }
     }
 
