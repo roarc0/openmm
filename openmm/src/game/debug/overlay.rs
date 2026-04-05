@@ -598,7 +598,7 @@ fn quicksave(
     if keys.just_pressed(KeyCode::F3) {
         world_state.write_to_save(&mut save_data);
         match save_data.autosave() {
-            Ok(()) => info!("Saved to target/saves/autosave.json"),
+            Ok(()) => info!("Saved to data/saves/autosave.json"),
             Err(e) => error!("Failed to quicksave: {}", e),
         }
     }

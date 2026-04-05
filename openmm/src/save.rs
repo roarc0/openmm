@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-const SAVE_DIR: &str = "target/saves";
+const SAVE_DIR: &str = "data/saves";
 
 /// Persistent quest progress: quest bits, autonotes, gold, food.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

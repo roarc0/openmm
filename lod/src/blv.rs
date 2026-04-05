@@ -350,6 +350,8 @@ pub struct BlvDoorFaceMesh {
 /// A per-texture mesh extracted from a BLV map, ready for rendering.
 pub struct BlvTexturedMesh {
     pub texture_name: String,
+    /// Face indices that contributed to this mesh (empty for BLV — indoor maps don't use SetTextureOutdoors).
+    pub face_indices: Vec<u32>,
     pub positions: Vec<[f32; 3]>,
     pub uvs: Vec<[f32; 2]>,
     pub normals: Vec<[f32; 3]>,
@@ -1336,6 +1338,7 @@ impl Blv {
                 .entry(tex_name.clone())
                 .or_insert_with(|| BlvTexturedMesh {
                     texture_name: tex_name.clone(),
+                    face_indices: Vec::new(),
                     positions: Vec::new(),
                     uvs: Vec::new(),
                     normals: Vec::new(),

@@ -526,6 +526,49 @@ fn execute_command(
         },
 
         // --- Gameplay ---
+        // --- Inventory ---
+        "item" => {
+            let sub = arg;
+            let item_id: Option<i32> = parts.get(2).and_then(|s| s.parse().ok());
+            let count: i32 = parts.get(3).and_then(|s| s.parse().ok()).unwrap_or(1);
+            match (sub, item_id) {
+                ("add", Some(id)) => {
+                    ctx_world.game_vars.give_item(id, count);
+                    ctx_state.push_output(format!("Item {}: count now {}", id, ctx_world.game_vars.item_count(id)));
+                }
+                ("rem", Some(id)) => {
+                    ctx_world.game_vars.remove_item(id, count);
+                    ctx_state.push_output(format!("Item {}: count now {}", id, ctx_world.game_vars.item_count(id)));
+                }
+                _ => ctx_state.push_output("Usage: item add|rem <id> [count]".to_string()),
+            }
+        }
+
+        // --- Quest bits ---
+        "qbit" => {
+            let bit: Option<i32> = parts.get(1).and_then(|s| s.parse().ok());
+            let value = parts.get(2).copied();
+            match bit {
+                None => ctx_state.push_output("Usage: qbit <n> [true|false]".to_string()),
+                Some(n) => match value {
+                    None => {
+                        let state = if ctx_world.game_vars.has_qbit(n) { "set" } else { "not set" };
+                        ctx_state.push_output(format!("QBit {}: {}", n, state));
+                    }
+                    Some("true" | "1" | "on") => {
+                        ctx_world.game_vars.set_qbit(n);
+                        ctx_state.push_output(format!("QBit {} set", n));
+                    }
+                    Some("false" | "0" | "off") => {
+                        ctx_world.game_vars.clear_qbit(n);
+                        ctx_state.push_output(format!("QBit {} cleared", n));
+                    }
+                    Some(v) => ctx_state.push_output(format!("Unknown value '{}'; use true or false", v)),
+                },
+            }
+        }
+
+        // --- Gameplay ---
         "fly" => {
             ctx_world.player.fly_mode = parse_toggle(arg, ctx_world.player.fly_mode);
             ctx_state.push_output(format!(
@@ -841,6 +884,9 @@ const HELP_TEXT: &[&str] = &[
     "  dof [on|off|N]   - Depth of field / focal distance",
     "  (* = run 'reload' to apply)",
     "Gameplay:",
+    "  item add <id> [count] - Give item to party (default count 1)",
+    "  item rem <id> [count] - Remove item from party (default count 1)",
+    "  qbit <n> [on|off]     - Check or set/clear quest bit n",
     "  fly [on|off]     - Toggle fly mode",
     "  speed <N>        - Set turn speed",
     "  sens <N>         - Set mouse sensitivity",

@@ -179,6 +179,10 @@ pub struct PreparedSubMesh {
     pub mesh: Mesh,
     pub material: StandardMaterial,
     pub texture: Option<Image>,
+    /// Texture name used by this sub-mesh.
+    pub texture_name: String,
+    /// Original face indices (into BSPModel::faces) that contributed to this sub-mesh.
+    pub face_indices: Vec<u32>,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -679,6 +683,8 @@ fn loading_step(
                                     ..default()
                                 },
                                 texture,
+                                texture_name: tm.texture_name.clone(),
+                                face_indices: tm.face_indices.clone(),
                             }
                         })
                         .collect(),
@@ -831,6 +837,8 @@ fn loading_step(
                                     mesh,
                                     material,
                                     texture,
+                                    texture_name: tm.texture_name.clone(),
+                                    face_indices: tm.face_indices.clone(),
                                 }
                             })
                             .collect();

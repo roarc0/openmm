@@ -22,6 +22,7 @@ use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
 use crate::game::map_name::MapName;
+use crate::game::odm::ApplyTextureOutdoors;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::world_state::GameVariables;
@@ -31,6 +32,7 @@ use crate::states::loading::LoadRequest;
 #[derive(SystemParam)]
 struct AudioParams<'w> {
     ui_sound: bevy::ecs::message::MessageWriter<'w, PlayUiSoundEvent>,
+    texture_outdoors: bevy::ecs::message::MessageWriter<'w, ApplyTextureOutdoors>,
     sound_manager: Option<Res<'w, SoundManager>>,
     game_time: Option<Res<'w, crate::game::game_time::GameTime>>,
     meshes: ResMut<'w, Assets<Mesh>>,
@@ -82,7 +84,35 @@ pub struct EventDispatchPlugin;
 impl Plugin for EventDispatchPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EventQueue>()
+            .add_systems(OnEnter(GameState::Game), dispatch_on_map_reload)
             .add_systems(Update, process_events.run_if(in_state(GameState::Game)));
+    }
+}
+
+/// On every map entry, dispatch all events whose first step is `OnMapReload`.
+/// These events check QBits and conditionally restore map state (e.g. texture swaps).
+/// This mirrors original MM6 behavior — OnMapReload events are designed to be re-run safely.
+fn dispatch_on_map_reload(
+    map_events: Option<Res<MapEvents>>,
+    mut event_queue: ResMut<EventQueue>,
+) {
+    let Some(me) = map_events else { return };
+    let Some(evt) = me.evt.as_ref() else { return };
+    let mut ids: Vec<u16> = evt
+        .events
+        .iter()
+        .filter(|(_, steps)| {
+            steps
+                .first()
+                .map(|s| matches!(s.event, GameEvent::OnMapReload))
+                .unwrap_or(false)
+        })
+        .map(|(id, _)| *id)
+        .collect();
+    ids.sort();
+    for id in ids {
+        info!("OnMapReload: dispatching event {}", id);
+        event_queue.push_all(id, evt);
     }
 }
 
@@ -327,6 +357,11 @@ fn evaluate_compare(
     if var == EvtVariable::AUTONOTES_BITS {
         let result = vars.has_autonote(value);
         debug!("  Compare: Autonote {} present? -> {}", value, result);
+        return result;
+    }
+    if var == EvtVariable::INVENTORY {
+        let result = vars.item_count(value) >= 1;
+        debug!("  Compare: HasItem({}) -> {}", value, result);
         return result;
     }
 
@@ -665,18 +700,19 @@ fn process_events(
                 count,
                 jump_step,
             } => {
-                // TODO: check actual inventory count; for now, always fail (jump)
-                warn!("STUB CheckItemsCount: item={} count={} (assuming fail)", item_id, count);
-                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                    log_skipped(steps, pc, target_idx, "CheckItemsCount fail");
-                    pc = target_idx;
-                } else {
-                    log_tail_unreachable(steps, pc);
-                    return;
+                let have = world_state.game_vars.item_count(*item_id);
+                if have < *count {
+                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
+                        log_skipped(steps, pc, target_idx, "CheckItemsCount fail");
+                        pc = target_idx;
+                    } else {
+                        log_tail_unreachable(steps, pc);
+                        return;
+                    }
                 }
             }
             GameEvent::RemoveItems { item_id, count } => {
-                warn!("STUB RemoveItems: item={} count={}", item_id, count);
+                world_state.game_vars.remove_item(*item_id, *count);
             }
 
             // ── NPC operations ───────────────────────────────────────
@@ -724,8 +760,12 @@ fn process_events(
             GameEvent::CharacterAnimation { player, anim_id } => {
                 warn!("STUB CharacterAnimation: player={} anim={}", player, anim_id);
             }
-            GameEvent::ShowMovie { movie_name } => {
-                warn!("STUB ShowMovie: '{}'", movie_name);
+            GameEvent::SetTextureOutdoors { model, facet, texture_name } => {
+                audio.texture_outdoors.write(ApplyTextureOutdoors {
+                    model: *model,
+                    facet: *facet,
+                    texture_name: texture_name.clone(),
+                });
             }
             GameEvent::PressAnyKey => {
                 warn!("STUB PressAnyKey");

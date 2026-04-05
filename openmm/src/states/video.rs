@@ -6,7 +6,6 @@ use lod::smk::SmkDecoder;
 use lod::vid::Vid;
 
 use crate::GameState;
-use crate::config::GameConfig;
 
 /// Build a minimal WAV file from raw PCM bytes.
 /// Supports 8-bit (unsigned) and 16-bit (signed little-endian).
@@ -83,20 +82,7 @@ fn video_setup(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     request: Res<VideoRequest>,
-    cfg: Res<GameConfig>,
 ) {
-    if cfg.skip_intro {
-        commands.insert_resource(VideoPlayer {
-            decoder: None,
-            image_handle: Handle::default(),
-            frame_timer: 0.0,
-            spf: 1.0,
-            skippable: true,
-            next: request.next,
-            finished: true,
-        });
-        return;
-    }
 
     let data_path = lod::get_data_path();
     let anims_dir = std::path::Path::new(&data_path).join("Anims");

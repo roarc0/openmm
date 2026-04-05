@@ -119,6 +119,8 @@ impl BSPModelFace {
 pub struct BSPTexturedMesh {
     /// Texture name from the LOD archive (bitmap name).
     pub texture_name: String,
+    /// Original face indices (into BSPModel::faces) that contributed to this mesh.
+    pub face_indices: Vec<u32>,
     /// Triangle vertex positions (3 per triangle), already in Bevy coordinates.
     pub positions: Vec<[f32; 3]>,
     /// Normalized UV coordinates (0-1 range), need texture dimensions for computation.
@@ -167,10 +169,12 @@ impl BSPModel {
                 .entry(tex_name.clone())
                 .or_insert_with(|| BSPTexturedMesh {
                     texture_name: tex_name.clone(),
+                    face_indices: Vec::new(),
                     positions: Vec::new(),
                     uvs: Vec::new(),
                     normals: Vec::new(),
                 });
+            mesh.face_indices.push(face_idx as u32);
 
             // Fan triangulation: (v0, v1, v2), (v0, v2, v3), ...
             for i in 0..(face.vertices_count as usize - 2) {

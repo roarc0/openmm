@@ -173,8 +173,9 @@ pub enum GameEvent {
     CharacterAnimation { player: u8, anim_id: u8 },
     /// Wait for key press.
     PressAnyKey,
-    /// Show a movie.
-    ShowMovie { movie_name: String },
+    /// Set texture on an outdoor BSP model face (MM6 opcode 0x0C).
+    /// model = BSP model index, facet = face index within model, texture_name = new texture.
+    SetTextureOutdoors { model: u32, facet: u32, texture_name: String },
     /// Check items count.
     CheckItemsCount { item_id: i32, count: i32, jump_step: u8 },
     /// Remove items from inventory.
@@ -396,7 +397,9 @@ impl std::fmt::Display for GameEvent {
                 write!(f, "CharacterAnimation(player={} anim={})", player, anim_id)
             }
             Self::PressAnyKey => write!(f, "PressAnyKey"),
-            Self::ShowMovie { movie_name } => write!(f, "ShowMovie('{}')", movie_name),
+            Self::SetTextureOutdoors { model, facet, texture_name } => {
+                write!(f, "SetTextureOutdoors(model={} facet={} tex='{}')", model, facet, texture_name)
+            }
             Self::CheckItemsCount {
                 item_id,
                 count,
@@ -920,9 +923,18 @@ impl EvtFile {
                     }
                 }
                 Some(EvtOpcode::PressAnyKey) => Some(GameEvent::PressAnyKey),
-                Some(EvtOpcode::ShowMovie) => Some(GameEvent::ShowMovie {
-                    movie_name: read_string(params),
-                }),
+                Some(EvtOpcode::SetTextureOutdoors) => {
+                    // MM6 opcode 0x0C: SetTextureOutdoors
+                    // Params: model(u32) + facet(u32) + texture_name(null-terminated)
+                    if params.len() >= 9 {
+                        let model = u32_at(params, 0);
+                        let facet = u32_at(params, 4);
+                        let texture_name = read_string(&params[8..]);
+                        Some(GameEvent::SetTextureOutdoors { model, facet, texture_name })
+                    } else {
+                        None
+                    }
+                }
                 Some(EvtOpcode::CheckItemsCount) => {
                     if params.len() >= 9 {
                         Some(GameEvent::CheckItemsCount {

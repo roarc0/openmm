@@ -8,7 +8,7 @@
 - `WorldState::write_to_save(&self) -> GameSave`
 - `WorldState::read_from_save(&mut self, save: &GameSave)`
 
-`GameSave` is written to `target/saves/{slot}.json`.
+`GameSave` is written to `data/saves/{slot}.json`.
 
 ### Time of Day
 

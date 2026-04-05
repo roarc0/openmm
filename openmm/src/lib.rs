@@ -37,6 +37,12 @@ impl Plugin for GamePlugin {
         let game_fonts = fonts::GameFonts::load(&game_assets);
         let save_data = GameSave::load_or_default();
 
+        let initial_state = if cfg.skip_intro {
+            GameState::Menu
+        } else {
+            GameState::Video
+        };
+
         app.insert_resource(cfg)
             .insert_resource(game_assets)
             .insert_resource(game_fonts)
@@ -48,7 +54,7 @@ impl Plugin for GamePlugin {
                 next: GameState::Menu,
             })
             .add_plugins((BevyConfigPlugin, VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
-            .insert_state(GameState::Video);
+            .insert_state(initial_state);
     }
 }
 

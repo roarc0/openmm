@@ -214,7 +214,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### WorldState and game variables
 
-- `WorldState` = runtime source of truth; `GameSave` = JSON at `target/saves/{slot}.json`.
+- `WorldState` = runtime source of truth; `GameSave` = JSON at `data/saves/{slot}.json`.
 - `GameVariables`: `map_vars[100]` (reset on map change), `quest_bits`, `autonotes`, gold=200, food=7.
 - `Party`: 4 fixed members; `active_target` set by `ForPartyMember` EVT opcode.
 
@@ -226,7 +226,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 - `MapName` enum: `Outdoor(OdmName)` or `Indoor(String)`. `TryFrom<&str>` parses `"oute3"` (5 chars, starts with `"out"`) as outdoor; anything else as indoor.
 - `OdmName` supports directional navigation: `go_north/go_south/go_east/go_west` return `Option<OdmName>` (None at boundary). Valid columns `'a'–'e'`, rows `'1'–'3'`.
-- `GameSave` → JSON at `target/saves/{slot}.json`. Default spawn: `[-10178, 340, 11206]` yaw -38.7°.
+- `GameSave` → JSON at `data/saves/{slot}.json`. Default spawn: `[-10178, 340, 11206]` yaw -38.7°.
 - `GameAssets` resource: wraps `LodManager` + `GameData` + `BillboardManager`. `game_lod()` for sprites, bitmaps, icons, fonts.
 
 ### Developer console
@@ -258,6 +258,8 @@ Files in `docs/` — keep this list in sync (Rule 2):
 
 ## Debugging Game Data
 
+**Always redump and inspect the output before digging into code. Raw decompressed data is fine to read; never try to parse compressed LOD data by hand.**
+
 **Never dig through LOD binary data by hand when investigating a bug or format.** The `data/dump/` directory is a pre-dumped, human-readable cache of game data — always start there.
 
 Dump commands:
@@ -286,7 +288,7 @@ If a field is missing from the dump output, or the output is confusing or wrong,
 Known pitfalls that have caused bugs or wasted time — read before starting any task:
 
 - **`dynamic_linking` in release builds**: `bevy = { features = ["dynamic_linking", ...] }` is set unconditionally in `openmm/Cargo.toml`. This is intentional for fast dev iteration but **must not be used in release binaries** — the Bevy shared library won't be present on other machines. CI release builds must disable it (`--no-default-features` or a release feature flag). Do not add it to `lod`.
-- **MM6 vs MM7 formats**: OpenEnroth documents MM7. Field offsets, struct layouts, and enum values are often different. Always verify against MMExtension (in `target/`) or original MM6 data before trusting OpenEnroth.
+- **MM6 vs MM7 formats**: OpenEnroth documents MM7. Field offsets, struct layouts, and enum values are often different. Always verify against MMExtension or original MM6 data before trusting OpenEnroth.
 - **Stale map resources on reload**: `loading_setup` explicitly removes `PreparedWorld`, `PreparedIndoorWorld`, `BlvDoors`, `DoorColliders`, `ClickableFaces`, `TouchTriggerFaces`. If you add a new per-map resource, add it to that cleanup list or it will persist across map changes.
 - **HudView-gated systems**: any system that touches player state or game time must be gated with `.run_if(resource_equals(HudView::World))`. Forgetting this causes gameplay to run during dialogues and inventory.
 - **`PlayerInputSet` ordering**: systems that read player position or react to player input must run `.after(PlayerInputSet)`. Incorrect ordering causes one-frame lag or missed input.

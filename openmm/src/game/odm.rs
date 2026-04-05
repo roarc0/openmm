@@ -1,3 +1,4 @@
+use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
 
@@ -6,6 +7,25 @@ use crate::assets::GameAssets;
 use crate::game::InGame;
 use crate::game::entities::{actor, sprites};
 use crate::game::terrain_material::{TerrainMaterial, WaterExtension};
+
+/// Marker on each outdoor BSP model sub-mesh entity — tracks which model and faces it represents.
+#[derive(Component)]
+pub struct BspSubMesh {
+    /// Index of the BSP model this sub-mesh belongs to (index into `PreparedWorld::models`).
+    pub model_index: u32,
+    /// Face indices (into the BSPModel::faces array) that contributed to this sub-mesh.
+    pub face_indices: Vec<u32>,
+    /// Current texture name on this sub-mesh.
+    pub texture_name: String,
+}
+
+/// Message to swap the texture on an outdoor BSP model face at runtime.
+#[derive(Message)]
+pub struct ApplyTextureOutdoors {
+    pub model: u32,
+    pub facet: u32,
+    pub texture_name: String,
+}
 
 /// Spawn progress visible to the debug HUD.
 #[derive(Resource, Default)]
@@ -132,10 +152,11 @@ pub struct OdmPlugin;
 impl Plugin for OdmPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SpawnProgress>()
+            .add_message::<ApplyTextureOutdoors>()
             .add_systems(OnEnter(GameState::Game), spawn_world)
             .add_systems(
                 Update,
-                (lazy_spawn, check_map_boundary)
+                (lazy_spawn, check_map_boundary, apply_texture_outdoors)
                     .run_if(in_state(GameState::Game))
                     .run_if(resource_equals(crate::game::hud::HudView::World)),
             );
@@ -290,7 +311,7 @@ fn spawn_world(
         .with_children(|parent| {
             let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
             // BSP models (buildings, structures)
-            for model in &prepared.models {
+            for (model_index, model) in prepared.models.iter().enumerate() {
                 let mut model_entity = parent.spawn((
                     Name::new(format!("model_{}", model.name)),
                     Transform::default(),
@@ -306,7 +327,15 @@ fn spawn_world(
                             let tex_handle = images.add(img);
                             mat.base_color_texture = Some(tex_handle);
                         }
-                        model_parent.spawn((Mesh3d(meshes.add(sub.mesh.clone())), MeshMaterial3d(materials.add(mat))));
+                        model_parent.spawn((
+                            Mesh3d(meshes.add(sub.mesh.clone())),
+                            MeshMaterial3d(materials.add(mat)),
+                            BspSubMesh {
+                                model_index: model_index as u32,
+                                face_indices: sub.face_indices.clone(),
+                                texture_name: sub.texture_name.clone(),
+                            },
+                        ));
                     }
                 });
             }
@@ -1042,5 +1071,55 @@ fn decoration_point_light(light_radius: u16) -> impl Bundle {
         range,
         shadows_enabled: false,
         ..default()
+    }
+}
+
+/// Handle `ApplyTextureOutdoors` messages — swap the material on the matching BSP sub-mesh entity.
+fn apply_texture_outdoors(
+    mut events: MessageReader<ApplyTextureOutdoors>,
+    mut query: Query<(&mut BspSubMesh, &mut MeshMaterial3d<StandardMaterial>)>,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    game_assets: Res<GameAssets>,
+    cfg: Res<crate::config::GameConfig>,
+) {
+    for ev in events.read() {
+        let Some((mut sub, mut mat_handle)) = query.iter_mut().find(|(sub, _)| {
+            sub.model_index == ev.model && sub.face_indices.contains(&ev.facet)
+        }) else {
+            warn!(
+                "SetTextureOutdoors: no sub-mesh found for model={} facet={}",
+                ev.model, ev.facet
+            );
+            continue;
+        };
+
+        let Some(img) = game_assets.game_lod().bitmap(&ev.texture_name) else {
+            warn!("SetTextureOutdoors: texture '{}' not found in LOD", ev.texture_name);
+            continue;
+        };
+
+        let mut image = crate::assets::dynamic_to_bevy_image(img);
+        image.sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
+        let tex_handle = images.add(image);
+
+        let new_mat = StandardMaterial {
+            base_color: Color::srgb(1.8, 1.8, 1.8),
+            base_color_texture: Some(tex_handle),
+            alpha_mode: AlphaMode::Opaque,
+            cull_mode: None,
+            double_sided: true,
+            perceptual_roughness: 1.0,
+            reflectance: 0.0,
+            metallic: 0.0,
+            ..default()
+        };
+        mat_handle.0 = materials.add(new_mat);
+        sub.texture_name = ev.texture_name.clone();
+
+        info!(
+            "SetTextureOutdoors: model={} facet={} → '{}'",
+            ev.model, ev.facet, ev.texture_name
+        );
     }
 }

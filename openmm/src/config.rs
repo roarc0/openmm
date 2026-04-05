@@ -172,7 +172,7 @@ struct Cli {
     exposure: Option<f32>,
 
     /// Path to config file
-    /// Path to config file (default: ./openmm.toml, fallback: target/openmm.toml)
+    /// Path to config file (default: ./openmm.toml, fallback: data/openmm.toml)
     #[arg(long)]
     config: Option<PathBuf>,
 }

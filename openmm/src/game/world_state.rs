@@ -43,6 +43,8 @@ pub struct GameVariables {
     pub total_circus_prize: i32,
     /// NPC topic overrides: npc_id → event_id (set by SetNPCTopic).
     pub npc_topics: std::collections::HashMap<i32, i32>,
+    /// Party item counts: item_id → count. Backing store for CheckItemsCount / RemoveItems.
+    pub items: std::collections::HashMap<i32, i32>,
 }
 
 pub struct PlayerRuntimeState {
@@ -108,6 +110,7 @@ impl Default for GameVariables {
             npcs_in_party: 0,
             total_circus_prize: 0,
             npc_topics: std::collections::HashMap::new(),
+            items: std::collections::HashMap::new(),
         }
     }
 }
@@ -143,6 +146,22 @@ impl GameVariables {
 
     pub fn has_autonote(&self, note: i32) -> bool {
         self.autonotes.contains(&note)
+    }
+
+    pub fn give_item(&mut self, item_id: i32, count: i32) {
+        let entry = self.items.entry(item_id).or_insert(0);
+        *entry += count;
+        info!("[Item {:4}] count now {}", item_id, *entry);
+    }
+
+    pub fn remove_item(&mut self, item_id: i32, count: i32) {
+        let entry = self.items.entry(item_id).or_insert(0);
+        *entry = (*entry - count).max(0);
+        info!("[Item {:4}] count now {}", item_id, *entry);
+    }
+
+    pub fn item_count(&self, item_id: i32) -> i32 {
+        self.items.get(&item_id).copied().unwrap_or(0)
     }
 }
 
