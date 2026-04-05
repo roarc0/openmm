@@ -65,6 +65,9 @@ pub struct GameVariables {
     pub actor_flags: std::collections::HashMap<i32, u32>,
     /// Kill counts by faction group: group_id → killed count (incremented when actor HP → 0).
     pub killed_groups: std::collections::HashMap<i32, u32>,
+    /// Dead actor DDM IDs per map: map_name_string → set of ddm_id.
+    /// Actors in this set are excluded from spawn on map (re)load.
+    pub dead_actor_ids: std::collections::HashMap<String, std::collections::HashSet<i32>>,
 }
 
 pub struct PlayerRuntimeState {
@@ -141,6 +144,7 @@ impl Default for GameVariables {
             event_overrides: std::collections::HashMap::new(),
             actor_flags: std::collections::HashMap::new(),
             killed_groups: std::collections::HashMap::new(),
+            dead_actor_ids: std::collections::HashMap::new(),
         }
     }
 }

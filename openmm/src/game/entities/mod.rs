@@ -131,7 +131,7 @@ fn distance_culling(
 fn wander_system(
     time: Res<Time>,
     colliders: Option<Res<crate::game::collision::BuildingColliders>>,
-    mut query: Query<(&mut Transform, &mut actor::Actor, &mut AnimationState), With<WorldEntity>>,
+    mut query: Query<(&mut Transform, &mut actor::Actor, &mut AnimationState), (With<WorldEntity>, Without<crate::game::actor_combat::DyingTimer>)>,
 ) {
     let dt = time.delta_secs();
 

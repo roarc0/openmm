@@ -406,6 +406,7 @@ fn loading_step(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    world_state: Option<Res<crate::game::world_state::WorldState>>,
 ) {
     // Update loading text
     for mut text in &mut text_query {
@@ -1000,10 +1001,18 @@ fn loading_step(
                 let mut seen = std::collections::HashSet::new();
 
                 // DDM actors (NPCs): resolve once, cache for spawn_world reuse
+                let map_key = load_request.map_name.to_string();
+                let snapshot = world_state.as_ref().and_then(|ws| {
+                    ws.game_vars.dead_actor_ids.get(&map_key).map(|ids| {
+                        lod::game::actors::MapStateSnapshot {
+                            dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
+                        }
+                    })
+                });
                 let lod_actors = lod::game::actors::Actors::new(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
-                    None,
+                    snapshot.as_ref(),
                     game_assets.game_data(),
                 )
                 .ok();
@@ -1013,6 +1022,7 @@ fn loading_step(
                             actor.standing_sprite.clone(),
                             actor.walking_sprite.clone(),
                             actor.attacking_sprite.clone(),
+                            actor.dying_sprite.clone(),
                         ] {
                             let key = format!("{}@v{}p{}", root, actor.variant, actor.palette_id);
                             if seen.insert(key) {
@@ -1040,6 +1050,7 @@ fn loading_step(
                             m.standing_sprite.clone(),
                             m.walking_sprite.clone(),
                             m.attacking_sprite.clone(),
+                            m.dying_sprite.clone(),
                         ] {
                             let key = format!("{}@v{}p{}", root, m.variant, m.palette_id);
                             if seen.insert(key) {

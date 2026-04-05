@@ -427,6 +427,7 @@ fn spawn_indoor_world(
                 &actor.standing_sprite,
                 &actor.walking_sprite,
                 &actor.attacking_sprite,
+                &actor.dying_sprite,
                 game_assets.lod_manager(),
                 &mut images,
                 &mut materials,

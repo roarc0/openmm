@@ -22,6 +22,8 @@ pub struct Monster {
     pub walking_sprite: String,
     /// Sprite root for the attack1 animation (sprite_names[2], lowercased).
     pub attacking_sprite: String,
+    /// Sprite root for the dying animation (sprite_names[5], lowercased).
+    pub dying_sprite: String,
     /// DSFT palette_id for this variant.
     pub palette_id: u16,
     /// Difficulty variant: 1=A (base), 2=B, 3=C. From mapstats difficulty + RNG seed.
@@ -134,6 +136,7 @@ impl Monsters {
                     .map(|(n, _)| n)
                     .unwrap_or_else(|| st_root.clone());
                 let at_root = at_group.to_lowercase();
+                let dying_root = desc.sprite_names[5].to_lowercase();
                 let hp = game_data.monsters.max_hp(mon_name, variant).unwrap_or(1);
 
                 entries.push(Monster {
@@ -144,6 +147,7 @@ impl Monsters {
                     standing_sprite: st_root,
                     walking_sprite: wa_root,
                     attacking_sprite: at_root,
+                    dying_sprite: dying_root,
                     palette_id: palette_id as u16,
                     variant,
                     height: desc.height,
@@ -183,6 +187,8 @@ pub struct MonsterEntry {
     pub walking_sprite: String,
     /// Sprite root for the attack1 animation (sprite_names[2], lowercased).
     pub attacking_sprite: String,
+    /// Sprite root for the dying animation (sprite_names[5], lowercased).
+    pub dying_sprite: String,
     pub palette_id: u16,
     /// Variant derived from internal_name suffix: 1=A, 2=B, 3=C.
     pub variant: u8,
@@ -264,10 +270,12 @@ pub fn resolve_entry(monlist_id: u8, game_data: &GameData, lod: &LodManager) -> 
         .map(|(n, _)| n)
         .unwrap_or_else(|| standing_sprite.clone());
     let attacking_sprite = at_group.to_lowercase();
+    let dying_sprite = desc.sprite_names[5].to_lowercase();
     Some(MonsterEntry {
         standing_sprite,
         walking_sprite,
         attacking_sprite,
+        dying_sprite,
         palette_id: palette_id as u16,
         variant: variant_from_internal_name(&desc.internal_name),
         internal_name: desc.internal_name.clone(),

@@ -42,9 +42,11 @@ struct MapEntityParams<'w, 's> {
             &'static mut Mesh3d,
             &'static mut Transform,
         ),
+        Without<crate::game::player::Player>,
     >,
     actors: Query<'w, 's, (&'static mut Actor, &'static mut Visibility)>,
     player: Query<'w, 's, &'static mut Transform, With<crate::game::player::Player>>,
+    player_settings: Res<'w, crate::game::player::PlayerSettings>,
 }
 
 /// Bundles audio + mesh assets + game_time to stay within Bevy's 16-param limit.
@@ -503,9 +505,9 @@ fn process_events(
                 if let Some(image) = game_assets.load_icon("chest01", &mut images) {
                     // Play chest-open sound if available
                     if let Some(ref sm) = audio.sound_manager
-                        && let Some(id) = sm.chest_open_sound_id
+                        && let Some(s) = sm.dsounds.get_by_name("openchest0101")
                     {
-                        audio.ui_sound.write(PlayUiSoundEvent { sound_id: id });
+                        audio.ui_sound.write(PlayUiSoundEvent { sound_id: s.sound_id });
                     }
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Chest;
@@ -521,8 +523,17 @@ fn process_events(
             } => {
                 // A name with no letters (e.g. "0") means same-map teleport — just
                 // reposition the player without reloading the map.
+                // The original MM6 engine hardcodes playing the teleport sound here
+                // (there is no PlaySound step in the EVT data for MoveToMap events).
                 if !map_name.chars().any(|c| c.is_ascii_alphabetic()) {
-                    let pos = Vec3::from(mm6_to_bevy(*x, *y, *z));
+                    if let Some(ref sm) = audio.sound_manager
+                        && let Some(s) = sm.dsounds.get_by_name("teleport")
+                    {
+                        audio.ui_sound.write(PlayUiSoundEvent { sound_id: s.sound_id });
+                    }
+                    let base = Vec3::from(mm6_to_bevy(*x, *y, *z));
+                    // Player Transform.y is at eye level (feet + eye_height), same as spawn.
+                    let pos = Vec3::new(base.x, base.y + entities.player_settings.eye_height, base.z);
                     let yaw = (*direction as f32) * std::f32::consts::TAU / 65536.0;
                     if let Ok(mut tf) = entities.player.single_mut() {
                         tf.translation = pos;

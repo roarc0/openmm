@@ -23,6 +23,8 @@ pub struct Actor {
     pub walking_sprite: String,
     /// Sprite root for the attack1 animation (from MonsterEntry.attacking_sprite).
     pub attacking_sprite: String,
+    /// Sprite root for the dying animation (from MonsterEntry.dying_sprite).
+    pub dying_sprite: String,
     pub palette_id: u16,
     /// Variant: 1=A (base), 2=B, 3=C. Derived from dmonlist internal_name suffix (e.g. "GoblinB" → 2).
     /// actors sharing the same standing_sprite root. Never 0 after construction.
@@ -149,6 +151,7 @@ impl Actors {
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
                 attacking_sprite: entry.attacking_sprite,
+                dying_sprite: entry.dying_sprite,
                 palette_id: entry.palette_id,
                 variant: entry.variant,
                 name,
@@ -243,6 +246,7 @@ impl Actors {
                 standing_sprite: entry.standing_sprite,
                 walking_sprite: entry.walking_sprite,
                 attacking_sprite: entry.attacking_sprite,
+                dying_sprite: entry.dying_sprite,
                 palette_id: entry.palette_id,
                 variant: entry.variant,
                 name,

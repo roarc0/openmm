@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
+use crate::game::actor_combat::KillActorEvent;
 use crate::game::blv::{ClickableFaces, OccluderFaces};
 use crate::game::entities::sprites::{AlphaMask, SpriteSheet};
 use crate::game::event_dispatch::EventQueue;
@@ -170,10 +171,12 @@ fn world_interact_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
+    monsters: Query<(Entity, &MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
     clickable_faces: Option<Res<ClickableFaces>>,
     occluder_faces: Option<Res<OccluderFaces>>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
+    mut kill_events: bevy::ecs::message::MessageWriter<KillActorEvent>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     world_state: Option<Res<WorldState>>,
 ) {
@@ -205,6 +208,7 @@ fn world_interact_system(
         /// Carries (event_id, billboard_index) so ChangeEvent overrides can be checked.
         Decoration(u16, usize),
         Npc(i16),
+        Monster(Entity),
     }
     let mut nearest: Option<(f32, Hit)> = None;
 
@@ -269,6 +273,25 @@ fn world_interact_system(
         }
     }
 
+    for (entity, _info, g_tf, sheet) in monsters.iter() {
+        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+            continue;
+        };
+        if let Some(t) = billboard_hit_test(
+            origin,
+            dir,
+            g_tf.translation(),
+            facing_rotation(origin, g_tf.translation()),
+            sw / 2.0,
+            sh / 2.0,
+            sheet.current_mask.as_deref(),
+        ) && t < occluder_t
+            && nearest.as_ref().is_none_or(|n| t < n.0)
+        {
+            nearest = Some((t, Hit::Monster(entity)));
+        }
+    }
+
     match nearest {
         Some((dist, Hit::Face(event_id))) => {
             info!("World interact: hit BSP face event_id={} at dist={:.0}", event_id, dist);
@@ -312,6 +335,9 @@ fn world_interact_system(
             if !ran_event {
                 event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: npc_id_i32 });
             }
+        }
+        Some((_, Hit::Monster(entity))) => {
+            kill_events.write(KillActorEvent(entity));
         }
         None => {}
     }
