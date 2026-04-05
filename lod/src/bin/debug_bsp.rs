@@ -1,8 +1,8 @@
 use lod::{LodManager, odm::Odm};
 
 fn main() {
-    let lod_manager = LodManager::new(lod::get_lod_path()).unwrap();
-    let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
+    let lod_manager = LodManager::new(lod::get_data_path()).unwrap();
+    let map = Odm::load(&lod_manager, "oute3.odm").unwrap();
 
     for (mi, model) in map.bsp_models.iter().enumerate().take(5) {
         println!("=== Model {} '{}' ===", mi, model.header.name);

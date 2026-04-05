@@ -1,7 +1,7 @@
 use lod::LodManager;
 
 fn main() {
-    let lod_manager = LodManager::new(lod::get_lod_path()).expect("failed to open LOD files");
+    let lod_manager = LodManager::new(lod::get_data_path()).expect("failed to open LOD files");
 
     // List all peasant sprite files and check their palette IDs
     if let Some(files) = lod_manager.files_in("sprites") {

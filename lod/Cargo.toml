@@ -5,7 +5,7 @@ edition.workspace = true
 authors.workspace = true
 
 [dependencies]
-bitflags = "2"
+bitflags = { version = "2", features = ["serde"] }
 byteorder = "1.5"
 csv = "1"
 flate2 = "1.0"
@@ -18,3 +18,9 @@ smk = "0.1.0"
 
 [lints]
 workspace = true
+
+[[example]]
+name = "lod_roundtrip"
+
+[[example]]
+name = "create_test_lod"

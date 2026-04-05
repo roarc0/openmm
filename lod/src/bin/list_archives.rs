@@ -1,5 +1,5 @@
 fn main() {
-    let lod = lod::LodManager::new(lod::get_lod_path()).unwrap();
+    let lod = lod::LodManager::new(lod::get_data_path()).unwrap();
     if let Some(files) = lod.files_in("icons") {
         let mut bgs: Vec<(String, u32, u32)> = Vec::new();
         for f in &files {

@@ -19,9 +19,9 @@ pub struct GameAssets {
 impl GameAssets {
     pub fn new(path: std::path::PathBuf) -> Result<Self, Box<dyn Error>> {
         let lod_manager = LodManager::new(path)?;
-        let game_data = lod::game::global::GameData::new(&lod_manager)?;
-        let billboard_manager = lod::billboard::BillboardManager::new(&lod_manager)?;
-        let quest_bits = lod::quest_bits::QuestBitNames::load(&lod_manager);
+        let game_data = lod::game::global::GameData::load(&lod_manager)?;
+        let billboard_manager = lod::billboard::BillboardManager::load(&lod_manager)?;
+        let quest_bits = lod::quest_bits::QuestBitNames::load(&lod_manager)?;
         Ok(Self {
             lod_manager,
             game_data,

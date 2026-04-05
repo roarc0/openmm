@@ -1,9 +1,9 @@
 use lod::LodManager;
 
 fn main() {
-    let lod_manager = LodManager::new(lod::get_lod_path()).unwrap();
+    let lod_manager = LodManager::new(lod::get_data_path()).unwrap();
     let raw = lod_manager.try_get_bytes("icons/mapstats.txt").unwrap();
-    let data = match lod::lod_data::LodData::try_from(raw) {
+    let data = match lodcratecrate::raw::lod_data::LodData::try_from(raw) {
         Ok(d) => d.data,
         Err(_) => raw.to_vec(),
     };

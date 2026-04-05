@@ -1,12 +1,12 @@
 /// Dump all oute3 NPCs to data/dump/npc2.json with ids, names, portraits, and types.
 fn main() {
-    let lod_path = lod::get_lod_path();
+    let lod_path = lod::get_data_path();
     let mgr = lod::LodManager::new(&lod_path).unwrap();
-    let monlist = lod::monlist::MonsterList::new(&mgr).unwrap();
+    let monlist = lod::raw::monlist::MonsterList::load(&mgr).unwrap();
     let npc_table = mgr.game().npc_table().expect("npcdata.txt");
 
     let map = "oute3.odm";
-    let ddm = lod::ddm::Ddm::new(&mgr, map).expect("failed to load oute3 DDM");
+    let ddm = lod::raw::ddm::Ddm::load(&mgr, map).expect("failed to load oute3 DDM");
 
     let mut entries = Vec::new();
 

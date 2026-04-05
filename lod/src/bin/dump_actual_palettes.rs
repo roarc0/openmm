@@ -3,7 +3,7 @@ use lod::LodManager;
 use std::io::{Cursor, Seek};
 
 fn main() {
-    let lod_path = lod::get_lod_path();
+    let lod_path = lod::get_data_path();
     let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
 
     let sprite_names = vec![

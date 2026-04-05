@@ -437,7 +437,7 @@ fn loading_step(
         LoadingStep::ParseMap => {
             let map_name = load_request.map_name.to_string();
             if load_request.map_name.is_indoor() {
-                match Blv::new(game_assets.lod_manager(), &map_name) {
+                match Blv::load(game_assets.lod_manager(), &map_name) {
                     Ok(blv) => {
                         progress.blv = Some(blv);
                         // Skip terrain — jump straight to BuildModels
@@ -452,12 +452,12 @@ fn loading_step(
                 }
                 return;
             }
-            match Odm::new(game_assets.lod_manager(), &map_name) {
+            match Odm::load(game_assets.lod_manager(), &map_name) {
                 Ok(odm) => {
                     match odm.tile_table(game_assets.lod_manager()) {
                         Ok(tile_table) => {
                             // Build water map from tile data
-                            if let Ok(dtile) = Dtile::new(game_assets.lod_manager()) {
+                            if let Ok(dtile) = Dtile::load(game_assets.lod_manager()) {
                                 let water_cells: Vec<bool> =
                                     odm.tile_map.iter().map(|&idx| dtile.is_deep_water_tile(idx)).collect();
                                 progress.water_cells = Some(water_cells);
@@ -1049,7 +1049,7 @@ fn loading_step(
                 let decorations = {
                     let odm = progress.odm.as_ref().unwrap();
                     for bb in &odm.billboards {
-                        if bb.data.is_invisible() {
+                        if bb.data.is_original_invisible() {
                             continue;
                         }
                         let is_marker = bb_mgr
@@ -1072,7 +1072,7 @@ fn loading_step(
                         }
                     }
                     // Decorations::new filters invisible/marker/no-draw entries automatically
-                    lod::game::decorations::Decorations::new(game_assets.lod_manager(), &odm.billboards).ok()
+                    lod::game::decorations::Decorations::load(game_assets.lod_manager(), &odm.billboards).ok()
                 };
                 progress.start_points = Some(start_points);
                 progress.decorations = decorations;
@@ -1125,7 +1125,7 @@ fn loading_step(
 
                 // ODM spawn-point monsters (outdoor only): one Monster per group member
                 let lod_monsters = if load_request.map_name.is_outdoor() {
-                    lod::game::monster::Monsters::new(
+                    lod::game::monster::Monsters::load(
                         game_assets.lod_manager(),
                         &load_request.map_name.to_string(),
                         game_assets.game_data(),

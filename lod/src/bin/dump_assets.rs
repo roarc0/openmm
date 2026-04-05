@@ -5,7 +5,7 @@ use std::path::Path;
 use lod::LodManager;
 
 fn main() {
-    let lod_path = lod::get_lod_path();
+    let lod_path = lod::get_data_path();
     let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
 
     let out_dir = Path::new("data/dump");
@@ -75,15 +75,15 @@ fn dump_readable_files(lod_manager: &LodManager, out_dir: &Path) {
                 let mut out_content: Option<String> = None;
 
                 if lower.ends_with(".odm") {
-                    if let Ok(data) = lod::odm::Odm::new(lod_manager, file) {
+                    if let Ok(data) = lod::odm::Odm::load(lod_manager, &file) {
                         out_content = serde_json::to_string_pretty(&data).ok();
                     }
                 } else if lower.ends_with(".ddm") {
-                    if let Ok(data) = lod::ddm::Ddm::new(lod_manager, file) {
+                    if let Ok(data) = lod::ddm::Ddm::load(lod_manager, &file) {
                         out_content = serde_json::to_string_pretty(&data).ok();
                     }
                 } else if lower.ends_with(".blv")
-                    && let Ok(data) = lod::blv::Blv::new(lod_manager, file)
+                    && let Ok(data) = lod::blv::Blv::load(lod_manager, &file)
                 {
                     out_content = serde_json::to_string_pretty(&data).ok();
                 }

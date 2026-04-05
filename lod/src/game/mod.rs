@@ -4,12 +4,12 @@
 //! `GameLod` wraps a `LodManager` reference and provides decoded, game-ready data:
 //! sprites, bitmaps, icons, fonts, and NPC tables.
 
-pub mod actors;
-pub mod decorations;
-pub mod font;
-pub mod global;
-pub mod monster;
-pub mod npc;
+pub use crate::raw::actors;
+pub use crate::raw::decorations;
+pub use crate::raw::font;
+pub use crate::raw::global;
+pub use crate::raw::monster;
+pub use crate::raw::npc;
 
 use crate::LodManager;
 use ::image::DynamicImage;
@@ -32,7 +32,7 @@ impl<'a> GameLod<'a> {
             .try_get_bytes(format!("sprites/{}", name.to_lowercase()))
             .ok()?;
         let palettes = self.lod.palettes().ok()?;
-        let sprite = crate::image::Image::try_from((sprite, &palettes)).ok()?;
+        let sprite = crate::raw::image::Image::try_from((sprite.as_slice(), &palettes)).ok()?;
         sprite.to_image_buffer().ok()
     }
 
@@ -43,7 +43,7 @@ impl<'a> GameLod<'a> {
             .try_get_bytes(format!("sprites/{}", name.to_lowercase()))
             .ok()?;
         let palettes = self.lod.palettes().ok()?;
-        let sprite = crate::image::Image::try_from_with_palette(sprite_data, &palettes, palette_id).ok()?;
+        let sprite = crate::raw::image::Image::try_from_with_palette(sprite_data.as_slice(), &palettes, palette_id).ok()?;
         sprite.to_image_buffer().ok()
     }
 
@@ -53,7 +53,7 @@ impl<'a> GameLod<'a> {
             .lod
             .try_get_bytes(format!("bitmaps/{}", name.to_lowercase()))
             .ok()?;
-        let bitmap = crate::image::Image::try_from(bitmap).ok()?;
+        let bitmap = crate::raw::image::Image::try_from(bitmap.as_slice()).ok()?;
         bitmap.to_image_buffer().ok()
     }
 
@@ -67,7 +67,7 @@ impl<'a> GameLod<'a> {
         if data.len() > 4 && data[0] == 0x0A {
             decode_pcx(&data)
         } else {
-            let img = crate::image::Image::try_from(raw).ok()?;
+            let img = crate::raw::image::Image::try_from(raw.as_slice()).ok()?;
             img.to_image_buffer().ok()
         }
     }
@@ -89,7 +89,7 @@ impl<'a> GameLod<'a> {
                 files
                     .into_iter()
                     .filter(|f| f.ends_with(".fnt"))
-                    .map(|f| f.strip_suffix(".fnt").unwrap_or(f).to_string())
+                    .map(|f| f.strip_suffix(".fnt").unwrap_or(&f).to_string())
                     .collect()
             })
             .unwrap_or_default()

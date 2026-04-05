@@ -1,4 +1,4 @@
-.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds dump_vid test-ci
+.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds dump_vid check-data test-ci
 
 # --- Build ---
 
@@ -60,6 +60,9 @@ dump_vid:
 clean:
 	cargo clean
 
+check-data:
+	cargo run --release -p lod --example data_roundtrip
+
 help:
 	@echo "Available commands:"
 	@echo "  build         - Build the project (debug)"
@@ -76,4 +79,5 @@ help:
 	@echo "  dump_assets   - Extract assets from LOD"
 	@echo "  dump_sounds   - Extract sounds from LOD"
 	@echo "  dump_vid      - Extract SMK videos from Anims VID archives"
+	@echo "  check-data    - Run full data round-trip verification (generates ./data/mm6_serialized/)"
 	@echo "  clean         - Clean cargo target directory"

@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::Path;
 
-use lod::vid::{Vid, parse_smk_info};
+use lodcratecrate::raw::vid::{Vid, parse_smk_info};
 
 fn main() {
     let data_path = lod::get_data_path();

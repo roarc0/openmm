@@ -1,7 +1,7 @@
 use lod::LodManager;
 
 fn main() {
-    let lod_path = lod::get_lod_path();
+    let lod_path = lod::get_data_path();
     let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
 
     if let Some(files) = lod_manager.files_in("sprites") {

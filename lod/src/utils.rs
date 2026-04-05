@@ -28,5 +28,10 @@ pub(super) fn try_read_string_block(cursor: &mut Cursor<&[u8]>, size: usize) -> 
 }
 
 #[cfg(test)]
+pub fn test_lod() -> Option<crate::LodManager> {
+    crate::LodManager::new(crate::get_data_path()).ok()
+}
+
+#[cfg(test)]
 #[path = "utils_tests.rs"]
 mod tests;

@@ -1,7 +1,7 @@
 use std::io::Read;
 
 fn main() {
-    let lod = lod::LodManager::new(lod::get_lod_path()).unwrap();
+    let lod = lod::LodManager::new(lod::get_data_path()).unwrap();
 
     let evt_data = lod
         .try_get_bytes("icons/oute3.evt")

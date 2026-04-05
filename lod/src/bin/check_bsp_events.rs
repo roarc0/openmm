@@ -1,6 +1,6 @@
 fn main() {
-    let lod = lod::LodManager::new(lod::get_lod_path()).unwrap();
-    let odm = lod::odm::Odm::new(&lod, "oute3.odm").unwrap();
+    let lod = lod::LodManager::new(lod::get_data_path()).unwrap();
+    let odm = lod::odm::Odm::load(&lod, "oute3.odm").unwrap();
     let mut ids: std::collections::BTreeMap<u16, (u16, u16)> = Default::default();
     for model in &odm.bsp_models {
         for face in &model.faces {

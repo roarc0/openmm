@@ -1,7 +1,7 @@
 fn main() {
-    let lod = lod::LodManager::new(lod::get_lod_path()).unwrap();
+    let lod = lod::LodManager::new(lod::get_data_path()).unwrap();
     let raw = lod.try_get_bytes("games/oute3.ddm").unwrap();
-    let data = lod::lod_data::LodData::try_from(raw).unwrap();
+    let data = lodcratecrate::raw::lod_data::LodData::try_from(raw).unwrap();
     let data = &data.data;
 
     let mut actor_start = 0;
@@ -18,7 +18,7 @@ fn main() {
         }
     }
     let base = actor_start + 4;
-    let monlist = lod::monlist::MonsterList::new(&lod).unwrap();
+    let monlist = lod::monlist::MonsterList::load(&lod).unwrap();
 
     // Try offsets around 0x58, 0x5A, 0x5C, 0x60 for monsterInfo.id as u16
     println!("Checking candidate offsets for monsterInfo.id (u16):\n");

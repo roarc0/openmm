@@ -29,7 +29,7 @@ fn main() {
         .filter(|a| !a.starts_with('-'))
         .cloned();
 
-    let lod_manager = lod::LodManager::new(lod::get_lod_path()).expect("failed to open LOD files");
+    let lod_manager = lod::LodManager::new(lod::get_data_path()).expect("failed to open LOD files");
 
     match name.as_str() {
         "dsft" => dump_dsft(&lod_manager, &filter),
@@ -88,7 +88,7 @@ fn matches_filter(filter: &Option<String>, texts: &[&str]) -> bool {
 // ─── Dumpers ────────────────────────────────────────────────
 
 fn dump_dsft(lod: &lod::LodManager, filter: &Option<String>) {
-    let dsft = lod::dsft::DSFT::new(lod).expect("failed to load dsft.bin");
+    let dsft = lod::raw::dsft::DSFT::load(lod).expect("failed to load dsft.bin");
     println!("[");
     let mut first = true;
     for (i, frame) in dsft.frames.iter().enumerate() {
@@ -112,7 +112,7 @@ fn dump_dsft(lod: &lod::LodManager, filter: &Option<String>) {
 }
 
 fn dump_ddeclist(lod: &lod::LodManager, filter: &Option<String>) {
-    let ddeclist = lod::ddeclist::DDecList::new(lod).expect("failed to load ddeclist.bin");
+    let ddeclist = lod::raw::ddeclist::DDecList::load(lod).expect("failed to load ddeclist.bin");
     println!("[");
     let mut first = true;
     for (i, item) in ddeclist.items.iter().enumerate() {
@@ -145,7 +145,7 @@ fn dump_ddeclist(lod: &lod::LodManager, filter: &Option<String>) {
 }
 
 fn dump_dsounds(lod: &lod::LodManager, filter: &Option<String>) {
-    let dsounds = lod::dsounds::DSounds::new(lod).expect("failed to load dsounds.bin");
+    let dsounds = lod::raw::dsounds::DSounds::load(lod).expect("failed to load dsounds.bin");
     println!("[");
     let mut first = true;
     for (i, item) in dsounds.items.iter().enumerate() {
@@ -173,7 +173,7 @@ fn dump_dsounds(lod: &lod::LodManager, filter: &Option<String>) {
 }
 
 fn dump_billboards(lod: &lod::LodManager, map: &str, filter: &Option<String>) {
-    let odm = lod::odm::Odm::new(lod, map).expect("failed to load ODM");
+    let odm = lod::raw::odm::Odm::load(lod, map).expect("failed to load ODM");
     println!("[");
     let mut first = true;
     for (i, bb) in odm.billboards.iter().enumerate() {
@@ -202,7 +202,7 @@ fn dump_billboards(lod: &lod::LodManager, map: &str, filter: &Option<String>) {
 }
 
 fn dump_odm(lod: &lod::LodManager, map: &str) {
-    let odm = lod::odm::Odm::new(lod, map).expect("failed to load ODM");
+    let odm = lod::raw::odm::Odm::load(lod, map).expect("failed to load ODM");
     println!("{{");
     println!("  \"name\": \"{}\",", odm.name);
     println!("  \"sky_texture\": \"{}\",", odm.sky_texture);

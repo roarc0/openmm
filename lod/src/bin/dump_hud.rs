@@ -1,5 +1,5 @@
 fn main() {
-    let lod = lod::LodManager::new(lod::get_lod_path()).unwrap();
+    let lod = lod::LodManager::new(lod::get_data_path()).unwrap();
     let out = std::path::Path::new("/tmp/hud_assets");
     std::fs::create_dir_all(out).unwrap();
     let assets = &[

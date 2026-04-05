@@ -1,9 +1,9 @@
 use lod::{LodManager, monlist::MonsterList};
 
 fn main() {
-    let lod_path = lod::get_lod_path();
+    let lod_path = lod::get_data_path();
     let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
-    let monlist = MonsterList::new(&lod_manager).expect("failed to load monlist");
+    let monlist = MonsterList::load(&lod_manager).expect("failed to load monlist");
 
     println!("Monsters containing 'Goblin' or 'Barbar' in name:");
     println!();

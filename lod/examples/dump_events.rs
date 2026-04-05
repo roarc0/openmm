@@ -9,9 +9,9 @@ fn main() {
     // Dump billboard events
     println!("=== {map} BILLBOARD EVENTS ===");
     let odm_name = format!("{}.odm", map);
-    match lod::odm::Odm::new(&lod, &odm_name) {
+    match lod::odm::Odm::load(&lod, &odm_name) {
         Ok(odm) => {
-            let bb_mgr = lod::billboard::BillboardManager::new(&lod).ok();
+            let bb_mgr = lod::billboard::BillboardManager::load(&lod).ok();
             for (i, bb) in odm.billboards.iter().enumerate() {
                 let has_event = bb.data.event != 0;
                 let has_var = bb.data.event_variable != 0;
@@ -19,7 +19,7 @@ fn main() {
                 if has_event || has_var || has_attrs {
                     let display_name = bb_mgr
                         .as_ref()
-                        .and_then(|mgr| mgr.get_declist_item(bb.data.declist_id))
+                        .and_then(|mgr: &lod::billboard::BillboardManager| mgr.get_declist_item(bb.data.declist_id))
                         .and_then(|item| item.display_name())
                         .unwrap_or_default();
                     println!(
@@ -48,7 +48,7 @@ fn main() {
                     if bb.data.is_chest() {
                         flags.push("CHEST");
                     }
-                    if bb.data.is_invisible() {
+                    if bb.data.is_original_invisible() {
                         flags.push("INVISIBLE");
                     }
                     if bb.data.is_obelisk_chest() {

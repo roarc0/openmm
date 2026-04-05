@@ -1,8 +1,8 @@
 use lod::{LodManager, odm::Odm};
 
 fn main() {
-    let lod_manager = LodManager::new(lod::get_lod_path()).unwrap();
-    let map = Odm::new(&lod_manager, "oute3.odm").unwrap();
+    let lod_manager = LodManager::new(lod::get_data_path()).unwrap();
+    let map = Odm::load(&lod_manager, "oute3.odm").unwrap();
 
     // Find a simple box-like model and print all its wall faces with full data
     for (mi, model) in map.bsp_models.iter().enumerate() {

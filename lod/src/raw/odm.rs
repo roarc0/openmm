@@ -1,0 +1,563 @@
+use std::error::Error;
+use std::io::{Cursor, Read, Seek};
+use byteorder::{LittleEndian, ReadBytesExt};
+use serde::{Serialize, Deserialize};
+
+fn default_odm_map() -> [u8; 16384] { [0; 16384] }
+
+use crate::LodSerialise;
+
+use crate::{LodManager, utils::try_read_string_block};
+use crate::raw::{
+    billboard::{Billboard, read_billboards},
+    bsp_model::{BSPModel, read_bsp_models},
+    dtile::{Dtile, TileTable},
+    lod_data::LodData,
+};
+
+pub const ODM_SIZE: usize = 128;
+pub const ODM_PLAY_SIZE: usize = 88;
+pub const ODM_AREA: usize = ODM_SIZE * ODM_SIZE;
+
+pub const ODM_TILE_SCALE: f32 = 512.;
+pub const ODM_HEIGHT_SCALE: f32 = 32.;
+
+/// Convert MM6 coordinates (X right, Y forward, Z up) to Bevy (X right, Y up, Z = -Y_mm6).
+/// No height scaling -- raw coordinate swap only.
+pub fn mm6_to_bevy(x: i32, y: i32, z: i32) -> [f32; 3] {
+    [x as f32, z as f32, -(y as f32)]
+}
+
+const HEIGHT_MAP_OFFSET: u64 = 176;
+const HEIGHT_MAP_SIZE: usize = ODM_AREA;
+
+const TILE_MAP_OFFSET: u64 = HEIGHT_MAP_OFFSET + HEIGHT_MAP_SIZE as u64;
+const TILEMAP_SIZE: usize = ODM_AREA;
+
+const ATTRIBUTE_MAP_OFFSET: u64 = TILE_MAP_OFFSET + ATTRIBUTE_MAP_SIZE as u64;
+const ATTRIBUTE_MAP_SIZE: usize = ODM_AREA;
+
+#[allow(dead_code)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Odm {
+    /// Map file name.
+    /// Map display name from the ODM header (first 32 bytes, e.g. "Harmondale").
+    pub name: String,
+    /// Map file name from the ODM header (bytes 32-63, e.g. "oute3.odm").
+    /// Typically matches the LOD archive key used to load the map.
+    pub file_name: String,
+    /// ODM format version string (e.g. "91 MM6").
+    pub odm_version: String,
+    /// Sky texture name (e.g. "plansky1").
+    pub sky_texture: String,
+    /// Ground/road texture name used where no tile is defined.
+    pub ground_texture: String,
+    /// Tileset texture indices for the 4 tile slots (each slot repeated twice: normal + blend).
+    pub tile_data: [u16; 8],
+    /// 128×128 heightmap, one u8 per cell. World height = value × ODM_HEIGHT_SCALE (32).
+    #[serde(skip, default = "default_odm_map")]
+    pub height_map: [u8; HEIGHT_MAP_SIZE],
+    /// 128×128 tile map, one u8 per cell. Indexes into dtile.bin.
+    #[serde(skip, default = "default_odm_map")]
+    pub tile_map: [u8; TILEMAP_SIZE],
+    /// 128×128 attribute map, one u8 per cell. Bit flags per tile (passable, etc.).
+    #[serde(skip, default = "default_odm_map")]
+    pub attribute_map: [u8; ATTRIBUTE_MAP_SIZE],
+    /// BSP building models placed on this map.
+    pub bsp_models: Vec<BSPModel>,
+    /// Billboard decorations (trees, rocks, fountains, etc.).
+    pub billboards: Vec<Billboard>,
+    /// Monster and item spawn points.
+    pub spawn_points: Vec<SpawnPoint>,
+}
+
+/// A spawn point for monsters or items in an ODM outdoor map.
+///
+/// MM6 record: 20 bytes (SpawnPoint struct from MMExtension, no MM7 Group field at 0x14).
+/// Layout: 0x00: pos[3](i32), 0x0C: radius(i16), 0x0E: kind(i16), 0x10: index(i16), 0x12: bits(u16)
+/// A spawn point for monsters or items in an outdoor map.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SpawnPoint {
+    /// Spawn center in MM6 world coordinates (x, y, z). Offset 0x00.
+    pub position: [i32; 3],
+    /// Group spread radius — members are scattered within this radius of `position`. Offset 0x0C.
+    pub radius: u16,
+    /// Spawn category (ObjectRefKind): 2 = item/treasure, 3 = monster. Offset 0x0E.
+    pub spawn_type: u16,
+    /// Monster slot index (1-12) or treasure level (1-7).
+    /// 1-3 = random M1/M2/M3 variant; 4-6 = forced A variant; 7-9 = B; 10-12 = C. Offset 0x10.
+    pub monster_index: u16,
+    /// Spawn attribute flags (e.g. bit 0 = OnAlertMap). Offset 0x12.
+    pub attributes: u16,
+}
+
+impl Odm {
+    pub fn load(lod_manager: &LodManager, name: &str) -> Result<Self, Box<dyn Error>> {
+        let raw = lod_manager.try_get_bytes(format!("games/{}", name))?;
+        Self::try_from(raw.as_slice())
+    }
+
+    pub fn parse(data: &[u8]) -> Result<Self, Box<dyn Error>> {
+        let mut cursor = Cursor::new(data);
+        // 0x00: Name[32] — map display name (e.g. "Harmondale")
+        let name = try_read_string_block(&mut cursor, 32)?;
+        // 0x20: FileName[32] — file name (e.g. "oute3.odm")
+        let file_name = try_read_string_block(&mut cursor, 32)?;
+        let odm_version = try_read_string_block(&mut cursor, 32)?;
+        let sky_texture = try_read_string_block(&mut cursor, 32)?;
+        let ground_texture = try_read_string_block(&mut cursor, 32)?;
+        let tile_data: [u16; 8] = [
+            cursor.read_u16::<LittleEndian>()?,
+            cursor.read_u16::<LittleEndian>()?,
+            cursor.read_u16::<LittleEndian>()?,
+            cursor.read_u16::<LittleEndian>()?,
+            cursor.read_u16::<LittleEndian>()?,
+            cursor.read_u16::<LittleEndian>()?,
+            cursor.read_u16::<LittleEndian>()?,
+            cursor.read_u16::<LittleEndian>()?,
+        ];
+
+        cursor.seek(std::io::SeekFrom::Start(HEIGHT_MAP_OFFSET))?;
+        let mut height_map: [u8; HEIGHT_MAP_SIZE] = [0; HEIGHT_MAP_SIZE];
+        cursor.read_exact(&mut height_map)?;
+
+        cursor.seek(std::io::SeekFrom::Start(TILE_MAP_OFFSET))?;
+        let mut tile_map: [u8; TILEMAP_SIZE] = [0; TILEMAP_SIZE];
+        cursor.read_exact(&mut tile_map)?;
+
+        cursor.seek(std::io::SeekFrom::Start(ATTRIBUTE_MAP_OFFSET))?;
+        let mut attribute_map: [u8; ATTRIBUTE_MAP_SIZE] = [0; ATTRIBUTE_MAP_SIZE];
+        cursor.read_exact(&mut attribute_map)?;
+
+        let bsp_model_count = cursor.read_u32::<LittleEndian>()? as usize;
+        let bsp_models: Vec<BSPModel> = read_bsp_models(&mut cursor, bsp_model_count)?;
+
+        let billboard_count = cursor.read_u32::<LittleEndian>()? as usize;
+        let billboards: Vec<Billboard> = read_billboards(&mut cursor, billboard_count)?;
+
+        // Spawn points are at the very end of the ODM file.
+        let spawn_points = Self::read_spawn_points(data);
+
+        Ok(Self {
+            name,
+            file_name,
+            odm_version,
+            sky_texture,
+            ground_texture,
+            tile_data,
+            height_map,
+            tile_map,
+            attribute_map,
+            bsp_models,
+            billboards,
+            spawn_points,
+        })
+    }
+}
+
+impl TryFrom<&[u8]> for Odm {
+    type Error = Box<dyn Error>;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let data = LodData::try_from(data)?;
+        Self::parse(&data.data)
+    }
+}
+
+impl LodSerialise for Odm {
+    fn to_bytes(&self) -> Vec<u8> {
+        use byteorder::{LittleEndian, WriteBytesExt};
+        let mut buf = Vec::new();
+
+        // 5 × 32-byte string fields
+        write_str_block(&mut buf, &self.name, 32);
+        write_str_block(&mut buf, &self.file_name, 32);
+        write_str_block(&mut buf, &self.odm_version, 32);
+        write_str_block(&mut buf, &self.sky_texture, 32);
+        write_str_block(&mut buf, &self.ground_texture, 32);
+
+        // tile_data: 8 × u16  (total 16 bytes)
+        for &td in &self.tile_data {
+            buf.write_u16::<LittleEndian>(td).unwrap();
+        }
+
+        assert_eq!(buf.len(), 176, "ODM header must be 176 bytes before maps");
+
+        // Height / tile / attribute maps — each 128×128 bytes
+        buf.extend_from_slice(&self.height_map);
+        buf.extend_from_slice(&self.tile_map);
+        buf.extend_from_slice(&self.attribute_map);
+
+        // BSP models
+        buf.write_u32::<LittleEndian>(self.bsp_models.len() as u32).unwrap();
+        for m in &self.bsp_models {
+            write_bsp_model_header(&mut buf, &m.header);
+        }
+        for m in &self.bsp_models {
+            write_bsp_model_data(&mut buf, m);
+        }
+
+        // Billboards
+        buf.write_u32::<LittleEndian>(self.billboards.len() as u32).unwrap();
+        use crate::raw::billboard::BillboardData;
+        for b in &self.billboards {
+            let data_bytes = unsafe {
+                std::slice::from_raw_parts(
+                    &b.data as *const BillboardData as *const u8,
+                    std::mem::size_of::<BillboardData>(),
+                )
+            };
+            buf.extend_from_slice(data_bytes);
+        }
+        for b in &self.billboards {
+            write_str_block(&mut buf, &b.declist_name, 32);
+        }
+
+        // Spawn points
+        buf.write_u32::<LittleEndian>(self.spawn_points.len() as u32).unwrap();
+        for sp in &self.spawn_points {
+            write_spawn_point(&mut buf, sp);
+        }
+
+        buf
+    }
+}
+
+// ── ODM helpers ───────────────────────────────────────────────────────────────
+
+fn write_str_block(buf: &mut Vec<u8>, s: &str, size: usize) {
+    let mut block = vec![0u8; size];
+    let bytes = s.as_bytes();
+    let n = bytes.len().min(size - 1);
+    block[..n].copy_from_slice(&bytes[..n]);
+    buf.extend_from_slice(&block);
+}
+
+fn write_bsp_model_header(buf: &mut Vec<u8>, h: &crate::raw::bsp_model::BSPModelHeader) {
+    use byteorder::{LittleEndian, WriteBytesExt};
+    write_str_block(buf, &h.name, 32);
+    write_str_block(buf, &h.name2, 32);
+    buf.write_i32::<LittleEndian>(h.attributes).unwrap();
+    buf.write_i32::<LittleEndian>(h.vertex_count).unwrap();
+    buf.write_i32::<LittleEndian>(0).unwrap(); // p_vertexes
+    buf.write_i32::<LittleEndian>(h.faces_count).unwrap();
+    buf.write_i32::<LittleEndian>(0).unwrap(); // p_faces
+    buf.write_i32::<LittleEndian>(0).unwrap(); // p_face_order
+    buf.write_i32::<LittleEndian>(0).unwrap(); // p_extra
+    buf.write_i32::<LittleEndian>(h.bsp_nodes_count).unwrap();
+    buf.write_i32::<LittleEndian>(0).unwrap(); // p_bsp_nodes
+    buf.write_i32::<LittleEndian>(0).unwrap(); // p_bsp_nodes2
+    buf.write_i32::<LittleEndian>(h.grid[0]).unwrap();
+    buf.write_i32::<LittleEndian>(h.grid[1]).unwrap();
+    buf.write_i32::<LittleEndian>(h.position[0]).unwrap();
+    buf.write_i32::<LittleEndian>(h.position[1]).unwrap();
+    buf.write_i32::<LittleEndian>(h.position[2]).unwrap();
+    let bb = &h.bounding_box;
+    buf.write_i32::<LittleEndian>(bb.min_x).unwrap();
+    buf.write_i32::<LittleEndian>(bb.min_y).unwrap();
+    buf.write_i32::<LittleEndian>(bb.min_z).unwrap();
+    buf.write_i32::<LittleEndian>(bb.max_x).unwrap();
+    buf.write_i32::<LittleEndian>(bb.max_y).unwrap();
+    buf.write_i32::<LittleEndian>(bb.max_z).unwrap();
+    let bbf = &h.bounding_box_bf;
+    buf.write_i32::<LittleEndian>(bbf.min_x).unwrap();
+    buf.write_i32::<LittleEndian>(bbf.min_y).unwrap();
+    buf.write_i32::<LittleEndian>(bbf.min_z).unwrap();
+    buf.write_i32::<LittleEndian>(bbf.max_x).unwrap();
+    buf.write_i32::<LittleEndian>(bbf.max_y).unwrap();
+    buf.write_i32::<LittleEndian>(bbf.max_z).unwrap();
+    buf.write_i32::<LittleEndian>(h.position_box[0]).unwrap();
+    buf.write_i32::<LittleEndian>(h.position_box[1]).unwrap();
+    buf.write_i32::<LittleEndian>(h.position_box[2]).unwrap();
+    buf.write_i32::<LittleEndian>(h.bounding_radius).unwrap();
+}
+
+fn write_bsp_model_data(buf: &mut Vec<u8>, m: &crate::raw::bsp_model::BSPModel) {
+    use byteorder::{LittleEndian, WriteBytesExt};
+    for v in &m.vertices {
+        buf.write_i32::<LittleEndian>(v[0] as i32).unwrap();
+        buf.write_i32::<LittleEndian>(-v[2] as i32).unwrap();
+        buf.write_i32::<LittleEndian>(v[1] as i32).unwrap();
+    }
+    for face in &m.faces {
+        let face_bytes = unsafe {
+            std::slice::from_raw_parts(
+                face as *const crate::raw::bsp_model::BSPModelFace as *const u8,
+                std::mem::size_of::<crate::raw::bsp_model::BSPModelFace>(),
+            )
+        };
+        buf.extend_from_slice(face_bytes);
+    }
+    for &idx in &m.face_order_indices {
+        buf.write_i16::<LittleEndian>(idx).unwrap();
+    }
+    for name in &m.texture_names {
+        write_str_block(buf, name, 10);
+    }
+    for node in &m.bsp_nodes {
+        buf.write_i32::<LittleEndian>(node.front).unwrap();
+        buf.write_i32::<LittleEndian>(node.back).unwrap();
+        buf.write_i16::<LittleEndian>(node.face_id_offset).unwrap();
+        buf.write_i16::<LittleEndian>(node.faces_count).unwrap();
+    }
+}
+
+fn write_spawn_point(buf: &mut Vec<u8>, sp: &SpawnPoint) {
+    use byteorder::{LittleEndian, WriteBytesExt};
+    buf.write_i32::<LittleEndian>(sp.position[0]).unwrap();
+    buf.write_i32::<LittleEndian>(sp.position[1]).unwrap();
+    buf.write_i32::<LittleEndian>(sp.position[2]).unwrap();
+    buf.write_u16::<LittleEndian>(sp.radius).unwrap();
+    buf.write_u16::<LittleEndian>(sp.spawn_type).unwrap();
+    buf.write_u16::<LittleEndian>(sp.monster_index).unwrap();
+    buf.write_u16::<LittleEndian>(sp.attributes).unwrap();
+}
+
+impl Odm {
+    /// Read spawn points from the end of the ODM data.
+    /// The spawn point array is the last section: u32 count + N × 20-byte records.
+    fn read_spawn_points(data: &[u8]) -> Vec<SpawnPoint> {
+        // Try reading count from various offsets near the end
+        // The spawn section = count(4) + count*20 bytes, ending at data.len()
+        for candidate_count in (5..200u32).rev() {
+            let section_size = 4 + candidate_count as usize * 20;
+            if section_size > data.len() {
+                break;
+            }
+            let count_offset = data.len() - section_size;
+            let stored_count = u32::from_le_bytes([
+                data[count_offset],
+                data[count_offset + 1],
+                data[count_offset + 2],
+                data[count_offset + 3],
+            ]);
+            if stored_count != candidate_count {
+                continue;
+            }
+            // Verify first entry has plausible coordinates
+            let first = count_offset + 4;
+            if first + 12 > data.len() {
+                continue;
+            }
+            let x = i32::from_le_bytes(data[first..first + 4].try_into().unwrap());
+            let y = i32::from_le_bytes(data[first + 4..first + 8].try_into().unwrap());
+            let z = i32::from_le_bytes(data[first + 8..first + 12].try_into().unwrap());
+            if x.abs() > 50000 || y.abs() > 50000 || !(0..=10000).contains(&z) {
+                continue;
+            }
+
+            // Read all spawn points
+            let mut spawns = Vec::with_capacity(stored_count as usize);
+            for i in 0..stored_count as usize {
+                let off = count_offset + 4 + i * 20;
+                if off + 20 > data.len() {
+                    break;
+                }
+                spawns.push(SpawnPoint {
+                    position: [
+                        i32::from_le_bytes(data[off..off + 4].try_into().unwrap()),
+                        i32::from_le_bytes(data[off + 4..off + 8].try_into().unwrap()),
+                        i32::from_le_bytes(data[off + 8..off + 12].try_into().unwrap()),
+                    ],
+                    radius: u16::from_le_bytes(data[off + 12..off + 14].try_into().unwrap()),
+                    spawn_type: u16::from_le_bytes(data[off + 14..off + 16].try_into().unwrap()),
+                    monster_index: u16::from_le_bytes(data[off + 16..off + 18].try_into().unwrap()),
+                    attributes: u16::from_le_bytes(data[off + 18..off + 20].try_into().unwrap()),
+                });
+            }
+            return spawns;
+        }
+        Vec::new()
+    }
+
+    pub fn size(&self) -> (usize, usize) {
+        (ODM_SIZE, ODM_SIZE)
+    }
+
+    pub fn tile_table(&self, lod_manager: &LodManager) -> Result<TileTable, Box<dyn Error>> {
+        Dtile::load(lod_manager)?
+            .table(self.tile_data)
+            .ok_or("could not get the tile table".into())
+    }
+}
+
+pub struct OdmData {
+    pub positions: Vec<[f32; 3]>,
+    pub normals: Vec<[f32; 3]>,
+    pub indices: Vec<u32>,
+    pub uvs: Vec<[f32; 2]>,
+}
+
+/// Extra tiles beyond each edge. Must exceed the camera far clip (100k units)
+/// so the terrain edge is never visible even when flying.
+/// 200 tiles × 512 scale = 102,400 units > 100k far clip.
+const TERRAIN_BORDER: i32 = 200;
+
+impl OdmData {
+    pub fn new(odm: &Odm, tile_table: &TileTable) -> Self {
+        let (orig_w, orig_d) = odm.size();
+        // Extended grid: original + border on each side
+        let ext_w = orig_w as i32 + TERRAIN_BORDER * 2;
+        let ext_d = orig_d as i32 + TERRAIN_BORDER * 2;
+        let ext_w_u = ext_w as usize;
+        let ext_d_u = ext_d as usize;
+
+        // Center of the extended grid in world space (same as original center)
+        let orig_half_w = orig_w as f32 / 2.0;
+        let orig_half_d = orig_d as f32 / 2.0;
+
+        // Build vertex positions: sample heightmap with clamping at edges
+        let vertices_count = ext_w_u * ext_d_u;
+        let mut positions: Vec<[f32; 3]> = Vec::with_capacity(vertices_count);
+
+        for d in 0..ext_d {
+            for w in 0..ext_w {
+                // Map extended coords back to original heightmap coords (clamped)
+                let orig_w_i = (w - TERRAIN_BORDER).clamp(0, orig_w as i32 - 1) as usize;
+                let orig_d_i = (d - TERRAIN_BORDER).clamp(0, orig_d as i32 - 1) as usize;
+                let height = odm.height_map[orig_d_i * orig_w + orig_w_i] as f32 * ODM_HEIGHT_SCALE;
+
+                // World position: offset by border so original terrain stays centered
+                let world_w = (w - TERRAIN_BORDER) as f32 - orig_half_w;
+                let world_d = (d - TERRAIN_BORDER) as f32 - orig_half_d;
+                positions.push([world_w * ODM_TILE_SCALE, height, world_d * ODM_TILE_SCALE]);
+            }
+        }
+
+        // Compute normals on the extended grid
+        let ext_heights: Vec<u8> = (0..ext_d_u * ext_w_u)
+            .map(|i| {
+                let d = (i / ext_w_u) as i32 - TERRAIN_BORDER;
+                let w = (i % ext_w_u) as i32 - TERRAIN_BORDER;
+                let cd = d.clamp(0, orig_d as i32 - 1) as usize;
+                let cw = w.clamp(0, orig_w as i32 - 1) as usize;
+                odm.height_map[cd * orig_w + cw]
+            })
+            .collect();
+        let normals = Self::compute_smooth_normals(&ext_heights, ext_w_u, ext_d_u);
+
+        // Build indices and UVs
+        let quad_count = (ext_w_u - 1) * (ext_d_u - 1);
+        let mut indices: Vec<u32> = Vec::with_capacity(quad_count * 6);
+        let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(quad_count * 6);
+        let ext_w_u32 = ext_w_u as u32;
+
+        for d in 0..(ext_d_u - 1) {
+            for w in 0..(ext_w_u - 1) {
+                let i = (d * ext_w_u + w) as u32;
+                let tl = i;
+                let tr = i + 1;
+                let bl = i + ext_w_u32;
+                let br = i + ext_w_u32 + 1;
+
+                let h_tl = positions[tl as usize][1];
+                let h_tr = positions[tr as usize][1];
+                let h_bl = positions[bl as usize][1];
+                let h_br = positions[br as usize][1];
+                let diag1 = (h_tl - h_br).abs();
+                let diag2 = (h_tr - h_bl).abs();
+
+                // Map back to original tile coords (clamped) for UV lookup
+                let orig_tw = (w as i32 - TERRAIN_BORDER).clamp(0, orig_w as i32 - 2) as usize;
+                let orig_td = (d as i32 - TERRAIN_BORDER).clamp(0, orig_d as i32 - 2) as usize;
+                let tile_index = orig_td * orig_w + orig_tw;
+                let (uv_tl, uv_tr, uv_bl, uv_br) = Self::tile_uvs(tile_table, odm.tile_map[tile_index]);
+
+                if diag1 <= diag2 {
+                    indices.extend_from_slice(&[tl, bl, br, tl, br, tr]);
+                    uvs.extend_from_slice(&[uv_tl, uv_bl, uv_br, uv_tl, uv_br, uv_tr]);
+                } else {
+                    indices.extend_from_slice(&[tl, bl, tr, tr, bl, br]);
+                    uvs.extend_from_slice(&[uv_tl, uv_bl, uv_tr, uv_tr, uv_bl, uv_br]);
+                }
+            }
+        }
+
+        Self {
+            positions,
+            normals,
+            indices,
+            uvs,
+        }
+    }
+
+    /// Compute smooth per-vertex normals using central differences on the heightmap.
+    ///
+    /// Terrain vertex positions are: (x, y, z) = ((w-64)*512, height*32, (d-64)*512)
+    /// where Y is up (Bevy convention).
+    ///
+    /// Tangent along w (x-axis): T_w = (tile_scale, dh_dw, 0)
+    /// Tangent along d (z-axis): T_d = (0, dh_dd, tile_scale)
+    /// Normal = T_d × T_w = (-dh_dw * tile_scale, tile_scale², -dh_dd * tile_scale)
+    /// Simplified: (-dh_dw, tile_scale, -dh_dd) then normalize
+    fn compute_smooth_normals(height_map: &[u8], width: usize, depth: usize) -> Vec<[f32; 3]> {
+        let mut normals = Vec::with_capacity(width * depth);
+        for d in 0..depth {
+            for w in 0..width {
+                let left = if w > 0 { w - 1 } else { 0 };
+                let right = if w < width - 1 { w + 1 } else { width - 1 };
+                let up = if d > 0 { d - 1 } else { 0 };
+                let down = if d < depth - 1 { d + 1 } else { depth - 1 };
+
+                let h_left = height_map[d * width + left] as f32 * ODM_HEIGHT_SCALE;
+                let h_right = height_map[d * width + right] as f32 * ODM_HEIGHT_SCALE;
+                let h_up = height_map[up * width + w] as f32 * ODM_HEIGHT_SCALE;
+                let h_down = height_map[down * width + w] as f32 * ODM_HEIGHT_SCALE;
+
+                // Height gradients (central differences)
+                let dh_dw = (h_right - h_left) / ((right - left) as f32);
+                let dh_dd = (h_down - h_up) / ((down - up) as f32);
+
+                // Normal from cross product T_d × T_w (Y-up convention)
+                let nx = -dh_dw;
+                let ny = ODM_TILE_SCALE;
+                let nz = -dh_dd;
+                let len = (nx * nx + ny * ny + nz * nz).sqrt();
+                normals.push([nx / len, ny / len, nz / len]);
+            }
+        }
+        normals
+    }
+
+    fn tile_uvs(tile_table: &TileTable, tile_index: u8) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2]) {
+        let (tile_x, tile_y) = tile_table.coordinate(tile_index);
+        let (tile_x, tile_y) = (tile_x as f32, tile_y as f32);
+        let (size_x, size_y) = tile_table.size();
+        let (size_x, size_y) = (size_x as f32, size_y as f32);
+
+        // Each tile occupies a (128 + 2*pad) × (128 + 2*pad) pixel slot in the
+        // atlas, with pad pixels of replicated edge content on every side.
+        // UVs point to the inner 128×128 content area; the padded border ensures
+        // linear filtering that bleeds slightly past the UV boundary still samples
+        // the correct edge color rather than the neighbouring tile.
+        let tile_px = 128.0_f32;
+        let pad = crate::raw::image::ATLAS_TILE_PAD as f32;
+        let slot_px = tile_px + 2.0 * pad;
+
+        let atlas_w = size_x * slot_px;
+        let atlas_h = size_y * slot_px;
+
+        let u0 = (tile_x * slot_px + pad) / atlas_w;
+        let u1 = (tile_x * slot_px + pad + tile_px) / atlas_w;
+        let v0 = (tile_y * slot_px + pad) / atlas_h;
+        let v1 = (tile_y * slot_px + pad + tile_px) / atlas_h;
+
+        // TL, TR, BL, BR
+        ([u0, v0], [u1, v0], [u0, v1], [u1, v1])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::test_lod;
+
+    #[test]
+    fn get_map_works() {
+        let Some(lod_manager) = test_lod() else {
+            return;
+        };
+        let map = Odm::load(&lod_manager, "oute3.odm").unwrap();
+        assert_eq!(map.bsp_models.len(), 85)
+    }
+}

@@ -1,8 +1,8 @@
 use lod::LodManager;
 
 fn main() {
-    let lod_manager = LodManager::new(lod::get_lod_path()).unwrap();
-    let mapstats = lod::mapstats::MapStats::new(&lod_manager).unwrap();
+    let lod_manager = LodManager::new(lod::get_data_path()).unwrap();
+    let mapstats = lod::mapstats::MapStats::load(&lod_manager).unwrap();
 
     println!("All maps with music tracks:");
     for map in &mapstats.maps {

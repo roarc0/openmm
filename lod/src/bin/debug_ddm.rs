@@ -1,9 +1,9 @@
-use lod::{LodManager, lod_data::LodData};
+use lod::{LodManager, raw::lod_data::LodData};
 
 fn main() {
-    let lod_manager = LodManager::new(lod::get_lod_path()).unwrap();
+    let lod_manager = LodManager::new(lod::get_data_path()).unwrap();
     let raw = lod_manager.try_get_bytes("games/oute3.ddm").unwrap();
-    let data = LodData::try_from(raw).unwrap().data;
+    let data = LodData::try_from(raw.as_slice()).unwrap().data;
 
     let actor_offset = 1948;
     let actor_stride = 548;

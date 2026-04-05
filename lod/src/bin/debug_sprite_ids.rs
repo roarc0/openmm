@@ -1,10 +1,10 @@
 use lod::{LodManager, ddm::Ddm, dsft::DSFT, monlist::MonsterList};
 
 fn main() {
-    let lod_manager = LodManager::new(lod::get_lod_path()).unwrap();
-    let ddm = Ddm::new(&lod_manager, "oute3.odm").unwrap();
-    let dsft = DSFT::new(&lod_manager).unwrap();
-    let monlist = MonsterList::new(&lod_manager).unwrap();
+    let lod_manager = LodManager::new(lod::get_data_path()).unwrap();
+    let ddm = Ddm::load(&lod_manager, "oute3.odm").unwrap();
+    let dsft = DSFT::load(&lod_manager).unwrap();
+    let monlist = MonsterList::load(&lod_manager).unwrap();
 
     println!("=== DDM actors after 1-indexed fix ===\n");
     let mut seen = std::collections::HashSet::new();
