@@ -347,7 +347,7 @@ fn spawn_player(
         // Both start at intensity 0; party_torch_system activates them.
         // Indoor rooms are ~500–3500 units; outdoor is open terrain up to fog distance.
         let (torch_range, fill_range) = if is_indoor {
-            (1500.0_f32, 3000.0_f32)
+            (1500.0_f32, 7000.0_f32)
         } else {
             (3500.0_f32, 7000.0_f32)
         };
@@ -820,9 +820,9 @@ fn cursor_grab(
 /// - Indoor: always on (dungeons have no daylight).
 /// - Outdoor: on when dark (before 6am or after 6pm), off during daytime.
 /// Inner light: bright hot core close to the player.
-const TORCH_INTENSITY: f32 = 250_000_000.0;
+const TORCH_INTENSITY: f32 = 200_000_000.0;
 /// Outer fill: dim wide bleed so the dungeon fades rather than hard-cuts to black.
-const TORCH_FILL_INTENSITY: f32 = 30_000_000.0;
+const TORCH_FILL_INTENSITY: f32 = 80_000_000.0;
 
 fn party_torch_system(
     indoor: Option<Res<PreparedIndoorWorld>>,
