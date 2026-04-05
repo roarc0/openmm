@@ -83,9 +83,11 @@ pub struct SmkDecoder {
     done: bool,
 }
 
-// Safety: SmkDecoder owns its data and handle exclusively; never shared across threads.
-// Sync is safe because the Bevy resource system only provides exclusive access via ResMut,
-// and SmkDecoder is never accessed concurrently from multiple threads.
+// SAFETY: SmkDecoder owns its C handle and data buffer exclusively with no interior mutability.
+// Send: the handle is never accessed from multiple threads simultaneously; ownership is moved,
+//       not shared.
+// Sync: all mutation requires &mut self; there is no shared-reference access path to the C
+//       handle, so sharing &SmkDecoder across threads cannot cause data races.
 unsafe impl Send for SmkDecoder {}
 unsafe impl Sync for SmkDecoder {}
 
