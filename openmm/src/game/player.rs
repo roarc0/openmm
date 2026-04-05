@@ -332,13 +332,13 @@ fn spawn_player(
             });
         } else {
             // Indoor: black void beyond the torchlight.
-            // Start well past where point lights reach; end gives a gradual fade to black
-            // rather than a hard cutoff, preserving the sense of deep darkness ahead.
+            // Rooms are ~500–3500 units diagonal; fog starts at 1 room length and
+            // reaches full black at ~3 room lengths so corridors vanish into darkness.
             cam.insert(DistanceFog {
                 color: Color::srgba(0.0, 0.0, 0.0, 1.0),
                 falloff: FogFalloff::Linear {
-                    start: 6000.0,
-                    end: 14000.0,
+                    start: 1500.0,
+                    end: 4000.0,
                 },
                 ..default()
             });
