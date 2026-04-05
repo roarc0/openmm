@@ -44,6 +44,7 @@ struct MapEntityParams<'w, 's> {
         ),
     >,
     actors: Query<'w, 's, (&'static mut Actor, &'static mut Visibility)>,
+    player: Query<'w, 's, &'static mut Transform, With<crate::game::player::Player>>,
 }
 
 /// Bundles audio + mesh assets + game_time to stay within Bevy's 16-param limit.
@@ -518,10 +519,17 @@ fn process_events(
                 direction,
                 map_name,
             } => {
-                // Reject placeholder/malformed names (e.g. "0" in some pristine EVT records).
-                // A valid map name must contain at least one letter.
+                // A name with no letters (e.g. "0") means same-map teleport — just
+                // reposition the player without reloading the map.
                 if !map_name.chars().any(|c| c.is_ascii_alphabetic()) {
-                    warn!("MoveToMap: skipping malformed map name '{}'", map_name);
+                    let pos = Vec3::from(mm6_to_bevy(*x, *y, *z));
+                    let yaw = (*direction as f32) * std::f32::consts::TAU / 65536.0;
+                    if let Ok(mut tf) = entities.player.single_mut() {
+                        tf.translation = pos;
+                        tf.rotation = Quat::from_rotation_y(yaw);
+                        info!("MoveToMap same-map teleport: pos={:?} yaw={:.1}deg", pos, yaw.to_degrees());
+                    }
+                    event_queue.clear();
                     return;
                 }
                 let Ok(target) = MapName::try_from(map_name.as_str()) else {
