@@ -790,14 +790,17 @@ fn door_animation_system(
             }
         }
 
-        // Update UVs for faces with the MOVES_BY_DOOR (FACE_TexMoveByDoor) flag.
-        // These are typically reveal/frame faces where some vertices move and some are fixed.
-        // For pure panel faces (all moving, no flag), the texture moves with geometry naturally.
+        // Update UVs for faces where texture must track geometry deformation.
         //
-        // OpenEnroth formula: textureDelta = -dot(direction, axis) * distance + baseDelta
-        // Our per-vertex equivalent: scroll moving vertex UVs opposite to geometric movement
-        // to keep the texture aligned with the face plane as it deforms.
-        if face.moves_by_door
+        // Three cases based on which vertices move:
+        // 1. Pure panel (all vertices moving): no correction needed — the texture is carried
+        //    rigidly with the mesh. UVs stay correct without any update.
+        // 2. MOVES_BY_DOOR flag (reveal/frame face): fixed vertices anchor the texture while
+        //    moving vertices pull it. Scroll OPPOSITE to motion: base - rate*distance.
+        // 3. Hybrid face (some vertices move, no flag): deforming geometry. Moving vertices
+        //    need UV correction to stay aligned: base + rate*distance.
+        let all_moving = face.is_moving_vertex.iter().all(|&m| m);
+        if !all_moving
             && face.uv_rate != [0.0, 0.0]
             && let Some(VertexAttributeValues::Float32x2(uvs)) = mesh.attribute_mut(Mesh::ATTRIBUTE_UV_0)
         {
@@ -805,8 +808,15 @@ fn door_animation_system(
                 if face.is_moving_vertex.get(vi).copied().unwrap_or(false)
                     && let Some(base) = face.base_uvs.get(vi)
                 {
-                    uv[0] = base[0] - face.uv_rate[0] * distance;
-                    uv[1] = base[1] - face.uv_rate[1] * distance;
+                    if face.moves_by_door {
+                        // Frame face: scroll texture counter to motion so it doesn't stretch.
+                        uv[0] = base[0] - face.uv_rate[0] * distance;
+                        uv[1] = base[1] - face.uv_rate[1] * distance;
+                    } else {
+                        // Hybrid face: advance UV with the moving vertex to cancel deformation.
+                        uv[0] = base[0] + face.uv_rate[0] * distance;
+                        uv[1] = base[1] + face.uv_rate[1] * distance;
+                    }
                 }
             }
         }

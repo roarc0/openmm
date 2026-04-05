@@ -414,8 +414,11 @@ fn move_with_substeps(
         } else {
             pos = step_dest;
         }
+        // Pass `pos` (already resolved by static collider) as `to` — not `step_dest`.
+        // Using step_dest here would override the static collider's push, letting the
+        // player walk through static walls whenever the door collider has no active walls.
         if let Some(dc) = door_colliders {
-            pos = dc.resolve_movement(pos, step_dest, radius, eye_height);
+            pos = dc.resolve_movement(pos, pos, radius, eye_height);
         }
     }
     pos

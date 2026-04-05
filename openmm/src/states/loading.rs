@@ -1133,6 +1133,7 @@ fn extract_blv_collision(
     Vec<crate::game::collision::CollisionTriangle>,
 ) {
     use crate::game::collision::{CollisionTriangle, CollisionWall};
+    use lod::enums::PolygonType;
     use lod::odm::mm6_to_bevy;
 
     let mut walls = Vec::new();
@@ -1143,22 +1144,31 @@ fn extract_blv_collision(
         if face.num_vertices < 3 || face.is_invisible() || face.is_portal() {
             continue;
         }
-        // Skip animated door faces — they move and shouldn't remain as static obstacles.
-        if door_faces.contains(&face_idx) {
-            continue;
-        }
 
         // Face normal: MM6 fixed-point (x,y,z) → Bevy float (x,z,-y)
         let mm6n = face.normal_f32();
         let normal = Vec3::new(mm6n[0], mm6n[2], -mm6n[1]);
 
-        // Any upward-facing surface is walkable (includes stairs, slopes).
-        // Threshold of 0.1 ≈ 6° from horizontal — shallow enough to catch all stair geometry.
-        let is_floor = normal.y > 0.1;
-        let is_ceiling = normal.y < -0.5;
-        // Walls are everything that is neither floor nor ceiling and is mostly vertical.
-        // Deriving from is_floor ensures stair faces are never treated as blocking walls.
-        let is_wall = !is_floor && !is_ceiling && normal.y.abs() < 0.7;
+        // Classify face by polygon_type, with normal-direction fallback for in-between types.
+        // Pure Floor (3) and Ceiling (5) are authoritative by polygon_type.
+        // InBetweenFloorAndWall (4) and InBetweenCeilingAndWall (6) can have normals anywhere
+        // between horizontal and vertical — only classify as floor/ceiling when their normal
+        // clearly points that way; otherwise they block lateral movement as walls.
+        let poly = face.polygon_type_enum();
+        let is_floor = matches!(poly, Some(PolygonType::Floor))
+            || (matches!(poly, Some(PolygonType::InBetweenFloorAndWall)) && normal.y > 0.1);
+        let is_ceiling = matches!(poly, Some(PolygonType::Ceiling))
+            || (matches!(poly, Some(PolygonType::InBetweenCeilingAndWall)) && normal.y < -0.5);
+        // VerticalWall is always a wall; anything else with a mostly-vertical normal also blocks.
+        let is_wall =
+            matches!(poly, Some(PolygonType::VerticalWall)) || (!is_floor && !is_ceiling && normal.y.abs() < 0.7);
+
+        // Only skip wall door faces — they move and have their own DoorColliders.
+        // Floor/ceiling door faces stay in static collision so the player doesn't fall
+        // through at door thresholds.
+        if door_faces.contains(&face_idx) && is_wall {
+            continue;
+        }
 
         // Collect vertices in Bevy coords
         let verts: Vec<Vec3> = face

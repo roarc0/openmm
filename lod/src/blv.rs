@@ -1145,15 +1145,29 @@ impl Blv {
 
     /// Collect the set of face indices belonging to any door.
     ///
-    /// Includes ALL faces referenced by any door's face_ids list.
-    /// The original engine (OpenEnroth BLV_UpdateDoorGeometry) moves all
-    /// vertices in the door's vertex_ids and updates all faces in its
-    /// face_ids — we must do the same for correct doorframe/reveal faces.
-    /// Per-vertex `is_moving` flags handle which vertices actually translate.
+    /// The number of times a face appears in a door's face_ids equals the number of that
+    /// door's moving vertices the face contains. Faces appearing only ONCE share just one
+    /// corner vertex with the door panel (e.g. the room floor/ceiling that happens to touch
+    /// a door corner). Moving that single corner visibly deforms the large surrounding face.
+    ///
+    /// Only faces appearing MORE THAN ONCE in a single door's face_ids list are included:
+    /// these have at least two moving vertices and form genuine door geometry (panel faces,
+    /// side jambs, threshold strips). Single-occurrence faces remain in static geometry.
     pub fn door_face_set(doors: &[BlvDoor], faces: &[BlvFace]) -> std::collections::HashSet<usize> {
         let mut result = std::collections::HashSet::new();
         for door in doors {
+            // Count how many times each face appears in this door's face_ids.
+            // This equals the number of the door's moving vertices that belong to the face.
+            let mut counts: std::collections::HashMap<u16, usize> = std::collections::HashMap::new();
             for &fid in &door.face_ids {
+                *counts.entry(fid).or_insert(0) += 1;
+            }
+            for (&fid, &count) in &counts {
+                // Only include faces with 2+ moving vertices — genuine door geometry.
+                // Single-occurrence faces are large room faces sharing just one corner.
+                if count < 2 {
+                    continue;
+                }
                 let fi = fid as usize;
                 let Some(face) = faces.get(fi) else { continue };
                 if face.vertex_ids.is_empty() {
@@ -1686,7 +1700,9 @@ mod tests {
             included,
             all_face_ids.len()
         );
-        // All faces with non-empty vertex_ids should be included
+        // Only faces appearing > 1 time in any single door's face_ids are included.
+        // Single-occurrence faces (one corner shared with door panel) stay in static geometry.
+        // Verify: included count must be <= total unique face count with vertex data.
         let faces_with_vids = all_face_ids
             .iter()
             .filter(|&&fid| {
@@ -1696,9 +1712,92 @@ mod tests {
                     .unwrap_or(false)
             })
             .count();
-        assert_eq!(
-            included, faces_with_vids,
-            "all door faces with vertex data should be included"
+        assert!(
+            included <= faces_with_vids,
+            "door_face_set must not include faces without vertex data (included={}, with_vids={})",
+            included,
+            faces_with_vids
+        );
+        assert!(included > 0, "door_face_set should include at least some door faces");
+    }
+
+    #[test]
+    fn hybrid_door_faces_d01() {
+        let lod_manager = LodManager::new(get_lod_path()).unwrap();
+        let blv = Blv::new(&lod_manager, "d01.blv").unwrap();
+        let dlv = crate::dlv::Dlv::new(&lod_manager, "d01.blv", blv.door_count, blv.doors_data_size).unwrap();
+
+        let mut hybrid_count = 0;
+        let mut panel_count = 0;
+        let mut frame_count = 0;
+
+        for (di, door) in dlv.doors.iter().enumerate() {
+            if door.face_ids.is_empty() {
+                continue;
+            }
+            let moving: std::collections::HashSet<u16> = door.vertex_ids.iter().copied().collect();
+            let mut seen = std::collections::HashSet::new();
+            for &fid in &door.face_ids {
+                let fi = fid as usize;
+                if !seen.insert(fi) {
+                    continue;
+                }
+                let Some(face) = blv.faces.get(fi) else { continue };
+                if face.vertex_ids.is_empty() {
+                    continue;
+                }
+                let moving_in_face: Vec<u16> = face.vertex_ids.iter().filter(|v| moving.contains(v)).copied().collect();
+                let is_hybrid = !moving_in_face.is_empty() && moving_in_face.len() < face.vertex_ids.len();
+                let is_pure_panel = face.vertex_ids.iter().all(|v| moving.contains(v));
+                let tex = blv.texture_names.get(fi).map(|s| s.as_str()).unwrap_or("?");
+                if is_hybrid {
+                    hybrid_count += 1;
+                    println!(
+                        "HYBRID door[{}](id={}) face[{}] poly={} tex={} vids={:?} moving={:?}",
+                        di, door.door_id, fi, face.polygon_type, tex, &face.vertex_ids, &moving_in_face
+                    );
+                } else if is_pure_panel {
+                    panel_count += 1;
+                } else {
+                    frame_count += 1;
+                }
+            }
+        }
+        println!("panel={} frame={} hybrid={}", panel_count, frame_count, hybrid_count);
+        // After door_face_set filters single-occurrence faces (1-moving-vertex accidentals),
+        // all remaining hybrid faces should have >= 2 moving vertices. Verify no 1-vertex
+        // hybrids slipped through (they would deform large room floor/ceiling faces).
+        let bad = dlv
+            .doors
+            .iter()
+            .enumerate()
+            .flat_map(|(di, door)| {
+                if door.face_ids.is_empty() {
+                    return vec![];
+                }
+                let moving: std::collections::HashSet<u16> = door.vertex_ids.iter().copied().collect();
+                let door_set = Blv::door_face_set(&dlv.doors, &blv.faces);
+                let mut seen = std::collections::HashSet::new();
+                let mut bad = vec![];
+                for &fid in &door.face_ids {
+                    let fi = fid as usize;
+                    if !seen.insert(fi) || !door_set.contains(&fi) {
+                        continue;
+                    }
+                    let Some(face) = blv.faces.get(fi) else { continue };
+                    let moving_in_face: Vec<u16> =
+                        face.vertex_ids.iter().filter(|v| moving.contains(v)).copied().collect();
+                    if moving_in_face.len() == 1 {
+                        bad.push((di, door.door_id, fi, moving_in_face.len()));
+                    }
+                }
+                bad
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            bad.is_empty(),
+            "door_face_set contains 1-moving-vertex faces that deform room geometry: {:?}",
+            bad
         );
     }
 }
