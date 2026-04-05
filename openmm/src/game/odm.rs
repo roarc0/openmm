@@ -1095,14 +1095,13 @@ fn lazy_spawn(
 }
 
 /// Pre-scale applied to DSFT light_radius before `decoration_point_light` for animated
-/// decorations (campfires, braziers). MM6 used a linear renderer; PBR inverse-square falloff
-/// needs a much larger nominal radius to match the original visual reach.
-/// campfireon: lr=256 × 16 = 4096 → range=40960, intensity=3.36B.
-pub(crate) const DSFT_ANIMATED_LR_SCALE: u16 = 16;
+/// decorations (campfires, braziers).
+/// campfireon: lr=256 × 8 = 2048 → range=4096, intensity=838M.
+/// Keep range below indoor fog end (~2000) so the light cluster doesn't cover the whole dungeon.
+pub(crate) const DSFT_ANIMATED_LR_SCALE: u16 = 8;
 
 /// Pre-scale for static DSFT decorations (crystals, chandeliers, sconces).
-/// Smaller than animated because static lights are typically in well-lit areas.
-pub(crate) const DSFT_STATIC_LR_SCALE: u16 = 8;
+pub(crate) const DSFT_STATIC_LR_SCALE: u16 = 6;
 
 /// Build a `PointLight` for a decoration with the given MM6 light radius.
 ///
@@ -1112,11 +1111,11 @@ pub(crate) const DSFT_STATIC_LR_SCALE: u16 = 8;
 /// - `intensity = light_radius² * 200`    — controls brightness; tied to the original radius,
 ///   NOT the scaled range, so doubling the range doesn't quadruple brightness.
 ///
-/// RANGE_SCALE=10: torch (lr=512) → range=5120, campfire (DSFT lr=256×16=4096) → range=40960.
-/// Adjust RANGE_SCALE to taste; increasing it makes lights cover more area without washing
-/// out surfaces close to the source.
+/// RANGE_SCALE=2: torch (lr=512) → range=1024, campfire (DSFT lr=256×8=2048) → range=4096.
+/// Keep RANGE_SCALE small — Bevy clusters every light by its range sphere; a light with
+/// range=40960 in a 22000-unit dungeon touches every cluster and tanks frame time.
 pub(crate) fn decoration_point_light(light_radius: u16) -> impl Bundle {
-    const RANGE_SCALE: f32 = 10.0;
+    const RANGE_SCALE: f32 = 2.0;
     let lr = light_radius as f32;
     PointLight {
         color: Color::srgb(1.0, 0.78, 0.40),

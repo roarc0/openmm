@@ -165,10 +165,7 @@ impl Plugin for PlayerPlugin {
                     .run_if(in_state(GameState::Game))
                     .run_if(crate::game::hud::game_input_active),
             )
-            .add_systems(
-                Update,
-                party_torch_system.run_if(in_state(GameState::Game)),
-            );
+            .add_systems(Update, party_torch_system.run_if(in_state(GameState::Game)));
     }
 }
 
@@ -337,8 +334,8 @@ fn spawn_player(
             cam.insert(DistanceFog {
                 color: Color::srgba(0.0, 0.0, 0.0, 1.0),
                 falloff: FogFalloff::Linear {
-                    start: 1500.0,
-                    end: 4000.0,
+                    start: 500.0,
+                    end: 2000.0,
                 },
                 ..default()
             });
@@ -366,7 +363,7 @@ fn spawn_player(
             PointLight {
                 color: Color::srgb(0.85, 0.65, 0.30),
                 intensity: 0.0,
-                range: 12000.0,
+                range: 3500.0,
                 shadows_enabled: false,
                 ..default()
             },
@@ -836,7 +833,11 @@ fn party_torch_system(
     } else {
         false
     };
-    let (target, fill_target) = if lit { (TORCH_INTENSITY, TORCH_FILL_INTENSITY) } else { (0.0, 0.0) };
+    let (target, fill_target) = if lit {
+        (TORCH_INTENSITY, TORCH_FILL_INTENSITY)
+    } else {
+        (0.0, 0.0)
+    };
     for mut light in &mut torch_query {
         if (light.intensity - target).abs() > 1.0 {
             light.intensity = target;

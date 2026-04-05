@@ -631,7 +631,7 @@ fn spawn_indoor_world(
     // Range and intensity are decoupled: range scales linearly so small lights don't get
     // a range boost from a high-intensity formula.
     // brightness=64 → range~960 (small torch); brightness=640 → range~9600 (campfire room-fill).
-    const BLV_LIGHT_RANGE_SCALE: f32 = 15.0;
+    const BLV_LIGHT_RANGE_SCALE: f32 = 5.0;
     const BLV_LIGHT_INTENSITY_SCALE: f32 = 300.0;
     for &(pos, brightness) in &prepared.blv_lights {
         let b = brightness as f32;
