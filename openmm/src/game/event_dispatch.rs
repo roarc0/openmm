@@ -428,14 +428,6 @@ fn process_events(
 
     let steps = &sequence.steps;
     let qb = game_assets.quest_bits();
-
-    // Log the full event sequence upfront so it's visible without tracing each step.
-    info!(
-        "▶ event ({} steps): {}",
-        steps.len(),
-        steps.iter().map(|s| format!("[{}]{}", s.step, qb.annotate(&s.event.to_string()))).collect::<Vec<_>>().join(" → ")
-    );
-
     let mut pc = 0usize; // program counter (index into steps vec)
     let mut iterations = 0u32;
     const MAX_ITERATIONS: u32 = 500;
