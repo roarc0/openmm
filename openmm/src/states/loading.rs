@@ -19,7 +19,10 @@ pub struct LoadingPlugin;
 
 impl Plugin for LoadingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Loading), loading_setup)
+        app.add_systems(
+            OnEnter(GameState::Loading),
+            (despawn_all::<crate::game::InGame>, loading_setup).chain(),
+        )
             .add_systems(Update, loading_step.run_if(in_state(GameState::Loading)))
             .add_systems(OnExit(GameState::Loading), despawn_all::<InLoading>);
     }

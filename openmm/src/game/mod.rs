@@ -52,7 +52,6 @@ impl Plugin for InGamePlugin {
         ))
         .add_plugins(actor_combat::ActorCombatPlugin)
         .add_plugins(MaterialPlugin::<terrain_material::TerrainMaterial>::default())
-        .add_plugins(party::PartyPlugin)
-        .add_systems(OnExit(GameState::Game), despawn_all::<InGame>);
+        .add_plugins(party::PartyPlugin);
     }
 }
