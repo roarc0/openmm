@@ -271,9 +271,9 @@ cargo run --example dump_npc_json          # NPC table → data/dump/npc.json, d
 ```
 
 File naming convention in `data/dump/`:
-- `<map>.odm.txt` — outdoor map: heightmap summary, tile IDs, spawn points, billboard list
-- `<map>.blv.txt` — indoor map: vertices, faces, sector info, light positions, door list
-- `<map>.ddm.txt` — actor/NPC roster for a map (parsed from DDM)
+- `<map>.odm.json` — outdoor map: header, tile data, spawn points, billboard list, BSP models (height/tile/attr maps skipped — raw bytes)
+- `<map>.blv.json` — indoor map: vertices, faces, sector info, light positions, door list
+- `<map>.ddm.json` — actor/NPC roster for a map (parsed from DDM)
 - `*.json` — structured tables (NPCs, etc.) — useful for small-to-medium datasets
 - Prefer `.txt` over `.json` for large geometry data (mesh faces, vertex lists) — JSON is too verbose there
 

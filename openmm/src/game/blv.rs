@@ -535,12 +535,30 @@ fn spawn_indoor_world(
             // All animated indoor decorations (torches, campfires, cauldrons) are fire
             // sources — mark them so the tint system skips them.
             ent.insert(SelfLit);
-            dec_entity = Some(ent.id());
+            let ent_id = ent.id();
+            dec_entity = Some(ent_id);
+
+            // Luminous animated decorations (campfires, braziers) carry their point-light
+            // radius in the DSFT frame, not in the ddeclist.light_radius field.
+            // Campfireon: DSFT light_radius=256, is_luminous=true.
+            // DSFT values (64-256) are calibrated for MM6's linear software renderer.
+            // Scale × 8 so campfires (lr=256 → 2048) fill a dungeon room in Bevy PBR;
+            // the inverse-square falloff requires a much larger nominal radius to match
+            // the original engine's reach.
+            let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
+            if dsft_lr > 0 {
+                commands.spawn((
+                    crate::game::odm::decoration_point_light(dsft_lr.saturating_mul(8)),
+                    Transform::from_translation(sprite_center),
+                    InGame,
+                ));
+            }
         } else {
             // Static single-frame decoration
             let Some(sprite) = bb_mgr.get(game_assets.lod_manager(), key, dec.declist_id) else {
                 continue;
             };
+            let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
             let (w, h) = sprite.dimensions();
             if w == 0.0 || h == 0.0 {
                 continue;
@@ -584,7 +602,20 @@ fn spawn_indoor_world(
                     mask: Some(std::sync::Arc::new(mask)),
                 });
             }
-            dec_entity = Some(ent.id());
+            // DSFT-luminous static decs (chandeliers, crystals, sconces) get SelfLit + light.
+            if dsft_lr > 0 {
+                ent.insert(SelfLit);
+            }
+            let static_id = ent.id();
+            dec_entity = Some(static_id);
+            drop(ent);
+            if dsft_lr > 0 {
+                commands.spawn((
+                    crate::game::odm::decoration_point_light(dsft_lr.saturating_mul(8)),
+                    Transform::from_translation(sprite_center),
+                    InGame,
+                ));
+            }
         }
         if dec.light_radius > 0 {
             commands.spawn((
@@ -600,11 +631,14 @@ fn spawn_indoor_world(
     }
 
     // Spawn BLV static point lights (designer-placed lights for campfires, cauldrons, etc.).
-    // brightness=64 → small torch range; brightness=640 → campfire range.
     // radius field is always 0 in MM6 data — brightness alone drives the falloff.
+    // Range and intensity are decoupled: range scales linearly so small lights don't get
+    // a range boost from a high-intensity formula.
+    // brightness=64 → range~960 (small torch); brightness=640 → range~9600 (campfire room-fill).
     for &(pos, brightness) in &prepared.blv_lights {
-        let range = brightness as f32 * 5.0;
-        let intensity = range * range * 150.0;
+        let b = brightness as f32;
+        let range = b * 15.0;
+        let intensity = b * b * 300.0;
         commands.spawn((
             PointLight {
                 color: Color::srgb(1.0, 0.76, 0.38),

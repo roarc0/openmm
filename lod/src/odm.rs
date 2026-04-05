@@ -4,6 +4,7 @@ use std::{
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use serde::Serialize;
 
 use crate::{
     LodManager,
@@ -37,7 +38,7 @@ const ATTRIBUTE_MAP_OFFSET: u64 = TILE_MAP_OFFSET + ATTRIBUTE_MAP_SIZE as u64;
 const ATTRIBUTE_MAP_SIZE: usize = ODM_AREA;
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Odm {
     /// Map file name.
     /// Map display name from the ODM header (first 32 bytes, e.g. "Harmondale").
@@ -54,10 +55,13 @@ pub struct Odm {
     /// Tileset texture indices for the 4 tile slots (each slot repeated twice: normal + blend).
     pub tile_data: [u16; 8],
     /// 128×128 heightmap, one u8 per cell. World height = value × ODM_HEIGHT_SCALE (32).
+    #[serde(skip)]
     pub height_map: [u8; HEIGHT_MAP_SIZE],
     /// 128×128 tile map, one u8 per cell. Indexes into dtile.bin.
+    #[serde(skip)]
     pub tile_map: [u8; TILEMAP_SIZE],
     /// 128×128 attribute map, one u8 per cell. Bit flags per tile (passable, etc.).
+    #[serde(skip)]
     pub attribute_map: [u8; ATTRIBUTE_MAP_SIZE],
     /// BSP building models placed on this map.
     pub bsp_models: Vec<BSPModel>,
@@ -71,7 +75,7 @@ pub struct Odm {
 ///
 /// MM6 record: 20 bytes (SpawnPoint struct from MMExtension, no MM7 Group field at 0x14).
 /// Layout: 0x00: pos[3](i32), 0x0C: radius(i16), 0x0E: kind(i16), 0x10: index(i16), 0x12: bits(u16)
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct SpawnPoint {
     /// Spawn center in MM6 world coordinates (x, y, z). Offset 0x00.
     pub position: [i32; 3],

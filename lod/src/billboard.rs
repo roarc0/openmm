@@ -4,6 +4,7 @@ use std::{
 };
 
 use image::{DynamicImage, GenericImageView};
+use serde::Serialize;
 
 use crate::{
     LodManager,
@@ -13,7 +14,7 @@ use crate::{
 };
 
 #[repr(C)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize)]
 pub struct BillboardData {
     pub declist_id: u16,
     pub attributes: u16,
@@ -55,7 +56,7 @@ impl BillboardData {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize)]
 pub struct Billboard {
     pub declist_name: String,
     pub data: BillboardData,
@@ -157,6 +158,31 @@ impl BillboardManager {
     /// Returns the fixed-point 16.16 scale as f32, or 1.0 if not found.
     pub fn dsft_scale_for_group(&self, group: &str) -> f32 {
         self.d_sft.scale_for_group(group)
+    }
+
+    /// Return the DSFT frame light_radius for a luminous decoration whose ddeclist.light_radius is 0.
+    /// Used for animated fire sources (campfireon, flamb00, etc.) and static luminous decs
+    /// (crystals, chandeliers) where illumination is encoded in the DSFT frame, not the ddeclist.
+    /// Returns 0 if not DSFT-luminous, or if ddeclist already has a non-zero light_radius.
+    pub fn dsft_luminous_light_radius(&self, declist_id: u16) -> u16 {
+        let Some(item) = self.d_declist.items.get(declist_id as usize) else {
+            return 0;
+        };
+        if item.light_radius > 0 {
+            return 0; // ddeclist handles it
+        }
+        let sft_idx = item.sft_index();
+        if sft_idx < 0 {
+            return 0;
+        }
+        let Some(frame) = self.d_sft.frames.get(sft_idx as usize) else {
+            return 0;
+        };
+        if frame.is_luminous() && frame.light_radius > 0 {
+            frame.light_radius as u16
+        } else {
+            0
+        }
     }
 
     /// Count the animation frames in a decoration's DSFT group.

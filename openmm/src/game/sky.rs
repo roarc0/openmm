@@ -158,8 +158,15 @@ fn follow_camera(
 }
 
 /// Update the clear color (sky background) based on time of day.
-/// This fills the area below the sky cylinder.
-fn update_sky_color(mut clear_color: ResMut<ClearColor>, game_time: Res<crate::game::game_time::GameTime>) {
+/// Skipped indoors — black is set once in spawn_sky and must not be overwritten.
+fn update_sky_color(
+    mut clear_color: ResMut<ClearColor>,
+    game_time: Res<crate::game::game_time::GameTime>,
+    indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
+) {
+    if indoor.is_some() {
+        return;
+    }
     let tod = game_time.time_of_day();
 
     let day_amount = 1.0 - (tod * 2.0 - 1.0).abs();

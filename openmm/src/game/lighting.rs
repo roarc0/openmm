@@ -132,7 +132,8 @@ fn animate_day_cycle(
         (With<Billboard>, Without<SelfLit>),
     >,
     // Actor sprites (NPCs/monsters) — SpriteSheet, no Billboard marker.
-    actor_query: Query<&MeshMaterial3d<StandardMaterial>, With<crate::game::entities::sprites::SpriteSheet>>,
+    // Exclude SelfLit: animated fire decorations also have SpriteSheet but must stay full-bright.
+    actor_query: Query<&MeshMaterial3d<StandardMaterial>, (With<crate::game::entities::sprites::SpriteSheet>, Without<SelfLit>)>,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
     player_query: Query<&Transform, With<Player>>,

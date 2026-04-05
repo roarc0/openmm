@@ -69,6 +69,69 @@ fn goblin_variants_have_distinct_dsft_palettes() {
     );
 }
 
+/// Campfire DSFT frame names — regression test to verify frame sprite names resolve in LOD.
+#[test]
+fn campfire_dsft_frame_names_resolve() {
+    let Some(lod_manager) = test_lod() else { return; };
+    let dsft = DSFT::new(&lod_manager).unwrap();
+    let ddeclist = crate::ddeclist::DDecList::new(&lod_manager).unwrap();
+
+    let (id, item) = ddeclist.items.iter().enumerate()
+        .find_map(|(i, it)| {
+            it.name().filter(|n| n.eq_ignore_ascii_case("campfireon")).map(|_| (i as u16, it))
+        }).expect("campfireon should exist in ddeclist");
+
+    let sft_idx = item.sft_index();
+    assert!(sft_idx >= 0, "campfireon sft_index should be non-negative, got {}", sft_idx);
+    println!("campfireon: ddeclist_id={}, sft_index={}", id, sft_idx);
+
+    let mut idx = sft_idx as usize;
+    let mut frame_count = 0;
+    loop {
+        let frame = &dsft.frames[idx];
+        let sprite_name = frame.sprite_name().unwrap_or_default();
+        // Verify each frame's sprite exists in the LOD
+        let found = lod_manager.game().sprite(&sprite_name).is_some();
+        assert!(found, "campfireon frame {} sprite '{}' should exist in LOD", frame_count, sprite_name);
+        // All campfire frames must be luminous with light_radius=256 —
+        // this is the source of campfire point lights, NOT ddeclist.light_radius (which is 0).
+        assert!(frame.is_luminous(), "campfireon frame {} should be luminous", frame_count);
+        assert_eq!(frame.light_radius, 256, "campfireon frame {} light_radius should be 256", frame_count);
+        if !frame.is_not_group_end() { break; }
+        idx += 1;
+        frame_count += 1;
+    }
+    assert_eq!(frame_count + 1, 6, "campfireon should have 6 animation frames, got {}", frame_count + 1);
+}
+
+/// Print all ddeclist entries where ddeclist.light_radius=0 but the DSFT first frame is luminous.
+/// These decorations need SelfLit even though they have no ddeclist light — their light
+/// comes from the DSFT frame (like campfireon).
+#[test]
+fn static_luminous_decorations_with_zero_ddeclist_light_radius() {
+    let Some(lod_manager) = test_lod() else { return; };
+    let dsft = DSFT::new(&lod_manager).unwrap();
+    let ddeclist = crate::ddeclist::DDecList::new(&lod_manager).unwrap();
+    let mut found = vec![];
+    for (id, item) in ddeclist.items.iter().enumerate() {
+        if item.light_radius != 0 { continue; }
+        let sft_idx = item.sft_index();
+        if sft_idx < 0 { continue; }
+        let Some(frame) = dsft.frames.get(sft_idx as usize) else { continue; };
+        if frame.is_luminous() && frame.light_radius > 0 {
+            found.push((id, item.name().unwrap_or_default(), frame.light_radius));
+        }
+    }
+    for (id, name, lr) in &found {
+        println!("  ddeclist[{}] '{}': ddeclist lr=0, DSFT luminous lr={}", id, name, lr);
+    }
+    // We know campfireon (id=168) is in this list — it's the canonical case.
+    assert!(
+        found.iter().any(|(_, n, _)| n.eq_ignore_ascii_case("campfireon")),
+        "campfireon should appear as static-luminous with zero ddeclist lr"
+    );
+}
+
 /// Ghost/skeleton DSFT palette_id must differ from sprite file header palette.
 /// Regression: using sprite header palette offset gave wrong colors for ghosts.
 #[test]

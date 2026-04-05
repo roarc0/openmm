@@ -6,6 +6,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use log::info;
+use serde::Serialize;
 
 use crate::{
     LodManager,
@@ -47,7 +48,7 @@ struct BlvHeader {
 }
 
 /// A vertex in MM6 coordinates.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize)]
 pub struct BlvVertex {
     pub x: i16,
     pub y: i16,
@@ -65,7 +66,7 @@ pub struct BlvVertex {
 ///   0x38: face_extra_id(u16), bitmap_id(u16), sector_id(u16), back_sector_id(i16)
 ///   0x40: bounding box (i16x6) -- 12 bytes
 ///   0x4C: polygon_type(u8), num_vertices(u8), padding(i16)
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BlvFace {
     /// Fixed-point normal (i32x3, 16.16 format) and distance.
     pub normal_fixed: [i32; 4],
@@ -111,7 +112,7 @@ pub struct BlvFace {
 /// Only offsets 0x14–0x1B are documented (from field names in MM6 decompilations).
 /// The head (0x00–0x13, 20 bytes) and tail (0x1C–0x23, 8 bytes) are unknown.
 /// All bytes are stored for future analysis and round-trip saving.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct BlvFaceExtra {
     /// Unknown bytes at offset 0x00–0x13 (20 bytes). Purpose unknown — preserved for analysis.
     pub unknown_head: [u8; 20],
@@ -181,7 +182,7 @@ impl BlvFace {
 }
 
 /// A sector in a BLV indoor map (116 bytes on disk).
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 /// A sector (room) in a BLV indoor map.
 ///
 /// Contains face lists, lighting parameters, and spatial bounds.
@@ -236,7 +237,7 @@ pub struct BlvSector {
 
 /// A decoration/sprite in a BLV indoor map (28 bytes on disk + 28-byte name in MM6).
 /// Field layout from MMExtension MapSprite struct.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BlvDecoration {
     pub decoration_desc_id: u16,
     /// Instance flags (LevelDecorationFlags).
@@ -257,7 +258,7 @@ pub struct BlvDecoration {
 /// A point light source in a BLV indoor map. 12 bytes, MM6 format.
 ///
 /// Layout: 0x00: pos[3](i16), 0x06: radius(i16), 0x08: attributes(i16), 0x0A: brightness(u16)
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BlvLight {
     /// Light position in MM6 coordinates (x, y, z). Offset 0x00.
     pub position: [i16; 3],
@@ -272,7 +273,7 @@ pub struct BlvLight {
 /// A BSP tree node in a BLV indoor map. 8 bytes.
 ///
 /// Layout: 0x00: front(i16), 0x02: back(i16), 0x04: face_id_offset(i16), 0x06: num_faces(i16)
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BlvBspNode {
     /// Index of the front child node (-1 = leaf). Offset 0x00.
     pub front: i16,
@@ -288,7 +289,7 @@ pub struct BlvBspNode {
 ///
 /// Identical layout to ODM `SpawnPoint` — 20 bytes, MM6 format (no MM7 Group field).
 /// Layout: 0x00: pos[3](i32), 0x0C: radius(u16), 0x0E: kind(u16), 0x10: index(u16), 0x12: bits(u16)
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BlvSpawnPoint {
     /// Spawn center in MM6 world coordinates (x, y, z). Offset 0x00.
     pub position: [i32; 3],
@@ -305,7 +306,7 @@ pub struct BlvSpawnPoint {
 /// A map outline edge used for the minimap/automap display. 12 bytes.
 ///
 /// Layout: 0x00: v1(u16), 0x02: v2(u16), 0x04: face1(u16), 0x06: face2(u16), 0x08: z(i16), 0x0A: flags(u16)
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BlvMapOutline {
     /// First vertex index of this outline edge. Offset 0x00.
     pub vertex1_id: u16,
@@ -358,7 +359,7 @@ pub struct BlvTexturedMesh {
 }
 
 /// Parsed BLV indoor map.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Blv {
     /// Map display name from the BLV header (offset 0x04, 60 bytes).
     pub header_name: String,

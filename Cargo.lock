@@ -3876,6 +3876,8 @@ dependencies = [
  "hexdump",
  "image",
  "log",
+ "serde",
+ "serde_json",
  "smk",
 ]
 

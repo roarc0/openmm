@@ -665,8 +665,23 @@ fn lazy_spawn(
                     ));
             }
             // Animated decorations do NOT get DecorFlicker — frame cycling is the visual.
-            if dec.light_radius > 0 {
-                let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
+            // Light source: prefer ddeclist.light_radius; fall back to DSFT frame light_radius
+            // for luminous decorations like campfireon (ddeclist lr=0, DSFT lr=256).
+            let effective_lr = if dec.light_radius > 0 {
+                dec.light_radius
+            } else {
+                let f = &frame_sprites[0];
+                if f.d_sft_frame.is_luminous() && f.d_sft_frame.light_radius > 0 {
+                    // DSFT light_radius (64-256) is calibrated for MM6's linear renderer.
+                    // Scale × 8 so campfires (lr=256 → 2048) fill a dungeon room in Bevy PBR;
+                    // inverse-square falloff needs a much larger nominal radius.
+                    (f.d_sft_frame.light_radius as u16).saturating_mul(8)
+                } else {
+                    0
+                }
+            };
+            if effective_lr > 0 {
+                let light_id = commands.spawn(decoration_point_light(effective_lr)).id();
                 commands.entity(child_id).add_child(light_id);
                 commands.entity(child_id).insert(crate::game::entities::SelfLit);
             }
@@ -744,8 +759,15 @@ fn lazy_spawn(
                     .entity(child_id)
                     .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
             }
-            if dec.light_radius > 0 {
-                let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
+            // ddeclist light_radius covers torches; DSFT luminous covers crystals, sconces, chandeliers.
+            let effective_static_lr = if dec.light_radius > 0 {
+                dec.light_radius
+            } else {
+                let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
+                dsft_lr.saturating_mul(8)
+            };
+            if effective_static_lr > 0 {
+                let light_id = commands.spawn(decoration_point_light(effective_static_lr)).id();
                 commands.entity(child_id).add_child(light_id);
                 commands.entity(child_id).insert(crate::game::entities::SelfLit);
             }
@@ -1077,18 +1099,22 @@ fn lazy_spawn(
 
 /// Build a `PointLight` for a decoration with the given MM6 light radius.
 ///
-/// Intensity scales with radius² so smaller lights aren't washed out by larger ones.
-/// Color is warm orange (torches, braziers). Shadows disabled for performance.
-/// Flicker is free: the light entity inherits visibility from its parent decoration.
+/// MM6 `light_radius` values (256–512) were calibrated for the original software renderer
+/// and map to small Bevy world-unit spheres without scaling. We decouple range from intensity:
+/// - `range  = light_radius * RANGE_SCALE` — controls how far the light reaches.
+/// - `intensity = light_radius² * 200`    — controls brightness; tied to the original radius,
+///   NOT the scaled range, so doubling the range doesn't quadruple brightness.
+///
+/// RANGE_SCALE=10: torch (lr=512) → range=5120, campfire (DSFT lr=256×8=2048) → range=20480.
+/// Adjust RANGE_SCALE to taste; increasing it makes lights cover more area without washing
+/// out surfaces close to the source.
 pub(crate) fn decoration_point_light(light_radius: u16) -> impl Bundle {
-    let range = light_radius as f32;
-    // Intensity scaled so a radius-512 torch (~medium MM6 torch) reaches ~100k lux at
-    // 1m, which is visible against near-zero indoor ambient.
-    // Formula: range² * 0.4 ≈ 100k for range=512.
+    const RANGE_SCALE: f32 = 10.0;
+    let lr = light_radius as f32;
     PointLight {
         color: Color::srgb(1.0, 0.78, 0.40),
-        intensity: range * range * 200.0,
-        range,
+        intensity: lr * lr * 200.0,
+        range: lr * RANGE_SCALE,
         shadows_enabled: false,
         ..default()
     }

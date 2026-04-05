@@ -5,13 +5,14 @@ use std::{
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use serde::Serialize;
 
 use crate::{
     enums::{ModelFaceAttributes, PolygonType},
     utils::try_read_string_block,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BSPModel {
     pub header: BSPModelHeader,
     pub vertices: Vec<[f32; 3]>,
@@ -26,7 +27,7 @@ pub struct BSPModel {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct BSPModelHeader {
     pub name: String,
     pub name2: String,
@@ -53,14 +54,14 @@ impl BSPModelHeader {
 }
 
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct Plane {
     pub normal: [i32; 3],
     pub distance: i32,
 }
 
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct BoundingBox<T>
 where
     T: Add + Sub + Mul + Div + Copy,
@@ -76,7 +77,7 @@ where
 const MAX_FACE_VERTICES_COUNT: usize = 20;
 
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct BSPModelFace {
     pub plane: Plane,
     pub z_calc: [i16; 6],
@@ -284,7 +285,7 @@ impl BSPModelFace {
 // PolygonType is now in crate::enums — re-exported for backward compatibility.
 
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct BSPNode {
     pub front: i32,
     pub back: i32,

@@ -2,6 +2,7 @@ use std::error::Error;
 use std::io::{Cursor, Seek};
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use serde::Serialize;
 
 use crate::enums::ActorAttributes;
 use crate::{LodManager, lod_data::LodData};
@@ -13,7 +14,7 @@ const ACTOR_SIZE_MM6: usize = 548;
 /// One monster attack definition (5 bytes). Used in `CommonMonsterProps`.
 ///
 /// Layout: Type(1) + DamageDiceCount(1) + DamageDiceSides(1) + DamageAdd(1) + Missile(1)
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct MonsterAttackInfo {
     /// Attack type (damage kind enum). Offset 0x00.
     pub attack_type: u8,
@@ -44,7 +45,7 @@ pub struct MonsterAttackInfo {
 ///   0x2A: pref_num(1), pad(1), quest_item(2), skip(2)[pad]
 ///   0x30: full_hp(4), armor_class(4), experience(4), move_speed(4), attack_recovery(4)
 ///   0x44: _unknown(4) [MM6-only trailing field]
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct CommonMonsterProps {
     /// Index into dmonlist.bin (1-based in file, stored 0-based here). Offset 0x08.
     pub monlist_id: u8,
@@ -119,7 +120,7 @@ pub struct CommonMonsterProps {
 /// A spell buff on an actor (16 bytes each, 14 per actor).
 ///
 /// Layout: ExpireTime(8) + Power(2) + Skill(2) + OverlayId(2) + Caster(1) + Bits(1)
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct SpellBuff {
     pub expire_time: i64,
     pub power: i16,
@@ -132,7 +133,7 @@ pub struct SpellBuff {
 /// A monster schedule entry (12 bytes each, 8 per actor).
 ///
 /// Layout: X(2) + Y(2) + Z(2) + Bits(2) + Action(1) + Hour(1) + Day(1) + Month(1)
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct MonsterSchedule {
     pub x: i16,
     pub y: i16,
@@ -158,7 +159,7 @@ pub struct MonsterSchedule {
 ///   0xC4: SpellBuffs[14], 0x1A4: Group, 0x1A8: Ally,
 ///   0x1AC: Schedules[8], 0x20C: Summoner, 0x210: LastAttacker,
 ///   0x214: remaining padding to 0x224
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DdmActor {
     /// Actor name. Offset 0x00 (32 bytes, null-terminated).
     pub name: String,
@@ -264,7 +265,7 @@ impl DdmActor {
 /// bytes (or typed structs). Every section must be re-serialised in order with the
 /// correct C struct layout — all padding fields in `DdmActor` are already preserved for
 /// this purpose.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Ddm {
     pub actors: Vec<DdmActor>,
 }
