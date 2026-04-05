@@ -320,13 +320,25 @@ fn spawn_player(
         };
         cam.insert(tonemapping);
         cam.insert(crate::bevy_config::camera_exposure(&cfg));
-        // Outdoor: distance fog for horizon blending. Indoor: no fog.
         if !is_indoor {
+            // Outdoor: horizon haze blending into sky colour.
             cam.insert(DistanceFog {
                 color: Color::srgba(0.45, 0.55, 0.8, 1.0),
                 falloff: FogFalloff::Linear {
                     start: cfg.fog_start,
                     end: cfg.fog_end,
+                },
+                ..default()
+            });
+        } else {
+            // Indoor: black void beyond the torchlight.
+            // Start well past where point lights reach; end gives a gradual fade to black
+            // rather than a hard cutoff, preserving the sense of deep darkness ahead.
+            cam.insert(DistanceFog {
+                color: Color::srgba(0.0, 0.0, 0.0, 1.0),
+                falloff: FogFalloff::Linear {
+                    start: 6000.0,
+                    end: 14000.0,
                 },
                 ..default()
             });
