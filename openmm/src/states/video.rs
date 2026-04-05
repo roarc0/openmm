@@ -8,6 +8,37 @@ use lod::vid::Vid;
 use crate::GameState;
 use crate::config::GameConfig;
 
+/// Build a minimal WAV file from raw PCM bytes.
+/// Supports 8-bit (unsigned) and 16-bit (signed little-endian).
+fn build_wav(pcm: &[u8], channels: u8, sample_rate: u32, bitdepth: u8) -> Vec<u8> {
+    let data_len = pcm.len() as u32;
+    let block_align = (channels as u32) * (bitdepth as u32 / 8);
+    let byte_rate = sample_rate * block_align;
+    let mut wav = Vec::with_capacity(44 + pcm.len());
+
+    // RIFF header
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+
+    // fmt chunk
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes()); // chunk size
+    wav.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    wav.extend_from_slice(&(channels as u16).to_le_bytes());
+    wav.extend_from_slice(&sample_rate.to_le_bytes());
+    wav.extend_from_slice(&byte_rate.to_le_bytes());
+    wav.extend_from_slice(&(block_align as u16).to_le_bytes());
+    wav.extend_from_slice(&(bitdepth as u16).to_le_bytes());
+
+    // data chunk
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    wav.extend_from_slice(pcm);
+
+    wav
+}
+
 pub struct VideoPlugin;
 
 impl Plugin for VideoPlugin {
@@ -50,6 +81,7 @@ struct OnVideoScreen;
 fn video_setup(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
+    mut audio_sources: ResMut<Assets<AudioSource>>,
     request: Res<VideoRequest>,
     cfg: Res<GameConfig>,
 ) {
@@ -90,7 +122,7 @@ fn video_setup(
         return;
     };
 
-    let mut decoder = match SmkDecoder::new(bytes) {
+    let mut decoder = match SmkDecoder::new(bytes.clone()) {
         Ok(d) => d,
         Err(e) => {
             warn!("VideoPlugin: failed to open SMK decoder for '{}': {e}", request.name);
@@ -109,11 +141,34 @@ fn video_setup(
 
     let width = decoder.width;
     let height = decoder.height;
-    let spf = if decoder.fps > 0.0 { 1.0 / decoder.fps } else { 1.0 / 10.0 };
+    let spf = if decoder.fps > 0.0 {
+        1.0 / decoder.fps
+    } else {
+        1.0 / 10.0
+    };
+
+    // Pre-decode all audio using a separate decoder pass, then play as a single WAV.
+    if let Some(audio_info) = decoder.audio
+        && let Ok(mut audio_dec) = SmkDecoder::new(bytes)
+    {
+        let mut pcm: Vec<u8> = Vec::new();
+        while audio_dec.next_frame().is_some() {
+            pcm.extend_from_slice(&audio_dec.decode_current_audio());
+        }
+        if !pcm.is_empty() {
+            let wav = build_wav(&pcm, audio_info.channels, audio_info.rate, audio_info.bitdepth);
+            let handle = audio_sources.add(AudioSource { bytes: wav.into() });
+            commands.spawn((AudioPlayer(handle), PlaybackSettings::ONCE, OnVideoScreen));
+        }
+    }
 
     // Allocate image.
     let mut image = Image::new_fill(
-        Extent3d { width, height, depth_or_array_layers: 1 },
+        Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
         TextureDimension::D2,
         &[0, 0, 0, 255],
         TextureFormat::Rgba8UnormSrgb,
@@ -186,20 +241,13 @@ fn video_tick(
     }
 }
 
-fn video_skip(
-    player: Res<VideoPlayer>,
-    keys: Res<ButtonInput<KeyCode>>,
-    mut next_state: ResMut<NextState<GameState>>,
-) {
+fn video_skip(player: Res<VideoPlayer>, keys: Res<ButtonInput<KeyCode>>, mut next_state: ResMut<NextState<GameState>>) {
     if player.skippable && keys.just_pressed(KeyCode::Escape) {
         next_state.set(player.next);
     }
 }
 
-fn video_cleanup(
-    mut commands: Commands,
-    to_despawn: Query<Entity, With<OnVideoScreen>>,
-) {
+fn video_cleanup(mut commands: Commands, to_despawn: Query<Entity, With<OnVideoScreen>>) {
     for entity in &to_despawn {
         commands.entity(entity).despawn();
     }
