@@ -1,5 +1,7 @@
 use bevy::{
-    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    diagnostic::{
+        DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin, SystemInformationDiagnosticsPlugin,
+    },
     input::{ButtonInput, common_conditions::input_toggle_active},
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
@@ -63,62 +65,77 @@ fn debug_setup(
         Visibility::Hidden
     };
 
-    // HUD text — positioned inside the game viewport (below border3, right of border4)
+    // HUD text container — positioned inside the game viewport (below border3, right of border4)
     commands
         .spawn((
-            Text::new("FPS: --"),
-            TextFont {
-                font_size: 22.0,
-                ..default()
-            },
-            TextColor(Color::WHITE),
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(dbg_left + 80.0),
                 top: Val::Px(dbg_top),
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
                 ..default()
             },
             hud_visibility,
-            FpsText,
             InGame,
             DebugHud,
         ))
-        .with_child((
-            TextSpan::new(""),
-            TextFont {
-                font_size: 22.0,
-                ..default()
-            },
-            TextColor(Color::srgb(0.3, 0.6, 1.0)), // blue — map name
-            MapNameSpan,
-        ))
-        .with_child((
-            TextSpan::new(""),
-            TextFont {
-                font_size: 22.0,
-                ..default()
-            },
-            TextColor(Color::srgb(1.0, 0.7, 0.2)), // orange — fly/walk mode
-            ModeSpan,
-        ))
-        .with_child((
-            TextSpan::new(""),
-            TextFont {
-                font_size: 22.0,
-                ..default()
-            },
-            TextColor(Color::srgb(0.85, 0.85, 0.85)), // light gray — coordinates
-            PosSpan,
-        ))
-        .with_child((
-            TextSpan::new(""),
-            TextFont {
-                font_size: 22.0,
-                ..default()
-            },
-            TextColor(Color::WHITE),
-            TileSpan,
-        ));
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("FPS: --"),
+                TextFont {
+                    font_size: 22.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                FpsText,
+            ));
+            parent.spawn((
+                Text::new(" CPU: --%"),
+                TextFont {
+                    font_size: 22.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                CpuText,
+            ));
+            parent.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: 22.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.3, 0.6, 1.0)), // blue — map name
+                MapNameSpan,
+            ));
+            parent.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: 22.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(1.0, 0.7, 0.2)), // orange — fly/walk mode
+                ModeSpan,
+            ));
+            parent.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: 22.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.85, 0.85, 0.85)), // light gray — coordinates
+                PosSpan,
+            ));
+            parent.spawn((
+                Text::new(""),
+                TextFont {
+                    font_size: 22.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                TileSpan,
+            ));
+        });
 
     // FPS chart — bars with min/max labels
     commands
@@ -126,7 +143,7 @@ fn debug_setup(
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(dbg_left + 80.0),
-                top: Val::Px(dbg_top + 60.0),
+                top: Val::Px(dbg_top + 25.0),
                 flex_direction: FlexDirection::Column,
                 ..default()
             },
@@ -399,6 +416,9 @@ fn fps_color(fps: f64) -> Color {
 pub struct FpsText;
 
 #[derive(Component)]
+pub struct CpuText;
+
+#[derive(Component)]
 struct MapNameSpan;
 
 #[derive(Component)]
@@ -432,26 +452,19 @@ fn update_hud_text(
     spawn_progress: Res<crate::game::odm::SpawnProgress>,
     prepared: Option<Res<PreparedWorld>>,
     mut fps_history: ResMut<FpsHistory>,
-    mut fps_query: Query<(&mut Text, &mut TextColor), With<FpsText>>,
-    mut map_name_query: Query<(&mut TextSpan, &mut TextColor), (With<MapNameSpan>, Without<FpsText>)>,
-    mut mode_query: Query<(&mut TextSpan, &mut TextColor), (With<ModeSpan>, Without<FpsText>, Without<MapNameSpan>)>,
-    mut pos_query: Query<
-        (&mut TextSpan, &mut TextColor),
-        (With<PosSpan>, Without<FpsText>, Without<ModeSpan>, Without<MapNameSpan>),
-    >,
-    mut tile_query: Query<
-        (&mut TextSpan, &mut TextColor),
-        (
-            With<TileSpan>,
-            Without<FpsText>,
-            Without<PosSpan>,
-            Without<ModeSpan>,
-            Without<MapNameSpan>,
-        ),
-    >,
+    mut text_query: Query<(
+        &mut Text,
+        &mut TextColor,
+        Option<&FpsText>,
+        Option<&CpuText>,
+        Option<&MapNameSpan>,
+        Option<&ModeSpan>,
+        Option<&PosSpan>,
+        Option<&TileSpan>,
+        Option<&ChartMaxLabel>,
+        Option<&ChartMinLabel>,
+    )>,
     mut bar_query: Query<(&FpsChartBar, &mut Node, &mut BackgroundColor)>,
-    mut max_label: Query<&mut Text, (With<ChartMaxLabel>, Without<FpsText>)>,
-    mut min_label: Query<&mut Text, (With<ChartMinLabel>, Without<FpsText>, Without<ChartMaxLabel>)>,
 ) {
     let fps_val = diagnostics
         .get(&FrameTimeDiagnosticsPlugin::FPS)
@@ -460,6 +473,10 @@ fn update_hud_text(
     if let Some(fps) = fps_val {
         fps_history.tick(fps);
     }
+
+    let cpu_val = diagnostics
+        .get(&SystemInformationDiagnosticsPlugin::PROCESS_CPU_USAGE)
+        .and_then(|cpu| cpu.smoothed());
 
     let avg = fps_history.averaged();
     let low_1 = fps_history.percentile_low(1.0);
@@ -500,34 +517,42 @@ fn update_hud_text(
         ("  WALK".to_string(), "  POS: --".to_string())
     };
 
-    for (mut text, mut tc) in &mut fps_query {
-        **text = fps_str.clone();
-        *tc = TextColor(color);
-    }
-    for (mut span, mut tc) in &mut map_name_query {
-        **span = format!("\n{}", map_name);
-        *tc = TextColor(Color::srgb(0.3, 0.6, 1.0));
-    }
-    for (mut span, mut tc) in &mut mode_query {
-        **span = mode_str.clone();
-        *tc = TextColor(Color::srgb(1.0, 0.7, 0.2));
-    }
-    for (mut span, mut tc) in &mut pos_query {
-        **span = coords_str.clone();
-        *tc = TextColor(Color::srgb(0.85, 0.85, 0.85));
-    }
-
     // Update tile type from terrain
     let tileset = player_query
         .single()
         .ok()
         .and_then(|tf| prepared.as_ref()?.terrain_at(tf.translation.x, tf.translation.z));
-    for (mut span, mut tc) in &mut tile_query {
-        if let Some(ts) = tileset {
-            **span = format!("  {ts}");
-            *tc = TextColor(tileset_color(ts));
-        } else {
-            **span = String::new();
+
+    for (mut text, mut tc, fps, cpu, map, mode, pos, tile, max, min) in &mut text_query {
+        if fps.is_some() {
+            **text = fps_str.clone();
+            *tc = TextColor(color);
+        } else if cpu.is_some() {
+            if let Some(cpu_v) = cpu_val {
+                **text = format!(" CPU: {cpu_v:.1}%");
+            } else {
+                **text = " CPU: --%".into();
+            }
+        } else if map.is_some() {
+            **text = format!("  {}", map_name);
+            *tc = TextColor(Color::srgb(0.3, 0.6, 1.0));
+        } else if mode.is_some() {
+            **text = mode_str.clone();
+            *tc = TextColor(Color::srgb(1.0, 0.7, 0.2));
+        } else if pos.is_some() {
+            **text = coords_str.clone();
+            *tc = TextColor(Color::srgb(0.85, 0.85, 0.85));
+        } else if let Some(ts) = tileset {
+            if tile.is_some() {
+                **text = format!("  {ts}");
+                *tc = TextColor(tileset_color(ts));
+            }
+        } else if tile.is_some() {
+            **text = String::new();
+        } else if max.is_some() {
+            **text = format!("{scale_max:.0}");
+        } else if min.is_some() {
+            **text = format!("{scale_min:.0}");
         }
     }
 
@@ -545,14 +570,6 @@ fn update_hud_text(
         } else {
             node.height = Val::Px(0.0);
         }
-    }
-
-    // Update min/max labels
-    for mut text in max_label.iter_mut() {
-        **text = format!("{scale_max:.0}");
-    }
-    for mut text in min_label.iter_mut() {
-        **text = format!("{scale_min:.0}");
     }
 }
 
@@ -627,6 +644,7 @@ impl Plugin for DebugPlugin {
             .add_plugins((
                 WireframePlugin::default(),
                 LogDiagnosticsPlugin::default(),
+                SystemInformationDiagnosticsPlugin,
                 EguiPlugin::default(),
                 WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
             ))
