@@ -1,4 +1,4 @@
-.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds dump_vid check-data test-ci
+.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci
 
 # --- Build ---
 
@@ -54,6 +54,9 @@ dump_assets:
 dump_sounds:
 	cargo run --release -p openmm-data --bin dump_sounds
 
+dump_saves:
+	cargo run --release -p openmm-data --bin dump_saves
+
 dump_vid:
 	cargo run --release -p openmm-data --bin dump_vid
 
@@ -78,6 +81,7 @@ help:
 	@echo "  test-ci       - Run local CI script"
 	@echo "  dump_assets   - Extract assets from LOD"
 	@echo "  dump_sounds   - Extract sounds from LOD"
+	@echo "  dump_saves    - Dump MM6 save files to data/dump/saves/"
 	@echo "  dump_vid      - Extract SMK videos from Anims VID archives"
 	@echo "  check-data    - Run full data round-trip verification (generates ./data/mm6_serialized/)"
 	@echo "  clean         - Clean cargo target directory"
