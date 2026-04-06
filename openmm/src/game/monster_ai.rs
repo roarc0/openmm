@@ -19,7 +19,7 @@ use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
 use crate::game::actor_combat::{ActorDead, DyingTimer};
-use crate::game::collision::{BuildingColliders, TerrainHeightMap, sample_terrain_height};
+use crate::game::collision::{BuildingColliders, MAX_STEP_UP, TerrainHeightMap, sample_terrain_height};
 use crate::game::entities::actor::Actor;
 use crate::game::entities::{AnimationState, WorldEntity};
 use crate::game::hud::HudView;
@@ -133,19 +133,42 @@ fn monster_ai_system(
     let c = colliders.as_deref();
     let hm = terrain.as_deref();
 
-    // Snap actor Y to terrain after XZ movement.
-    // Flying actors hover a fixed height above terrain instead of walking on it.
-    // `sh` = sprite_half_height, `flying` = actor.can_fly.
+    // Snap actor Y to the correct floor surface (terrain or BSP) after XZ movement.
+    // Flying actors hover above the surface; grounded actors stand on it.
+    // Works for both outdoor (terrain + optional BSP) and indoor (BSP only).
+    //
+    // Key invariant: if an actor is elevated on a BSP floor (balcony, rooftop) and wanders
+    // to an XZ position where no BSP floor exists, we keep their current Y rather than
+    // dropping them to terrain. They should only fall to terrain when they're already at
+    // ground level (within MAX_STEP_UP of terrain).
     let snap_y = |pos: Vec3, sh: f32, flying: bool| -> f32 {
-        if let Some(t) = hm {
-            let ground = sample_terrain_height(&t.heights, pos.x, pos.z);
-            if flying {
-                ground + sh * 4.0 // hover ~2 full sprite heights above ground
+        let feet_y = pos.y - sh;
+        let terrain_h = hm
+            .map(|t| sample_terrain_height(&t.heights, pos.x, pos.z))
+            .unwrap_or(f32::MIN);
+        let bsp_h = c
+            .and_then(|col| col.floor_height_at(pos.x, pos.z, feet_y, MAX_STEP_UP))
+            .unwrap_or(f32::MIN);
+
+        let ground = if bsp_h > f32::MIN {
+            // BSP floor found — use whichever is higher (outdoor actor on building or ground).
+            terrain_h.max(bsp_h)
+        } else if terrain_h > f32::MIN {
+            // No BSP floor at new XZ — only snap to terrain if actor is already near ground level.
+            // If they're elevated (on a balcony/rooftop), keep current Y to avoid dropping them.
+            if terrain_h >= feet_y - MAX_STEP_UP {
+                terrain_h
             } else {
-                ground + sh
+                return pos.y;
             }
         } else {
-            pos.y // indoor: keep current Y (BSP gravity not handled here)
+            return pos.y; // no floor at all (indoor, no BSP hit) — keep current Y
+        };
+
+        if flying {
+            ground + sh * 4.0
+        } else {
+            ground + sh
         }
     };
 
