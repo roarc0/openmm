@@ -37,13 +37,11 @@ pub mod odm;
 pub mod palette;
 pub mod quest_bits;
 pub mod save;
-pub mod smk;
 pub mod snd;
 pub mod spells;
 pub mod terrain;
 pub mod tft;
 pub mod twodevents;
-pub mod vid;
 pub mod zlib;
 
 pub use self::blv::{Blv, BlvDoor, DoorState};
@@ -57,10 +55,9 @@ pub use self::lod_data::LodData;
 pub use self::mapstats::MapStats;
 pub use self::odm::{Odm, SpawnPoint};
 pub use self::palette::{Palette, Palettes};
-pub use self::provider::{LodArchive, LodWriter, StaticGameData as GameData, Version};
-pub use self::smk::SmkDecoder;
+pub use self::provider::{Archive, ArchiveEntry, LodArchive, LodWriter, StaticGameData as GameData, Version};
+pub use self::provider::smk::{SmkArchive, SmkDecoder, SmkExt, SmkWriter, parse_smk_info};
 pub use self::snd::SndArchive;
-pub use self::vid::{Vid, VidArchive};
 pub use self::zlib::*;
 
 // Re-export specific types
@@ -74,7 +71,10 @@ pub use self::dtile::{Dtile, TileTable};
 pub use self::npc::{NpcNamePool, StreetNpcs};
 pub use self::npcnews::NpcNewsTable;
 pub use self::npcprof::NpcProfTable;
+pub use self::provider::actors::Actors;
 pub use self::provider::decorations::Decorations;
+pub use self::provider::lod_decoder::LodDecoder;
+pub use self::provider::monster::Monsters;
 pub use self::quest_bits::QuestBitNames;
 pub use self::save::{SaveFile, SaveHeader, list_saves};
 pub use self::spells::SpellsTable;

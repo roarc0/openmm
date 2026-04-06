@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use image::{DynamicImage, RgbImage};
-use openmm_archive::{Archive, lod::LodArchive};
+use crate::assets::provider::archive::{Archive, lod::LodArchive};
 
 /// Metadata from `header.bin` (100 bytes) inside a save LOD.
 #[derive(Debug, Clone, Default)]

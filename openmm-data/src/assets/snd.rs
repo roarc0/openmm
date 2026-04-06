@@ -1,6 +1,6 @@
-pub use openmm_archive::snd::*;
+pub use crate::assets::provider::archive::snd::*;
 
-use openmm_archive::Archive;
+use crate::assets::provider::archive::Archive;
 
 pub trait SndExt {
     fn list(&self) -> Vec<String>;

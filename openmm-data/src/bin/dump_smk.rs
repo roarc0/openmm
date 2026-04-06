@@ -1,22 +1,22 @@
-/// Dump all embedded SMK files from MM6 VID archives to data/dump/vid/.
+/// Dump all embedded SMK files from MM6 Smacker archives (usually .vid) to data/dump/smk/.
 ///
 /// Output:
-///   data/dump/vid/{name}.smk        — raw Smacker video bytes
-///   data/dump/vid/index.txt         — human-readable index with SMK metadata
+///   data/dump/smk/{name}.smk        — raw Smacker video bytes
+///   data/dump/smk/index.txt         — human-readable index with SMK metadata
 use std::fs;
 use std::path::Path;
 
-use openmm_archive::Archive;
-use openmm_data::assets::vid::{Vid, parse_smk_info};
+use openmm_data::assets::provider::archive::Archive;
+use openmm_data::assets::{SmkArchive, parse_smk_info};
 
 fn main() {
     let data_path = openmm_data::get_data_path();
     let anims_dir = Path::new(&data_path).join("Anims");
 
-    let out_dir = Path::new("data/dump/vid");
-    fs::create_dir_all(out_dir).expect("failed to create data/dump/vid");
+    let out_dir = Path::new("data/dump/smk");
+    fs::create_dir_all(out_dir).expect("failed to create data/dump/smk");
 
-    let vid_files = ["Anims1.vid", "Anims2.vid"];
+    let smk_archives = ["Anims1.vid", "Anims2.vid"];
     let mut index_lines: Vec<String> = Vec::new();
     index_lines.push(format!(
         "{:<20} {:>6} {:>5} {:>8}  {}",
@@ -26,20 +26,20 @@ fn main() {
 
     let mut total = 0usize;
 
-    for vid_name in &vid_files {
-        let vid_path = anims_dir.join(vid_name);
-        if !vid_path.exists() {
-            eprintln!("skipping {vid_name}: not found at {}", vid_path.display());
+    for archive_name in &smk_archives {
+        let archive_path = anims_dir.join(archive_name);
+        if !archive_path.exists() {
+            eprintln!("skipping {archive_name}: not found at {}", archive_path.display());
             continue;
         }
 
-        let vid = Vid::open(&vid_path).unwrap_or_else(|e| panic!("failed to open {vid_name}: {e}"));
-        let entries = vid.list_files();
-        println!("{vid_name}: {} entries", entries.len());
-        index_lines.push(format!("\n# {vid_name}"));
+        let archive = SmkArchive::open(&archive_path).unwrap_or_else(|e| panic!("failed to open {archive_name}: {e}"));
+        let entries = archive.list_files();
+        println!("{archive_name}: {} entries", entries.len());
+        index_lines.push(format!("\n# {archive_name}"));
 
         for entry in entries {
-            let smk_bytes = match vid.get_file(&entry.name) {
+            let smk_bytes = match archive.get_file(&entry.name) {
                 Some(b) => b,
                 None => {
                     eprintln!("  skipping {}: no data", entry.name);

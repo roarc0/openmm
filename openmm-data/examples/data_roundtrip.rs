@@ -3,8 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use openmm_data::{
-    Archive, LodArchive, LodData, LodSerialise, LodWriter,
+use openmm_data::{Archive, LodSerialise, get_data_path};
+use openmm_data::assets::{
+    LodArchive, LodData, LodWriter,
+    SmkArchive, SmkWriter,
     dchest::ChestList,
     ddeclist::DDecList,
     ddm::Ddm,
@@ -12,11 +14,9 @@ use openmm_data::{
     dpft::PFT,
     dsft::DSFT,
     dsounds::DSounds,
-    get_data_path,
     items::ItemsTable,
     mapstats::MapStats,
     odm::Odm,
-    vid::{Vid, VidWriter},
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -177,15 +177,15 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
 fn process_vid(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let name = src.file_name().unwrap().to_string_lossy();
     print!("  VID: {:<15} ", name);
-    let vid = Vid::open(src)?;
-    let mut writer = VidWriter::new();
-    let files = vid.list_files();
-    for entry in files {
+    let vid = SmkArchive::open(src)?;
+    let mut writer = SmkWriter::new();
+    let entries = vid.list_files();
+    for entry in entries {
         if let Some(bytes) = vid.get_file(&entry.name) {
             writer.add(&entry.name, bytes);
         }
     }
     writer.save(&dst)?;
-    println!("DONE ({} videos)", files.len());
+    println!("DONE ({} videos)", entries.len());
     Ok(())
 }

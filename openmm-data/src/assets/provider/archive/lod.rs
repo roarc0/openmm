@@ -8,7 +8,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{Archive, ArchiveEntry};
+use crate::assets::provider::archive::{Archive, ArchiveEntry};
 
 // ── LOD Archive Reader ────────────────────────────────────────────────────────
 
@@ -275,7 +275,6 @@ impl LodWriter {
     }
 
     /// Open `src` LOD, override named entries, write result to `out`.
-    /// Exact same functionality as the old `Lod::patch`.
     pub fn patch<P, Q>(src: P, out: Q, overrides: &[(&str, Vec<u8>)]) -> Result<(), Box<dyn Error>>
     where
         P: AsRef<Path>,
@@ -289,9 +288,6 @@ impl LodWriter {
             .map(|(k, v)| (k.to_string(), v)) // Note: Case sensitive!
             .collect();
 
-        // If overrides didn't match case-sensitive, fallback loop allows matching logic
-        // to handle legacy pipelines if needed. But we stick strictly to the new case-sensitive constraints.
-
         for (i, entry) in original.entries.iter().enumerate() {
             if let Some(ov) = override_map.get(&entry.name) {
                 writer.add_file(&entry.name, (*ov).clone());
@@ -303,7 +299,7 @@ impl LodWriter {
         let original_keys: std::collections::HashSet<&String> = original.lookup.keys().collect();
 
         for (name, data) in overrides {
-            if !original_keys.contains(&name.to_string()) {
+            if !original_keys.contains(&name.to_lowercase()) {
                 writer.add_file(name, data.to_vec());
             }
         }

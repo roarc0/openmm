@@ -1,6 +1,6 @@
 use std::env;
 
-pub use openmm_archive::Archive;
+pub use crate::assets::provider::archive::Archive;
 
 /// Serialise a parsed LOD structure back to its binary/text wire format.
 pub trait LodSerialise {
@@ -11,8 +11,6 @@ pub mod assets;
 pub use assets::provider::Assets;
 pub use assets::*;
 
-// ── Game-engine API (decoded, game-ready assets) ──────────────────────────
-pub mod game;
 
 pub mod generator;
 pub mod utils;

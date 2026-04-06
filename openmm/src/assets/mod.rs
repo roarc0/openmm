@@ -43,7 +43,7 @@ impl GameAssets {
     }
 
     /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).
-    pub fn game_lod(&self) -> openmm_data::game::GameLod<'_> {
+    pub fn game_lod(&self) -> openmm_data::assets::LodDecoder<'_> {
         self.assets.game()
     }
 

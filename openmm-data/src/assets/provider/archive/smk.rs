@@ -1,28 +1,29 @@
 use std::{collections::HashMap, error::Error, fs, path::Path};
 
-use crate::{Archive, ArchiveEntry, ArchiveFileType};
+use crate::assets::provider::archive::{Archive, ArchiveEntry};
 
 const ENTRY_NAME_LEN: usize = 40;
 const ENTRY_LEN: usize = ENTRY_NAME_LEN + 4; // name + u32 offset
 
-pub struct VidArchive {
+/// An archive format used for Smacker videos (historically .vid).
+pub struct SmkArchive {
     data: Vec<u8>,
     entries: Vec<ArchiveEntry>,
     lookup: HashMap<String, usize>,
     _offsets: Vec<usize>,
 }
 
-impl VidArchive {
+impl SmkArchive {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
         let data = fs::read(path)?;
         if data.len() < 4 {
-            return Err("VID file too short".into());
+            return Err("SMK archive too short".into());
         }
 
         let num_files = u32::from_le_bytes(data[0..4].try_into()?) as usize;
         let table_end = 4 + num_files * ENTRY_LEN;
         if data.len() < table_end {
-            return Err(format!("VID table truncated: need {table_end}, have {}", data.len()).into());
+            return Err(format!("SMK table truncated: need {table_end}, have {}", data.len()).into());
         }
 
         let mut entries = Vec::with_capacity(num_files);
@@ -40,7 +41,6 @@ impl VidArchive {
                 name: name.clone(),
                 size: 0, // Calculated correctly next step
                 decompressed_size: 0,
-                file_type: ArchiveFileType::Video,
             });
             offsets.push(offset);
         }
@@ -62,7 +62,7 @@ impl VidArchive {
     }
 }
 
-impl Archive for VidArchive {
+impl Archive for SmkArchive {
     fn list_files(&self) -> &[ArchiveEntry] {
         &self.entries
     }
@@ -70,7 +70,7 @@ impl Archive for VidArchive {
     fn get_file_raw(&self, name: &str) -> Option<Vec<u8>> {
         let lower = name.to_lowercase();
         let idx = self.lookup.get(&lower).or_else(|| {
-            log::warn!("Video file not found in archive: '{}' (requested as '{}')", name, lower);
+            log::warn!("SMK file not found in archive: '{}' (requested as '{}')", name, lower);
             None
         })?;
         let start = self._offsets[*idx];
@@ -79,7 +79,7 @@ impl Archive for VidArchive {
         if start + size <= self.data.len() {
             Some(self.data[start..start + size].to_vec())
         } else {
-            log::error!("Video file data out of bounds: '{}' (idx={})", name, idx);
+            log::error!("SMK file data out of bounds: '{}' (idx={})", name, idx);
             None
         }
     }
@@ -93,14 +93,14 @@ impl Archive for VidArchive {
     }
 }
 
-// ── VidWriter ───────────────────────────────────────────────────────────────
+// ── SmkWriter ───────────────────────────────────────────────────────────────
 
 #[derive(Default)]
-pub struct VidWriter {
+pub struct SmkWriter {
     entries: Vec<(String, Vec<u8>)>,
 }
 
-impl VidWriter {
+impl SmkWriter {
     pub fn new() -> Self {
         Self::default()
     }

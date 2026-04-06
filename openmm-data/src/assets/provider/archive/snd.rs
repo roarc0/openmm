@@ -8,7 +8,7 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::{Archive, ArchiveEntry, ArchiveFileType};
+use crate::assets::provider::archive::{Archive, ArchiveEntry};
 
 pub fn try_read_string(data: &[u8]) -> Option<String> {
     let len = data.iter().position(|&x| x == 0).unwrap_or(data.len());
@@ -49,7 +49,6 @@ impl SndArchive {
                     name: name.clone(),
                     size,
                     decompressed_size,
-                    file_type: ArchiveFileType::Sound,
                 });
                 _offsets.push(offset);
                 // Robust case-insensitive mapping: store lowercased key
@@ -98,7 +97,7 @@ impl Archive for SndArchive {
 
         if entry.decompressed_size > 0 {
             // Apply zlib decompression since we know it's a zlib compressed payload natively in the archive format
-            crate::zlib::decompress(&raw, entry.size, entry.decompressed_size).ok()
+            super::zlib::decompress(&raw, entry.size, entry.decompressed_size).ok()
         } else {
             Some(raw)
         }

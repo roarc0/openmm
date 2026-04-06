@@ -54,9 +54,9 @@ struct LoadingProgress {
     water_mask: Option<Image>,
     water_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
-    decorations: Option<openmm_data::game::decorations::Decorations>,
-    resolved_actors: Option<openmm_data::game::actors::Actors>,
-    resolved_monsters: Option<openmm_data::game::monster::Monsters>,
+    decorations: Option<openmm_data::assets::Decorations>,
+    resolved_actors: Option<openmm_data::assets::Actors>,
+    resolved_monsters: Option<openmm_data::assets::Monsters>,
     start_points: Option<Vec<StartPoint>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     dec_sprite_cache: Option<
@@ -117,9 +117,9 @@ pub struct PreparedIndoorWorld {
     /// Map base name for EVT loading (e.g. "d01").
     pub map_base: String,
     /// Resolved decorations from BLV decoration list.
-    pub decorations: openmm_data::game::decorations::Decorations,
+    pub decorations: openmm_data::assets::Decorations,
     /// Resolved monsters from BLV spawn_points → mapstats (same pipeline as ODM).
-    pub resolved_actors: Option<openmm_data::game::monster::Monsters>,
+    pub resolved_actors: Option<openmm_data::assets::Monsters>,
     /// Static point lights from the BLV file (position in Bevy coords, brightness 0–65535).
     /// These are the designer-placed lights that illuminate campfires, cauldrons, etc.
     pub blv_lights: Vec<(Vec3, u16)>,
@@ -272,9 +272,9 @@ pub struct PreparedWorld {
     pub water_mask: Option<Image>,
     pub water_texture: Option<Image>,
     pub models: Vec<PreparedModel>,
-    pub decorations: openmm_data::game::decorations::Decorations,
-    pub resolved_actors: Option<openmm_data::game::actors::Actors>,
-    pub resolved_monsters: Option<openmm_data::game::monster::Monsters>,
+    pub decorations: openmm_data::assets::Decorations,
+    pub resolved_actors: Option<openmm_data::assets::Actors>,
+    pub resolved_monsters: Option<openmm_data::assets::Monsters>,
     pub start_points: Vec<StartPoint>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub dec_sprite_cache: std::collections::HashMap<
@@ -880,10 +880,10 @@ fn loading_step(
                 };
                 // Resolve BLV decorations (torches, chests, etc.)
                 let decorations =
-                    openmm_data::game::decorations::Decorations::from_blv(game_assets.lod_manager(), &blv.decorations)
+                    openmm_data::assets::Decorations::from_blv(game_assets.lod_manager(), &blv.decorations)
                         .unwrap_or_else(|e| {
                             warn!("Failed to resolve indoor decorations: {e}");
-                            openmm_data::game::decorations::Decorations::empty()
+                            openmm_data::assets::Decorations::empty()
                         });
 
                 // Per-sector ambient data for the lighting system.
@@ -922,7 +922,7 @@ fn loading_step(
 
                 // Resolve DLV actors with dead-actor filtering applied.
                 // Resolve BLV spawn-point actors (same pipeline as ODM monsters).
-                let resolved_actors = openmm_data::game::monster::Monsters::load_for_blv(
+                let resolved_actors = openmm_data::assets::Monsters::load_for_blv(
                     &blv.spawn_points,
                     &load_request.map_name.to_string(),
                     game_assets.game_data(),
@@ -1071,7 +1071,7 @@ fn loading_step(
                         }
                     }
                     // Decorations::new filters invisible/marker/no-draw entries automatically
-                    openmm_data::game::decorations::Decorations::load(game_assets.lod_manager(), &odm.billboards).ok()
+                    openmm_data::assets::Decorations::load(game_assets.lod_manager(), &odm.billboards).ok()
                 };
                 progress.start_points = Some(start_points);
                 progress.decorations = decorations;
@@ -1095,11 +1095,11 @@ fn loading_step(
                     ws.game_vars
                         .dead_actor_ids
                         .get(&map_key)
-                        .map(|ids| openmm_data::game::actors::MapStateSnapshot {
+                        .map(|ids| openmm_data::assets::provider::actors::MapStateSnapshot {
                             dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
                         })
                 });
-                let lod_actors = openmm_data::game::actors::Actors::new(
+                let lod_actors = openmm_data::assets::Actors::new(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
                     snapshot.as_ref(),
@@ -1125,14 +1125,14 @@ fn loading_step(
 
                 // Spawn-point monsters: outdoor uses ODM spawn points, indoor uses BLV spawn points.
                 let lod_monsters = if load_request.map_name.is_outdoor() {
-                    openmm_data::game::monster::Monsters::load(
+                    openmm_data::assets::Monsters::load(
                         game_assets.lod_manager(),
                         &load_request.map_name.to_string(),
                         game_assets.game_data(),
                     )
                     .ok()
                 } else if let Some(ref blv) = progress.blv {
-                    openmm_data::game::monster::Monsters::load_for_blv(
+                    openmm_data::assets::Monsters::load_for_blv(
                         &blv.spawn_points,
                         &load_request.map_name.to_string(),
                         game_assets.game_data(),
@@ -1288,7 +1288,7 @@ fn loading_step(
                     decorations: progress
                         .decorations
                         .take()
-                        .unwrap_or_else(openmm_data::game::decorations::Decorations::empty),
+                        .unwrap_or_else(openmm_data::assets::Decorations::empty),
                     resolved_actors: progress.resolved_actors.take(),
                     resolved_monsters: progress.resolved_monsters.take(),
                     start_points: progress.start_points.take().unwrap_or_default(),

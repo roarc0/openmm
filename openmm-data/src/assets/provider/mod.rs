@@ -3,15 +3,20 @@ use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub mod archive;
+pub mod smk;
+
 use crate::assets::dsounds::DSounds;
 use crate::assets::image::Image;
 use crate::assets::lod_data::LodData;
 use crate::assets::palette::Palettes;
-use crate::assets::snd::{SndArchive, SndExt};
-use crate::assets::vid::{VidArchive, VidExt};
+pub use self::archive::{Archive, ArchiveEntry};
+pub use self::archive::lod::{LodArchive, Version};
+pub use self::archive::snd::SndArchive;
+pub use self::archive::smk::SmkArchive;
+use self::smk::SmkExt;
 
-pub use openmm_archive::Archive;
-pub use openmm_archive::lod::{LodArchive, LodWriter, Version};
+pub use self::archive::lod::LodWriter;
 
 pub mod actors;
 pub mod billboard_manager;
@@ -90,11 +95,11 @@ impl StaticGameData {
 }
 
 /// Unified entry point for retrieving any kind of game asset.
-/// Routes requests between LOD archives, SND archives, VID archives, and loose files.
+/// Routes requests between LOD archives, SND archives, SMK archives, and loose files.
 pub struct Assets {
     lods: HashMap<String, LodArchive>,
     snds: HashMap<String, SndArchive>,
-    vids: HashMap<String, VidArchive>,
+    smks: HashMap<String, SmkArchive>,
     game_dir: PathBuf,
     dsounds: Option<DSounds>,
     static_data: std::sync::OnceLock<StaticGameData>,
@@ -107,7 +112,7 @@ impl Assets {
         let mut assets = Self {
             lods: HashMap::new(),
             snds: HashMap::new(),
-            vids: HashMap::new(),
+            smks: HashMap::new(),
             game_dir,
             dsounds: None,
             static_data: std::sync::OnceLock::new(),
@@ -139,8 +144,8 @@ impl Assets {
                         }
                     }
                     "vid" => {
-                        if let Ok(vid) = VidArchive::open(&path) {
-                            self.vids.insert(stem, vid);
+                        if let Ok(smk) = SmkArchive::open(&path) {
+                            self.smks.insert(stem, smk);
                         }
                     }
                     _ => {}
@@ -195,7 +200,7 @@ impl Assets {
                 }
             }
             Some("smk") | Some("bik") => {
-                if let Ok(data) = self.get_video(name) {
+                if let Ok(data) = self.get_smk(name) {
                     return Ok(data);
                 }
             }
@@ -228,7 +233,7 @@ impl Assets {
 
         // Search .snd files
         for snd in self.snds.values() {
-            if let Some(data) = snd.get(&sound_name) {
+            if let Some(data) = snd.get_file(&sound_name) {
                 return Ok(data);
             }
         }
@@ -243,18 +248,18 @@ impl Assets {
         Err(format!("Sound not found: {}", sound_name).into())
     }
 
-    /// Specialized video retrieval.
-    pub fn get_video(&self, name: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+    /// Specialized Smacker video retrieval.
+    pub fn get_smk(&self, name: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         let name = name
             .strip_suffix(".smk")
             .or_else(|| name.strip_suffix(".bik"))
             .unwrap_or(name);
-        for vid in self.vids.values() {
-            if let Some(data) = vid.smk_by_name(name) {
+        for smk in self.smks.values() {
+            if let Some(data) = smk.smk_by_name(name) {
                 return Ok(data);
             }
         }
-        Err(format!("Video not found: {}", name).into())
+        Err(format!("Smacker video not found: {}", name).into())
     }
 
     pub fn exists<P: AsRef<Path>>(&self, path: P) -> bool {
@@ -276,7 +281,7 @@ impl Assets {
     pub fn archives(&self) -> Vec<String> {
         let mut names: Vec<_> = self.lods.keys().cloned().collect();
         names.extend(self.snds.keys().cloned());
-        names.extend(self.vids.keys().cloned());
+        names.extend(self.smks.keys().cloned());
         names
     }
 
@@ -286,10 +291,10 @@ impl Assets {
             return Some(lod.list_files().iter().map(|e| e.name.clone()).collect());
         }
         if let Some(snd) = self.snds.get(&archive) {
-            return Some(snd.list());
+            return Some(snd.list_files().iter().map(|e| e.name.clone()).collect());
         }
-        if let Some(vid) = self.vids.get(&archive) {
-            return Some(vid.list_files().iter().map(|e| e.name.clone()).collect());
+        if let Some(smk) = self.smks.get(&archive) {
+            return Some(smk.list_files().iter().map(|e| e.name.clone()).collect());
         }
         None
     }

@@ -15,9 +15,9 @@
 //! After running, point OPENMM_6_PATH to that directory to use it as a game source.
 
 use byteorder::{LittleEndian, WriteBytesExt};
-use openmm_archive::Archive;
-use openmm_archive::lod::LodArchive;
-use openmm_data::{LodWriter, Version, generator::terrain::TerrainGen};
+use openmm_data::Archive;
+use openmm_data::assets::{LodArchive, LodWriter, Version};
+use openmm_data::generator::terrain::TerrainGen;
 use std::{
     error::Error,
     io::Write,

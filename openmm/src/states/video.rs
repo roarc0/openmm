@@ -3,8 +3,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use openmm_data::Archive;
-use openmm_data::smk::SmkDecoder;
-use openmm_data::vid::Vid;
+use openmm_data::assets::{SmkArchive as Vid, SmkDecoder};
 
 use crate::GameState;
 

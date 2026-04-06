@@ -54,11 +54,11 @@ struct PendingSpawns {
         ),
     >,
     /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).
-    decorations: openmm_data::game::decorations::Decorations,
+    decorations: openmm_data::assets::Decorations,
     /// Pre-resolved DDM actors (NPCs only for outdoor maps) for this map.
-    actors: Option<openmm_data::game::actors::Actors>,
+    actors: Option<openmm_data::assets::Actors>,
     /// ODM spawn-point monsters (outdoor only). Each entry is one group member.
-    monsters: Option<openmm_data::game::monster::Monsters>,
+    monsters: Option<openmm_data::assets::Monsters>,
     monster_order: Vec<usize>,
     terrain_entity: Entity,
 }
@@ -931,7 +931,7 @@ fn lazy_spawn(
             if let Some(ref mut me) = map_events {
                 me.generated_npcs.insert(
                     generated_id,
-                    openmm_data::game::npc::GeneratedNpc {
+                    openmm_data::assets::npc::GeneratedNpc {
                         name: name.clone(),
                         portrait,
                         profession_id: npc_profession_id,
