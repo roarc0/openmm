@@ -17,7 +17,7 @@
 use byteorder::{LittleEndian, WriteBytesExt};
 use openmm_archive::Archive;
 use openmm_archive::lod::LodArchive;
-use openmm_data::{LodWriter, generator::terrain::TerrainGen};
+use openmm_data::{LodWriter, Version, generator::terrain::TerrainGen};
 use std::{error::Error, io::Write, path::{Path, PathBuf}};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -73,7 +73,7 @@ fn dump_lod(lod_path: &Path, target_dir: &Path) -> Result<(), Box<dyn Error>> {
 // Bitmaps: files like "grastyl" — 48 byte header + zlib pixels + 768 palette.
 
 fn build_bitmaps_lod(out: &PathBuf) -> Result<(), Box<dyn Error>> {
-    let mut lod = LodWriter::new();
+    let mut lod = LodWriter::new(Version::MM6);
 
     // Palette 001 — a simple grayscale ramp (used by the stub tile below)
     lod.add_file("pal001", make_palette([128u8, 160, 96])   /* green tint */);
@@ -165,7 +165,7 @@ fn make_bitmap_bytes(w: u16, h: u16, compressed: &[u8], pixels: &[u8], palette: 
 // ─── sprites.lod ─────────────────────────────────────────────────────────────
 
 fn build_sprites_lod(out: &PathBuf) -> Result<(), Box<dyn Error>> {
-    LodWriter::new().save(out.join("sprites.lod"))?;
+    LodWriter::new(Version::MM6).save(out.join("sprites.lod"))?;
     println!("  sprites.lod — empty");
     Ok(())
 }
@@ -173,7 +173,7 @@ fn build_sprites_lod(out: &PathBuf) -> Result<(), Box<dyn Error>> {
 // ─── icons.lod ───────────────────────────────────────────────────────────────
 
 fn build_icons_lod(out: &PathBuf) -> Result<(), Box<dyn Error>> {
-    let mut lod = LodWriter::new();
+    let mut lod = LodWriter::new(Version::MM6);
 
     lod.add_file("mapstats.txt", make_mapstats());
     lod.add_file("items.txt",    make_items());
@@ -267,7 +267,7 @@ fn make_dchest_bin() -> Vec<u8> {
 // ─── games.lod ───────────────────────────────────────────────────────────────
 
 fn build_games_lod(out: &PathBuf) -> Result<(), Box<dyn Error>> {
-    let mut lod = LodWriter::new();
+    let mut lod = LodWriter::new(Version::MM6);
     lod.add_file("test.odm", make_odm()?);
     lod.save(out.join("games.lod"))?;
     println!("  games.lod — 1 entry (test.odm)");
@@ -334,7 +334,7 @@ fn make_odm() -> Result<Vec<u8>, Box<dyn Error>> {
 // ─── new.lod ─────────────────────────────────────────────────────────────────
 
 fn build_new_lod(out: &PathBuf) -> Result<(), Box<dyn Error>> {
-    LodWriter::new().save(out.join("new.lod"))?;
+    LodWriter::new(Version::MM6).save(out.join("new.lod"))?;
     println!("  new.lod    — empty");
     Ok(())
 }

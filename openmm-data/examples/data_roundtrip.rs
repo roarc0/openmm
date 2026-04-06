@@ -92,7 +92,7 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
     print!("  LOD: {:<15} ", name);
 
     let lod = LodArchive::open(src)?;
-    let mut writer = LodWriter::new();
+    let mut writer = LodWriter::new(lod.version.clone());
     let mut count = 0;
     let mut re_serialized = 0;
     let mut mismatches = 0;

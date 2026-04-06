@@ -22,6 +22,16 @@ pub enum Version {
     MM8,
 }
 
+impl Version {
+    fn version_str(&self) -> &'static str {
+        match self {
+            Version::MM6 => "GameMMVI",
+            Version::MM7 => "GameMMVII",
+            Version::MM8 => "GameMMVIII",
+        }
+    }
+}
+
 impl TryFrom<&str> for Version {
     type Error = &'static str;
 
@@ -204,23 +214,17 @@ impl Archive for LodArchive {
 
 // ── LOD Writer ──────────────────────────────────────────────────────────────
 
-/// Builds a new MM6-format LOD archive.
+/// Builds a new LOD archive.
 /// Allows extracting from existing `LodArchive` and applying overrides.
 pub struct LodWriter {
-    version: &'static str,
+    version: Version,
     entries: Vec<(String, Vec<u8>)>,
 }
 
-impl Default for LodWriter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl LodWriter {
-    pub fn new() -> Self {
+    pub fn new(version: Version) -> Self {
         Self {
-            version: "GameMMVI",
+            version,
             entries: Vec::new(),
         }
     }
@@ -247,7 +251,8 @@ impl LodWriter {
         let sentinel_offset = header_area as i32;
 
         w.write_all(b"LOD\0")?;
-        let ver_bytes = self.version.as_bytes();
+        let ver_str = self.version.version_str();
+        let ver_bytes = ver_str.as_bytes();
         w.write_all(ver_bytes)?;
         let pad = 252usize.saturating_sub(ver_bytes.len());
         w.write_all(&vec![0u8; pad])?;
@@ -274,7 +279,7 @@ impl LodWriter {
         Q: AsRef<Path>,
     {
         let original = LodArchive::open(src)?;
-        let mut writer = LodWriter::new();
+        let mut writer = LodWriter::new(original.version.clone());
         
         let override_map: HashMap<String, &Vec<u8>> = overrides
             .iter()
