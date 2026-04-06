@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use lod::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
+use openmm_data::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
 
 /// Maximum height the player can step up onto a BSP floor (e.g. climbing stairs).
 /// 128 units covers typical MM6 discrete stair step heights.

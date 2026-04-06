@@ -2,8 +2,9 @@ use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
-use lod::smk::SmkDecoder;
-use lod::vid::Vid;
+use openmm_data::Archive;
+use openmm_data::smk::SmkDecoder;
+use openmm_data::vid::Vid;
 
 use crate::GameState;
 
@@ -83,18 +84,39 @@ fn video_setup(
     mut audio_sources: ResMut<Assets<AudioSource>>,
     request: Res<VideoRequest>,
 ) {
-    let data_path = lod::get_data_path();
-    let anims_dir = std::path::Path::new(&data_path).join("Anims");
+    let data_path = openmm_data::get_data_path();
+    let base = std::path::Path::new(&data_path);
+    let parent = base.parent().unwrap_or(base);
+
+    // Anims is a sibling of the 'data' directory (e.g. data/mm6/Anims)
+    let anims_dir = openmm_data::utils::find_path_case_insensitive(parent, "Anims");
+
+    let Some(anims_dir) = anims_dir else {
+        warn!("VideoPlugin: 'Anims' directory not found in {:?}", parent);
+        commands.insert_resource(VideoPlayer {
+            decoder: None,
+            image_handle: Handle::default(),
+            frame_timer: 0.0,
+            spf: 1.0,
+            skippable: request.skippable,
+            next: request.next,
+            finished: true,
+        });
+        return;
+    };
 
     // Search Anims1.vid then Anims2.vid for the requested name.
     let smk_bytes = ["Anims1.vid", "Anims2.vid"].iter().find_map(|fname| {
-        let path = anims_dir.join(fname);
+        let path = openmm_data::utils::find_path_case_insensitive(&anims_dir, fname)?;
         let vid = Vid::open(&path).ok()?;
-        vid.smk_by_name(&request.name).map(|b| b.to_vec())
+        vid.get_file(&request.name)
     });
 
     let Some(bytes) = smk_bytes else {
-        warn!("VideoPlugin: '{}' not found in Anims1.vid / Anims2.vid", request.name);
+        warn!(
+            "VideoPlugin: '{}' not found in Anims1.vid / Anims2.vid (searched in {:?})",
+            request.name, anims_dir
+        );
         commands.insert_resource(VideoPlayer {
             decoder: None,
             image_handle: Handle::default(),

@@ -19,7 +19,7 @@ use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
 use crate::game::actor_combat::{ActorDead, DyingTimer};
-use crate::game::collision::{BuildingColliders, TerrainHeightMap, sample_terrain_height};
+use crate::game::collision::{BuildingColliders, MAX_STEP_UP, TerrainHeightMap, sample_terrain_height};
 use crate::game::entities::actor::Actor;
 use crate::game::entities::{AnimationState, WorldEntity};
 use crate::game::hud::HudView;
@@ -65,12 +65,7 @@ impl Plugin for MonsterAiPlugin {
 ///
 /// Returns `(destination, facing_yaw)`.
 /// When `colliders` is `None` (outdoor, no buildings) the direct path is always used.
-fn steer_toward(
-    from: Vec3,
-    target_pos: Vec3,
-    speed: f32,
-    colliders: Option<&BuildingColliders>,
-) -> (Vec3, f32) {
+fn steer_toward(from: Vec3, target_pos: Vec3, speed: f32, colliders: Option<&BuildingColliders>) -> (Vec3, f32) {
     let flat = Vec3::new(target_pos.x - from.x, 0.0, target_pos.z - from.z);
     if flat.length_squared() < 1.0 {
         return (from, 0.0);
@@ -121,7 +116,12 @@ fn monster_ai_system(
     player: Query<&Transform, With<Player>>,
     mut query: Query<
         (&mut Transform, &mut Actor, &mut AnimationState, &mut MonsterAiMode),
-        (With<WorldEntity>, Without<DyingTimer>, Without<ActorDead>, Without<Player>),
+        (
+            With<WorldEntity>,
+            Without<DyingTimer>,
+            Without<ActorDead>,
+            Without<Player>,
+        ),
     >,
     mut sounds: MessageWriter<PlayOnceSoundEvent>,
 ) {
@@ -133,19 +133,42 @@ fn monster_ai_system(
     let c = colliders.as_deref();
     let hm = terrain.as_deref();
 
-    // Snap actor Y to terrain after XZ movement.
-    // Flying actors hover a fixed height above terrain instead of walking on it.
-    // `sh` = sprite_half_height, `flying` = actor.can_fly.
+    // Snap actor Y to the correct floor surface (terrain or BSP) after XZ movement.
+    // Flying actors hover above the surface; grounded actors stand on it.
+    // Works for both outdoor (terrain + optional BSP) and indoor (BSP only).
+    //
+    // Key invariant: if an actor is elevated on a BSP floor (balcony, rooftop) and wanders
+    // to an XZ position where no BSP floor exists, we keep their current Y rather than
+    // dropping them to terrain. They should only fall to terrain when they're already at
+    // ground level (within MAX_STEP_UP of terrain).
     let snap_y = |pos: Vec3, sh: f32, flying: bool| -> f32 {
-        if let Some(t) = hm {
-            let ground = sample_terrain_height(&t.heights, pos.x, pos.z);
-            if flying {
-                ground + sh * 4.0 // hover ~2 full sprite heights above ground
+        let feet_y = pos.y - sh;
+        let terrain_h = hm
+            .map(|t| sample_terrain_height(&t.heights, pos.x, pos.z))
+            .unwrap_or(f32::MIN);
+        let bsp_h = c
+            .and_then(|col| col.floor_height_at(pos.x, pos.z, feet_y, MAX_STEP_UP))
+            .unwrap_or(f32::MIN);
+
+        let ground = if bsp_h > f32::MIN {
+            // BSP floor found — use whichever is higher (outdoor actor on building or ground).
+            terrain_h.max(bsp_h)
+        } else if terrain_h > f32::MIN {
+            // No BSP floor at new XZ — only snap to terrain if actor is already near ground level.
+            // If they're elevated (on a balcony/rooftop), keep current Y to avoid dropping them.
+            if terrain_h >= feet_y - MAX_STEP_UP {
+                terrain_h
             } else {
-                ground + sh
+                return pos.y;
             }
         } else {
-            pos.y // indoor: keep current Y (BSP gravity not handled here)
+            return pos.y; // no floor at all (indoor, no BSP hit) — keep current Y
+        };
+
+        if flying {
+            ground + sh * 4.0
+        } else {
+            ground + sh
         }
     };
 
@@ -185,10 +208,10 @@ fn monster_ai_system(
             //   Suicidal → always aggros if in LOS (treat as very large range)
             //   Normal   → base range
             let effective_aggro = match actor.ai_type.as_str() {
-                "Aggress"  => actor.aggro_range * 1.5,
-                "Wimp"     => actor.aggro_range * 0.6,
+                "Aggress" => actor.aggro_range * 1.5,
+                "Wimp" => actor.aggro_range * 0.6,
                 "Suicidal" => actor.aggro_range * 3.0,
-                _          => actor.aggro_range,
+                _ => actor.aggro_range,
             };
             let aggro_sq = effective_aggro * effective_aggro;
             // Leash at 2× effective aggro radius so the monster doesn't instantly de-aggro.
@@ -240,8 +263,7 @@ fn monster_ai_system(
                 let jitter_phase = jitter_seed + time.elapsed_secs() * 0.3;
                 let jitter_angle = jitter_phase.sin() * 0.4; // ±0.4 rad ≈ ±23°
                 let flat_to_player =
-                    Vec3::new(player_pos.x - my_pos.x, 0.0, player_pos.z - my_pos.z)
-                        .normalize_or_zero();
+                    Vec3::new(player_pos.x - my_pos.x, 0.0, player_pos.z - my_pos.z).normalize_or_zero();
                 let perp = Vec3::new(-flat_to_player.z, 0.0, flat_to_player.x);
                 let jitter_offset = perp * (jitter_angle.sin() * actor.aggro_range * 0.15);
                 let chase_target = player_pos + jitter_offset;
@@ -268,8 +290,7 @@ fn monster_ai_system(
                 let seed = pos_seed * 1.618 + target_hash;
                 let angle = seed.sin() * std::f32::consts::TAU;
                 let dist = actor.tether_distance.max(300.0) * 0.4;
-                actor.wander_target =
-                    actor.guarding_position + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
+                actor.wander_target = actor.guarding_position + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
                 actor.wander_timer = 3.0 + (seed.cos().abs()) * 3.0;
                 *anim_state = AnimationState::Walking;
             } else {
@@ -296,4 +317,3 @@ fn monster_ai_system(
         }
     }
 }
-

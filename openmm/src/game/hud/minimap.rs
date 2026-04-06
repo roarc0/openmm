@@ -72,7 +72,7 @@ pub(super) fn update_minimap(
     // Terrain world coords are centered: -half..+half on both axes.
     // Bevy X = right (east), Bevy Z = -MM6_Y (south).
     // Map image: left=west, right=east, top=north, bottom=south.
-    use lod::odm::ODM_TILE_SCALE;
+    use openmm_data::odm::ODM_TILE_SCALE;
     let terrain_size = 128.0 * ODM_TILE_SCALE; // 65536 world units
     let half = terrain_size / 2.0;
 

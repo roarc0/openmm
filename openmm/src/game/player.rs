@@ -3,7 +3,7 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
+use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
 
@@ -835,7 +835,7 @@ fn party_torch_system(
         true
     } else if let Some(gt) = game_time {
         let t = gt.time_of_day();
-        t < 0.25 || t > 0.75
+        !(0.25..=0.75).contains(&t)
     } else {
         false
     };

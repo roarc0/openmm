@@ -59,8 +59,8 @@ World position to tile grid:
 ## API
 
 ```rust
-// In lod crate:
-lod::terrain::tileset_at(&odm, bevy_x, bevy_z) -> Option<Tileset>
+// In openmm-data crate:
+openmm_data::terrain::tileset_at(&odm, bevy_x, bevy_z) -> Option<Tileset>
 
 // In openmm crate (via PreparedWorld):
 prepared.terrain_at(bevy_x, bevy_z) -> Option<Tileset>

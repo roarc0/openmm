@@ -34,7 +34,7 @@ Uses mold linker for fast linking (`.cargo/config.toml`). Install: `pacman -S mo
 
 Cargo workspace with two crates:
 
-- **`lod`** — Library for reading MM6 data formats: LOD archives, ODM (outdoor maps), BSP models, tile tables, palettes, sprites/billboards, images. we should not include openmm here.
+- **`openmm-data`** — Library for reading MM6 data formats: LOD archives, ODM (outdoor maps), BSP models, tile tables, palettes, sprites/billboards, images. we should not include openmm here.
 - **`openmm`** — Bevy 0.18 game engine application
 
 ## Useful Resources
@@ -60,7 +60,7 @@ When any doc is added, renamed, or removed in `docs/`, update the Documentation 
 
 ### Rule 3: No hardcoded magic numbers or inline data tables
 
-Never hardcode format-specific constants, range boundaries, enum mappings, or data tables inline in game code. All format knowledge belongs in the `lod` crate as proper parsing functions that expose clean APIs. Game code should call a function (e.g., `dtile.tileset_for_tile(id)`) — never re-derive format logic with raw ranges or magic numbers. If the data comes from a binary file, the parser owns the logic.
+Never hardcode format-specific constants, range boundaries, enum mappings, or data tables inline in game code. All format knowledge belongs in the `openmm-data` crate as proper parsing functions that expose clean APIs. Game code should call a function (e.g., `dtile.tileset_for_tile(id)`) — never re-derive format logic with raw ranges or magic numbers. If the data comes from a binary file, the parser owns the logic.
 
 ### Rule 4: Tests are mandatory for bug fixes and discoveries
 
@@ -83,9 +83,9 @@ Once you have verified a concrete value from the original game data — a sprite
 
 ### Rule 6: One concern per module
 
-- `lod` = data parsing only. `openmm` = rendering + gameplay. Each plugin owns one system.
+- `openmm-data` = data parsing only. `openmm` = rendering + gameplay. Each plugin owns one system.
 - Bevy: systems communicate via `Commands`, events, resources — never reach into unrelated entities.
-- `lod` logic must be pure (same input → same output). `Result`/`Option` over panics. No `unsafe` without documented invariant.
+- `openmm-data` logic must be pure (same input → same output). `Result`/`Option` over panics. No `unsafe` without documented invariant.
 
 ### Rule 7: Logging is cheap, use it
 
@@ -101,7 +101,7 @@ Before adding significant code to an existing file, ask: does this belong here, 
 - The new type or system has a distinct responsibility not already represented in the file (e.g. a new `minimap.rs` rather than appending minimap logic to `hud.rs`)
 - The code is reusable and might be imported from multiple places — shared utilities, data types, or helpers should be isolated, not buried
 - The existing file would grow large enough that finding things becomes difficult (rough heuristic: >300 lines is a signal worth noticing)
-- The code enforces a different abstraction boundary (e.g. a new parser in `lod/` rather than tacking it onto an unrelated module)
+- The code enforces a different abstraction boundary (e.g. a new parser in `openmm-data/` rather than tacking it onto an unrelated module)
 
 Conversely, do **not** create a file just to have one. A 20-line helper that is only used in one place belongs in that file, not in its own module. Premature splitting fragments context and makes the codebase harder to navigate.
 
@@ -117,7 +117,7 @@ The test: if you can describe the new file in one sentence with a clear noun —
 
 MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6.
 
-- `lod::odm::mm6_to_bevy(x, y, z)` — converts i32 MM6 coords to `[f32; 3]` Bevy coords (no height scaling)
+- `openmm_data::odm::mm6_to_bevy(x, y, z)` — converts i32 MM6 coords to `[f32; 3]` Bevy coords (no height scaling)
 - Height values from the heightmap are scaled by `ODM_HEIGHT_SCALE` (32.0) separately
 
 ### Shared image/sampler helpers (assets/mod.rs)
@@ -149,7 +149,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### Event dispatch
 
-- `GameEvent` enum in `lod::evt`: SpeakInHouse, MoveToMap, OpenChest, Hint, ChangeDoorState, PlaySound, StatusText, LocationName
+- `GameEvent` enum in `openmm_data::evt`: SpeakInHouse, MoveToMap, OpenChest, Hint, ChangeDoorState, PlaySound, StatusText, LocationName
 - `EventQueue` resource — any system can push events, processed one per frame by `process_events`
 - Sub-events use `push_front()` for depth-first processing
 - UI-opening events (SpeakInHouse, OpenChest) block the queue until HudView returns to World
@@ -236,9 +236,9 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - Max output lines: `MAX_OUTPUT_LINES = 50`. Beyond this, oldest lines are removed.
 - Available commands include: `load <map>`, `msaa <0/1/2/4>`, `fullscreen`, `borderless`, `windowed`, `exit`, `lighting <enhanced|flat>`, `fog <start> <end>`, `music <vol>`, `sfx <vol>`, and others. Type `help` in-game for the current list.
 
-### lod crate structure
+### openmm-data crate structure
 
-See `docs/lod-crate.md` for full module listing.
+See `docs/openmm-data-crate.md` for full module listing.
 
 ## Documentation Index
 
@@ -251,7 +251,7 @@ Files in `docs/` — keep this list in sync (Rule 2):
 - `docs/player-physics.md` — PlayerSettings, camera, input, gravity, collision, slopes, doors
 - `docs/game-state.md` — WorldState, GameVariables, Party, MapEvents, save system
 - `docs/hud-rendering.md` — HUD camera, elements, FooterText, minimap, lighting, sky, terrain shaders
-- `docs/lod-crate.md` — full lod crate module listing
+- `docs/openmm-data-crate.md` — full openmm-data crate module listing
 - `docs/todo.md` — upcoming work, ordered by priority
 - `docs/superpowers/plans/` — implementation plans for completed features (BLV, doors, HUD, events, sound, party, actors)
 - `docs/superpowers/specs/` — design specs for completed features
@@ -264,7 +264,7 @@ Files in `docs/` — keep this list in sync (Rule 2):
 
 Dump commands:
 ```
-make dump_assets   # runs lod::bin::dump_assets — writes maps, actors, decorations, etc. to data/dump/
+make dump_assets   # runs openmm_data::bin::dump_assets — writes maps, actors, decorations, etc. to data/dump/
 make dump_sounds   # extracts audio metadata to data/dump/sounds/
 cargo run --example dump_events -- oute3   # EVT / billboard events for a specific map
 cargo run --example dump_npc_json          # NPC table → data/dump/npc.json, data/dump/npc2.json
@@ -287,7 +287,7 @@ If a field is missing from the dump output, or the output is confusing or wrong,
 
 Known pitfalls that have caused bugs or wasted time — read before starting any task:
 
-- **`dynamic_linking` in release builds**: `bevy = { features = ["dynamic_linking", ...] }` is set unconditionally in `openmm/Cargo.toml`. This is intentional for fast dev iteration but **must not be used in release binaries** — the Bevy shared library won't be present on other machines. CI release builds must disable it (`--no-default-features` or a release feature flag). Do not add it to `lod`.
+- **`dynamic_linking` in release builds**: `bevy = { features = ["dynamic_linking", ...] }` is set unconditionally in `openmm/Cargo.toml`. This is intentional for fast dev iteration but **must not be used in release binaries** — the Bevy shared library won't be present on other machines. CI release builds must disable it (`--no-default-features` or a release feature flag). Do not add it to `openmm-data`.
 - **MM6 vs MM7 formats**: OpenEnroth documents MM7. Field offsets, struct layouts, and enum values are often different. Always verify against MMExtension or original MM6 data before trusting OpenEnroth.
 - **Stale map resources on reload**: `loading_setup` explicitly removes `PreparedWorld`, `PreparedIndoorWorld`, `BlvDoors`, `DoorColliders`, `ClickableFaces`, `TouchTriggerFaces`. If you add a new per-map resource, add it to that cleanup list or it will persist across map changes.
 - **HudView-gated systems**: any system that touches player state or game time must be gated with `.run_if(resource_equals(HudView::World))`. Forgetting this causes gameplay to run during dialogues and inventory.
@@ -300,7 +300,7 @@ Known pitfalls that have caused bugs or wasted time — read before starting any
 
 - Rust 2024 edition
 - Bevy 0.18 ECS patterns: plugins, systems, components, resources
-- MM6 coordinate system: X right, Y forward, Z up -> Bevy: X right, Z = -Y, Y = Z. Use `lod::odm::mm6_to_bevy()` for conversions.
+- MM6 coordinate system: X right, Y forward, Z up -> Bevy: X right, Z = -Y, Y = Z. Use `openmm_data::odm::mm6_to_bevy()` for conversions.
 - Terrain is a 128x128 heightmap grid with 512-unit tile scale (u8 height values, multiplied by ODM_HEIGHT_SCALE=32)
 - Per-state entity markers (InGame, InLoading, etc.) for automatic cleanup on state exit
 - Use `OdmName::to_string()` for map filenames instead of inline `format!("out{}{}.odm", ...)`

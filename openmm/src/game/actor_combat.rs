@@ -47,15 +47,11 @@ impl Plugin for ActorCombatPlugin {
         app.add_message::<KillActorEvent>()
             .init_resource::<AttackBudget>()
             .add_systems(
-            Update,
-            (
-                monster_attack_system,
-                monster_die_system,
-                dying_to_dead_system,
-            )
-                .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(HudView::World)),
-        );
+                Update,
+                (monster_attack_system, monster_die_system, dying_to_dead_system)
+                    .run_if(in_state(GameState::Game))
+                    .run_if(resource_equals(HudView::World)),
+            );
     }
 }
 
@@ -147,7 +143,10 @@ fn monster_die_system(
         if matches!(*anim_state, AnimationState::Dying | AnimationState::Dead) {
             continue;
         }
-        info!("Actor '{}' (ddm_id={}) killed by player click", actor.name, actor.ddm_id);
+        info!(
+            "Actor '{}' (ddm_id={}) killed by player click",
+            actor.name, actor.ddm_id
+        );
         *anim_state = AnimationState::Dying;
         // Play got_hit immediately (impact grunt), then die as the animation starts.
         if actor.sound_ids[2] > 0 {
@@ -164,15 +163,15 @@ fn monster_die_system(
         }
         // Persist death: DDM-placed actors (ddm_id >= 0) are recorded so they don't
         // respawn when the map is reloaded. ODM spawn groups (ddm_id == -1) are skipped.
-        if actor.ddm_id >= 0 {
-            if let Some(ref mut ws) = world_state {
-                let map_key = ws.map.name.to_string();
-                ws.game_vars
-                    .dead_actor_ids
-                    .entry(map_key)
-                    .or_default()
-                    .insert(actor.ddm_id);
-            }
+        if actor.ddm_id >= 0
+            && let Some(ref mut ws) = world_state
+        {
+            let map_key = ws.map.name.to_string();
+            ws.game_vars
+                .dead_actor_ids
+                .entry(map_key)
+                .or_default()
+                .insert(actor.ddm_id);
         }
         commands.entity(*entity).insert(DyingTimer(DYING_ANIM_SECS));
     }

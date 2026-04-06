@@ -366,7 +366,7 @@ fn execute_command(
                     Ok(target) => {
                         let filename = target.filename();
                         let lod_path = format!("games/{}", filename);
-                        if ctx_game_assets.lod_manager().try_get_bytes(&lod_path).is_err() {
+                        if ctx_game_assets.lod_manager().get_bytes(&lod_path).is_err() {
                             Err(format!("Map not found: {}", filename))
                         } else {
                             let pos = parts.get(2).and_then(|c| parse_coords(c));

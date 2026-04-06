@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use image::DynamicImage;
 
-use lod::LodManager;
+use openmm_data::Assets as DataAssets;
 
 use crate::game::entities::actor::Actor;
 use crate::game::entities::{AnimationState, FacingYaw};
@@ -67,14 +67,14 @@ impl SpriteCache {
     pub fn preload(
         &mut self,
         roots: &[(&str, u8, u16)],
-        lod_manager: &LodManager,
+        assets: &DataAssets,
         images: &mut Assets<Image>,
         materials: &mut Assets<StandardMaterial>,
     ) {
         for &(root, variant, palette_id) in roots {
             load_sprite_frames(
                 root,
-                lod_manager,
+                assets,
                 images,
                 materials,
                 &mut Some(self),
@@ -156,7 +156,7 @@ pub fn load_entity_sprites(
     walking_root: &str,
     attacking_root: &str,
     dying_root: &str,
-    lod_manager: &LodManager,
+    assets: &DataAssets,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
@@ -171,7 +171,7 @@ pub fn load_entity_sprites(
     // Load walking first (usually wider) to get target dimensions
     let (walking, walking_masks, ww, wh) = load_sprite_frames(
         walking_root,
-        lod_manager,
+        assets,
         images,
         materials,
         cache,
@@ -184,7 +184,7 @@ pub fn load_entity_sprites(
     // Load standing, padded to at least walking dimensions
     let (standing, standing_masks, sw, sh) = load_sprite_frames(
         standing_root,
-        lod_manager,
+        assets,
         images,
         materials,
         cache,
@@ -204,7 +204,7 @@ pub fn load_entity_sprites(
     let (walking, walking_masks) = if !walking.is_empty() && (sw > ww || sh > wh) {
         let (padded, padded_masks, _, _) = load_sprite_frames(
             walking_root,
-            lod_manager,
+            assets,
             images,
             materials,
             cache,
@@ -221,7 +221,7 @@ pub fn load_entity_sprites(
     // Load attacking animation (state 2), padded to the unified quad size.
     let (attacking, attacking_masks, _, _) = load_sprite_frames(
         attacking_root,
-        lod_manager,
+        assets,
         images,
         materials,
         cache,
@@ -233,15 +233,7 @@ pub fn load_entity_sprites(
 
     // Load dying animation (state 3), padded to the unified quad size.
     let (dying, dying_masks, _, _) = load_sprite_frames(
-        dying_root,
-        lod_manager,
-        images,
-        materials,
-        cache,
-        variant,
-        qw as u32,
-        qh as u32,
-        palette_id,
+        dying_root, assets, images, materials, cache, variant, qw as u32, qh as u32, palette_id,
     );
 
     let mut states = vec![standing];
@@ -270,7 +262,7 @@ pub fn load_entity_sprites(
 /// `palette_id` is the DSFT palette — when non-zero and variant > 1, used directly.
 pub fn load_sprite_frames(
     root: &str,
-    lod_manager: &LodManager,
+    assets: &DataAssets,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
@@ -294,16 +286,8 @@ pub fn load_sprite_frames(
     // Try progressively shorter root names (e.g. "gobla" -> "gobl" -> "gob")
     let mut try_root = root;
     while try_root.len() >= 3 {
-        let (frames, frame_masks, w, h) = decode_sprite_frames(
-            try_root,
-            lod_manager,
-            images,
-            materials,
-            variant,
-            min_w,
-            min_h,
-            palette_id,
-        );
+        let (frames, frame_masks, w, h) =
+            decode_sprite_frames(try_root, assets, images, materials, variant, min_w, min_h, palette_id);
         if !frames.is_empty() {
             store_in_cache(&key, &frames, &frame_masks, w, h, cache);
             return (frames, frame_masks, w, h);
@@ -371,7 +355,7 @@ fn rebuild_from_cache(
 /// (sprite file header palettes use a different numbering system).
 fn decode_sprite_frames(
     root: &str,
-    lod_manager: &LodManager,
+    assets: &DataAssets,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     variant: u8,
@@ -387,69 +371,60 @@ fn decode_sprite_frames(
     // Some dying sprites are stored as a single image with no frame/direction
     // suffix (e.g. "arc1diq" — the DSFT sprite_name IS the file name). Detect
     // this by attempting to load the root itself before the frame-letter loop.
-    let single_frame_root = if lod_manager.game().sprite(root).is_some()
-        && lod_manager.game().sprite(&format!("{}a0", root)).is_none()
-        && lod_manager.game().sprite(&format!("{}a", root)).is_none()
-    {
-        true
-    } else {
-        false
-    };
+    let single_frame_root = assets.game().sprite(root).is_some()
+        && assets.game().sprite(&format!("{}a0", root)).is_none()
+        && assets.game().sprite(&format!("{}a", root)).is_none();
 
     if single_frame_root {
         // Load the single image for all 5 directional slots.
-        let img = lod_manager.game().sprite(root);
+        let img = assets.game().sprite(root);
         if let Some(ref i) = img {
             max_w = max_w.max(i.width());
             max_h = max_h.max(i.height());
         }
         raw_sprites.push(vec![img, None, None, None, None]);
     } else {
+        for frame_char in b'a'..=b'f' {
+            let frame_letter = frame_char as char;
+            let test0 = format!("{}{}0", root, frame_letter);
+            let test_nodir = format!("{}{}", root, frame_letter);
 
-    for frame_char in b'a'..=b'f' {
-        let frame_letter = frame_char as char;
-        let test0 = format!("{}{}0", root, frame_letter);
-        let test_nodir = format!("{}{}", root, frame_letter);
-
-        let has_frame = lod_manager.game().sprite(&test0).is_some() || lod_manager.game().sprite(&test_nodir).is_some();
-        if !has_frame {
-            break;
-        }
-
-        let mut dir_imgs: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
-        for dir in 0..5u8 {
-            let name = format!("{}{}{}", root, frame_letter, dir);
-            let img = if variant > 1 && palette_id > 0 {
-                // Use DSFT palette directly (sprite header palettes differ in numbering)
-                let sprite_name = if lod_manager
-                    .try_get_bytes(format!("sprites/{}", name.to_lowercase()))
-                    .is_ok()
-                {
-                    &name
-                } else {
-                    &test_nodir
-                };
-                lod_manager
-                    .game()
-                    .sprite_with_palette(sprite_name, palette_id)
-                    .or_else(|| lod_manager.game().sprite(sprite_name))
-            } else if variant > 1 {
-                let pal_offset = (variant - 1) as u16;
-                load_sprite_with_palette_offset(lod_manager, &name, &test_nodir, pal_offset)
-            } else {
-                lod_manager
-                    .game()
-                    .sprite(&name)
-                    .or_else(|| lod_manager.game().sprite(&test_nodir))
-            };
-            if let Some(ref i) = img {
-                max_w = max_w.max(i.width());
-                max_h = max_h.max(i.height());
+            let has_frame = assets.game().sprite(&test0).is_some() || assets.game().sprite(&test_nodir).is_some();
+            if !has_frame {
+                break;
             }
-            dir_imgs.push(img);
+
+            let mut dir_imgs: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
+            for dir in 0..5u8 {
+                let name = format!("{}{}{}", root, frame_letter, dir);
+                let img = if variant > 1 && palette_id > 0 {
+                    // Use DSFT palette directly (sprite header palettes differ in numbering)
+                    let sprite_name = if assets.get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
+                        &name
+                    } else {
+                        &test_nodir
+                    };
+                    assets
+                        .game()
+                        .sprite_with_palette(sprite_name, palette_id)
+                        .or_else(|| assets.game().sprite(sprite_name))
+                } else if variant > 1 {
+                    let pal_offset = (variant - 1) as u16;
+                    load_sprite_with_palette_offset(assets, &name, &test_nodir, pal_offset)
+                } else {
+                    assets
+                        .game()
+                        .sprite(&name)
+                        .or_else(|| assets.game().sprite(&test_nodir))
+                };
+                if let Some(ref i) = img {
+                    max_w = max_w.max(i.width());
+                    max_h = max_h.max(i.height());
+                }
+                dir_imgs.push(img);
+            }
+            raw_sprites.push(dir_imgs);
         }
-        raw_sprites.push(dir_imgs);
-    }
     } // end else (multi-frame sprites)
 
     if raw_sprites.is_empty() || max_w == 0 {
@@ -512,29 +487,23 @@ fn decode_sprite_frames(
 /// Reads the base sprite's palette_id from its header, adds the offset, and decodes
 /// with the variant palette. Falls back to normal sprite() if palette not found.
 fn load_sprite_with_palette_offset(
-    lod_manager: &LodManager,
+    assets: &DataAssets,
     name: &str,
     fallback: &str,
     palette_offset: u16,
 ) -> Option<DynamicImage> {
     // Try the primary name first, then the fallback (no-direction variant)
-    let sprite_name = if lod_manager
-        .try_get_bytes(format!("sprites/{}", name.to_lowercase()))
-        .is_ok()
-    {
+    let sprite_name = if assets.get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
         name
-    } else if lod_manager
-        .try_get_bytes(format!("sprites/{}", fallback.to_lowercase()))
-        .is_ok()
-    {
+    } else if assets.get_bytes(format!("sprites/{}", fallback.to_lowercase())).is_ok() {
         fallback
     } else {
         return None;
     };
 
     // Read the base palette_id from the sprite header (offset 20, u16 LE)
-    let sprite_data = lod_manager
-        .try_get_bytes(format!("sprites/{}", sprite_name.to_lowercase()))
+    let sprite_data = assets
+        .get_bytes(format!("sprites/{}", sprite_name.to_lowercase()))
         .ok()?;
     if sprite_data.len() < 22 {
         return None;
@@ -543,10 +512,10 @@ fn load_sprite_with_palette_offset(
     let variant_palette_id = base_palette_id + palette_offset;
 
     // Try with variant palette, fall back to normal decode
-    lod_manager
+    assets
         .game()
         .sprite_with_palette(sprite_name, variant_palette_id)
-        .or_else(|| lod_manager.game().sprite(sprite_name))
+        .or_else(|| assets.game().sprite(sprite_name))
 }
 
 /// Update sprite sheets based on camera angle, entity facing, and animation state.
@@ -590,7 +559,10 @@ pub fn update_sprite_sheets(
         let state_idx = match anim_state {
             AnimationState::Attacking if sprites.states.len() > 2 && !sprites.states[2].is_empty() => 2,
             AnimationState::Dying | AnimationState::Dead
-                if sprites.states.len() > 3 && !sprites.states[3].is_empty() => 3,
+                if sprites.states.len() > 3 && !sprites.states[3].is_empty() =>
+            {
+                3
+            }
             AnimationState::Walking if sprites.states.len() > 1 && !sprites.states[1].is_empty() => 1,
             _ => 0,
         };
@@ -679,7 +651,7 @@ pub fn direction_for_angle(facing_yaw: f32, camera_angle: f32) -> (usize, bool) 
 /// Returns (materials_for_5_directions, width, height).
 pub fn load_decoration_directions(
     root: &str,
-    lod_manager: &LodManager,
+    assets: &DataAssets,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     cache: &mut Option<&mut SpriteCache>,
@@ -717,7 +689,7 @@ pub fn load_decoration_directions(
     let mut max_h = 0u32;
     for dir in 0..5u8 {
         let name = format!("{}{}", root, dir);
-        let img = lod_manager.game().sprite(&name);
+        let img = assets.game().sprite(&name);
         if let Some(ref i) = img {
             max_w = max_w.max(i.width());
             max_h = max_h.max(i.height());
@@ -802,14 +774,14 @@ pub fn load_decoration_directions(
 /// Returns `None` if the sprite is not found in the LOD.
 pub fn load_static_decoration_sprite(
     sprite_name: &str,
-    lod_manager: &LodManager,
-    bb_mgr: &lod::billboard::BillboardManager,
+    assets: &DataAssets,
+    bb_mgr: &openmm_data::billboard::BillboardManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     meshes: &mut Assets<Mesh>,
 ) -> Option<(Handle<StandardMaterial>, Handle<Mesh>, f32, f32)> {
     let name_lower = sprite_name.to_lowercase();
-    let img = lod_manager.game().sprite(&name_lower)?;
+    let img = assets.game().sprite(&name_lower)?;
     let dsft_scale = bb_mgr.dsft_scale_for_group(&name_lower);
     let w = img.width() as f32 * dsft_scale;
     let h = img.height() as f32 * dsft_scale;

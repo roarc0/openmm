@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use lod::enums::PolygonType;
+use openmm_data::enums::PolygonType;
 
 use crate::GameState;
 use crate::game::collision::{

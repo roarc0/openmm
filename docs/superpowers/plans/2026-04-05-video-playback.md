@@ -4,9 +4,9 @@
 
 **Goal:** Play MM6 Smacker (.smk) videos in a dedicated Bevy state, starting with the 3dologo intro before the main menu.
 
-**Architecture:** Vendor libsmacker C source into the `lod` crate, compile via `build.rs` + `cc` crate, wrap with a safe Rust `SmkDecoder`. Replace `GameState::Splash` with `GameState::Video`. A `VideoPlugin` drives frame upload into a live Bevy `Image` each tick. Mid-game videos pause the game without despawning game entities (achieved by moving InGame cleanup to `OnEnter(Loading)` instead of `OnExit(Game)`).
+**Architecture:** Vendor libsmacker C source into the `openmm-data` crate, compile via `build.rs` + `cc` crate, wrap with a safe Rust `SmkDecoder`. Replace `GameState::Splash` with `GameState::Video`. A `VideoPlugin` drives frame upload into a live Bevy `Image` each tick. Mid-game videos pause the game without despawning game entities (achieved by moving InGame cleanup to `OnEnter(Loading)` instead of `OnExit(Game)`).
 
-**Tech Stack:** libsmacker 1.2.0 (C, vendored), `cc` crate (build), Bevy 0.18 UI (`ImageNode`), existing `lod::vid::Vid` parser for loading SMK bytes from VID archives.
+**Tech Stack:** libsmacker 1.2.0 (C, vendored), `cc` crate (build), Bevy 0.18 UI (`ImageNode`), existing `openmm_data::vid::Vid` parser for loading SMK bytes from VID archives.
 
 ---
 
@@ -14,20 +14,20 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `lod/vendor/libsmacker/smacker.c` | Create (download) | C library implementation |
-| `lod/vendor/libsmacker/smacker.h` | Create (download) | C library public API |
-| `lod/vendor/libsmacker/smk_malloc.h` | Create (download) | C library internal header |
-| `lod/build.rs` | Create | Compile libsmacker with `cc` crate |
-| `lod/Cargo.toml` | Modify | Add `cc` to `[build-dependencies]` |
-| `lod/src/smk.rs` | Create | Safe Rust FFI bindings + `SmkDecoder` |
-| `lod/src/lib.rs` | Modify | Add `pub mod smk;` |
+| `openmm-data/vendor/libsmacker/smacker.c` | Create (download) | C library implementation |
+| `openmm-data/vendor/libsmacker/smacker.h` | Create (download) | C library public API |
+| `openmm-data/vendor/libsmacker/smk_malloc.h` | Create (download) | C library internal header |
+| `openmm-data/build.rs` | Create | Compile libsmacker with `cc` crate |
+| `openmm-data/Cargo.toml` | Modify | Add `cc` to `[build-dependencies]` |
+| `openmm-data/src/smk.rs` | Create | Safe Rust FFI bindings + `SmkDecoder` |
+| `openmm-data/src/lib.rs` | Modify | Add `pub mod smk;` |
 | `openmm/src/lib.rs` | Modify | Rename `Splash`→`Video`, add `VideoRequest` resource + `VideoPlugin`, initial state |
 | `openmm/src/states/mod.rs` | Modify | Replace `splash` with `video` |
 | `openmm/src/states/video.rs` | Create (replaces splash.rs) | Full `VideoPlugin` implementation |
 | `openmm/src/states/splash.rs` | Delete | Was a placeholder, replaced by video.rs |
 | `openmm/src/game/mod.rs` | Modify | Move InGame cleanup from `OnExit(Game)` to `OnEnter(Loading)` |
 | `openmm/src/states/loading.rs` | Modify | Add `despawn_all::<InGame>` on `OnEnter(Loading)` |
-| `lod/src/evt.rs` | Modify | Add `PlayVideo` variant to `GameEvent` |
+| `openmm-data/src/evt.rs` | Modify | Add `PlayVideo` variant to `GameEvent` |
 | `openmm/src/game/event_dispatch.rs` | Modify | Handle `GameEvent::PlayVideo` |
 
 ---
@@ -35,34 +35,34 @@
 ## Task 1: Vendor libsmacker C source
 
 **Files:**
-- Create: `lod/vendor/libsmacker/smacker.c`
-- Create: `lod/vendor/libsmacker/smacker.h`
-- Create: `lod/vendor/libsmacker/smk_malloc.h`
+- Create: `openmm-data/vendor/libsmacker/smacker.c`
+- Create: `openmm-data/vendor/libsmacker/smacker.h`
+- Create: `openmm-data/vendor/libsmacker/smk_malloc.h`
 
 - [ ] **Step 1: Create vendor directory and download source files**
 
 ```bash
-mkdir -p lod/vendor/libsmacker
+mkdir -p openmm-data/vendor/libsmacker
 curl -fsSL https://raw.githubusercontent.com/greg-kennedy/libsmacker/master/smacker.c \
-     -o lod/vendor/libsmacker/smacker.c
+     -o openmm-data/vendor/libsmacker/smacker.c
 curl -fsSL https://raw.githubusercontent.com/greg-kennedy/libsmacker/master/smacker.h \
-     -o lod/vendor/libsmacker/smacker.h
+     -o openmm-data/vendor/libsmacker/smacker.h
 curl -fsSL https://raw.githubusercontent.com/greg-kennedy/libsmacker/master/smk_malloc.h \
-     -o lod/vendor/libsmacker/smk_malloc.h
+     -o openmm-data/vendor/libsmacker/smk_malloc.h
 ```
 
-Expected: three files created. Verify with `head -5 lod/vendor/libsmacker/smacker.h` — should show copyright comment and `#ifndef SMACKER_H`.
+Expected: three files created. Verify with `head -5 openmm-data/vendor/libsmacker/smacker.h` — should show copyright comment and `#ifndef SMACKER_H`.
 
-- [ ] **Step 2: Add `cc` to lod/Cargo.toml build-dependencies**
+- [ ] **Step 2: Add `cc` to openmm-data/Cargo.toml build-dependencies**
 
-In `lod/Cargo.toml`, add after `[dependencies]`:
+In `openmm-data/Cargo.toml`, add after `[dependencies]`:
 
 ```toml
 [build-dependencies]
 cc = "1"
 ```
 
-- [ ] **Step 3: Create lod/build.rs**
+- [ ] **Step 3: Create openmm-data/build.rs**
 
 ```rust
 fn main() {
@@ -80,37 +80,37 @@ fn main() {
 - [ ] **Step 4: Verify it compiles**
 
 ```bash
-cargo build -p lod 2>&1 | grep -E "error|warning: unused|Compiling lod"
+cargo build -p openmm-data 2>&1 | grep -E "error|warning: unused|Compiling openmm-data"
 ```
 
-Expected: `Compiling lod ...` with no errors. Warnings from the C code are suppressed by `.warnings(false)`.
+Expected: `Compiling openmm-data ...` with no errors. Warnings from the C code are suppressed by `.warnings(false)`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lod/vendor/ lod/build.rs lod/Cargo.toml
-git commit -S --no-gpg-sign -m "feat(lod): vendor libsmacker C source and add build.rs"
+git add openmm-data/vendor/ openmm-data/build.rs openmm-data/Cargo.toml
+git commit -S --no-gpg-sign -m "feat(openmm-data): vendor libsmacker C source and add build.rs"
 ```
 
 ---
 
-## Task 2: Safe Rust FFI bindings — `lod/src/smk.rs`
+## Task 2: Safe Rust FFI bindings — `openmm-data/src/smk.rs`
 
 **Files:**
-- Create: `lod/src/smk.rs`
-- Modify: `lod/src/lib.rs`
+- Create: `openmm-data/src/smk.rs`
+- Modify: `openmm-data/src/lib.rs`
 
-- [ ] **Step 1: Add `pub mod smk;` to lod/src/lib.rs**
+- [ ] **Step 1: Add `pub mod smk;` to openmm-data/src/lib.rs**
 
-In `lod/src/lib.rs`, add to the module list (after `pub mod tft;` and `pub mod vid;`):
+In `openmm-data/src/lib.rs`, add to the module list (after `pub mod tft;` and `pub mod vid;`):
 
 ```rust
 pub mod smk;
 ```
 
-- [ ] **Step 2: Write the FFI declarations and SmkDecoder in lod/src/smk.rs**
+- [ ] **Step 2: Write the FFI declarations and SmkDecoder in openmm-data/src/smk.rs**
 
-Create `lod/src/smk.rs` with the full content below:
+Create `openmm-data/src/smk.rs` with the full content below:
 
 ```rust
 //! Safe Rust wrapper around the vendored libsmacker C library.
@@ -317,7 +317,7 @@ impl Drop for SmkDecoder {
 
 - [ ] **Step 3: Write a test that opens a real SMK file and decodes the first frame**
 
-Add to the bottom of `lod/src/smk.rs`:
+Add to the bottom of `openmm-data/src/smk.rs`:
 
 ```rust
 #[cfg(test)]
@@ -355,16 +355,16 @@ mod tests {
 - [ ] **Step 4: Run the test**
 
 ```bash
-cargo test -p lod smk_decoder_reads_3dologo -- --nocapture 2>&1
+cargo test -p openmm-data smk_decoder_reads_3dologo -- --nocapture 2>&1
 ```
 
-Expected: `test lod::smk::tests::smk_decoder_reads_3dologo ... ok`
+Expected: `test openmm_data::smk::tests::smk_decoder_reads_3dologo ... ok`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lod/src/smk.rs lod/src/lib.rs
-git commit -S --no-gpg-sign -m "feat(lod): add SmkDecoder — safe Rust wrapper around libsmacker"
+git add openmm-data/src/smk.rs openmm-data/src/lib.rs
+git commit -S --no-gpg-sign -m "feat(openmm-data): add SmkDecoder — safe Rust wrapper around libsmacker"
 ```
 
 ---
@@ -461,8 +461,8 @@ use std::path::Path;
 use std::time::Duration;
 
 use bevy::prelude::*;
-use lod::smk::SmkDecoder;
-use lod::vid::Vid;
+use openmm_data::smk::SmkDecoder;
+use openmm_data::vid::Vid;
 
 use crate::GameState;
 
@@ -512,7 +512,7 @@ fn video_setup(
     request: Res<VideoRequest>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let data_path = lod::get_data_path();
+    let data_path = openmm_data::get_data_path();
     let anims_dir = Path::new(&data_path).join("Anims");
 
     // Search Anims1.vid then Anims2.vid for the requested video.
@@ -684,19 +684,19 @@ fn video_setup(
     request: Res<VideoRequest>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let data_path = lod::get_data_path();
+    let data_path = openmm_data::get_data_path();
     let anims_dir = std::path::Path::new(&data_path).join("Anims");
 
     // Search Anims1.vid then Anims2.vid for the requested video.
     let smk_bytes = ["Anims1.vid", "Anims2.vid"].iter().find_map(|vid_name| {
         let path = anims_dir.join(vid_name);
-        let vid = lod::vid::Vid::open(&path).ok()?;
+        let vid = openmm_data::vid::Vid::open(&path).ok()?;
         let idx = vid.entries.iter().position(|e| e.name.eq_ignore_ascii_case(&request.name))?;
         Some(vid.smk_bytes(idx).to_vec())
     });
 
     let decoder = smk_bytes
-        .and_then(|b| lod::smk::SmkDecoder::new(b).ok())
+        .and_then(|b| openmm_data::smk::SmkDecoder::new(b).ok())
         .or_else(|| {
             warn!("VideoPlugin: '{}' not found or decode failed — skipping", request.name);
             None
@@ -898,12 +898,12 @@ git commit -S --no-gpg-sign -m "fix(openmm): move InGame cleanup to OnEnter(Load
 ## Task 6: Add PlayVideo to GameEvent and event_dispatch
 
 **Files:**
-- Modify: `lod/src/evt.rs` (add `PlayVideo` variant)
+- Modify: `openmm-data/src/evt.rs` (add `PlayVideo` variant)
 - Modify: `openmm/src/game/event_dispatch.rs` (handle it)
 
-- [ ] **Step 1: Add PlayVideo variant to GameEvent in lod/src/evt.rs**
+- [ ] **Step 1: Add PlayVideo variant to GameEvent in openmm-data/src/evt.rs**
 
-In `lod/src/evt.rs`, add to the `GameEvent` enum after the `Exit` variant:
+In `openmm-data/src/evt.rs`, add to the `GameEvent` enum after the `Exit` variant:
 
 ```rust
 /// Play a video by name. Transitions to GameState::Video; returns to Game when done.
@@ -942,7 +942,7 @@ Then use `VideoRequest { name: name.clone(), skippable: *skippable, next: GameSt
 Search for any exhaustive match on `GameEvent` that would now fail to compile:
 
 ```bash
-cargo check -p lod -p openmm 2>&1 | grep "error\[E"
+cargo check -p openmm-data -p openmm 2>&1 | grep "error\[E"
 ```
 
 Fix any non-exhaustive match errors by adding `GameEvent::PlayVideo { .. } => {}` (or a proper handler).
@@ -950,7 +950,7 @@ Fix any non-exhaustive match errors by adding `GameEvent::PlayVideo { .. } => {}
 - [ ] **Step 4: Verify full build**
 
 ```bash
-cargo build -p lod -p openmm 2>&1 | grep "error"
+cargo build -p openmm-data -p openmm 2>&1 | grep "error"
 ```
 
 Expected: no errors.
@@ -958,7 +958,7 @@ Expected: no errors.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lod/src/evt.rs openmm/src/game/event_dispatch.rs
+git add openmm-data/src/evt.rs openmm/src/game/event_dispatch.rs
 git commit -S --no-gpg-sign -m "feat: add PlayVideo event — trigger video from EVT event dispatch"
 ```
 
@@ -981,10 +981,10 @@ In `CLAUDE.md`, find the "Game states" section and update:
 - `Game → Video → Game` preserves all game entities (InGame cleanup is in `OnEnter(Loading)` not `OnExit(Game)`).
 ```
 
-- [ ] **Step 2: Update docs/lod-crate.md if it exists**
+- [ ] **Step 2: Update docs/openmm-data-crate.md if it exists**
 
-Add `smk` to the module listing in `docs/lod-crate.md`:
-- `lod::smk` — `SmkDecoder`: safe wrapper around vendored libsmacker; decodes SMK2/SMK4 video to RGBA frames
+Add `smk` to the module listing in `docs/openmm-data-crate.md`:
+- `openmm_data::smk` — `SmkDecoder`: safe wrapper around vendored libsmacker; decodes SMK2/SMK4 video to RGBA frames
 
 - [ ] **Step 3: Commit**
 
@@ -1000,7 +1000,7 @@ git commit -S --no-gpg-sign -m "docs: document video playback system and VideoRe
 After all tasks complete:
 
 - [ ] `make build` — clean build, no errors
-- [ ] `cargo test -p lod smk` — SMK decoder test passes
+- [ ] `cargo test -p openmm-data smk` — SMK decoder test passes
 - [ ] `make run` — 3dologo plays on startup, transitions to main menu
 - [ ] `make run map=oute3` — game loads directly (skip_intro path via config or `--skip-intro true`)
 - [ ] Mid-game video test: open console (`Tab`), but we can't test PlayVideo from console yet — verify that `GameEvent::PlayVideo` compiles and the event_dispatch arm is reachable

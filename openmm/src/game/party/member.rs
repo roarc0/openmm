@@ -1,4 +1,4 @@
-use lod::enums::EvtVariable;
+use openmm_data::enums::EvtVariable;
 
 pub const SKILL_COUNT: usize = 31; // EvtVariable 0x38..=0x56
 

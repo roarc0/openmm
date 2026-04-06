@@ -4,9 +4,9 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 
-use lod::enums::EvtVariable;
-use lod::evt::{EvtFile, EvtStep, GameEvent};
-use lod::odm::mm6_to_bevy;
+use openmm_data::enums::EvtVariable;
+use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
+use openmm_data::odm::mm6_to_bevy;
 
 use crate::GameState;
 use crate::assets::GameAssets;
@@ -92,10 +92,10 @@ impl EventQueue {
     }
 
     /// Enqueue a single synthesized event (not from an EvtFile).
-    pub fn push_single(&mut self, event: lod::evt::GameEvent) {
+    pub fn push_single(&mut self, event: openmm_data::evt::GameEvent) {
         self.sequences.push_back(EventSequence {
             event_id: None,
-            steps: vec![lod::evt::EvtStep { step: 0, event }],
+            steps: vec![openmm_data::evt::EvtStep { step: 0, event }],
         });
     }
 
@@ -538,7 +538,11 @@ fn process_events(
                     if let Ok(mut tf) = entities.player.single_mut() {
                         tf.translation = pos;
                         tf.rotation = Quat::from_rotation_y(yaw);
-                        info!("MoveToMap same-map teleport: pos={:?} yaw={:.1}deg", pos, yaw.to_degrees());
+                        info!(
+                            "MoveToMap same-map teleport: pos={:?} yaw={:.1}deg",
+                            pos,
+                            yaw.to_degrees()
+                        );
                     }
                     event_queue.clear();
                     return;
@@ -655,7 +659,7 @@ fn process_events(
                 }
             }
             GameEvent::ForPartyMember { player } => {
-                if let Some(target) = lod::enums::EvtTargetCharacter::from_u8(*player) {
+                if let Some(target) = openmm_data::enums::EvtTargetCharacter::from_u8(*player) {
                     info!("  ForPartyMember: target = {:?}", target);
                     party.active_target = target;
                 } else {
@@ -1118,7 +1122,7 @@ fn process_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lod::enums::EvtVariable;
+    use openmm_data::enums::EvtVariable;
 
     fn make_vars() -> GameVariables {
         GameVariables::default()

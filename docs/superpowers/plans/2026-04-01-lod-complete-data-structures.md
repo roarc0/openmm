@@ -2,26 +2,26 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ensure all MM6 binary formats in the `lod` crate are fully parsed with proper enums, bitflags, and no skipped fields — cross-referenced against MMExtension and OpenEnroth.
+**Goal:** Ensure all MM6 binary formats in the `openmm-data` crate are fully parsed with proper enums, bitflags, and no skipped fields — cross-referenced against MMExtension and OpenEnroth.
 
-**Architecture:** Add a new `enums.rs` module for shared enums/bitflags. Expand existing parsers to read all fields. Add new simple format parsers. All changes confined to the `lod` crate.
+**Architecture:** Add a new `enums.rs` module for shared enums/bitflags. Expand existing parsers to read all fields. Add new simple format parsers. All changes confined to the `openmm-data` crate.
 
-**Tech Stack:** Rust, byteorder, bitflags (add to lod/Cargo.toml)
+**Tech Stack:** Rust, byteorder, bitflags (add to openmm-data/Cargo.toml)
 
 ---
 
 ### Task 1: Add bitflags dependency and create enums.rs
 
 **Files:**
-- Modify: `lod/Cargo.toml`
-- Create: `lod/src/enums.rs`
-- Modify: `lod/src/lib.rs`
+- Modify: `openmm-data/Cargo.toml`
+- Create: `openmm-data/src/enums.rs`
+- Modify: `openmm-data/src/lib.rs`
 
-- [ ] **Step 1: Add bitflags to lod/Cargo.toml**
+- [ ] **Step 1: Add bitflags to openmm-data/Cargo.toml**
 
-Add `bitflags = "2"` to the `[dependencies]` section of `lod/Cargo.toml`.
+Add `bitflags = "2"` to the `[dependencies]` section of `openmm-data/Cargo.toml`.
 
-- [ ] **Step 2: Create lod/src/enums.rs with all shared enums and bitflags**
+- [ ] **Step 2: Create openmm-data/src/enums.rs with all shared enums and bitflags**
 
 This file contains enums and bitflags shared across multiple parsers. Each type includes doc comments with the source reference (MMExtension/OpenEnroth).
 
@@ -818,18 +818,18 @@ impl EvtTargetCharacter {
 
 - [ ] **Step 3: Register enums.rs in lib.rs**
 
-Add `pub mod enums;` to `lod/src/lib.rs` after the existing module declarations.
+Add `pub mod enums;` to `openmm-data/src/lib.rs` after the existing module declarations.
 
 - [ ] **Step 4: Build to verify compilation**
 
-Run: `cd /home/roarc/repos/openmm && cargo build -p lod`
+Run: `cd /home/roarc/repos/openmm && cargo build -p openmm-data`
 Expected: compiles successfully.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lod/Cargo.toml lod/src/enums.rs lod/src/lib.rs
-git commit -m "feat(lod): add enums.rs with complete MM6 bitflags and enums
+git add openmm-data/Cargo.toml openmm-data/src/enums.rs openmm-data/src/lib.rs
+git commit -m "feat(openmm-data): add enums.rs with complete MM6 bitflags and enums
 
 Adds EvtOpcode (69 opcodes), AIState, ActorAttributes, ActorBuff,
 TileFlags, DecorationDescFlags, FaceAttributes, DoorAttributes,
@@ -843,7 +843,7 @@ All cross-referenced against MMExtension and OpenEnroth."
 ### Task 2: Wire all skipped DdmActor fields
 
 **Files:**
-- Modify: `lod/src/ddm.rs`
+- Modify: `openmm-data/src/ddm.rs`
 
 The current DdmActor skips ~15 fields. Wire them all per MMExtension MapMonster struct.
 
@@ -910,14 +910,14 @@ Replace the `read_actor` function body to read ALL MapMonster fields at their co
 
 - [ ] **Step 4: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data`
 Expected: all existing tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lod/src/ddm.rs
-git commit -m "feat(lod): wire all DdmActor fields from MapMonster struct
+git add openmm-data/src/ddm.rs
+git commit -m "feat(openmm-data): wire all DdmActor fields from MapMonster struct
 
 Adds attributes, pitch, room, carried_item, sound_ids, spell_buffs,
 group, ally, summoner, last_attacker. No fields skipped."
@@ -928,7 +928,7 @@ group, ally, summoner, last_attacker. No fields skipped."
 ### Task 3: Complete MonsterDesc with stats from MonstersTxt
 
 **Files:**
-- Modify: `lod/src/monlist.rs`
+- Modify: `openmm-data/src/monlist.rs`
 
 The monlist.bin parser reads the visual/audio descriptor correctly. However, the full monster stats (level, HP, AC, resistances, attacks, spells) come from `MonstersTxt` which is loaded from the text table, not from the binary. The binary `dmonlist.bin` is the visual descriptor only (148 bytes/record: height, radius, speed, to_hit_radius, 4 sounds, name, 8 sprite names, 20 bytes skip).
 
@@ -947,8 +947,8 @@ Add a comment in `parse_record` documenting the 20-byte tail:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add lod/src/monlist.rs
-git commit -m "docs(lod): document monlist.bin record padding bytes"
+git add openmm-data/src/monlist.rs
+git commit -m "docs(openmm-data): document monlist.bin record padding bytes"
 ```
 
 ---
@@ -956,7 +956,7 @@ git commit -m "docs(lod): document monlist.bin record padding bytes"
 ### Task 4: Complete MapStats with all fields
 
 **Files:**
-- Modify: `lod/src/mapstats.rs`
+- Modify: `openmm-data/src/mapstats.rs`
 
 Currently only reads monster names, difficulty, and music track. Missing: map name, respawn days, lock, trap, treasure level, encounter chance, encounter counts per slot, steal fine, perception difficulty.
 
@@ -1029,14 +1029,14 @@ Search for all uses of `MapMonsterConfig` in the `openmm` crate and update to `M
 
 - [ ] **Step 5: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod && cargo build -p openmm`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data && cargo build -p openmm`
 Expected: all tests pass, game compiles.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lod/src/mapstats.rs
-git commit -m "feat(lod): complete MapStats with all mapstats.txt fields
+git add openmm-data/src/mapstats.rs
+git commit -m "feat(openmm-data): complete MapStats with all mapstats.txt fields
 
 Adds respawn_days, steal_fine, perception, lock, trap, treasure_level,
 encounter_chance, encounter counts. Renamed MapMonsterConfig to MapInfo."
@@ -1047,7 +1047,7 @@ encounter_chance, encounter counts. Renamed MapMonsterConfig to MapInfo."
 ### Task 5: Wire EVT opcodes enum into evt.rs
 
 **Files:**
-- Modify: `lod/src/evt.rs`
+- Modify: `openmm-data/src/evt.rs`
 
 Replace the `const OP_*` constants and `opcode_name()` function with the `EvtOpcode` enum from `enums.rs`.
 
@@ -1065,14 +1065,14 @@ Change `Unhandled { opcode: u8, opcode_name: &'static str, params: Vec<u8> }` to
 
 - [ ] **Step 4: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod && cargo build -p openmm`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data && cargo build -p openmm`
 Expected: all tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lod/src/evt.rs
-git commit -m "refactor(lod): use EvtOpcode enum in evt.rs, remove raw constants"
+git add openmm-data/src/evt.rs
+git commit -m "refactor(openmm-data): use EvtOpcode enum in evt.rs, remove raw constants"
 ```
 
 ---
@@ -1080,7 +1080,7 @@ git commit -m "refactor(lod): use EvtOpcode enum in evt.rs, remove raw constants
 ### Task 6: Wire TileFlags into dtile.rs
 
 **Files:**
-- Modify: `lod/src/dtile.rs`
+- Modify: `openmm-data/src/dtile.rs`
 
 - [ ] **Step 1: Use TileFlags bitflags in Tile struct**
 
@@ -1092,14 +1092,14 @@ Remove `#[allow(dead_code)]` and make the Tile struct and relevant fields public
 
 - [ ] **Step 3: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod -- dtile`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data -- dtile`
 Expected: all dtile tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lod/src/dtile.rs
-git commit -m "refactor(lod): use TileFlags bitflags in dtile.rs"
+git add openmm-data/src/dtile.rs
+git commit -m "refactor(openmm-data): use TileFlags bitflags in dtile.rs"
 ```
 
 ---
@@ -1107,7 +1107,7 @@ git commit -m "refactor(lod): use TileFlags bitflags in dtile.rs"
 ### Task 7: Wire FaceAttributes into blv.rs
 
 **Files:**
-- Modify: `lod/src/blv.rs`
+- Modify: `openmm-data/src/blv.rs`
 
 - [ ] **Step 1: Replace raw attribute constants with FaceAttributes**
 
@@ -1119,14 +1119,14 @@ Change `pub polygon_type: u8` to use the `PolygonType` enum. Update ceiling dete
 
 - [ ] **Step 3: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod -- blv && cargo build -p openmm`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data -- blv && cargo build -p openmm`
 Expected: all tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lod/src/blv.rs
-git commit -m "refactor(lod): use FaceAttributes and PolygonType in blv.rs"
+git add openmm-data/src/blv.rs
+git commit -m "refactor(openmm-data): use FaceAttributes and PolygonType in blv.rs"
 ```
 
 ---
@@ -1134,8 +1134,8 @@ git commit -m "refactor(lod): use FaceAttributes and PolygonType in blv.rs"
 ### Task 8: Wire DoorAttributes and complete BLV face extras
 
 **Files:**
-- Modify: `lod/src/blv.rs`
-- Modify: `lod/src/dlv.rs`
+- Modify: `openmm-data/src/blv.rs`
+- Modify: `openmm-data/src/dlv.rs`
 
 - [ ] **Step 1: Use DoorAttributes on BlvDoor**
 
@@ -1169,14 +1169,14 @@ Store the relevant extra fields (tft_index, light_level) on BlvFace.
 
 - [ ] **Step 3: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod -- blv && cargo build -p openmm`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data -- blv && cargo build -p openmm`
 Expected: all tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lod/src/blv.rs lod/src/dlv.rs
-git commit -m "feat(lod): complete BLV face extras parsing, wire DoorAttributes"
+git add openmm-data/src/blv.rs openmm-data/src/dlv.rs
+git commit -m "feat(openmm-data): complete BLV face extras parsing, wire DoorAttributes"
 ```
 
 ---
@@ -1184,7 +1184,7 @@ git commit -m "feat(lod): complete BLV face extras parsing, wire DoorAttributes"
 ### Task 9: Wire ModelFaceAttributes into bsp_model.rs
 
 **Files:**
-- Modify: `lod/src/bsp_model.rs`
+- Modify: `openmm-data/src/bsp_model.rs`
 
 - [ ] **Step 1: Use ModelFaceAttributes and PolygonType**
 
@@ -1203,14 +1203,14 @@ Actually most of these are runtime pointers. Just read and name them properly ra
 
 - [ ] **Step 3: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod && cargo build -p openmm`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data && cargo build -p openmm`
 Expected: all tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lod/src/bsp_model.rs
-git commit -m "refactor(lod): use ModelFaceAttributes and PolygonType in BSP models"
+git add openmm-data/src/bsp_model.rs
+git commit -m "refactor(openmm-data): use ModelFaceAttributes and PolygonType in BSP models"
 ```
 
 ---
@@ -1218,7 +1218,7 @@ git commit -m "refactor(lod): use ModelFaceAttributes and PolygonType in BSP mod
 ### Task 10: Wire SpriteFrameFlags into dsft.rs
 
 **Files:**
-- Modify: `lod/src/dsft.rs`
+- Modify: `openmm-data/src/dsft.rs`
 
 - [ ] **Step 1: Use SpriteFrameFlags**
 
@@ -1226,14 +1226,14 @@ Change `pub attributes: u16` on `DSFTFrame` to `pub attributes: SpriteFrameFlags
 
 - [ ] **Step 2: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod -- dsft`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data -- dsft`
 Expected: all tests pass.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add lod/src/dsft.rs
-git commit -m "refactor(lod): use SpriteFrameFlags in dsft.rs"
+git add openmm-data/src/dsft.rs
+git commit -m "refactor(openmm-data): use SpriteFrameFlags in dsft.rs"
 ```
 
 ---
@@ -1241,8 +1241,8 @@ git commit -m "refactor(lod): use SpriteFrameFlags in dsft.rs"
 ### Task 11: Wire DecorationDescFlags and SoundAttributes
 
 **Files:**
-- Modify: `lod/src/ddeclist.rs`
-- Modify: `lod/src/dsounds.rs`
+- Modify: `openmm-data/src/ddeclist.rs`
+- Modify: `openmm-data/src/dsounds.rs`
 
 - [ ] **Step 1: Use DecorationDescFlags in ddeclist.rs**
 
@@ -1262,14 +1262,14 @@ Don't change the raw field types since the struct uses repr(C) raw read.
 
 - [ ] **Step 3: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod -- ddeclist && cargo test -p lod -- dsounds`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data -- ddeclist && cargo test -p openmm-data -- dsounds`
 Expected: all tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lod/src/ddeclist.rs lod/src/dsounds.rs
-git commit -m "refactor(lod): use DecorationDescFlags and SoundType enums"
+git add openmm-data/src/ddeclist.rs openmm-data/src/dsounds.rs
+git commit -m "refactor(openmm-data): use DecorationDescFlags and SoundType enums"
 ```
 
 ---
@@ -1277,8 +1277,8 @@ git commit -m "refactor(lod): use DecorationDescFlags and SoundType enums"
 ### Task 12: Add dobjlist.bin parser (Object/Projectile List)
 
 **Files:**
-- Create: `lod/src/dobjlist.rs`
-- Modify: `lod/src/lib.rs`
+- Create: `openmm-data/src/dobjlist.rs`
+- Modify: `openmm-data/src/lib.rs`
 
 - [ ] **Step 1: Create dobjlist.rs**
 
@@ -1379,7 +1379,7 @@ impl ObjectList {
 
 - [ ] **Step 2: Register in lib.rs**
 
-Add `pub mod dobjlist;` to `lod/src/lib.rs`.
+Add `pub mod dobjlist;` to `openmm-data/src/lib.rs`.
 
 - [ ] **Step 3: Add test**
 
@@ -1405,14 +1405,14 @@ mod tests {
 
 - [ ] **Step 4: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod -- dobjlist`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data -- dobjlist`
 Expected: test passes.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add lod/src/dobjlist.rs lod/src/lib.rs
-git commit -m "feat(lod): add dobjlist.bin parser (object/projectile list)"
+git add openmm-data/src/dobjlist.rs openmm-data/src/lib.rs
+git commit -m "feat(openmm-data): add dobjlist.bin parser (object/projectile list)"
 ```
 
 ---
@@ -1420,8 +1420,8 @@ git commit -m "feat(lod): add dobjlist.bin parser (object/projectile list)"
 ### Task 13: Add dchest.bin parser
 
 **Files:**
-- Create: `lod/src/dchest.rs`
-- Modify: `lod/src/lib.rs`
+- Create: `openmm-data/src/dchest.rs`
+- Modify: `openmm-data/src/lib.rs`
 
 - [ ] **Step 1: Create dchest.rs**
 
@@ -1480,8 +1480,8 @@ impl ChestList {
 - [ ] **Step 3: Commit**
 
 ```bash
-git add lod/src/dchest.rs lod/src/lib.rs
-git commit -m "feat(lod): add dchest.bin parser (chest visual descriptors)"
+git add openmm-data/src/dchest.rs openmm-data/src/lib.rs
+git commit -m "feat(openmm-data): add dchest.bin parser (chest visual descriptors)"
 ```
 
 ---
@@ -1489,9 +1489,9 @@ git commit -m "feat(lod): add dchest.bin parser (chest visual descriptors)"
 ### Task 14: Add overlay.bin and TFT parsers
 
 **Files:**
-- Create: `lod/src/doverlay.rs`
-- Create: `lod/src/tft.rs`
-- Modify: `lod/src/lib.rs`
+- Create: `openmm-data/src/doverlay.rs`
+- Create: `openmm-data/src/tft.rs`
+- Modify: `openmm-data/src/lib.rs`
 
 - [ ] **Step 1: Create doverlay.rs**
 
@@ -1620,8 +1620,8 @@ impl TextureFrameTable {
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lod/src/doverlay.rs lod/src/tft.rs lod/src/lib.rs
-git commit -m "feat(lod): add overlay.bin and TFT (animated texture) parsers"
+git add openmm-data/src/doverlay.rs openmm-data/src/tft.rs openmm-data/src/lib.rs
+git commit -m "feat(openmm-data): add overlay.bin and TFT (animated texture) parsers"
 ```
 
 ---
@@ -1629,8 +1629,8 @@ git commit -m "feat(lod): add overlay.bin and TFT (animated texture) parsers"
 ### Task 15: Add BLV decoration complete fields and ODM billboard flags
 
 **Files:**
-- Modify: `lod/src/blv.rs`
-- Modify: `lod/src/billboard.rs`
+- Modify: `openmm-data/src/blv.rs`
+- Modify: `openmm-data/src/billboard.rs`
 
 - [ ] **Step 1: Complete BlvDecoration fields**
 
@@ -1658,14 +1658,14 @@ In `billboard.rs`, the `attributes` field on `BillboardData` should use `LevelDe
 
 - [ ] **Step 3: Run tests**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod && cargo build -p openmm`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data && cargo build -p openmm`
 Expected: all tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lod/src/blv.rs lod/src/billboard.rs
-git commit -m "feat(lod): complete BLV decoration fields, use LevelDecorationFlags"
+git add openmm-data/src/blv.rs openmm-data/src/billboard.rs
+git commit -m "feat(openmm-data): complete BLV decoration fields, use LevelDecorationFlags"
 ```
 
 ---
@@ -1673,16 +1673,16 @@ git commit -m "feat(lod): complete BLV decoration fields, use LevelDecorationFla
 ### Task 16: Final integration test and cleanup
 
 **Files:**
-- Modify: `lod/src/lib.rs` (if needed)
+- Modify: `openmm-data/src/lib.rs` (if needed)
 
 - [ ] **Step 1: Run full test suite**
 
-Run: `cd /home/roarc/repos/openmm && cargo test -p lod`
+Run: `cd /home/roarc/repos/openmm && cargo test -p openmm-data`
 Expected: all tests pass.
 
 - [ ] **Step 2: Run clippy**
 
-Run: `cd /home/roarc/repos/openmm && cargo clippy -p lod`
+Run: `cd /home/roarc/repos/openmm && cargo clippy -p openmm-data`
 Expected: no warnings.
 
 - [ ] **Step 3: Build full game**
@@ -1694,5 +1694,5 @@ Expected: compiles successfully.
 
 ```bash
 git add -A
-git commit -m "fix(lod): address clippy warnings and fix integration issues"
+git commit -m "fix(openmm-data): address clippy warnings and fix integration issues"
 ```

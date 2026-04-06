@@ -3866,22 +3866,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lod"
-version = "0.0.1"
-dependencies = [
- "bitflags 2.11.0",
- "byteorder",
- "csv",
- "flate2",
- "hexdump",
- "image",
- "log",
- "serde",
- "serde_json",
- "smk",
-]
-
-[[package]]
 name = "log"
 version = "0.4.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4623,11 +4607,37 @@ dependencies = [
  "bevy_kira_audio",
  "clap",
  "image",
- "lod",
+ "openmm-data",
  "random_color",
  "serde",
  "serde_json",
  "toml",
+]
+
+[[package]]
+name = "openmm-archive"
+version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "flate2",
+ "log",
+]
+
+[[package]]
+name = "openmm-data"
+version = "0.0.1"
+dependencies = [
+ "bitflags 2.11.0",
+ "byteorder",
+ "csv",
+ "flate2",
+ "hexdump",
+ "image",
+ "log",
+ "openmm-archive",
+ "serde",
+ "serde_json",
+ "smk",
 ]
 
 [[package]]

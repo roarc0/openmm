@@ -4,7 +4,7 @@
 
 Implement interactive sliding doors for indoor (BLV) maps. Doors open/close when clicked or activated via Enter key, using the EVT event system for dispatch. Door faces are spawned as individual entities so their vertices can be animated per-frame.
 
-## Data Parsing (lod crate)
+## Data Parsing (openmm-data crate)
 
 ### Face Extras — event_id and cog_number
 
@@ -157,7 +157,7 @@ Then convert to Bevy coordinates with `mm6_to_bevy()`.
 
 ## Files to Modify
 
-### lod crate
+### openmm-data crate
 - `blv.rs` — Parse face extras event_id, parse door data blob, add `BlvDoor` struct, add `is_clickable()`, exclude door faces from `textured_meshes`, add door face mesh generation
 - `evt.rs` — Add `SetDoorState` variant to `GameEvent`, parse opcode 0x0F
 

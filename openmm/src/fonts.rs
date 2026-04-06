@@ -35,7 +35,7 @@ pub const GREEN: [u8; 4] = [80, 255, 80, 255];
 /// All MM6 bitmap fonts loaded from the LOD archive.
 #[derive(Resource)]
 pub struct GameFonts {
-    fonts: HashMap<String, lod::game::font::Font>,
+    fonts: HashMap<String, openmm_data::game::font::Font>,
 }
 
 impl GameFonts {
@@ -57,7 +57,7 @@ impl GameFonts {
     }
 
     /// Get a font by name (e.g. "arrus", "smallnum", "book").
-    pub fn get(&self, name: &str) -> Option<&lod::game::font::Font> {
+    pub fn get(&self, name: &str) -> Option<&openmm_data::game::font::Font> {
         self.fonts.get(name)
     }
 

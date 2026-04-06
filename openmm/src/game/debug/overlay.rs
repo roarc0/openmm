@@ -7,8 +7,8 @@ use bevy::{
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
-use lod::dtile::Tileset;
-use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
+use openmm_data::dtile::Tileset;
+use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
 use crate::config::GameConfig;
@@ -55,7 +55,7 @@ fn debug_setup(
         })
         .unwrap_or((0.0, 0.0));
     let dbg_left = vp_left + 20.0;
-    let dbg_top = vp_top + 10.0;
+    let dbg_top = vp_top + 32.0; // border5/6 corner pieces extend ~20px below border3
 
     let hud_visibility = if cfg.debug {
         Visibility::Inherited

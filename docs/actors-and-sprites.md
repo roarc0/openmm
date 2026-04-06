@@ -173,7 +173,7 @@ determined by the map's difficulty for each slot. The encoding is `'A' + (diffic
 ## Outdoor monster source: DDM is authoritative
 
 All fixed outdoor monsters are loaded from the DDM file (`oute3.ddm`, etc.) via
-`lod::game::actors::Actors::new()`. The DDM contains every monster instance with its
+`openmm_data::game::actors::Actors::new()`. The DDM contains every monster instance with its
 exact position and monlist_id (which directly encodes the variant). There is no
 generation from ODM spawn points for fixed map monsters.
 

@@ -1,7 +1,7 @@
 [workspace]
 
 resolver = "2"
-members = ["lod", "openmm"]
+members = ["openmm-data", "openmm", "openmm-archive"]
 
 [workspace.package]
 version = "0.0.1"

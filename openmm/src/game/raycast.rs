@@ -7,16 +7,16 @@ use crate::game::events::MapEvents;
 /// Returns the first non-empty text found, scanning steps in their script order —
 /// the EVT step order determines priority, not event type.
 /// Recognised events: Hint, StatusText, LocationName, SpeakInHouse, OpenChest, MoveToMap.
-pub fn resolve_event_name_from_evt(event_id: u16, evt: &lod::evt::EvtFile) -> Option<String> {
+pub fn resolve_event_name_from_evt(event_id: u16, evt: &openmm_data::evt::EvtFile) -> Option<String> {
     let steps = evt.events.get(&event_id)?;
     for s in steps {
         let text = match &s.event {
-            lod::evt::GameEvent::Hint { text, .. } if !text.is_empty() => text.clone(),
-            lod::evt::GameEvent::StatusText { text, .. } if !text.is_empty() => text.clone(),
-            lod::evt::GameEvent::LocationName { text, .. } if !text.is_empty() => text.clone(),
-            lod::evt::GameEvent::SpeakInHouse { house_id } => format!("Building #{}", house_id),
-            lod::evt::GameEvent::OpenChest { id } => format!("Chest #{}", id),
-            lod::evt::GameEvent::MoveToMap { map_name, .. } => format!("Enter {}", map_name),
+            openmm_data::evt::GameEvent::Hint { text, .. } if !text.is_empty() => text.clone(),
+            openmm_data::evt::GameEvent::StatusText { text, .. } if !text.is_empty() => text.clone(),
+            openmm_data::evt::GameEvent::LocationName { text, .. } if !text.is_empty() => text.clone(),
+            openmm_data::evt::GameEvent::SpeakInHouse { house_id } => format!("Building #{}", house_id),
+            openmm_data::evt::GameEvent::OpenChest { id } => format!("Chest #{}", id),
+            openmm_data::evt::GameEvent::MoveToMap { map_name, .. } => format!("Enter {}", map_name),
             _ => continue,
         };
         return Some(text);
@@ -35,7 +35,7 @@ pub fn resolve_event_name(event_id: u16, map_events: &Option<Res<MapEvents>>) ->
     // For SpeakInHouse, prefer the loaded house name over the generic "Building #N"
     if let Some(steps) = evt.events.get(&event_id) {
         for s in steps {
-            if let lod::evt::GameEvent::SpeakInHouse { house_id } = &s.event {
+            if let openmm_data::evt::GameEvent::SpeakInHouse { house_id } = &s.event {
                 if let Some(houses) = me.houses.as_ref()
                     && let Some(entry) = houses.houses.get(house_id)
                 {
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn resolve_event_name_first_match_wins() {
-        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
         use std::collections::HashMap;
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
         events.insert(
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn resolve_event_name_hint_only() {
-        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
         use std::collections::HashMap;
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
         events.insert(
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn resolve_event_name_empty_text_skipped() {
-        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
         use std::collections::HashMap;
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
         events.insert(

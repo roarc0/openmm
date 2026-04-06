@@ -7,7 +7,7 @@ Restructure the project from a map viewer into a proper game engine foundation. 
 ## Crate Structure
 
 Two crates (unchanged boundary):
-- **`lod`** — Pure Rust data parsing library (no Bevy dependency). Unchanged.
+- **`openmm-data`** — Pure Rust data parsing library (no Bevy dependency). Unchanged.
 - **`openmm`** (renamed from `map_viewer`) — Bevy 0.18 game engine application.
 
 ## Module Structure

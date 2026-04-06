@@ -54,11 +54,11 @@ struct PendingSpawns {
         ),
     >,
     /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).
-    decorations: lod::game::decorations::Decorations,
+    decorations: openmm_data::game::decorations::Decorations,
     /// Pre-resolved DDM actors (NPCs only for outdoor maps) for this map.
-    actors: Option<lod::game::actors::Actors>,
+    actors: Option<openmm_data::game::actors::Actors>,
     /// ODM spawn-point monsters (outdoor only). Each entry is one group member.
-    monsters: Option<lod::game::monster::Monsters>,
+    monsters: Option<openmm_data::game::monster::Monsters>,
     monster_order: Vec<usize>,
     terrain_entity: Entity,
 }
@@ -164,9 +164,9 @@ impl Plugin for OdmPlugin {
 }
 
 /// Half-size of the playable area in world units.
-const PLAY_BOUNDARY: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32 / 2.0;
+const PLAY_BOUNDARY: f32 = openmm_data::odm::ODM_TILE_SCALE * openmm_data::odm::ODM_PLAY_SIZE as f32 / 2.0;
 /// Full playable area width (used to translate player position to new map).
-pub const PLAY_WIDTH: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32;
+pub const PLAY_WIDTH: f32 = openmm_data::odm::ODM_TILE_SCALE * openmm_data::odm::ODM_PLAY_SIZE as f32;
 
 /// Detect when the player crosses the play area boundary and load the adjacent map.
 fn check_map_boundary(
@@ -519,7 +519,11 @@ fn lazy_spawn(
         p.idx += 1;
         let dec = &p.decorations.entries()[dec_idx];
         let key = &dec.sprite_name;
-        let dec_pos = Vec3::from(lod::odm::mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
+        let dec_pos = Vec3::from(openmm_data::odm::mm6_to_bevy(
+            dec.position[0],
+            dec.position[1],
+            dec.position[2],
+        ));
 
         if dec.is_directional {
             let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
@@ -912,25 +916,22 @@ fn lazy_spawn(
         // For peasants, assign identity from npcdata.txt via map_events.
         let (display_name, effective_npc_id) = if actor.is_peasant {
             let generated_id = crate::game::events::GENERATED_NPC_ID_BASE + i as i32;
-            // Pick a complete identity (name + portrait + profession_id) from npcdata.txt peasant
-            // entries, split by sex. Falls back to npcnames.txt name + generic portrait if unavailable.
-            let (name, portrait, npc_profession_id) = map_events
+            // Name from npcnames.txt (sex-split pool) for sex-appropriate assignment.
+            // Portrait + profession from npcdata.txt peasant pool (no sex encoding there).
+            let name = map_events
+                .as_ref()
+                .and_then(|me| me.name_pool.as_ref())
+                .map(|pool| pool.name_for(actor.is_female, i).to_string())
+                .unwrap_or_else(|| actor.name.clone());
+            let (portrait, npc_profession_id) = map_events
                 .as_ref()
                 .and_then(|me| me.npc_table.as_ref())
                 .and_then(|t| t.peasant_identity(actor.is_female, i))
-                .map(|(n, p, prof)| (n.to_string(), p, prof))
-                .unwrap_or_else(|| {
-                    let name = map_events
-                        .as_ref()
-                        .and_then(|me| me.name_pool.as_ref())
-                        .map(|pool| pool.name_for(actor.is_female, i).to_string())
-                        .unwrap_or_else(|| actor.name.clone());
-                    (name, 1, 52) // 52 = "Peasant" in npcprof.txt
-                });
+                .unwrap_or((1, 52)); // 52 = "Peasant" in npcprof.txt
             if let Some(ref mut me) = map_events {
                 me.generated_npcs.insert(
                     generated_id,
-                    lod::game::npc::GeneratedNpc {
+                    openmm_data::game::npc::GeneratedNpc {
                         name: name.clone(),
                         portrait,
                         profession_id: npc_profession_id,
