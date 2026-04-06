@@ -206,6 +206,8 @@ fn world_interact_system(
         .map(|of| of.min_hit_t(origin, dir))
         .unwrap_or(f32::MAX);
 
+    let max_range_sq = MAX_INTERACT_RANGE * MAX_INTERACT_RANGE;
+
     // Find the single nearest hit across all interactable types.
     enum Hit {
         Face(u16),
@@ -232,6 +234,10 @@ fn world_interact_system(
     }
 
     for (info, g_tf, sheet_opt) in decorations.iter() {
+        let center = g_tf.translation();
+        if origin.distance_squared(center) > max_range_sq {
+            continue;
+        }
         let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
             let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
                 continue;
@@ -246,8 +252,8 @@ fn world_interact_system(
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
-            g_tf.translation(),
-            facing_rotation(origin, g_tf.translation()),
+            center,
+            facing_rotation(origin, center),
             half_w,
             half_h,
             mask,
@@ -260,14 +266,18 @@ fn world_interact_system(
     }
 
     for (info, g_tf, sheet) in npcs.iter() {
+        let center = g_tf.translation();
+        if origin.distance_squared(center) > max_range_sq {
+            continue;
+        }
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
         };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
-            g_tf.translation(),
-            facing_rotation(origin, g_tf.translation()),
+            center,
+            facing_rotation(origin, center),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
@@ -280,14 +290,18 @@ fn world_interact_system(
     }
 
     for (entity, _info, g_tf, sheet) in monsters.iter() {
+        let center = g_tf.translation();
+        if origin.distance_squared(center) > max_range_sq {
+            continue;
+        }
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
         };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
-            g_tf.translation(),
-            facing_rotation(origin, g_tf.translation()),
+            center,
+            facing_rotation(origin, center),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
@@ -421,8 +435,15 @@ fn hover_hint_system(
         }
     }
 
-    // Decorations — skip if behind a solid wall.
+    let max_range_sq = MAX_INTERACT_RANGE * MAX_INTERACT_RANGE;
+
+    // Decorations — cheap distance reject first, then ray test.
     for (info, g_tf, sheet_opt) in decorations.iter() {
+        let center = g_tf.translation();
+        // Cheap XZ distance pre-check — avoids atan2 + ray-plane intersection for most entities.
+        if origin.distance_squared(center) > max_range_sq {
+            continue;
+        }
         let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
             let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
                 continue;
@@ -437,8 +458,8 @@ fn hover_hint_system(
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
-            g_tf.translation(),
-            facing_rotation(origin, g_tf.translation()),
+            center,
+            facing_rotation(origin, center),
             half_w,
             half_h,
             mask,
@@ -451,16 +472,20 @@ fn hover_hint_system(
         }
     }
 
-    // NPCs — skip if behind a solid wall or out of range.
+    // NPCs — cheap distance reject first.
     for (info, g_tf, sheet) in npcs.iter() {
+        let center = g_tf.translation();
+        if origin.distance_squared(center) > max_range_sq {
+            continue;
+        }
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
         };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
-            g_tf.translation(),
-            facing_rotation(origin, g_tf.translation()),
+            center,
+            facing_rotation(origin, center),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),
@@ -472,16 +497,20 @@ fn hover_hint_system(
         }
     }
 
-    // Monsters — skip if behind a solid wall or out of range.
+    // Monsters — cheap distance reject first.
     for (info, g_tf, sheet) in monsters.iter() {
+        let center = g_tf.translation();
+        if origin.distance_squared(center) > max_range_sq {
+            continue;
+        }
         let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
             continue;
         };
         if let Some(t) = billboard_hit_test(
             origin,
             dir,
-            g_tf.translation(),
-            facing_rotation(origin, g_tf.translation()),
+            center,
+            facing_rotation(origin, center),
             sw / 2.0,
             sh / 2.0,
             sheet.current_mask.as_deref(),

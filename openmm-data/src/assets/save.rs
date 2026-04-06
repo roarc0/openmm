@@ -118,4 +118,3 @@ fn save_slot_order(slot: &str) -> (u8, String) {
         s => (2, s.to_string()),
     }
 }
-

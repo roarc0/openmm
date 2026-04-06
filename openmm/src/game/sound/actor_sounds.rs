@@ -54,27 +54,32 @@ fn actor_fidget_sounds(
         budget.window_timer = BUDGET_WINDOW_SECS;
     }
 
+    let range_sq = ACTOR_SOUND_RANGE * ACTOR_SOUND_RANGE;
+
     for (transform, mut actor) in actor_query.iter_mut() {
-        actor.fidget_timer -= dt;
+        // Use bypass_change_detection for the timer tick so decrementing the timer each frame
+        // does not mark the Actor component as Changed (which would wake up change-detection
+        // watchers for every actor every frame). Only the re-arm write below needs detection.
+        actor.bypass_change_detection().fidget_timer -= dt;
         if actor.fidget_timer > 0.0 {
             continue;
         }
+
+        let fidget_id = actor.sound_ids[3] as u32;
 
         // Stagger re-arm using position so actors don't synchronize over time.
         let stagger = (transform.translation.x * 0.013 + transform.translation.z * 0.019)
             .abs()
             .fract();
+        // Write through Mut (intentional change) so fidget_timer is visible to other systems.
         actor.fidget_timer = FIDGET_INTERVAL_MIN + stagger * (FIDGET_INTERVAL_MAX - FIDGET_INTERVAL_MIN);
 
-        let fidget_id = actor.sound_ids[3] as u32;
         if fidget_id == 0 {
             continue;
         }
-
-        if transform.translation.distance_squared(player_pos) > ACTOR_SOUND_RANGE * ACTOR_SOUND_RANGE {
+        if transform.translation.distance_squared(player_pos) > range_sq {
             continue;
         }
-
         if budget.fidgets_this_window >= MAX_FIDGETS_PER_WINDOW {
             continue;
         }

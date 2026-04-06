@@ -79,7 +79,8 @@ impl StaticGameData {
         let spells_table = crate::assets::spells::SpellsTable::load(assets).ok();
         let class_table = crate::assets::class::ClassTable::load(assets).ok();
 
-        let quests = crate::assets::quests::QuestNames::load(assets).unwrap_or_else(|_| crate::assets::quests::QuestNames { names: vec![] });
+        let quests = crate::assets::quests::QuestNames::load(assets)
+            .unwrap_or_else(|_| crate::assets::quests::QuestNames { names: vec![] });
 
         Ok(Self {
             dsft,
@@ -318,7 +319,7 @@ impl Assets {
     pub fn lod_contains(&self, archive: &str, name: &str) -> bool {
         self.lods
             .get(&archive.to_lowercase())
-            .map_or(false, |lod| lod.contains(name))
+            .is_some_and(|lod| lod.contains(name))
     }
 
     pub fn lod_names(&self) -> Vec<String> {

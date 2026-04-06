@@ -7,7 +7,6 @@ pub fn test_lod() -> Option<crate::Assets> {
 
 pub mod awards;
 pub mod billboard;
-pub mod pcx;
 pub mod blv;
 pub mod bsp_model;
 pub mod class;
@@ -36,6 +35,7 @@ pub mod npcnews;
 pub mod npcprof;
 pub mod odm;
 pub mod palette;
+pub mod pcx;
 pub mod quests;
 pub mod save;
 pub mod smk;

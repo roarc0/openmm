@@ -165,7 +165,13 @@ impl LodArchive {
         let size = self.entries[index].size;
         let end = offset + size;
         if end > self.data.len() {
-            log::error!("LOD entry out of bounds: index={} offset={} size={} data_len={}", index, offset, size, self.data.len());
+            log::error!(
+                "LOD entry out of bounds: index={} offset={} size={} data_len={}",
+                index,
+                offset,
+                size,
+                self.data.len()
+            );
             return None;
         }
         Some(self.data[offset..end].to_vec())

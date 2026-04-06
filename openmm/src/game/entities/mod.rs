@@ -171,7 +171,12 @@ fn billboard_face_camera(
         }
         let dir = cam_pos - global_transform.translation();
         if dir.x.abs() > 0.01 || dir.z.abs() > 0.01 {
-            transform.rotation = Quat::from_rotation_y(dir.x.atan2(dir.z));
+            let new_rot = Quat::from_rotation_y(dir.x.atan2(dir.z));
+            // Only write if rotation actually changed — writing Transform marks it changed,
+            // triggering GlobalTransform propagation for every billboard every frame.
+            if transform.rotation != new_rot {
+                transform.rotation = new_rot;
+            }
         }
     }
 }

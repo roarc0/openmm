@@ -292,7 +292,7 @@ const FPS_SAMPLE_INTERVAL: usize = 15;
 
 #[derive(Resource)]
 struct FpsHistory {
-    samples: Vec<f64>,
+    samples: std::collections::VecDeque<f64>,
     frame_counter: usize,
     accumulator: f64,
     accum_count: usize,
@@ -301,7 +301,7 @@ struct FpsHistory {
 impl Default for FpsHistory {
     fn default() -> Self {
         Self {
-            samples: Vec::with_capacity(FPS_HISTORY_SIZE),
+            samples: std::collections::VecDeque::with_capacity(FPS_HISTORY_SIZE),
             frame_counter: 0,
             accumulator: 0.0,
             accum_count: 0,
@@ -318,9 +318,9 @@ impl FpsHistory {
         if self.frame_counter >= FPS_SAMPLE_INTERVAL {
             let avg = self.accumulator / self.accum_count as f64;
             if self.samples.len() >= FPS_HISTORY_SIZE {
-                self.samples.remove(0);
+                self.samples.pop_front();
             }
-            self.samples.push(avg);
+            self.samples.push_back(avg);
             self.frame_counter = 0;
             self.accumulator = 0.0;
             self.accum_count = 0;
@@ -332,14 +332,15 @@ impl FpsHistory {
         if n == 0 {
             return 0.0;
         }
-        self.samples[self.samples.len() - n..].iter().sum::<f64>() / n as f64
+        let start = self.samples.len() - n;
+        self.samples.range(start..).sum::<f64>() / n as f64
     }
 
     fn percentile_low(&self, pct: f32) -> f64 {
         if self.samples.is_empty() {
             return 0.0;
         }
-        let mut sorted = self.samples.clone();
+        let mut sorted: Vec<f64> = self.samples.iter().copied().collect();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let count = ((sorted.len() as f32 * pct / 100.0).ceil() as usize).max(1);
         sorted[..count].iter().sum::<f64>() / count as f64
@@ -352,9 +353,8 @@ impl FpsHistory {
             return (0.0, 60.0);
         }
         let start = self.samples.len() - width;
-        let slice = &self.samples[start..];
-        let min = slice.iter().copied().fold(f64::MAX, f64::min);
-        let max = slice.iter().copied().fold(0.0_f64, f64::max);
+        let min = self.samples.range(start..).copied().fold(f64::MAX, f64::min);
+        let max = self.samples.range(start..).copied().fold(0.0_f64, f64::max);
         (min, max)
     }
 }
