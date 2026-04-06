@@ -62,6 +62,9 @@ pub fn prepare_npc_dialogue(
 ) -> Option<(NpcPortrait, NpcProfile)> {
     let (portrait_name, display_name) = if npc_id >= GENERATED_NPC_ID_BASE {
         let entry = map_events.as_ref().and_then(|me| me.generated_npcs.get(&npc_id));
+        if entry.is_none() {
+            warn!("SpeakNPC: generated_npcs miss for npc_id={} (expected GENERATED_NPC_ID_BASE+actor_idx)", npc_id);
+        }
         let portrait = entry
             .map(|g| format!("NPC{:03}", g.portrait))
             .unwrap_or_else(|| format!("NPC{:03}", npc_id));

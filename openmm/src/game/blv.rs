@@ -136,9 +136,15 @@ impl DoorColliders {
                     continue;
                 }
 
-                let dist = wall.normal.dot(result) - wall.plane_dist;
-                if dist < radius && dist > -radius {
-                    let push = radius - dist;
+                let dist_to = wall.normal.dot(result) - wall.plane_dist;
+                if dist_to < radius && dist_to > -radius {
+                    // We are penetrating or near the plane. Push out towards the side we came from.
+                    let dist_from = wall.normal.dot(from) - wall.plane_dist;
+                    let push = if dist_from >= 0.0 {
+                        radius - dist_to
+                    } else {
+                        -radius - dist_to
+                    };
                     result.x += wall.normal.x * push;
                     result.z += wall.normal.z * push;
                 }
@@ -1115,7 +1121,6 @@ fn door_animation_system(
                 continue;
             };
 
-            // BLV vertex positions are the deployed (blocking) positions; distance=0 is blocking.
             // Only skip collision when the door is fully retracted (passable).
             let distance = door_slide_distance(door);
             if door.move_length == 0 || distance >= door.move_length as f32 - 1.0 {

@@ -475,7 +475,7 @@ fn move_with_substeps(
         // Using step_dest here would override the static collider's push, letting the
         // player walk through static walls whenever the door collider has no active walls.
         if let Some(dc) = door_colliders {
-            pos = dc.resolve_movement(pos, pos, radius, eye_height);
+            pos = dc.resolve_movement(step_start, pos, radius, eye_height);
             // Block movement into areas closed off by horizontal door panels (trapdoors, slabs).
             // If the new position intersects a closed panel, roll back this substep.
             let feet_y = pos.y - eye_height;

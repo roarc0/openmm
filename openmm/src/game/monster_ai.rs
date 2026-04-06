@@ -20,6 +20,7 @@ use bevy::{ecs::message::MessageWriter, prelude::*};
 use crate::GameState;
 use crate::game::actor_combat::{ActorDead, DyingTimer};
 use crate::game::actor_physics::{is_passable, snap_actor_y};
+use crate::game::blv::DoorColliders;
 use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
 use crate::game::entities::actor::Actor;
 use crate::game::entities::{AnimationState, WorldEntity};
@@ -66,7 +67,13 @@ impl Plugin for MonsterAiPlugin {
 ///
 /// Returns `(destination, facing_yaw)`.
 /// When `colliders` is `None` (outdoor, no buildings) the direct path is always used.
-fn steer_toward(from: Vec3, target_pos: Vec3, speed: f32, colliders: Option<&BuildingColliders>) -> (Vec3, f32) {
+fn steer_toward(
+    from: Vec3,
+    target_pos: Vec3,
+    speed: f32,
+    colliders: Option<&BuildingColliders>,
+    door_colliders: Option<&DoorColliders>,
+) -> (Vec3, f32) {
     let flat = Vec3::new(target_pos.x - from.x, 0.0, target_pos.z - from.z);
     if flat.length_squared() < 1.0 {
         return (from, 0.0);
@@ -76,10 +83,20 @@ fn steer_toward(from: Vec3, target_pos: Vec3, speed: f32, colliders: Option<&Bui
     let probe_dest = |yaw: f32| -> Vec3 {
         let dir = Vec3::new(yaw.sin(), 0.0, yaw.cos());
         let intended = from + dir * speed;
-        match colliders {
-            Some(c) => c.resolve_movement(from, intended, ACTOR_RADIUS, ACTOR_EYE_HEIGHT),
-            None => intended,
+        let mut pos = intended;
+        if let Some(c) = colliders {
+            pos = c.resolve_movement(from, pos, ACTOR_RADIUS, ACTOR_EYE_HEIGHT);
         }
+        if let Some(dc) = door_colliders {
+            // Apply dynamic door wall collision
+            pos = dc.resolve_movement(from, pos, ACTOR_RADIUS, ACTOR_EYE_HEIGHT);
+            // Block movement into closed horizontal door panels (trapdoors, slabs)
+            let feet_y = pos.y - ACTOR_EYE_HEIGHT;
+            if dc.blocks_entry(pos.x, pos.z, feet_y, pos.y, ACTOR_RADIUS) {
+                pos = from;
+            }
+        }
+        pos
     };
 
     // Direct heading first.
@@ -113,6 +130,7 @@ fn steer_toward(from: Vec3, target_pos: Vec3, speed: f32, colliders: Option<&Bui
 fn monster_ai_system(
     time: Res<Time>,
     colliders: Option<Res<BuildingColliders>>,
+    door_colliders: Option<Res<DoorColliders>>,
     terrain: Option<Res<TerrainHeightMap>>,
     water_map: Option<Res<WaterMap>>,
     player: Query<&Transform, With<Player>>,
@@ -133,6 +151,7 @@ fn monster_ai_system(
     let player_pos = player_tf.translation;
     let dt = time.delta_secs();
     let c = colliders.as_deref();
+    let dc = door_colliders.as_deref();
     let hm = terrain.as_deref();
     let wm = water_map.as_deref();
 
@@ -237,7 +256,7 @@ fn monster_ai_system(
                 let jitter_offset = perp * (jitter_angle.sin() * actor.aggro_range * 0.15);
                 let chase_target = player_pos + jitter_offset;
 
-                let (dest, facing) = steer_toward(my_pos, chase_target, speed, c);
+                let (dest, facing) = steer_toward(my_pos, chase_target, speed, c, dc);
                 actor.facing_yaw = facing;
                 let new_y = snap_actor_y(dest, actor.sprite_half_height, actor.can_fly, hm, c);
                 if is_passable(&actor, transform.translation.y, dest, new_y, wm) {
@@ -277,7 +296,7 @@ fn monster_ai_system(
             if flat_dir.length() > 20.0 {
                 // Wander uses capped speed; steering handles indoor walls.
                 let speed = actor.move_speed.min(60.0) * dt;
-                let (dest, facing) = steer_toward(my_pos, actor.wander_target, speed, c);
+                let (dest, facing) = steer_toward(my_pos, actor.wander_target, speed, c, dc);
                 actor.facing_yaw = facing;
                 let new_y = snap_actor_y(dest, actor.sprite_half_height, actor.can_fly, hm, c);
                 // If wall-stuck (moved <10% of intended), or terrain blocked, abandon target.

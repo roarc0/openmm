@@ -977,6 +977,10 @@ fn lazy_spawn(
                 .and_then(|me| me.npc_table.as_ref())
                 .and_then(|t| t.peasant_identity(actor.is_female, i))
                 .unwrap_or((1, 52)); // 52 = "Peasant" in npcprof.txt
+            debug!(
+                "peasant spawn: actor_idx={} is_female={} portrait=NPC{:03} name={:?} generated_id={}",
+                i, actor.is_female, portrait, name, generated_id
+            );
             if let Some(ref mut me) = map_events {
                 me.generated_npcs.insert(
                     generated_id,
