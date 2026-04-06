@@ -124,7 +124,7 @@ fn ambient_from_time(tod: f32) -> (Color, f32) {
 /// always face the camera, so dot(normal, sun) varies wildly with camera yaw).
 /// Instead we multiply `base_color` by this tint each frame in enhanced mode.
 /// Night floor: dark blue moonlight. Noon: white (no change to texture color).
-fn sprite_tint_from_time(tod: f32) -> Color {
+pub fn sprite_tint_from_time(tod: f32) -> Color {
     let day_amount = (1.0_f32 - (tod * 2.0 - 1.0).abs()).max(0.0);
     let dawn_dusk: f32 = {
         let d1 = (tod - 0.25).abs();

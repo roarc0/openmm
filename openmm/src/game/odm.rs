@@ -6,6 +6,8 @@ use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::InGame;
 use crate::game::entities::{actor, sprites};
+use crate::game::game_time::GameTime;
+use crate::game::lighting::sprite_tint_from_time;
 use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
 use crate::game::terrain_material::{TerrainMaterial, WaterExtension};
 
@@ -474,6 +476,7 @@ fn lazy_spawn(
     pending: Option<ResMut<PendingSpawns>>,
     prepared: Option<Res<PreparedWorld>>,
     game_assets: Res<GameAssets>,
+    game_time: Res<GameTime>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -485,6 +488,14 @@ fn lazy_spawn(
     let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
         return;
     };
+
+    // Compute the correct day/night tint for this frame so new materials are pre-tinted.
+    // animate_day_cycle uses a change-threshold and won't re-tint materials that weren't in
+    // the ECS when it ran — baking the tint at creation time avoids the brief bright flash.
+    let tint_color = sprite_tint_from_time(game_time.time_of_day());
+    let tl = tint_color.to_linear();
+    let spawn_tint = Vec4::new(tl.red, tl.green, tl.blue, 1.0);
+
     let p = &mut *pending;
     let terrain_entity = p.terrain_entity;
     let mut spawned = 0;
@@ -537,6 +548,12 @@ fn lazy_spawn(
                 &mut Some(&mut p.sprite_cache),
             );
             if px_w > 0.0 {
+                // Tint directional decoration materials (cached with Vec4::ONE during Loading).
+                for dir in &dirs {
+                    if let Some(m) = sprite_materials.get_mut(dir.id()) {
+                        m.extension.tint = spawn_tint;
+                    }
+                }
                 // Apply DSFT scale via sprite group name lookup
                 let dsft_scale = lod.dsft_scale_for_group(&dec.sprite_name);
                 let sw = px_w * dsft_scale;
@@ -628,7 +645,7 @@ fn lazy_spawn(
                         reflectance: 0.0,
                         ..default()
                     },
-                    extension: SpriteExtension::default(),
+                    extension: SpriteExtension { tint: spawn_tint },
                 });
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
@@ -721,13 +738,17 @@ fn lazy_spawn(
                         reflectance: 0.0,
                         ..default()
                     },
-                    extension: SpriteExtension::default(),
+                    extension: SpriteExtension { tint: spawn_tint },
                 });
                 let q = meshes.add(Rectangle::new(w, h));
                 p.dec_sprite_cache
                     .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));
                 (m, q, w, h, msk)
             };
+            // Update cached material tint (preloaded during Loading with Vec4::ONE).
+            if let Some(m) = sprite_materials.get_mut(mat.id()) {
+                m.extension.tint = spawn_tint;
+            }
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
             let child_id = commands
                 .spawn((
@@ -828,6 +849,15 @@ fn lazy_spawn(
                 );
                 continue;
             }
+            for state in &states {
+                for frame in state {
+                    for handle in frame {
+                        if let Some(m) = sprite_materials.get_mut(handle.id()) {
+                            m.extension.tint = spawn_tint;
+                        }
+                    }
+                }
+            }
             let dsft_scale = lod.dsft_scale_for_group(&actor.standing_sprite);
             let sw = raw_w * dsft_scale;
             let sh = raw_h * dsft_scale;
@@ -902,6 +932,15 @@ fn lazy_spawn(
                 actor.name, actor.monlist_id, actor.standing_sprite, actor.walking_sprite
             );
             continue;
+        }
+        for state in &s2 {
+            for frame in state {
+                for handle in frame {
+                    if let Some(m) = sprite_materials.get_mut(handle.id()) {
+                        m.extension.tint = spawn_tint;
+                    }
+                }
+            }
         }
         // Apply DSFT scale (same as decorations — sprite group name lookup)
         let dsft_scale = lod.dsft_scale_for_group(&actor.standing_sprite);
@@ -1039,6 +1078,15 @@ fn lazy_spawn(
                 mon.name, mon.standing_sprite
             );
             continue;
+        }
+        for state in &states {
+            for frame in state {
+                for handle in frame {
+                    if let Some(m) = sprite_materials.get_mut(handle.id()) {
+                        m.extension.tint = spawn_tint;
+                    }
+                }
+            }
         }
 
         let dsft_scale = game_assets.lod().dsft_scale_for_group(&mon.standing_sprite);

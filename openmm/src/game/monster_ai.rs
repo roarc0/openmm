@@ -169,9 +169,14 @@ fn monster_ai_system(
     };
 
     for (mut transform, mut actor, mut anim_state, mut ai_mode) in query.iter_mut() {
+        if actor.hp <= 0 {
+            continue;
+        }
+
         if actor.move_speed < 1.0 {
             continue;
         }
+
         // Let attack animation play out without interference.
         if matches!(*anim_state, AnimationState::Attacking) {
             continue;
