@@ -5,7 +5,6 @@
 //! no direct LOD queries during spawn.
 
 use crate::raw::global::GameData;
-use super::monster;
 use crate::LodManager;
 use crate::raw::ddm::{MonsterSchedule, SpellBuff};
 use std::error::Error;

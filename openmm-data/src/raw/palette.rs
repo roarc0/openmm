@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 use std::error::Error;
 
+use crate::raw::lod::LodExt;
+use openmm_archive::Archive;
+
 use super::Lod;
 
 const PALETTE_HEADER_SIZE: usize = 48;
@@ -38,11 +41,12 @@ impl TryFrom<&Lod> for Palettes {
 
     fn try_from(lod: &Lod) -> Result<Self, Self::Error> {
         let palette_files: Vec<_> = lod
-            .files_map()
-            .keys()
+            .list_files()
+            .iter()
+            .map(|e| e.name.clone())
             .filter_map(|f| {
                 if f.to_lowercase().starts_with("pal") && f.len() == 6 {
-                    Some(f.to_string())
+                    Some(f)
                 } else {
                     None
                 }
@@ -51,7 +55,8 @@ impl TryFrom<&Lod> for Palettes {
 
         let mut palettes: HashMap<u16, Palette> = HashMap::new();
         for file_name in palette_files {
-            let palette = Palette::try_from(lod.try_get_bytes(&file_name).ok_or("expected file")?)?;
+            let bytes = lod.try_get_bytes(&file_name).ok_or("expected file")?;
+            let palette = Palette::try_from(bytes.as_slice())?;
             let id = extract_palette_id(&file_name)?;
             palettes.insert(id, palette);
         }

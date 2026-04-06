@@ -3,8 +3,9 @@ use std::env;
 use std::error::Error;
 use std::fs::{self};
 use std::path::{Path, PathBuf};
+pub use openmm_archive::Archive;
 
-use raw::lod::Lod;
+use raw::lod::LodExt;
 
 /// Serialise a parsed LOD structure back to its binary/text wire format.
 pub trait LodSerialise {
@@ -20,11 +21,12 @@ pub mod game;
 
 pub mod generator;
 pub mod utils;
+pub use utils::find_path_case_insensitive;
 
 pub const ENV_OPENMM_6_PATH: &str = "OPENMM_6_PATH";
 
 pub struct LodManager {
-    lods: HashMap<String, Lod>,
+    lods: HashMap<String, raw::lod::Lod>,
     game_dir: PathBuf,
 }
 
@@ -47,7 +49,7 @@ impl LodManager {
     }
 
     /// Access high-level, game-ready assets (sprites, bitmaps, icons, fonts).
-    pub fn game(&self) -> game::GameLod {
+    pub fn game(&self) -> game::GameLod<'_> {
         game::GameLod::new(self)
     }
 
@@ -88,20 +90,36 @@ impl LodManager {
     }
 
     pub fn try_get_bytes<P: AsRef<Path>>(&self, path: P) -> Result<Vec<u8>, Box<dyn Error>> {
-        let path = path.as_ref();
+        let (lod_name, file_name) = self.split_path(path.as_ref());
+        if file_name.is_empty() {
+            log::warn!("Attempted to fetch asset with empty filename from LOD '{}'", lod_name);
+        }
+
+        if let Some(lod) = self.lods.get(&lod_name.to_lowercase()) {
+            if let Some(data) = lod.get_file(&file_name) {
+                return Ok(data);
+            }
+        }
+        Err(format!("File not found in LOD: {:?}", path.as_ref()).into())
+    }
+
+    pub fn exists<P: AsRef<Path>>(&self, path: P) -> bool {
+        let (lod_name, file_name) = self.split_path(path.as_ref());
+        if let Some(lod) = self.lods.get(&lod_name.to_lowercase()) {
+            return lod.contains(&file_name);
+        }
+        false
+    }
+
+    fn split_path(&self, path: &Path) -> (String, String) {
         let lod_name = path
             .parent()
             .and_then(|p| p.file_name())
             .and_then(|n| n.to_str())
-            .unwrap_or("");
-        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-        if let Some(lod) = self.lods.get(&lod_name.to_lowercase()) {
-            if let Some(data) = lod.try_get_bytes(&file_name.to_lowercase()) {
-                return Ok(data.to_vec());
-            }
-        }
-        Err(format!("File not found in LOD: {:?}", path).into())
+            .unwrap_or("")
+            .to_string();
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+        (lod_name, file_name)
     }
 
     pub fn get_decompressed<P: AsRef<Path>>(&self, path: P) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -132,12 +150,12 @@ impl LodManager {
 
     pub fn patch<P: AsRef<Path>>(&self, name: &str, output_path: P, overrides: &[(&str, Vec<u8>)]) -> Result<(), Box<dyn Error>> {
         let lod_path = self.game_dir.join(format!("{}.lod", name.to_uppercase()));
-        Lod::patch(&lod_path, output_path, overrides)
+        crate::raw::lod::LodWriter::patch(&lod_path, output_path, overrides)
     }
 
     pub fn files_in(&self, lod_name: &str) -> Option<Vec<String>> {
         self.lods.get(&lod_name.to_lowercase()).map(|lod| {
-            lod.list_files().iter().map(|&s| s.to_string()).collect()
+            lod.list_files().iter().map(|e| e.name.clone()).collect()
         })
     }
 

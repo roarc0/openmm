@@ -6,7 +6,8 @@
 use std::fs;
 use std::path::Path;
 
-use lodcratecrate::raw::vid::{Vid, parse_smk_info};
+use openmm_archive::Archive;
+use openmm_data::raw::vid::{Vid, parse_smk_info};
 
 fn main() {
     let data_path = openmm_data::get_data_path();
@@ -33,15 +34,23 @@ fn main() {
         }
 
         let vid = Vid::open(&vid_path).unwrap_or_else(|e| panic!("failed to open {vid_name}: {e}"));
-        println!("{vid_name}: {} entries", vid.entries.len());
+        let entries = vid.list_files();
+        println!("{vid_name}: {} entries", entries.len());
         index_lines.push(format!("\n# {vid_name}"));
 
-        for (i, entry) in vid.entries.iter().enumerate() {
-            let smk = vid.smk_bytes(i);
+        for entry in entries {
+            let smk_bytes = match vid.get_file(&entry.name) {
+                Some(b) => b,
+                None => {
+                    eprintln!("  skipping {}: no data", entry.name);
+                    continue;
+                }
+            };
             let out_path = out_dir.join(format!("{}.smk", entry.name));
-            fs::write(&out_path, smk).unwrap_or_else(|e| panic!("write {}: {e}", out_path.display()));
+            fs::write(&out_path, &smk_bytes)
+                .unwrap_or_else(|e| panic!("write {}: {e}", out_path.display()));
 
-            let info_str = if let Some(info) = parse_smk_info(smk) {
+            let info_str = if let Some(info) = parse_smk_info(&smk_bytes) {
                 format!(
                     "{:<20} {:>6} {:>5.1} {:>8}  {}x{}",
                     entry.name,
@@ -69,3 +78,4 @@ fn main() {
     println!("\nDumped {total} SMK files to {}/", out_dir.display());
     println!("Index: {}", index_path.display());
 }
+

@@ -1,7 +1,7 @@
 fn main() {
     let lod = openmm_data::LodManager::new(openmm_data::get_data_path()).unwrap();
     let raw = lod.try_get_bytes("games/oute3.ddm").unwrap();
-    let data = lodcratecrate::raw::lod_data::LodData::try_from(raw).unwrap();
+    let data = openmm_data::raw::lod_data::LodData::try_from(raw.as_slice()).unwrap();
     let data = &data.data;
 
     let mut actor_start = 0;

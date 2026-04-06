@@ -1,6 +1,4 @@
 use std::error::Error;
-use std::io::Cursor;
-use csv::ReaderBuilder;
 use serde::{Serialize, Deserialize};
 
 use crate::LodSerialise;
@@ -135,7 +133,7 @@ fn pick_label<'a>(fields: &[&'a str]) -> Option<&'a str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{get_data_path, LodManager};
+    use crate::get_data_path;
 
     fn load() -> Option<QuestBitNames> {
         let path = get_data_path();

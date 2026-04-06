@@ -15,7 +15,8 @@
 //! After running, point OPENMM_6_PATH to that directory to use it as a game source.
 
 use byteorder::{LittleEndian, WriteBytesExt};
-use openmm_data::{LodWriter, Lod, codegen::terrain::TerrainGen};
+use openmm_archive::Archive;
+use openmm_data::{LodWriter, Lod, generator::terrain::TerrainGen};
 use std::{error::Error, io::Write, path::{Path, PathBuf}};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -55,11 +56,13 @@ fn dump_lod(lod_path: &Path, target_dir: &Path) -> Result<(), Box<dyn Error>> {
     let lod = Lod::open(lod_path)?;
     std::fs::create_dir_all(target_dir)?;
     
-    for (name, data) in &lod.entries {
-        let file_path = target_dir.join(name.to_lowercase());
+    for entry in lod.list_files() {
+        let data = lod.get_file(&entry.name).unwrap_or_default();
+        let file_path = target_dir.join(entry.name.to_lowercase());
         std::fs::write(file_path, data)?;
     }
-    println!("  extracted {} — {} files", lod_path.file_name().unwrap().to_string_lossy(), lod.entries.len());
+    let n = lod.list_files().len();
+    println!("  extracted {} — {} files", lod_path.file_name().unwrap().to_string_lossy(), n);
     Ok(())
 }
 

@@ -8,7 +8,7 @@
 //! other tables by group_id and frame_index numbers.
 
 use std::error::Error;
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt};
 use serde::{Serialize, Deserialize};
 

@@ -124,6 +124,7 @@ impl SmkDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use openmm_archive::Archive;
     use crate::raw::vid::Vid;
 
     #[test]
@@ -135,12 +136,12 @@ mod tests {
             return;
         }
         let vid = Vid::open(&vid_path).expect("open Anims2.vid");
-        let idx = vid
-            .entries
+        let bytes = vid
+            .list_files()
             .iter()
-            .position(|e| e.name.eq_ignore_ascii_case("3dologo"))
+            .find(|e| e.name.eq_ignore_ascii_case("3dologo"))
+            .and_then(|e| vid.get_file(&e.name))
             .expect("3dologo not found in Anims2.vid");
-        let bytes = vid.smk_bytes(idx).to_vec();
 
         let mut dec = SmkDecoder::new(bytes).expect("SmkDecoder::new");
         assert_eq!(dec.width, 640);

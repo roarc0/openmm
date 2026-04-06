@@ -4615,6 +4615,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "openmm-archive"
+version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "flate2",
+ "log",
+]
+
+[[package]]
 name = "openmm-data"
 version = "0.0.1"
 dependencies = [
@@ -4625,6 +4634,7 @@ dependencies = [
  "hexdump",
  "image",
  "log",
+ "openmm-archive",
  "serde",
  "serde_json",
  "smk",

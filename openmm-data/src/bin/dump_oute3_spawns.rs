@@ -22,7 +22,7 @@ fn main() {
 
     // Read raw bytes to extract per-spawn raw bytes
     let raw = lod.try_get_bytes(format!("games/{}", map_name)).unwrap();
-    let data = match LodData::try_from(raw) {
+    let data = match LodData::try_from(raw.as_slice()) {
         Ok(d) => d.data,
         Err(_) => raw.to_vec(),
     };

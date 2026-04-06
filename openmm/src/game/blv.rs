@@ -421,8 +421,8 @@ fn spawn_indoor_world(
         let key = &dec.sprite_name;
         // sprite_center is set in each branch to the entity's world position (dec_pos + half-height).
         // Used afterwards to place the point light at the sprite centre, not the floor.
-        let mut sprite_center = dec_pos;
-        let mut dec_entity: Option<Entity> = None;
+        let sprite_center;
+        let dec_entity;
 
         if dec.is_directional {
             let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(

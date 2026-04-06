@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use openmm_archive::Archive;
+
 use openmm_data::{
     dchest::ChestList,
     ddeclist::DDecList,
@@ -11,12 +13,11 @@ use openmm_data::{
     dsounds::DSounds,
     get_data_path,
     items::ItemsTable,
-    openmm_data::Lod,
+    Lod,
     mapstats::MapStats,
     monlist::MonsterList,
     odm::Odm,
     ddm::Ddm,
-    snd::{SndArchive, SndWriter},
     vid::{Vid, VidWriter},
     LodSerialise, LodWriter,
 };
@@ -98,7 +99,12 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
     let mut re_serialized = 0;
     let mut mismatches = 0;
 
-    for (entry_name, data) in lod.entries() {
+    for entry in lod.list_files() {
+        let entry_name = entry.name.clone();
+        let data = match lod.get_file(&entry_name) {
+            Some(d) => d,
+            None => continue,
+        };
         count += 1;
         let lower = entry_name.to_lowercase();
 
@@ -113,14 +119,14 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
             "items.txt" => ItemsTable::parse(&String::from_utf8_lossy(&lod_data.data))
                 .ok()
                 .map(|p| p.to_bytes()),
-            "dsft.bin" => DSFT::try_from(lod_data.data.as_slice()).ok().map(|p| p.to_bytes()),
-            "ddeclist.bin" => DDecList::try_from(lod_data.data.as_slice()).ok().map(|p| p.to_bytes()),
-            "dsounds.bin" => DSounds::try_from(lod_data.data.as_slice()).ok().map(|p| p.to_bytes()),
-            "dpft.bin" => PFT::try_from(lod_data.data.as_slice()).ok().map(|p| p.to_bytes()),
-            "dchest.bin" => ChestList::try_from(lod_data.data.as_slice()).ok().map(|p| p.to_bytes()),
-            "dmonlist.bin" => MonsterList::try_from(lod_data.data.as_slice()).ok().map(|p| p.to_bytes()),
-            _ if lower.ends_with(".odm") => Odm::try_from(lod_data.data.as_slice()).ok().map(|p| p.to_bytes()),
-            _ if lower.ends_with(".ddm") => Ddm::try_from(lod_data.data.as_slice()).ok().map(|p| p.to_bytes()),
+            "dsft.bin" => DSFT::try_from(lod_data.data.as_slice()).ok().map(|p: DSFT| p.to_bytes()),
+            "ddeclist.bin" => DDecList::try_from(lod_data.data.as_slice()).ok().map(|p: DDecList| p.to_bytes()),
+            "dsounds.bin" => DSounds::try_from(lod_data.data.as_slice()).ok().map(|p: DSounds| p.to_bytes()),
+            "dpft.bin" => PFT::try_from(lod_data.data.as_slice()).ok().map(|p: PFT| p.to_bytes()),
+            "dchest.bin" => ChestList::try_from(lod_data.data.as_slice()).ok().map(|p: ChestList| p.to_bytes()),
+            "dmonlist.bin" => MonsterList::try_from(lod_data.data.as_slice()).ok().map(|p: MonsterList| p.to_bytes()),
+            _ if lower.ends_with(".odm") => Odm::try_from(lod_data.data.as_slice()).ok().map(|p: Odm| p.to_bytes()),
+            _ if lower.ends_with(".ddm") => Ddm::try_from(lod_data.data.as_slice()).ok().map(|p: Ddm| p.to_bytes()),
             _ => None,
         };
 
@@ -131,7 +137,7 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
             }
             lod_data.data = serialized;
             // pack() restores original zlib compression (if any)
-            writer.add_file(entry_name, lod_data.pack());
+            writer.add_file(&entry_name, lod_data.pack());
         } else {
             // NO CHEATING: skip files we haven't successfully parsed and re-serialized.
             // This ensures only "OpenMM-Verified" files end up in the output LOD.
@@ -174,11 +180,13 @@ fn process_vid(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
     print!("  VID: {:<15} ", name);
     let vid = Vid::open(src)?;
     let mut writer = VidWriter::new();
-    for i in 0..vid.entries.len() {
-        let entry = &vid.entries[i];
-        writer.add(&entry.name, vid.smk_bytes(i).to_vec());
+    let files = vid.list_files();
+    for entry in files {
+        if let Some(bytes) = vid.get_file(&entry.name) {
+            writer.add(&entry.name, bytes);
+        }
     }
     writer.save(&dst)?;
-    println!("DONE ({} videos)", vid.entries.len());
+    println!("DONE ({} videos)", files.len());
     Ok(())
 }

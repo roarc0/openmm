@@ -42,7 +42,7 @@ fn main() {
 
     // Dump all files (images as PNG, data as raw)
     println!("\nDumping files to {}/ ...", out_dir.display());
-    match lod_manager.dump_all(out_dir) {
+    match lod_manager.save_all(out_dir) {
         Ok(()) => println!("Done."),
         Err(e) => eprintln!("Error during dump: {}", e),
     }
@@ -69,7 +69,7 @@ fn main() {
 fn dump_readable_files(lod_manager: &LodManager, out_dir: &Path) {
     let archives = lod_manager.archives();
     for archive in archives {
-        if let Some(files) = lod_manager.files_in(archive) {
+        if let Some(files) = lod_manager.files_in(&archive) {
             for file in files {
                 let lower = file.to_lowercase();
                 let mut out_content: Option<String> = None;

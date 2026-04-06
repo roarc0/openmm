@@ -9,7 +9,6 @@
 use std::error::Error;
 use std::io::Cursor;
 use csv::ReaderBuilder;
-use log::info;
 use serde::{Serialize, Deserialize};
 
 use crate::LodSerialise;

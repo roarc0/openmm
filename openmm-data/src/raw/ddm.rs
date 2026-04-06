@@ -1,12 +1,12 @@
 use std::error::Error;
-use std::io::{Cursor, Seek, Read, Write};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use std::io::{Cursor, Seek};
+use byteorder::{LittleEndian, ReadBytesExt};
 
 use serde::{Serialize, Deserialize};
 
 use crate::raw::enums::ActorAttributes;
 use crate::LodSerialise;
-use crate::{LodManager, raw::lod_data::LodData};
+use crate::LodManager;
 
 /// MM6 MapMonster struct size = 0x224 = 548 bytes.
 /// Layout from MMExtension: Scripts/Structs/01 common structs.lua (MapMonster).

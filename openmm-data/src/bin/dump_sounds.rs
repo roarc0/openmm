@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::Path;
 
+use openmm_data::snd::SndExt;
+
 fn main() {
     let data_path = openmm_data::get_data_path();
     let base = Path::new(&data_path);
@@ -11,12 +13,12 @@ fn main() {
         .expect("Audio.snd not found");
 
     println!("Opening {:?}", snd_path);
-    let archive = lodcratecrate::raw::snd::SndArchive::open(&snd_path).expect("Failed to open Audio.snd");
+    let archive = openmm_data::raw::snd::SndArchive::open(&snd_path).expect("Failed to open Audio.snd");
 
     let output_dir = Path::new("data/dump/sounds");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");
 
-    let mut names: Vec<&str> = archive.list();
+    let mut names: Vec<String> = archive.list();
     names.sort();
 
     let mut count = 0;

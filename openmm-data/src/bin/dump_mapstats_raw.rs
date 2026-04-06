@@ -3,7 +3,7 @@ use openmm_data::LodManager;
 fn main() {
     let lod_manager = LodManager::new(openmm_data::get_data_path()).unwrap();
     let raw = lod_manager.try_get_bytes("icons/mapstats.txt").unwrap();
-    let data = match lodcratecrate::raw::lod_data::LodData::try_from(raw) {
+    let data = match openmm_data::raw::lod_data::LodData::try_from(raw.as_slice()) {
         Ok(d) => d.data,
         Err(_) => raw.to_vec(),
     };

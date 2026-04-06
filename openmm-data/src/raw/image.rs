@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use super::{palette::Palettes, zlib};
+use super::palette::Palettes;
 use crate::LodManager;
 
 #[derive(Debug)]
@@ -400,7 +400,7 @@ mod test {
             return;
         };
 
-        let atlas_image = get_atlas(&lod_manager, &["grastyl", "dirttyl", "voltyl", "wtrtyl", "pending"], 2).unwrap();
+        let atlas_image = get_atlas(&lod_manager, &["grastyl", "dirttyl", "voltyl", "wtrtyl", "pending"][..], 2).unwrap();
         let slot = 128 + 2 * ATLAS_TILE_PAD;
         assert_eq!(atlas_image.dimensions(), (slot * 2, slot * 3));
     }

@@ -68,7 +68,7 @@ fn main() {
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_lowercase();
-                if let Err(e) = mgr.save(&archive_key, &out_path, &[]) {
+                if let Err(e) = mgr.patch(&archive_key, &out_path, &[]) {
                     eprintln!("  FAIL  {} — save error: {}", name, e);
                     failures.push(format!("{}: save error: {}", name, e));
                     continue;
