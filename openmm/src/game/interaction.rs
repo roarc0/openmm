@@ -180,7 +180,7 @@ fn world_interact_system(
     occluder_faces: Option<Res<OccluderFaces>>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
-    mut kill_events: Option<bevy::ecs::message::MessageWriter<KillActorEvent>>,
+    kill_events: Option<bevy::ecs::message::MessageWriter<KillActorEvent>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     world_state: Option<Res<WorldState>>,
 ) {
