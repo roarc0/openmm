@@ -54,7 +54,7 @@ pub struct StreetNpcs {
     pub npcs: HashMap<u32, NpcEntry>,
     /// Peasant-profession (52-77) portrait+profession pairs for female actors.
     /// Classified by cross-referencing npcdata.txt first names against npcnames.txt.
-    /// Entries whose sex is unknown are added to BOTH pools as fallback portraits.
+    /// Entries with unclassifiable names are excluded from both pools.
     pub peasant_female: Vec<(u32, u32)>,
     /// Peasant-profession (52-77) portrait+profession pairs for male actors.
     pub peasant_male: Vec<(u32, u32)>,
@@ -130,8 +130,9 @@ impl StreetNpcs {
 
         // Build sex-split portrait+profession pools from npcdata.txt peasant entries.
         // npcdata.txt has no sex column, so sex is inferred by cross-referencing each
-        // entry's first name against npcnames.txt. Entries whose sex is unknown go to
-        // both pools — these are fallback portraits, not gender guesses.
+        // entry's first name against npcnames.txt.
+        // Entries whose sex is ambiguous or unknown are excluded from both pools — putting
+        // them in both caused nearly 2/3 of male portraits to bleed into the female pool.
         let mut peasant_entries: Vec<&NpcEntry> = npcs
             .values()
             .filter(|e| (52..=77).contains(&e.profession_id) && e.portrait > 0)
@@ -149,11 +150,31 @@ impl StreetNpcs {
             match sex {
                 Some(true) => peasant_female.push(pair),
                 Some(false) => peasant_male.push(pair),
-                None => {
-                    peasant_female.push(pair);
-                    peasant_male.push(pair);
-                }
+                None => log::warn!(
+                    "peasant NPC id={} name={:?} first={:?} — sex unclassifiable, excluded from portrait pools",
+                    entry.id, entry.name, entry.name.split_whitespace().next().unwrap_or("")
+                ),
             }
+        }
+
+        // Remove portraits that appear in both pools — their portrait image is shared across
+        // sexes in npcdata.txt (two different NPC entries, one female-named, one male-named,
+        // same portrait number). Using such portraits in both pools causes sex-mismatched
+        // portraits, e.g. a female actor showing a male portrait.
+        let female_portraits: std::collections::HashSet<u32> =
+            peasant_female.iter().map(|(p, _)| *p).collect();
+        let male_portraits: std::collections::HashSet<u32> =
+            peasant_male.iter().map(|(p, _)| *p).collect();
+        let shared: std::collections::HashSet<u32> =
+            female_portraits.intersection(&male_portraits).copied().collect();
+        if !shared.is_empty() {
+            log::warn!(
+                "peasant portrait pool: {} portrait(s) appear in both female and male pools — removing from both: {:?}",
+                shared.len(),
+                { let mut v: Vec<_> = shared.iter().copied().collect(); v.sort(); v }
+            );
+            peasant_female.retain(|(p, _)| !shared.contains(p));
+            peasant_male.retain(|(p, _)| !shared.contains(p));
         }
 
         Ok(Self {
