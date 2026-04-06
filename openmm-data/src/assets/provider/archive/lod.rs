@@ -3,7 +3,7 @@ use std::{
     error::Error,
     fs::File,
     io::{BufReader, Cursor, Read, Seek, SeekFrom, Write},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -93,9 +93,9 @@ impl TryFrom<&[u8; FILE_HEADER_SIZE]> for FileHeader {
 }
 
 /// Read-only structure of an LOD file.
-/// Parses the directory table directly and stores the ordered list of entries, but yields data on-demand.
+/// Entire file is loaded into RAM at open time; reads are zero-copy slices from that buffer.
 pub struct LodArchive {
-    path: PathBuf,
+    data: Vec<u8>,
     pub version: Version,
     entries: Vec<ArchiveEntry>,
     lookup: HashMap<String, usize>,
@@ -104,9 +104,8 @@ pub struct LodArchive {
 
 impl LodArchive {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
-        let path_buf = path.as_ref().to_path_buf();
-        let file = File::open(&path_buf)?;
-        let mut reader = BufReader::new(file);
+        let data = std::fs::read(path.as_ref())?;
+        let mut reader = BufReader::new(Cursor::new(&data));
 
         let magic = try_read_string(&mut reader)?;
         if magic != "LOD" {
@@ -144,7 +143,7 @@ impl LodArchive {
         }
 
         Ok(Self {
-            path: path_buf,
+            data,
             version,
             entries,
             lookup,
@@ -164,23 +163,12 @@ impl LodArchive {
     fn read_bytes(&self, index: usize) -> Option<Vec<u8>> {
         let offset = self._offsets[index];
         let size = self.entries[index].size;
-
-        let path = &self.path;
-        let mut file = File::open(path).ok().or_else(|| {
-            log::error!("Failed to open LOD file for reading: {:?}", path);
-            None
-        })?;
-        file.seek(SeekFrom::Start(offset as u64)).ok().or_else(|| {
-            log::error!("Failed to seek in LOD file: {:?} to offset {}", path, offset);
-            None
-        })?;
-
-        let mut buf = vec![0u8; size];
-        file.read_exact(&mut buf).ok().or_else(|| {
-            log::error!("Failed to read {} bytes from LOD file: {:?}", size, path);
-            None
-        })?;
-        Some(buf)
+        let end = offset + size;
+        if end > self.data.len() {
+            log::error!("LOD entry out of bounds: index={} offset={} size={} data_len={}", index, offset, size, self.data.len());
+            return None;
+        }
+        Some(self.data[offset..end].to_vec())
     }
 }
 
@@ -191,10 +179,7 @@ impl Archive for LodArchive {
 
     fn get_file_raw(&self, name: &str) -> Option<Vec<u8>> {
         if name.is_empty() {
-            log::warn!(
-                "Attempted to fetch file with empty name from LOD archive: {:?}",
-                self.path
-            );
+            log::warn!("Attempted to fetch file with empty name from LOD archive");
             return None;
         }
         let lower = name.to_lowercase();
