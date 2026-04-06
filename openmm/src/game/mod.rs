@@ -20,6 +20,7 @@ pub(crate) mod player;
 pub(crate) mod raycast;
 pub(crate) mod sky;
 pub(crate) mod sound;
+pub(crate) mod sprite_material;
 pub(crate) mod terrain_material;
 pub(crate) mod world_state;
 
@@ -52,6 +53,7 @@ impl Plugin for InGamePlugin {
         .add_plugins(actor_combat::ActorCombatPlugin)
         .add_plugins(monster_ai::MonsterAiPlugin)
         .add_plugins(MaterialPlugin::<terrain_material::TerrainMaterial>::default())
+        .add_plugins(MaterialPlugin::<sprite_material::SpriteMaterial>::default())
         .add_plugins(party::PartyPlugin);
     }
 }

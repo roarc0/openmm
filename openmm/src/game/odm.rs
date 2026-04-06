@@ -6,6 +6,7 @@ use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::InGame;
 use crate::game::entities::{actor, sprites};
+use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
 use crate::game::terrain_material::{TerrainMaterial, WaterExtension};
 
 /// Marker on each outdoor BSP model sub-mesh entity — tracks which model and faces it represents.
@@ -46,7 +47,7 @@ struct PendingSpawns {
     dec_sprite_cache: std::collections::HashMap<
         String,
         (
-            Handle<StandardMaterial>,
+            Handle<SpriteMaterial>,
             Handle<Mesh>,
             f32,
             f32,
@@ -237,6 +238,7 @@ fn spawn_world(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
     mut prepared: Option<ResMut<PreparedWorld>>,
     save_data: Res<crate::save::GameSave>,
@@ -475,6 +477,7 @@ fn lazy_spawn(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlaySoundEvent>,
     mut map_events: Option<ResMut<crate::game::events::MapEvents>>,
@@ -530,7 +533,7 @@ fn lazy_spawn(
                 &dec.sprite_name,
                 game_assets.assets(),
                 &mut images,
-                &mut materials,
+                &mut sprite_materials,
                 &mut Some(&mut p.sprite_cache),
             );
             if px_w > 0.0 {
@@ -606,7 +609,7 @@ fn lazy_spawn(
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
 
             // Build per-frame materials and masks; replicate across 5 directions (non-directional).
-            let mut frame_mats: Vec<[Handle<StandardMaterial>; 5]> = vec![];
+            let mut frame_mats: Vec<[Handle<SpriteMaterial>; 5]> = vec![];
             let mut frame_masks: Vec<[std::sync::Arc<crate::game::entities::sprites::AlphaMask>; 5]> = vec![];
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
@@ -614,15 +617,18 @@ fn lazy_spawn(
                 let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
                     rgba,
                 )));
-                let mat = materials.add(StandardMaterial {
-                    unlit: true,
-                    base_color_texture: Some(tex),
-                    alpha_mode: AlphaMode::Mask(0.5),
-                    cull_mode: None,
-                    double_sided: true,
-                    perceptual_roughness: 1.0,
-                    reflectance: 0.0,
-                    ..default()
+                let mat = sprite_materials.add(SpriteMaterial {
+                    base: StandardMaterial {
+                        unlit: true,
+                        base_color_texture: Some(tex),
+                        alpha_mode: AlphaMode::Mask(0.5),
+                        cull_mode: None,
+                        double_sided: true,
+                        perceptual_roughness: 1.0,
+                        reflectance: 0.0,
+                        ..default()
+                    },
+                    extension: SpriteExtension::default(),
                 });
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
@@ -704,15 +710,18 @@ fn lazy_spawn(
                 let msk = std::sync::Arc::new(crate::game::entities::sprites::AlphaMask::from_image(&rgba));
                 let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
                 let tex = images.add(bevy_img);
-                let m = materials.add(StandardMaterial {
-                    unlit: true,
-                    base_color_texture: Some(tex),
-                    alpha_mode: AlphaMode::Mask(0.5),
-                    cull_mode: None,
-                    double_sided: true,
-                    perceptual_roughness: 1.0,
-                    reflectance: 0.0,
-                    ..default()
+                let m = sprite_materials.add(SpriteMaterial {
+                    base: StandardMaterial {
+                        unlit: true,
+                        base_color_texture: Some(tex),
+                        alpha_mode: AlphaMode::Mask(0.5),
+                        cull_mode: None,
+                        double_sided: true,
+                        perceptual_roughness: 1.0,
+                        reflectance: 0.0,
+                        ..default()
+                    },
+                    extension: SpriteExtension::default(),
                 });
                 let q = meshes.add(Rectangle::new(w, h));
                 p.dec_sprite_cache
@@ -807,7 +816,7 @@ fn lazy_spawn(
                 &actor.dying_sprite,
                 game_assets.assets(),
                 &mut images,
-                &mut materials,
+                &mut sprite_materials,
                 &mut Some(&mut p.sprite_cache),
                 actor.variant,
                 actor.palette_id,
@@ -882,7 +891,7 @@ fn lazy_spawn(
             "",
             game_assets.assets(),
             &mut images,
-            &mut materials,
+            &mut sprite_materials,
             &mut Some(&mut p.sprite_cache),
             actor.variant,
             actor.palette_id,
@@ -1019,7 +1028,7 @@ fn lazy_spawn(
             &mon.dying_sprite,
             game_assets.assets(),
             &mut images,
-            &mut materials,
+            &mut sprite_materials,
             &mut Some(&mut p.sprite_cache),
             mon.variant,
             mon.palette_id,

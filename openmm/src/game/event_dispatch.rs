@@ -11,6 +11,7 @@ use openmm_data::odm::mm6_to_bevy;
 use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::party::Party;
+use crate::game::sprite_material::SpriteMaterial;
 
 /// Bundles save + state transition to stay within Bevy's 16-param system limit.
 #[derive(SystemParam)]
@@ -22,6 +23,7 @@ use crate::game::entities::actor::Actor;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
+use crate::game::lighting::CurrentSpriteTint;
 use crate::game::map_name::MapName;
 use crate::game::odm::ApplyTextureOutdoors;
 use crate::game::sound::SoundManager;
@@ -38,7 +40,7 @@ struct MapEntityParams<'w, 's> {
         's,
         (
             &'static DecorationInfo,
-            &'static mut MeshMaterial3d<StandardMaterial>,
+            &'static mut MeshMaterial3d<SpriteMaterial>,
             &'static mut Mesh3d,
             &'static mut Transform,
         ),
@@ -47,6 +49,7 @@ struct MapEntityParams<'w, 's> {
     actors: Query<'w, 's, (&'static mut Actor, &'static mut Visibility)>,
     player: Query<'w, 's, &'static mut Transform, With<crate::game::player::Player>>,
     player_settings: Res<'w, crate::game::player::PlayerSettings>,
+    sprite_tint: Res<'w, CurrentSpriteTint>,
 }
 
 /// Bundles audio + mesh assets + game_time to stay within Bevy's 16-param limit.
@@ -433,7 +436,7 @@ fn process_events(
     map_events: Option<Res<MapEvents>>,
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     mut commands: Commands,
     mut hud_view: ResMut<HudView>,
     mut footer: ResMut<FooterText>,
@@ -730,7 +733,7 @@ fn process_events(
                         sprite_name,
                         game_assets.assets(),
                         &mut images,
-                        &mut materials,
+                        &mut sprite_materials,
                         &mut audio.meshes,
                     )
                 else {
@@ -740,8 +743,13 @@ fn process_events(
                 for (deco_info, mut mat_handle, mut mesh_handle, mut transform) in entities.decorations.iter_mut() {
                     if deco_info.billboard_index == target_idx {
                         transform.translation.y = ground_y + new_h / 2.0;
-                        mesh_handle.0 = new_mesh;
-                        mat_handle.0 = new_mat;
+                        mesh_handle.0 = new_mesh.clone();
+                        mat_handle.0 = new_mat.clone();
+                        // Apply current tint immediately so the new sprite matches the
+                        // scene lighting without waiting for the next lighting tick.
+                        if let Some(mat) = sprite_materials.get_mut(&new_mat) {
+                            mat.extension.tint = entities.sprite_tint.tint;
+                        }
                         break;
                     }
                 }

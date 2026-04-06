@@ -10,6 +10,8 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use image::DynamicImage;
 
+use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
+
 use openmm_data::Assets as DataAssets;
 
 use crate::game::entities::actor::Actor;
@@ -54,7 +56,7 @@ impl AlphaMask {
 #[derive(Resource, Default, Clone)]
 pub struct SpriteCache {
     /// Maps "root_name + frame_letter + direction" to material handle
-    materials: HashMap<String, Handle<StandardMaterial>>,
+    materials: HashMap<String, Handle<SpriteMaterial>>,
     /// Maps cache key to (width, height)
     dimensions: HashMap<String, (f32, f32)>,
     /// Alpha masks keyed identically to `materials`.
@@ -69,7 +71,7 @@ impl SpriteCache {
         roots: &[(&str, u8, u16)],
         assets: &DataAssets,
         images: &mut Assets<Image>,
-        materials: &mut Assets<StandardMaterial>,
+        materials: &mut Assets<SpriteMaterial>,
     ) {
         for &(root, variant, palette_id) in roots {
             load_sprite_frames(
@@ -109,7 +111,7 @@ fn cache_key(root: &str, variant: u8, min_w: u32, min_h: u32, palette_id: u16) -
 #[derive(Component)]
 pub struct SpriteSheet {
     /// states[0]=standing, states[1]=walking (if available)
-    pub states: Vec<Vec<[Handle<StandardMaterial>; 5]>>,
+    pub states: Vec<Vec<[Handle<SpriteMaterial>; 5]>>,
     /// Width and height per state (sprites can differ between standing/walking).
     pub state_dimensions: Vec<(f32, f32)>,
     /// Per-state, per-frame, per-direction alpha masks (parallel to `states`).
@@ -126,7 +128,7 @@ pub struct SpriteSheet {
 
 impl SpriteSheet {
     pub fn new(
-        states: Vec<Vec<[Handle<StandardMaterial>; 5]>>,
+        states: Vec<Vec<[Handle<SpriteMaterial>; 5]>>,
         state_dimensions: Vec<(f32, f32)>,
         state_masks: Vec<Vec<[Arc<AlphaMask>; 5]>>,
     ) -> Self {
@@ -158,12 +160,12 @@ pub fn load_entity_sprites(
     dying_root: &str,
     assets: &DataAssets,
     images: &mut Assets<Image>,
-    materials: &mut Assets<StandardMaterial>,
+    materials: &mut Assets<SpriteMaterial>,
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
     palette_id: u16,
 ) -> (
-    Vec<Vec<[Handle<StandardMaterial>; 5]>>,
+    Vec<Vec<[Handle<SpriteMaterial>; 5]>>,
     Vec<Vec<[Arc<AlphaMask>; 5]>>,
     f32,
     f32,
@@ -264,13 +266,13 @@ pub fn load_sprite_frames(
     root: &str,
     assets: &DataAssets,
     images: &mut Assets<Image>,
-    materials: &mut Assets<StandardMaterial>,
+    materials: &mut Assets<SpriteMaterial>,
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
     min_w: u32,
     min_h: u32,
     palette_id: u16,
-) -> (Vec<[Handle<StandardMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
+) -> (Vec<[Handle<SpriteMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
     let key = cache_key(root, variant, min_w, min_h, palette_id);
 
@@ -299,7 +301,7 @@ pub fn load_sprite_frames(
 
 fn store_in_cache(
     key: &str,
-    frames: &[[Handle<StandardMaterial>; 5]],
+    frames: &[[Handle<SpriteMaterial>; 5]],
     frame_masks: &[[Arc<AlphaMask>; 5]],
     w: f32,
     h: f32,
@@ -318,10 +320,7 @@ fn store_in_cache(
     }
 }
 
-fn rebuild_from_cache(
-    key: &str,
-    cache: &SpriteCache,
-) -> (Vec<[Handle<StandardMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>) {
+fn rebuild_from_cache(key: &str, cache: &SpriteCache) -> (Vec<[Handle<SpriteMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>) {
     let mut frames = Vec::new();
     let mut mask_frames = Vec::new();
     let fallback_mask = Arc::new(AlphaMask {
@@ -334,7 +333,7 @@ fn rebuild_from_cache(
         let key0 = format!("{}{}0", key, frame_letter);
         if let Some(mat0) = cache.materials.get(&key0) {
             let mask0 = cache.masks.get(&key0).cloned().unwrap_or_else(|| fallback_mask.clone());
-            let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+            let mut dirs: [Handle<SpriteMaterial>; 5] = Default::default();
             let mut masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
             for di in 0..5 {
                 let mat_key = format!("{}{}{}", key, frame_letter, di);
@@ -357,12 +356,12 @@ fn decode_sprite_frames(
     root: &str,
     assets: &DataAssets,
     images: &mut Assets<Image>,
-    materials: &mut Assets<StandardMaterial>,
+    materials: &mut Assets<SpriteMaterial>,
     variant: u8,
     min_w: u32,
     min_h: u32,
     palette_id: u16,
-) -> (Vec<[Handle<StandardMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
+) -> (Vec<[Handle<SpriteMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
     // First pass: collect all raw sprites and find max dimensions.
     let mut raw_sprites: Vec<Vec<Option<DynamicImage>>> = Vec::new();
     let mut max_w = min_w;
@@ -439,7 +438,7 @@ fn decode_sprite_frames(
         data: vec![true],
     });
     for dir_imgs in raw_sprites {
-        let mut dir_materials: [Handle<StandardMaterial>; 5] = Default::default();
+        let mut dir_materials: [Handle<SpriteMaterial>; 5] = Default::default();
         let mut dir_masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
         for (dir, img_opt) in dir_imgs.into_iter().enumerate() {
             if let Some(img) = img_opt {
@@ -460,15 +459,18 @@ fn decode_sprite_frames(
                 dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
                 let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
                 let tex = images.add(bevy_img);
-                dir_materials[dir] = materials.add(StandardMaterial {
-                    unlit: true,
-                    base_color_texture: Some(tex),
-                    alpha_mode: AlphaMode::Mask(0.5),
-                    double_sided: true,
-                    cull_mode: None,
-                    perceptual_roughness: 1.0,
-                    reflectance: 0.0,
-                    ..default()
+                dir_materials[dir] = materials.add(SpriteMaterial {
+                    base: StandardMaterial {
+                        unlit: true,
+                        base_color_texture: Some(tex),
+                        alpha_mode: AlphaMode::Mask(0.5),
+                        double_sided: true,
+                        cull_mode: None,
+                        perceptual_roughness: 1.0,
+                        reflectance: 0.0,
+                        ..default()
+                    },
+                    extension: SpriteExtension::default(),
                 });
             } else if dir > 0 {
                 dir_materials[dir] = dir_materials[0].clone();
@@ -528,7 +530,7 @@ pub fn update_sprite_sheets(
     camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
     mut query: Query<(
         &mut SpriteSheet,
-        &mut MeshMaterial3d<StandardMaterial>,
+        &mut MeshMaterial3d<SpriteMaterial>,
         &mut Transform,
         &GlobalTransform,
         &AnimationState,
@@ -620,9 +622,17 @@ pub fn update_sprite_sheets(
             }
         }
 
-        transform.rotation = Quat::from_rotation_y(camera_angle);
-        // Mirror for octants 5-7 via negative X scale, otherwise keep scale at 1.
-        transform.scale = Vec3::new(if mirrored { -1.0 } else { 1.0 }, 1.0, 1.0);
+        // Only write when value actually changed — writing Transform marks it dirty,
+        // causing GlobalTransform propagation and render-world extraction every frame.
+        let new_rot = Quat::from_rotation_y(camera_angle);
+        if transform.rotation != new_rot {
+            transform.rotation = new_rot;
+        }
+        // Scale only changes when mirrored octant flips (infrequent) — guard the write.
+        let new_x_scale = if mirrored { -1.0 } else { 1.0 };
+        if transform.scale.x != new_x_scale {
+            transform.scale.x = new_x_scale;
+        }
     }
 }
 
@@ -653,14 +663,14 @@ pub fn load_decoration_directions(
     root: &str,
     assets: &DataAssets,
     images: &mut Assets<Image>,
-    materials: &mut Assets<StandardMaterial>,
+    materials: &mut Assets<SpriteMaterial>,
     cache: &mut Option<&mut SpriteCache>,
-) -> ([Handle<StandardMaterial>; 5], [Arc<AlphaMask>; 5], f32, f32) {
+) -> ([Handle<SpriteMaterial>; 5], [Arc<AlphaMask>; 5], f32, f32) {
     let key = format!("dec:{}", root);
     if let Some(c) = cache.as_ref()
         && let Some(&(w, h)) = c.dimensions.get(&key)
     {
-        let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+        let mut dirs: [Handle<SpriteMaterial>; 5] = Default::default();
         let fallback = Arc::new(AlphaMask {
             width: 1,
             height: 1,
@@ -717,7 +727,7 @@ pub fn load_decoration_directions(
         height: 1,
         data: vec![true],
     });
-    let mut dirs: [Handle<StandardMaterial>; 5] = Default::default();
+    let mut dirs: [Handle<SpriteMaterial>; 5] = Default::default();
     let mut dir_masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
     for (dir, img_opt) in raw.into_iter().enumerate() {
         if let Some(img) = img_opt {
@@ -738,15 +748,18 @@ pub fn load_decoration_directions(
             dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
             let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
             let tex = images.add(bevy_img);
-            dirs[dir] = materials.add(StandardMaterial {
-                unlit: true,
-                base_color_texture: Some(tex),
-                alpha_mode: AlphaMode::Mask(0.5),
-                double_sided: true,
-                cull_mode: None,
-                perceptual_roughness: 1.0,
-                reflectance: 0.0,
-                ..default()
+            dirs[dir] = materials.add(SpriteMaterial {
+                base: StandardMaterial {
+                    unlit: true,
+                    base_color_texture: Some(tex),
+                    alpha_mode: AlphaMode::Mask(0.5),
+                    double_sided: true,
+                    cull_mode: None,
+                    perceptual_roughness: 1.0,
+                    reflectance: 0.0,
+                    ..default()
+                },
+                extension: SpriteExtension::default(),
             });
         } else if dir > 0 {
             dirs[dir] = dirs[0].clone();
@@ -776,9 +789,9 @@ pub fn load_static_decoration_sprite(
     sprite_name: &str,
     assets: &DataAssets,
     images: &mut Assets<Image>,
-    materials: &mut Assets<StandardMaterial>,
+    materials: &mut Assets<SpriteMaterial>,
     meshes: &mut Assets<Mesh>,
-) -> Option<(Handle<StandardMaterial>, Handle<Mesh>, f32, f32)> {
+) -> Option<(Handle<SpriteMaterial>, Handle<Mesh>, f32, f32)> {
     let name_lower = sprite_name.to_lowercase();
     let img = assets.lod().sprite(&name_lower)?;
     let dsft_scale = assets.lod().dsft_scale_for_group(&name_lower);
@@ -786,15 +799,18 @@ pub fn load_static_decoration_sprite(
     let h = img.height() as f32 * dsft_scale;
     let bevy_img = crate::assets::dynamic_to_bevy_image(img);
     let tex = images.add(bevy_img);
-    let mat = materials.add(StandardMaterial {
-        unlit: true,
-        base_color_texture: Some(tex),
-        alpha_mode: AlphaMode::Mask(0.5),
-        cull_mode: None,
-        double_sided: true,
-        perceptual_roughness: 1.0,
-        reflectance: 0.0,
-        ..default()
+    let mat = materials.add(SpriteMaterial {
+        base: StandardMaterial {
+            unlit: true,
+            base_color_texture: Some(tex),
+            alpha_mode: AlphaMode::Mask(0.5),
+            cull_mode: None,
+            double_sided: true,
+            perceptual_roughness: 1.0,
+            reflectance: 0.0,
+            ..default()
+        },
+        extension: SpriteExtension::default(),
     });
     let mesh = meshes.add(Rectangle::new(w, h));
     Some((mat, mesh, w, h))

@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+
+use bevy::asset::AssetId;
 use bevy::prelude::*;
 
 use crate::GameState;
@@ -6,6 +9,7 @@ use crate::game::InGame;
 use crate::game::entities::{Billboard, SelfLit};
 use crate::game::game_time::GameTime;
 use crate::game::player::Player;
+use crate::game::sprite_material::SpriteMaterial;
 use crate::game::terrain_material::TerrainMaterial;
 
 pub struct LightingPlugin;
@@ -13,8 +17,27 @@ pub struct LightingPlugin;
 impl Plugin for LightingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LightingState>()
+            .init_resource::<CurrentSpriteTint>()
             .add_systems(OnEnter(GameState::Game), sun_setup)
             .add_systems(Update, animate_day_cycle.run_if(in_state(GameState::Game)));
+    }
+}
+
+/// The tint currently applied to all billboard/actor materials (linear RGBA).
+/// Exposed so other systems (e.g. event dispatch) can immediately apply the correct
+/// tint to any newly created or swapped material without waiting for the next lighting tick.
+#[derive(Resource)]
+pub struct CurrentSpriteTint {
+    pub tint: Vec4,
+    pub selflit_tint: Vec4,
+}
+
+impl Default for CurrentSpriteTint {
+    fn default() -> Self {
+        Self {
+            tint: Vec4::ONE,
+            selflit_tint: Vec4::ONE,
+        }
     }
 }
 
@@ -122,25 +145,26 @@ fn animate_day_cycle(
     cfg: Res<GameConfig>,
     mut lighting_state: ResMut<LightingState>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
+    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
+    mut current_tint: ResMut<CurrentSpriteTint>,
     indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
     // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
     model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
     // Billboard decorations — tinted per-frame (except SelfLit ones like torches/campfires).
-    billboard_query: Query<&MeshMaterial3d<StandardMaterial>, (With<Billboard>, Without<SelfLit>)>,
-    // Actor sprites (NPCs/monsters) — SpriteSheet, no Billboard marker.
-    // Exclude SelfLit: animated fire decorations also have SpriteSheet but must stay full-bright.
-    actor_query: Query<
-        &MeshMaterial3d<StandardMaterial>,
-        (With<crate::game::entities::sprites::SpriteSheet>, Without<SelfLit>),
-    >,
+    billboard_query: Query<&MeshMaterial3d<SpriteMaterial>, (With<Billboard>, Without<SelfLit>)>,
+    // All SpriteSheet actors (NPCs/monsters): tint ALL frames/directions, not just the active one.
+    // Querying only the active MeshMaterial3d misses other frames → they flash when animation advances.
+    actor_sheets: Query<&crate::game::entities::sprites::SpriteSheet, Without<SelfLit>>,
     // SelfLit sprites (campfires, torches, braziers): get a very subtle tint so they don't
     // feel disconnected from the scene, but remain mostly full-bright as light sources.
-    selflit_query: Query<
-        &MeshMaterial3d<StandardMaterial>,
+    selflit_sheets: Query<&crate::game::entities::sprites::SpriteSheet, With<SelfLit>>,
+    selflit_billboard_query: Query<
+        &MeshMaterial3d<SpriteMaterial>,
         (
             With<SelfLit>,
-            Or<(With<Billboard>, With<crate::game::entities::sprites::SpriteSheet>)>,
+            With<Billboard>,
+            Without<crate::game::entities::sprites::SpriteSheet>,
         ),
     >,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
@@ -153,6 +177,8 @@ fn animate_day_cycle(
     // Billboards are always unlit — their day/night effect comes from base_color tinting.
     if cfg.lighting != lighting_state.last_mode {
         lighting_state.last_mode = cfg.lighting.clone();
+        // Force sprite tint re-apply after mode change.
+        lighting_state.last_tint = None;
         let unlit = cfg.lighting != "enhanced";
 
         // Indoor walls must stay PBR regardless of mode — they need to respond
@@ -188,20 +214,30 @@ fn animate_day_cycle(
     let tod = game_time.time_of_day();
 
     // ── Sun and ambient ────────────────────────────────────────────────────────
-    let (new_transform, color, illuminance) = sun_from_time(tod);
+    // 1 real second = 1 game minute. Update sun/ambient at most once per ~2 game seconds
+    // (threshold 0.0014 ≈ 2/1440) to avoid marking DirectionalLight changed every frame,
+    // which triggers shadow re-renders.
+    const SUN_TOD_THRESHOLD: f32 = 0.0014;
+    let sun_needs_update =
+        (tod - lighting_state.last_sun_tod).abs() > SUN_TOD_THRESHOLD || lighting_state.last_sun_tod == 0.0;
 
-    for (mut transform, mut light) in sun_query.iter_mut() {
-        *transform = new_transform;
-        light.color = color;
-        // Disable the directional sun indoors — dungeon lighting comes entirely
-        // from the party torch (PointLight) and decoration lights.
-        light.illuminance = if is_indoor {
-            0.0
-        } else if cfg.lighting == "enhanced" {
-            illuminance * 1.06
-        } else {
-            0.0
-        };
+    if sun_needs_update {
+        lighting_state.last_sun_tod = tod;
+
+        let (new_transform, color, illuminance) = sun_from_time(tod);
+        for (mut transform, mut light) in sun_query.iter_mut() {
+            *transform = new_transform;
+            light.color = color;
+            // Disable the directional sun indoors — dungeon lighting comes entirely
+            // from the party torch (PointLight) and decoration lights.
+            light.illuminance = if is_indoor {
+                0.0
+            } else if cfg.lighting == "enhanced" {
+                illuminance * 1.06
+            } else {
+                0.0
+            };
+        }
     }
 
     if is_indoor {
@@ -233,10 +269,12 @@ fn animate_day_cycle(
             ambient.brightness = ambient_brightness;
         }
     } else if cfg.lighting == "enhanced" {
-        let (ambient_color, ambient_brightness) = ambient_from_time(tod);
-        for mut ambient in ambient_query.iter_mut() {
-            ambient.color = ambient_color;
-            ambient.brightness = ambient_brightness * 3.3;
+        if sun_needs_update {
+            let (ambient_color, ambient_brightness) = ambient_from_time(tod);
+            for mut ambient in ambient_query.iter_mut() {
+                ambient.color = ambient_color;
+                ambient.brightness = ambient_brightness * 3.3;
+            }
         }
     } else {
         for mut ambient in ambient_query.iter_mut() {
@@ -249,35 +287,90 @@ fn animate_day_cycle(
     // Sprites are unlit to avoid directional-light flicker.
     // Outdoors: tint follows time of day. Indoors: fixed dim torch-warm tint so
     // sprites look naturally lit by the surrounding dungeon ambiance.
+    //
+    // Performance: `get_mut` on a material marks it as changed → GPU re-upload.
+    // We cache the last applied tint and skip all material writes if the tint
+    // hasn't changed by a perceptible amount (threshold ≈ 1/512 ≈ ~3 real seconds).
     let tint = if is_indoor {
-        // Mid-dim warm tint — sprites appear somewhat lit even without nearby lights.
         Color::srgb(0.35, 0.30, 0.22)
     } else {
         sprite_tint_from_time(tod)
     };
-    let mut tinted = std::collections::HashSet::new();
-    for mat_handle in billboard_query.iter().chain(actor_query.iter()) {
-        if tinted.insert(mat_handle.id())
-            && let Some(mat) = std_materials.get_mut(mat_handle.id())
-        {
-            mat.base_color = tint;
-        }
-    }
-
-    // SelfLit sprites (campfires, torches) blend a small fraction of the ambient tint
-    // so they feel grounded in the scene rather than floating at pure full-bright.
-    const SELFLIT_TINT_BLEND: f32 = 0.12;
     let t = tint.to_srgba();
-    let selflit_tint = Color::srgb(
-        1.0 - (1.0 - t.red) * SELFLIT_TINT_BLEND,
-        1.0 - (1.0 - t.green) * SELFLIT_TINT_BLEND,
-        1.0 - (1.0 - t.blue) * SELFLIT_TINT_BLEND,
-    );
-    for mat_handle in selflit_query.iter() {
-        if tinted.insert(mat_handle.id())
-            && let Some(mat) = std_materials.get_mut(mat_handle.id())
-        {
-            mat.base_color = selflit_tint;
+    let tint_rgb = [t.red, t.green, t.blue];
+
+    const TINT_THRESHOLD: f32 = 1.0 / 512.0;
+    let tint_changed = lighting_state.last_tint.is_none_or(|last| {
+        (last[0] - tint_rgb[0]).abs() > TINT_THRESHOLD
+            || (last[1] - tint_rgb[1]).abs() > TINT_THRESHOLD
+            || (last[2] - tint_rgb[2]).abs() > TINT_THRESHOLD
+    });
+
+    if tint_changed {
+        lighting_state.last_tint = Some(tint_rgb);
+        lighting_state.tinted.clear();
+
+        // Convert sRGB tint to linear for the shader uniform.
+        let tl = tint.to_linear();
+        let tint_vec4 = Vec4::new(tl.red, tl.green, tl.blue, 1.0);
+        current_tint.tint = tint_vec4;
+
+        // Static billboard decorations (single material per entity).
+        for mat_handle in billboard_query.iter() {
+            if lighting_state.tinted.insert(mat_handle.id())
+                && let Some(mat) = sprite_materials.get_mut(mat_handle.id())
+            {
+                mat.extension.tint = tint_vec4;
+            }
+        }
+
+        // Actor/NPC SpriteSheets: tint ALL frames × directions, not just the active handle.
+        // Updating only the active MeshMaterial3d causes the other frames to flash full-bright
+        // when the animation advances to an un-tinted frame.
+        for sheet in actor_sheets.iter() {
+            for state in &sheet.states {
+                for frame in state {
+                    for handle in frame {
+                        if lighting_state.tinted.insert(handle.id())
+                            && let Some(mat) = sprite_materials.get_mut(handle.id())
+                        {
+                            mat.extension.tint = tint_vec4;
+                        }
+                    }
+                }
+            }
+        }
+
+        // SelfLit sprites (campfires, torches) blend a small fraction of the ambient tint
+        // so they feel grounded in the scene rather than floating at pure full-bright.
+        const SELFLIT_TINT_BLEND: f32 = 0.12;
+        let selflit_tint = Color::srgb(
+            1.0 - (1.0 - t.red) * SELFLIT_TINT_BLEND,
+            1.0 - (1.0 - t.green) * SELFLIT_TINT_BLEND,
+            1.0 - (1.0 - t.blue) * SELFLIT_TINT_BLEND,
+        );
+        let stl = selflit_tint.to_linear();
+        let selflit_vec4 = Vec4::new(stl.red, stl.green, stl.blue, 1.0);
+        current_tint.selflit_tint = selflit_vec4;
+        for mat_handle in selflit_billboard_query.iter() {
+            if lighting_state.tinted.insert(mat_handle.id())
+                && let Some(mat) = sprite_materials.get_mut(mat_handle.id())
+            {
+                mat.extension.tint = selflit_vec4;
+            }
+        }
+        for sheet in selflit_sheets.iter() {
+            for state in &sheet.states {
+                for frame in state {
+                    for handle in frame {
+                        if lighting_state.tinted.insert(handle.id())
+                            && let Some(mat) = sprite_materials.get_mut(handle.id())
+                        {
+                            mat.extension.tint = selflit_vec4;
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -286,4 +379,10 @@ fn animate_day_cycle(
 #[derive(Resource, Default)]
 struct LightingState {
     last_mode: String,
+    /// Last tod at which sun/ambient were updated. Skip update below this threshold.
+    last_sun_tod: f32,
+    /// Last tint applied to billboard/actor materials (rgb). `None` = never applied → force update.
+    last_tint: Option<[f32; 3]>,
+    /// Reused every frame to deduplicate material updates (avoids per-frame allocation).
+    tinted: HashSet<AssetId<SpriteMaterial>>,
 }

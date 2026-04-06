@@ -19,6 +19,7 @@ use crate::game::events::MapEvents;
 use crate::game::hud::HudView;
 use crate::game::player::PlayerCamera;
 use crate::game::raycast::{point_in_polygon, ray_plane_intersect};
+use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
 use crate::states::loading::PreparedIndoorWorld;
 
 // --- Components ---
@@ -249,6 +250,7 @@ fn spawn_indoor_world(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     game_assets: Res<crate::assets::GameAssets>,
     cfg: Res<crate::config::GameConfig>,
 ) {
@@ -429,7 +431,7 @@ fn spawn_indoor_world(
                 key,
                 game_assets.assets(),
                 &mut images,
-                &mut materials,
+                &mut sprite_materials,
                 &mut Some(&mut sprite_cache),
             );
             if px_w == 0.0 {
@@ -491,15 +493,18 @@ fn spawn_indoor_world(
                 let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
                     rgba,
                 )));
-                let mat = materials.add(StandardMaterial {
-                    unlit: true,
-                    base_color_texture: Some(tex),
-                    alpha_mode: AlphaMode::Mask(0.5),
-                    cull_mode: None,
-                    double_sided: true,
-                    perceptual_roughness: 1.0,
-                    reflectance: 0.0,
-                    ..default()
+                let mat = sprite_materials.add(SpriteMaterial {
+                    base: StandardMaterial {
+                        unlit: true,
+                        base_color_texture: Some(tex),
+                        alpha_mode: AlphaMode::Mask(0.5),
+                        cull_mode: None,
+                        double_sided: true,
+                        perceptual_roughness: 1.0,
+                        reflectance: 0.0,
+                        ..default()
+                    },
+                    extension: SpriteExtension::default(),
                 });
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
@@ -568,15 +573,18 @@ fn spawn_indoor_world(
             let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
                 rgba,
             )));
-            let mat = materials.add(StandardMaterial {
-                unlit: true,
-                base_color_texture: Some(tex),
-                alpha_mode: AlphaMode::Mask(0.5),
-                cull_mode: None,
-                double_sided: true,
-                perceptual_roughness: 1.0,
-                reflectance: 0.0,
-                ..default()
+            let mat = sprite_materials.add(SpriteMaterial {
+                base: StandardMaterial {
+                    unlit: true,
+                    base_color_texture: Some(tex),
+                    alpha_mode: AlphaMode::Mask(0.5),
+                    cull_mode: None,
+                    double_sided: true,
+                    perceptual_roughness: 1.0,
+                    reflectance: 0.0,
+                    ..default()
+                },
+                extension: SpriteExtension::default(),
             });
             let quad = meshes.add(Rectangle::new(w, h));
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
@@ -668,7 +676,7 @@ fn spawn_indoor_world(
                 &mon.dying_sprite,
                 game_assets.assets(),
                 &mut images,
-                &mut materials,
+                &mut sprite_materials,
                 &mut Some(&mut sprite_cache),
                 mon.variant,
                 mon.palette_id,

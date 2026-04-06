@@ -63,7 +63,7 @@ struct LoadingProgress {
         std::collections::HashMap<
             String,
             (
-                Handle<StandardMaterial>,
+                Handle<crate::game::sprite_material::SpriteMaterial>,
                 Handle<Mesh>,
                 f32,
                 f32,
@@ -280,7 +280,7 @@ pub struct PreparedWorld {
     pub dec_sprite_cache: std::collections::HashMap<
         String,
         (
-            Handle<StandardMaterial>,
+            Handle<crate::game::sprite_material::SpriteMaterial>,
             Handle<Mesh>,
             f32,
             f32,
@@ -423,7 +423,7 @@ fn loading_step(
     mut text_query: Query<&mut Text, With<LoadingText>>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut sprite_materials: ResMut<Assets<crate::game::sprite_material::SpriteMaterial>>,
     world_state: Option<Res<crate::game::world_state::WorldState>>,
 ) {
     // Update loading text
@@ -879,12 +879,11 @@ fn loading_step(
                     _ => load_request.map_name.to_string().replace(".blv", ""),
                 };
                 // Resolve BLV decorations (torches, chests, etc.)
-                let decorations =
-                    openmm_data::assets::Decorations::from_blv(game_assets.assets(), &blv.decorations)
-                        .unwrap_or_else(|e| {
-                            warn!("Failed to resolve indoor decorations: {e}");
-                            openmm_data::assets::Decorations::empty()
-                        });
+                let decorations = openmm_data::assets::Decorations::from_blv(game_assets.assets(), &blv.decorations)
+                    .unwrap_or_else(|e| {
+                        warn!("Failed to resolve indoor decorations: {e}");
+                        openmm_data::assets::Decorations::empty()
+                    });
 
                 // Per-sector ambient data for the lighting system.
                 // Sector 0 is always a sentinel "void" sector — skip it.
@@ -1190,7 +1189,7 @@ fn loading_step(
                         &[(root.as_str(), *variant, *palette_id)],
                         game_assets.assets(),
                         &mut images,
-                        &mut materials,
+                        &mut sprite_materials,
                     );
                     queue.sprite_idx += 1;
                 }
@@ -1230,15 +1229,18 @@ fn loading_step(
                                     let bevy_img =
                                         crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
                                     let tex = images.add(bevy_img);
-                                    let m = materials.add(StandardMaterial {
-                                        base_color_texture: Some(tex),
-                                        alpha_mode: AlphaMode::Mask(0.5),
-                                        unlit: true,
-                                        cull_mode: None,
-                                        double_sided: true,
-                                        perceptual_roughness: 1.0,
-                                        reflectance: 0.0,
-                                        ..default()
+                                    let m = sprite_materials.add(crate::game::sprite_material::SpriteMaterial {
+                                        base: StandardMaterial {
+                                            base_color_texture: Some(tex),
+                                            alpha_mode: AlphaMode::Mask(0.5),
+                                            unlit: true,
+                                            cull_mode: None,
+                                            double_sided: true,
+                                            perceptual_roughness: 1.0,
+                                            reflectance: 0.0,
+                                            ..default()
+                                        },
+                                        extension: crate::game::sprite_material::SpriteExtension::default(),
                                     });
                                     let q = meshes.add(Rectangle::new(w, h));
                                     bb_cache.insert(dec.sprite_name.clone(), (m, q, w, h, mask));
