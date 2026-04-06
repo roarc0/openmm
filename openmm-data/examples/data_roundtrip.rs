@@ -3,8 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use openmm_archive::Archive;
-
 use openmm_data::{
     dchest::ChestList,
     ddeclist::DDecList,
@@ -13,13 +11,13 @@ use openmm_data::{
     dsounds::DSounds,
     get_data_path,
     items::ItemsTable,
-    Lod,
+    LodData,
     mapstats::MapStats,
     monlist::MonsterList,
     odm::Odm,
     ddm::Ddm,
     vid::{Vid, VidWriter},
-    LodSerialise, LodWriter,
+    Archive, LodArchive, LodSerialise, LodWriter,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -93,7 +91,7 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
     let name = src.file_name().unwrap().to_string_lossy();
     print!("  LOD: {:<15} ", name);
 
-    let lod = Lod::open(src)?;
+    let lod = LodArchive::open(src)?;
     let mut writer = LodWriter::new();
     let mut count = 0;
     let mut re_serialized = 0;
@@ -110,7 +108,7 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
 
         // Decompress metadata if needed for potential modification.
         // We now store the original compression kind in LodData.
-        let mut lod_data = openmm_data::raw::lod_data::LodData::try_from(data.as_slice()).unwrap();
+        let mut lod_data = LodData::try_from(data.as_slice()).unwrap();
 
         let res = match lower.as_str() {
             "mapstats.txt" => MapStats::parse(&String::from_utf8_lossy(&lod_data.data))

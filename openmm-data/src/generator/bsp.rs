@@ -3,7 +3,7 @@
 //! The box has 8 vertices and 6 quad faces.  A single BSP node covers all faces;
 //! no spatial splitting is needed for a convex box.
 
-use crate::raw::bsp_model::{BSPModel, BSPModelFace, BSPModelHeader, BSPNode, BoundingBox, Plane};
+use crate::assets::bsp_model::{BSPModel, BSPModelFace, BSPModelHeader, BSPNode, BoundingBox, Plane};
 
 /// Build a minimal valid `BSPModel` representing an axis-aligned box.
 ///

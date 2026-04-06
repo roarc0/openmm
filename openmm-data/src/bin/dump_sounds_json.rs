@@ -1,13 +1,13 @@
 use std::fs::File;
 use std::io::Write;
-use openmm_data::{LodManager, dsounds::DSounds, find_path_case_insensitive, Archive};
+use openmm_data::{Assets, dsounds::DSounds, find_path_case_insensitive, Archive};
 use openmm_data::snd::SndArchive;
 use serde_json::json;
 
 fn main() {
     let data_path = openmm_data::get_data_path();
-    let lod_manager = LodManager::new(&data_path).expect("failed to load LODs");
-    let dsounds = match DSounds::load(&lod_manager) {
+    let assets = Assets::new(&data_path).expect("failed to load LODs");
+    let dsounds = match DSounds::load(&assets) {
         Ok(d) => d,
         Err(e) => {
             eprintln!("Error loading dsounds.bin: {}", e);

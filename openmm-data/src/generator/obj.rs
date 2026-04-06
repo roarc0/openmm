@@ -29,7 +29,7 @@
 //! assert!(model.header.faces_count > 0);
 //! ```
 
-use crate::raw::bsp_model::{BSPModel, BSPModelFace, BSPModelHeader, BSPNode, BoundingBox, Plane};
+use crate::assets::bsp_model::{BSPModel, BSPModelFace, BSPModelHeader, BSPNode, BoundingBox, Plane};
 use std::error::Error;
 
 /// How to convert from the OBJ/exporter coordinate system to MM6 world coords.

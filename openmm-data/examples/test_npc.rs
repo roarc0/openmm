@@ -1,14 +1,14 @@
 /// Debug: verify generated NPC names/portraits for peasant actors across maps
 fn main() {
     let lod_path = openmm_data::get_data_path();
-    let mgr = openmm_data::LodManager::new(&lod_path).unwrap();
-    let monlist = openmm_data::raw::monlist::MonsterList::load(&mgr).unwrap();
+    let mgr = openmm_data::Assets::new(&lod_path).unwrap();
+    let monlist = openmm_data::monlist::MonsterList::load(&mgr).unwrap();
 
     let npc_table = mgr.game().npc_table().expect("npcdata.txt");
 
     for map in &["oute3.odm", "oute2.odm"] {
         println!("=== {} ===", map);
-        let Ok(ddm) = openmm_data::raw::ddm::Ddm::load(&mgr, map) else {
+        let Ok(ddm) = openmm_data::ddm::Ddm::load(&mgr, map) else {
             continue;
         };
         for (i, a) in ddm.actors.iter().enumerate() {

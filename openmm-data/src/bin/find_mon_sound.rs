@@ -1,9 +1,9 @@
-use openmm_data::{LodManager, monlist::MonsterList};
+use openmm_data::{Assets, monlist::MonsterList};
 
 fn main() {
     let data_path = openmm_data::get_data_path();
-    let lod_manager = LodManager::new(&data_path).expect("failed to load LODs");
-    let monlist = MonsterList::load(&lod_manager).expect("failed to load dmonlist.bin");
+    let assets = Assets::new(&data_path).expect("failed to load LODs");
+    let monlist = MonsterList::load(&assets).expect("failed to load dmonlist.bin");
 
     let bad_sids = [1403, 1413, 1423, 1433, 1443, 1453, 1463, 1473];
 

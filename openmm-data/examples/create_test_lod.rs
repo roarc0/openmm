@@ -16,7 +16,8 @@
 
 use byteorder::{LittleEndian, WriteBytesExt};
 use openmm_archive::Archive;
-use openmm_data::{LodWriter, Lod, generator::terrain::TerrainGen};
+use openmm_archive::lod::LodArchive;
+use openmm_data::{LodWriter, generator::terrain::TerrainGen};
 use std::{error::Error, io::Write, path::{Path, PathBuf}};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -53,7 +54,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn dump_lod(lod_path: &Path, target_dir: &Path) -> Result<(), Box<dyn Error>> {
-    let lod = Lod::open(lod_path)?;
+    let lod = LodArchive::open(lod_path)?;
     std::fs::create_dir_all(target_dir)?;
     
     for entry in lod.list_files() {

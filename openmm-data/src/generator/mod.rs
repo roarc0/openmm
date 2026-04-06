@@ -16,5 +16,5 @@ pub mod obj;
 
 /// Compress data using zlib. Used for generating LOD bitmaps/sprites.
 pub fn zlib_compress(data: &[u8]) -> Vec<u8> {
-    crate::raw::zlib::compress(data)
+    crate::assets::zlib::compress(data)
 }

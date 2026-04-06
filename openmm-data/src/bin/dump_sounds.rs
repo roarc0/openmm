@@ -13,7 +13,7 @@ fn main() {
         .expect("Audio.snd not found");
 
     println!("Opening {:?}", snd_path);
-    let archive = openmm_data::raw::snd::SndArchive::open(&snd_path).expect("Failed to open Audio.snd");
+    let archive = openmm_data::assets::snd::SndArchive::open(&snd_path).expect("Failed to open Audio.snd");
 
     let output_dir = Path::new("data/dump/sounds");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");

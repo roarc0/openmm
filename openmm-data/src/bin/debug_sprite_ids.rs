@@ -1,10 +1,10 @@
-use openmm_data::{LodManager, ddm::Ddm, dsft::DSFT, monlist::MonsterList};
+use openmm_data::{Assets, ddm::Ddm, dsft::DSFT, monlist::MonsterList};
 
 fn main() {
-    let lod_manager = LodManager::new(openmm_data::get_data_path()).unwrap();
-    let ddm = Ddm::load(&lod_manager, "oute3.odm").unwrap();
-    let dsft = DSFT::load(&lod_manager).unwrap();
-    let monlist = MonsterList::load(&lod_manager).unwrap();
+    let assets = Assets::new(openmm_data::get_data_path()).unwrap();
+    let ddm = Ddm::load(&assets, "oute3.odm").unwrap();
+    let dsft = DSFT::load(&assets).unwrap();
+    let monlist = MonsterList::load(&assets).unwrap();
 
     println!("=== DDM actors after 1-indexed fix ===\n");
     let mut seen = std::collections::HashSet::new();

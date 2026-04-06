@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 
 use openmm_archive::Archive;
-use openmm_data::raw::vid::{Vid, parse_smk_info};
+use openmm_data::assets::vid::{Vid, parse_smk_info};
 
 fn main() {
     let data_path = openmm_data::get_data_path();

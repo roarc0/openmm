@@ -1,8 +1,8 @@
-use openmm_data::{LodManager, odm::Odm};
+use openmm_data::{Assets, odm::Odm};
 
 fn main() {
-    let lod_manager = LodManager::new(openmm_data::get_data_path()).unwrap();
-    let map = Odm::load(&lod_manager, "oute3.odm").unwrap();
+    let assets = Assets::new(openmm_data::get_data_path()).unwrap();
+    let map = Odm::load(&assets, "oute3.odm").unwrap();
 
     // Find a simple box-like model and print all its wall faces with full data
     for (mi, model) in map.bsp_models.iter().enumerate() {

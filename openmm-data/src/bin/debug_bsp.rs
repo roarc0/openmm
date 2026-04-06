@@ -1,8 +1,8 @@
-use openmm_data::{LodManager, odm::Odm};
+use openmm_data::{Assets, odm::Odm};
 
 fn main() {
-    let lod_manager = LodManager::new(openmm_data::get_data_path()).unwrap();
-    let map = Odm::load(&lod_manager, "oute3.odm").unwrap();
+    let assets = Assets::new(openmm_data::get_data_path()).unwrap();
+    let map = Odm::load(&assets, "oute3.odm").unwrap();
 
     for (mi, model) in map.bsp_models.iter().enumerate().take(5) {
         println!("=== Model {} '{}' ===", mi, model.header.name);
@@ -31,7 +31,7 @@ fn main() {
             let tex_idx = face.texture_id as usize;
             if tex_idx < model.texture_names.len() {
                 let name = &model.texture_names[tex_idx];
-                if let Some(img) = lod_manager.game().bitmap(name) {
+                if let Some(img) = assets.game().bitmap(name) {
                     println!("    texture '{}': {}x{}", name, img.width(), img.height());
                     // Show what UVs would be
                     let w = img.width() as f32;

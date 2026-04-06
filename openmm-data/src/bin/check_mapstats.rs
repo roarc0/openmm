@@ -1,8 +1,8 @@
-use openmm_data::LodManager;
+use openmm_data::Assets;
 
 fn main() {
-    let lod_manager = LodManager::new(openmm_data::get_data_path()).unwrap();
-    let mapstats = openmm_data::mapstats::MapStats::load(&lod_manager).unwrap();
+    let assets = Assets::new(openmm_data::get_data_path()).unwrap();
+    let mapstats = openmm_data::mapstats::MapStats::load(&assets).unwrap();
 
     println!("All maps with music tracks:");
     for map in &mapstats.maps {

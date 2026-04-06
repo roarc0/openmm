@@ -57,8 +57,8 @@ pub fn find_path_case_insensitive(base: &std::path::Path, relative: &str) -> Opt
 }
 
 #[cfg(test)]
-pub fn test_lod() -> Option<crate::LodManager> {
-    crate::LodManager::new(crate::get_data_path()).ok()
+pub fn test_lod() -> Option<crate::Assets> {
+    crate::Assets::new(crate::get_data_path()).ok()
 }
 
 #[cfg(test)]

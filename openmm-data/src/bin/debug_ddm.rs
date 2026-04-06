@@ -1,8 +1,8 @@
-use openmm_data::{LodManager, raw::lod_data::LodData};
+use openmm_data::{Assets, assets::lod_data::LodData};
 
 fn main() {
-    let lod_manager = LodManager::new(openmm_data::get_data_path()).unwrap();
-    let raw = lod_manager.try_get_bytes("games/oute3.ddm").unwrap();
+    let assets = Assets::new(openmm_data::get_data_path()).unwrap();
+    let raw = assets.get_bytes("games/oute3.ddm").unwrap();
     let data = LodData::try_from(raw.as_slice()).unwrap().data;
 
     let actor_offset = 1948;

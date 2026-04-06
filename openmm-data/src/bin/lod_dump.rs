@@ -29,34 +29,34 @@ fn main() {
         .filter(|a| !a.starts_with('-'))
         .cloned();
 
-    let lod_manager = openmm_data::LodManager::new(openmm_data::get_data_path()).expect("failed to open LOD files");
+    let assets = openmm_data::Assets::new(openmm_data::get_data_path()).expect("failed to open LOD files");
 
     match name.as_str() {
-        "dsft" => dump_dsft(&lod_manager, &filter),
-        "ddeclist" => dump_ddeclist(&lod_manager, &filter),
-        "dsounds" => dump_dsounds(&lod_manager, &filter),
+        "dsft" => dump_dsft(&assets, &filter),
+        "ddeclist" => dump_ddeclist(&assets, &filter),
+        "dsounds" => dump_dsounds(&assets, &filter),
         "billboards" | "bb" => {
             let map = extra.unwrap_or_else(|| {
                 eprintln!("Need map name: lod_dump -n billboards oute3.odm");
                 std::process::exit(1)
             });
-            dump_billboards(&lod_manager, &map, &filter);
+            dump_billboards(&assets, &map, &filter);
         }
         "odm" => {
             let map = extra.unwrap_or_else(|| {
                 eprintln!("Need map name: lod_dump -n odm oute3.odm");
                 std::process::exit(1)
             });
-            dump_odm(&lod_manager, &map);
+            dump_odm(&assets, &map);
         }
         "raw" => {
             let path = extra.unwrap_or_else(|| {
                 eprintln!("Need path: lod_dump -n raw icons/dsounds.bin");
                 std::process::exit(1)
             });
-            dump_raw(&lod_manager, &path, &format);
+            dump_raw(&assets, &path, &format);
         }
-        "archives" => dump_archives(&lod_manager),
+        "archives" => dump_archives(&assets),
         _ => {
             eprintln!(
                 "Unknown data type: '{}'. Available: dsft, ddeclist, dsounds, billboards, odm, raw, archives",
@@ -87,8 +87,8 @@ fn matches_filter(filter: &Option<String>, texts: &[&str]) -> bool {
 
 // ─── Dumpers ────────────────────────────────────────────────
 
-fn dump_dsft(lod: &openmm_data::LodManager, filter: &Option<String>) {
-    let dsft = openmm_data::raw::dsft::DSFT::load(lod).expect("failed to load dsft.bin");
+fn dump_dsft(lod: &openmm_data::Assets, filter: &Option<String>) {
+    let dsft = openmm_data::assets::dsft::DSFT::load(lod).expect("failed to load dsft.bin");
     println!("[");
     let mut first = true;
     for (i, frame) in dsft.frames.iter().enumerate() {
@@ -111,8 +111,8 @@ fn dump_dsft(lod: &openmm_data::LodManager, filter: &Option<String>) {
     eprintln!("{} frames", dsft.frames.len());
 }
 
-fn dump_ddeclist(lod: &openmm_data::LodManager, filter: &Option<String>) {
-    let ddeclist = openmm_data::raw::ddeclist::DDecList::load(lod).expect("failed to load ddeclist.bin");
+fn dump_ddeclist(lod: &openmm_data::Assets, filter: &Option<String>) {
+    let ddeclist = openmm_data::assets::ddeclist::DDecList::load(lod).expect("failed to load ddeclist.bin");
     println!("[");
     let mut first = true;
     for (i, item) in ddeclist.items.iter().enumerate() {
@@ -144,8 +144,8 @@ fn dump_ddeclist(lod: &openmm_data::LodManager, filter: &Option<String>) {
     eprintln!("{} decorations", ddeclist.items.len());
 }
 
-fn dump_dsounds(lod: &openmm_data::LodManager, filter: &Option<String>) {
-    let dsounds = openmm_data::raw::dsounds::DSounds::load(lod).expect("failed to load dsounds.bin");
+fn dump_dsounds(lod: &openmm_data::Assets, filter: &Option<String>) {
+    let dsounds = openmm_data::assets::dsounds::DSounds::load(lod).expect("failed to load dsounds.bin");
     println!("[");
     let mut first = true;
     for (i, item) in dsounds.items.iter().enumerate() {
@@ -172,8 +172,8 @@ fn dump_dsounds(lod: &openmm_data::LodManager, filter: &Option<String>) {
     eprintln!("{} sounds", dsounds.items.len());
 }
 
-fn dump_billboards(lod: &openmm_data::LodManager, map: &str, filter: &Option<String>) {
-    let odm = openmm_data::raw::odm::Odm::load(lod, map).expect("failed to load ODM");
+fn dump_billboards(lod: &openmm_data::Assets, map: &str, filter: &Option<String>) {
+    let odm = openmm_data::assets::odm::Odm::load(lod, map).expect("failed to load ODM");
     println!("[");
     let mut first = true;
     for (i, bb) in odm.billboards.iter().enumerate() {
@@ -201,8 +201,8 @@ fn dump_billboards(lod: &openmm_data::LodManager, map: &str, filter: &Option<Str
     eprintln!("{} billboards", odm.billboards.len());
 }
 
-fn dump_odm(lod: &openmm_data::LodManager, map: &str) {
-    let odm = openmm_data::raw::odm::Odm::load(lod, map).expect("failed to load ODM");
+fn dump_odm(lod: &openmm_data::Assets, map: &str) {
+    let odm = openmm_data::assets::odm::Odm::load(lod, map).expect("failed to load ODM");
     println!("{{");
     println!("  \"name\": \"{}\",", odm.name);
     println!("  \"sky_texture\": \"{}\",", odm.sky_texture);
@@ -214,7 +214,7 @@ fn dump_odm(lod: &openmm_data::LodManager, map: &str) {
     println!("}}");
 }
 
-fn dump_raw(lod: &openmm_data::LodManager, path: &str, format: &str) {
+fn dump_raw(lod: &openmm_data::Assets, path: &str, format: &str) {
     let data = lod.get_decompressed(path).expect("file not found in LOD");
     match format {
         "raw" => {
@@ -249,7 +249,7 @@ fn dump_raw(lod: &openmm_data::LodManager, path: &str, format: &str) {
     }
 }
 
-fn dump_archives(lod: &openmm_data::LodManager) {
+fn dump_archives(lod: &openmm_data::Assets) {
     let mut archives = lod.archives();
     archives.sort();
     for archive in &archives {

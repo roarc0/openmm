@@ -1,15 +1,12 @@
 use std::error::Error;
 
 use bevy::prelude::*;
-use openmm_data::LodManager;
+use openmm_data::Assets;
 
-/// Wraps LodManager with global game data loaded once at startup.
+/// Wraps Assets Hub with global game data loaded once at startup.
 #[derive(Resource)]
 pub struct GameAssets {
-    lod_manager: LodManager,
-    /// Global map-independent data: DSFT, MonsterList, MapStats, StreetNpcs.
-    /// Passed to Actors::new, Monsters::new, etc. to avoid per-call LOD reads.
-    game_data: openmm_data::game::global::GameData,
+    assets: Assets,
     /// Billboard manager (DDecList + DSFT) for decoration sprite lookups.
     billboard_manager: openmm_data::billboard::BillboardManager,
     /// QBit ID → human-readable label for debug logging.
@@ -18,24 +15,23 @@ pub struct GameAssets {
 
 impl GameAssets {
     pub fn new(path: std::path::PathBuf) -> Result<Self, Box<dyn Error>> {
-        let lod_manager = LodManager::new(path)?;
-        let game_data = openmm_data::game::global::GameData::load(&lod_manager)?;
-        let billboard_manager = openmm_data::billboard::BillboardManager::load(&lod_manager)?;
-        let quest_bits = openmm_data::quest_bits::QuestBitNames::load(&lod_manager)?;
+        let assets = Assets::new(&*path.to_string_lossy())?;
+        // GameData is now inside Assets and lazy-loaded via assets.data()
+        let billboard_manager = openmm_data::billboard::BillboardManager::load(&assets)?;
+        let quest_bits = openmm_data::quest_bits::QuestBitNames::load(&assets)?;
         Ok(Self {
-            lod_manager,
-            game_data,
+            assets,
             billboard_manager,
             quest_bits,
         })
     }
 
-    pub fn lod_manager(&self) -> &LodManager {
-        &self.lod_manager
+    pub fn assets(&self) -> &Assets {
+        &self.assets
     }
 
-    pub fn game_data(&self) -> &openmm_data::game::global::GameData {
-        &self.game_data
+    pub fn game_data(&self) -> &openmm_data::GameData {
+        self.assets.data()
     }
 
     pub fn billboard_manager(&self) -> &openmm_data::billboard::BillboardManager {
@@ -48,7 +44,12 @@ impl GameAssets {
 
     /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).
     pub fn game_lod(&self) -> openmm_data::game::GameLod<'_> {
-        self.lod_manager.game()
+        self.assets.game()
+    }
+
+    /// Compatibility method for old code expecting lod_manager.
+    pub fn lod_manager(&self) -> &Assets {
+        &self.assets
     }
 
     /// Load a LOD icon by name as a nearest-neighbor Bevy Image handle.

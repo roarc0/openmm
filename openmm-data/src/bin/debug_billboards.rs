@@ -1,9 +1,9 @@
-use openmm_data::{LodManager, billboard::BillboardManager, odm::Odm};
+use openmm_data::{Assets, billboard::BillboardManager, odm::Odm};
 
 fn main() {
-    let lod_manager = LodManager::new(openmm_data::get_data_path()).unwrap();
-    let map = Odm::load(&lod_manager, "oute3.odm").unwrap();
-    let bb_mgr = BillboardManager::load(&lod_manager).unwrap();
+    let assets = Assets::new(openmm_data::get_data_path()).unwrap();
+    let map = Odm::load(&assets, "oute3.odm").unwrap();
+    let bb_mgr = BillboardManager::load(&assets).unwrap();
 
     println!("Map has {} billboards", map.billboards.len());
 
@@ -12,7 +12,7 @@ fn main() {
         let name = &bb.declist_name;
         let invisible = bb.data.is_original_invisible();
 
-        if let Some(sprite) = bb_mgr.get(&lod_manager, name, bb.data.declist_id) {
+        if let Some(sprite) = bb_mgr.get(&assets, name, bb.data.declist_id) {
             let (w, h) = sprite.dimensions();
             let dec_name = sprite.d_declist_item.name().unwrap_or_default();
             let sft_name = sprite.d_sft_frame.sprite_name().unwrap_or_default();
@@ -37,7 +37,7 @@ fn main() {
             invisible_count += 1;
             continue;
         }
-        if bb_mgr.get(&lod_manager, &bb.declist_name, bb.data.declist_id).is_some() {
+        if bb_mgr.get(&assets, &bb.declist_name, bb.data.declist_id).is_some() {
             loaded += 1;
         } else {
             failed += 1;

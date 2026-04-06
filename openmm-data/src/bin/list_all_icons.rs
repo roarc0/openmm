@@ -1,5 +1,5 @@
 fn main() {
-    let lod = openmm_data::LodManager::new(openmm_data::get_data_path()).unwrap();
+    let lod = openmm_data::Assets::new(openmm_data::get_data_path()).unwrap();
     if let Some(files) = lod.files_in("icons") {
         let mut items: Vec<(String, u32, u32)> = Vec::new();
         for f in &files {

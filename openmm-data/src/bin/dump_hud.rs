@@ -1,5 +1,5 @@
 fn main() {
-    let lod = openmm_data::LodManager::new(openmm_data::get_data_path()).unwrap();
+    let lod = openmm_data::Assets::new(openmm_data::get_data_path()).unwrap();
     let out = std::path::Path::new("/tmp/hud_assets");
     std::fs::create_dir_all(out).unwrap();
     let assets = &[

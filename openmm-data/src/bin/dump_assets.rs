@@ -2,31 +2,31 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use openmm_data::LodManager;
+use openmm_data::Assets;
 
 fn main() {
     let lod_path = openmm_data::get_data_path();
-    let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
+    let assets = Assets::new(&lod_path).expect("failed to open LOD files");
 
     let out_dir = Path::new("data/dump");
     fs::create_dir_all(out_dir).expect("failed to create data/dump directory");
 
     // Build asset index
-    let mut assets: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut archives = lod_manager.archives();
+    let mut asset_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut archives = assets.archives();
     archives.sort();
 
     let mut total = 0;
     for archive in &archives {
-        if let Some(mut files) = lod_manager.files_in(archive) {
+        if let Some(mut files) = assets.files_in(archive) {
             files.sort();
             total += files.len();
-            assets.insert(archive.to_string(), files.iter().map(|s| s.to_string()).collect());
+            asset_map.insert(archive.to_string(), files.iter().map(|s| s.to_string()).collect());
         }
     }
 
     // Write assets.json
-    let json = serde_json_minimal(&assets);
+    let json = serde_json_minimal(&asset_map);
     let json_path = out_dir.join("assets.json");
     fs::write(&json_path, &json).expect("failed to write assets.json");
     println!(
@@ -36,15 +36,21 @@ fn main() {
         total
     );
 
-    for (archive, files) in &assets {
+    for (archive, files) in &asset_map {
         println!("  {}: {} files", archive, files.len());
     }
 
-    // Dump all files (images as PNG, data as raw)
+    // Dump all files
     println!("\nDumping files to {}/ ...", out_dir.display());
-    match lod_manager.save_all(out_dir) {
-        Ok(()) => println!("Done."),
-        Err(e) => eprintln!("Error during dump: {}", e),
+    for (archive, files) in &asset_map {
+        let arch_dir = out_dir.join(archive);
+        let _ = fs::create_dir_all(&arch_dir);
+        for file in files {
+            let path = format!("{}/{}", archive, file);
+            if let Ok(bytes) = assets.get_bytes(&path) {
+                let _ = fs::write(arch_dir.join(file), bytes);
+            }
+        }
     }
 
     // Dump readable versions (JSON). Remove stale .txt files from previous runs.
@@ -63,27 +69,27 @@ fn main() {
             }
         }
     }
-    dump_readable_files(&lod_manager, out_dir);
+    dump_readable_files(&assets, out_dir);
 }
 
-fn dump_readable_files(lod_manager: &LodManager, out_dir: &Path) {
-    let archives = lod_manager.archives();
+fn dump_readable_files(assets: &Assets, out_dir: &Path) {
+    let archives = assets.archives();
     for archive in archives {
-        if let Some(files) = lod_manager.files_in(&archive) {
+        if let Some(files) = assets.files_in(&archive) {
             for file in files {
                 let lower = file.to_lowercase();
                 let mut out_content: Option<String> = None;
 
                 if lower.ends_with(".odm") {
-                    if let Ok(data) = openmm_data::odm::Odm::load(lod_manager, &file) {
+                    if let Ok(data) = openmm_data::odm::Odm::load(assets, &file) {
                         out_content = serde_json::to_string_pretty(&data).ok();
                     }
                 } else if lower.ends_with(".ddm") {
-                    if let Ok(data) = openmm_data::ddm::Ddm::load(lod_manager, &file) {
+                    if let Ok(data) = openmm_data::ddm::Ddm::load(assets, &file) {
                         out_content = serde_json::to_string_pretty(&data).ok();
                     }
                 } else if lower.ends_with(".blv")
-                    && let Ok(data) = openmm_data::blv::Blv::load(lod_manager, &file)
+                    && let Ok(data) = openmm_data::blv::Blv::load(assets, &file)
                 {
                     out_content = serde_json::to_string_pretty(&data).ok();
                 }

@@ -1,9 +1,9 @@
-use openmm_data::{LodManager, monlist::MonsterList};
+use openmm_data::{Assets, monlist::MonsterList};
 
 fn main() {
     let lod_path = openmm_data::get_data_path();
-    let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
-    let monlist = MonsterList::load(&lod_manager).expect("failed to load monlist");
+    let assets = Assets::new(&lod_path).expect("failed to open LOD files");
+    let monlist = MonsterList::load(&assets).expect("failed to load monlist");
 
     println!("Monsters containing 'Goblin' or 'Barbar' in name:");
     println!();

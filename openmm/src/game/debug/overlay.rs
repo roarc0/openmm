@@ -55,7 +55,7 @@ fn debug_setup(
         })
         .unwrap_or((0.0, 0.0));
     let dbg_left = vp_left + 20.0;
-    let dbg_top = vp_top + 10.0;
+    let dbg_top = vp_top + 32.0; // border5/6 corner pieces extend ~20px below border3
 
     let hud_visibility = if cfg.debug {
         Visibility::Inherited

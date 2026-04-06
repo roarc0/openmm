@@ -1,5 +1,5 @@
 fn main() {
-    let lod = openmm_data::LodManager::new(openmm_data::get_data_path()).unwrap();
+    let lod = openmm_data::Assets::new(openmm_data::get_data_path()).unwrap();
     let odm = openmm_data::odm::Odm::load(&lod, "oute3.odm").unwrap();
     let mut ids: std::collections::BTreeMap<u16, (u16, u16)> = Default::default();
     for model in &odm.bsp_models {

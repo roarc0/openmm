@@ -1,7 +1,7 @@
 use bevy::{
     asset::RenderAssetUsages,
     mesh::{Indices, PrimitiveTopology},
-    prelude::*,
+    prelude::{Assets as BevyAssets, *},
 };
 
 use std::collections::HashMap;
@@ -13,6 +13,7 @@ use openmm_data::{
     blv::Blv,
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData, mm6_to_bevy},
+    Assets as DataAssets, GameData,
 };
 
 pub struct LoadingPlugin;

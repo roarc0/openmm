@@ -1,6 +1,8 @@
 //! Map event loading — shared between outdoor (ODM) and indoor (BLV) maps.
 
-use bevy::prelude::*;
+use bevy::prelude::{Assets as BevyAssets, *};
+
+use openmm_data::Assets as DataAssets;
 
 use crate::assets::GameAssets;
 
@@ -12,16 +14,16 @@ pub const GENERATED_NPC_ID_BASE: i32 = 5000;
 /// Parsed event data for the current map.
 #[derive(Resource, Default)]
 pub struct MapEvents {
-    pub evt: Option<openmm_data::evt::EvtFile>,
-    pub houses: Option<openmm_data::twodevents::TwoDEvents>,
+    pub evt: Option<openmm_data::EvtFile>,
+    pub houses: Option<openmm_data::TwoDEvents>,
     /// Global NPC metadata table (id → name, portrait, profession).
     /// Loaded from `npcdata.txt` in icons.lod; same for every map.
-    pub npc_table: Option<openmm_data::game::npc::StreetNpcs>,
+    pub npc_table: Option<openmm_data::StreetNpcs>,
     /// Name pool for generating street NPC names (from `npcnames.txt`).
-    pub name_pool: Option<openmm_data::game::npc::NpcNamePool>,
+    pub name_pool: Option<openmm_data::NpcNamePool>,
     /// Dynamically generated NPCs for peasant actors (npc_id ≥ GENERATED_NPC_ID_BASE).
     /// Populated at actor spawn time; keyed by the assigned npc_id.
-    pub generated_npcs: std::collections::HashMap<i32, openmm_data::game::npc::GeneratedNpc>,
+    pub generated_npcs: std::collections::HashMap<i32, openmm_data::npc::GeneratedNpc>,
 }
 
 /// Map building type string → fallback background image name.
@@ -48,7 +50,7 @@ pub fn resolve_building_image(
     house_id: u32,
     map_events: &MapEvents,
     game_assets: &GameAssets,
-    images: &mut Assets<Image>,
+    images: &mut BevyAssets<Image>,
 ) -> Option<bevy::asset::Handle<Image>> {
     if let Some(houses) = map_events.houses.as_ref()
         && let Some(entry) = houses.houses.get(&house_id)
@@ -66,7 +68,7 @@ pub fn resolve_building_image(
 /// `map_base` is the map filename stem without extension, e.g. "oute3" or "d01".
 /// `indoor` controls whether to skip loading 2devents.txt (only relevant for outdoor maps).
 pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_base: &str, indoor: bool) {
-    let mut evt = match openmm_data::evt::EvtFile::parse(game_assets.lod_manager(), map_base) {
+    let mut evt = match openmm_data::EvtFile::parse(game_assets.lod_manager(), map_base) {
         Ok(e) => {
             info!("Loaded {}.evt: {} events", map_base, e.events.len());
             Some(e)
@@ -78,7 +80,7 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
     };
 
     // Merge global.evt events (map-independent global events)
-    match openmm_data::evt::EvtFile::parse(game_assets.lod_manager(), "global") {
+    match openmm_data::EvtFile::parse(game_assets.lod_manager(), "global") {
         Ok(global) => {
             info!("Loaded global.evt: {} events", global.events.len());
             if let Some(ref mut map_evt) = evt {
@@ -96,7 +98,7 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
     let houses = if indoor {
         None
     } else {
-        match openmm_data::twodevents::TwoDEvents::parse(game_assets.lod_manager()) {
+        match openmm_data::TwoDEvents::parse(game_assets.lod_manager()) {
             Ok(h) => {
                 info!("Loaded 2devents.txt: {} houses", h.houses.len());
                 Some(h)

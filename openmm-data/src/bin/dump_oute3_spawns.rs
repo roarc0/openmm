@@ -10,18 +10,18 @@
 //!   gsz  = computed group size = Low + (seed % (Hi-Low+1))
 //!   cv   = champion variant (difficulty[slot] when fv=0)
 
-use openmm_data::{LodManager, game::global::GameData, raw::lod_data::LodData, odm::Odm};
+use openmm_data::{Assets, GameData, assets::lod_data::LodData, assets::odm::Odm};
 use std::{fs, io::Write};
 
 fn main() {
-    let lod = LodManager::new(openmm_data::get_data_path()).unwrap();
+    let lod = Assets::new(openmm_data::get_data_path()).unwrap();
     let gd = GameData::load(&lod).unwrap();
     let map_name = "oute3.odm";
     let odm = Odm::load(&lod, map_name).unwrap();
     let cfg = gd.mapstats.get(map_name).expect("oute3.odm not in mapstats");
 
     // Read raw bytes to extract per-spawn raw bytes
-    let raw = lod.try_get_bytes(format!("games/{}", map_name)).unwrap();
+    let raw = lod.get_bytes(format!("games/{}", map_name)).unwrap();
     let data = match LodData::try_from(raw.as_slice()) {
         Ok(d) => d.data,
         Err(_) => raw.to_vec(),

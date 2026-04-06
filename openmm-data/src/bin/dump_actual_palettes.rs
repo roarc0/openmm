@@ -1,10 +1,10 @@
 use byteorder::{LittleEndian, ReadBytesExt};
-use openmm_data::LodManager;
+use openmm_data::Assets;
 use std::io::{Cursor, Seek};
 
 fn main() {
     let lod_path = openmm_data::get_data_path();
-    let lod_manager = LodManager::new(&lod_path).expect("failed to open LOD files");
+    let assets = Assets::new(&lod_path).expect("failed to open LOD files");
 
     let sprite_names = vec![
         // Goblins (all variants share the same sprites!)
@@ -16,7 +16,7 @@ fn main() {
     println!();
 
     for name in sprite_names {
-        match lod_manager.try_get_bytes(format!("sprites/{}", name)) {
+        match assets.get_bytes(format!("sprites/{}", name)) {
             Ok(data) => {
                 if data.len() > 28 {
                     let mut cursor = Cursor::new(data);

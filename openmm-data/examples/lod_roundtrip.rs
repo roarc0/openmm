@@ -4,17 +4,17 @@
 //! then verifies that every entry's bytes are identical to the original.
 //!
 //! Usage:
-//!   OPENMM_6_PATH=/path/to/mm6/data cargo run -p lod --example lod_roundtrip
+//!   OPENMM_6_PATH=/path/to/mm6/data cargo run -p openmm-data --example lod_roundtrip
 //!
 //! On success: prints a summary table and exits 0.
 //! On failure: prints which entries differ and exits 1.
 
 use std::{ fs, path::PathBuf };
-use openmm_data::get_data_path;
+use openmm_data::{get_data_path, Assets, LodWriter};
 
 fn main() {
-    let lod_path = get_data_path();
-    let lod_path = std::path::Path::new(&lod_path);
+    let lod_path_str = get_data_path();
+    let lod_path = std::path::Path::new(&lod_path_str);
 
     if !lod_path.exists() {
         eprintln!("OPENMM_6_PATH not set or does not exist: {}", lod_path.display());
@@ -59,24 +59,30 @@ fn main() {
             }
         };
 
-        // ── Step 2: save via LodWriter (no overrides = pure copy) ──────────
+        // ── Step 2: save via LodArchive::patch (no overrides = pure copy) ──────────
         let out_path = tmp_dir.join(name.as_ref());
-        match openmm_data::LodManager::new(lod_path) {
-            Ok(mgr) => {
+        match Assets::new(&lod_path_str) {
+            Ok(assets) => {
                 let archive_key = src_path
                     .file_stem()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_lowercase();
-                if let Err(e) = mgr.patch(&archive_key, &out_path, &[]) {
-                    eprintln!("  FAIL  {} — save error: {}", name, e);
-                    failures.push(format!("{}: save error: {}", name, e));
+                if let Some(_lod) = assets.get_lod(&archive_key) {
+                    if let Err(e) = LodWriter::patch(src_path, &out_path, &[]) {
+                        eprintln!("  FAIL  {} — save error: {}", name, e);
+                        failures.push(format!("{}: save error: {}", name, e));
+                        continue;
+                    }
+                } else {
+                    eprintln!("  FAIL  {} — archive not found in Assets", name);
+                    failures.push(format!("{}: not found", name));
                     continue;
                 }
             }
             Err(e) => {
-                eprintln!("  FAIL  {} — LodManager open error: {}", name, e);
-                failures.push(format!("{}: LodManager error: {}", name, e));
+                eprintln!("  FAIL  {} — Assets open error: {}", name, e);
+                failures.push(format!("{}: Assets error: {}", name, e));
                 continue;
             }
         }
@@ -91,8 +97,8 @@ fn main() {
             }
         };
 
-        // ── Step 4: byte-exact comparison via LodManager ───────────────────
-        let orig_mgr = match openmm_data::LodManager::new(lod_path) {
+        // ── Step 4: byte-exact comparison via Assets ───────────────────
+        let orig_assets = match Assets::new(&lod_path_str) {
             Ok(m) => m,
             Err(e) => {
                 eprintln!("  FAIL  {} — cannot open original for compare: {}", name, e);
@@ -100,10 +106,11 @@ fn main() {
                 continue;
             }
         };
-        let written_mgr = match openmm_data::LodManager::new(tmp_dir.as_path()) {
+        let tmp_dir_str = tmp_dir.to_string_lossy();
+        let written_assets = match Assets::new(&*tmp_dir_str) {
             Ok(m) => m,
             Err(_) => {
-                // Fall back to raw byte compare if second LodManager fails
+                // Fall back to raw byte compare if second Assets fails
                 if original_bytes.len() != written_bytes.len() {
                     let msg = format!(
                         "{}: byte length mismatch {} vs {}",
@@ -125,18 +132,15 @@ fn main() {
             .to_string_lossy()
             .to_lowercase();
 
-        let orig_files = orig_mgr.files_in(&archive_key).unwrap_or_default();
+        let orig_files = orig_assets.files_in(&archive_key).unwrap_or_default();
         let mut archive_ok = true;
         let mut entry_count = 0;
 
         for entry_name in &orig_files {
             entry_count += 1;
-            let orig_data = orig_mgr.try_get_bytes(
-                format!("{}/{}", archive_key, entry_name)
-            ).ok();
-            let copy_data = written_mgr.try_get_bytes(
-                format!("{}/{}", archive_key, entry_name)
-            ).ok();
+            let path = format!("{}/{}", archive_key, entry_name);
+            let orig_data = orig_assets.get_bytes(&path).ok();
+            let copy_data = written_assets.get_bytes(&path).ok();
 
             match (orig_data, copy_data) {
                 (Some(od), Some(cd)) if od == cd => { /* ok */ }

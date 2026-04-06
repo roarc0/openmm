@@ -1,8 +1,8 @@
-use openmm_data::{LodManager, odm::Odm};
+use openmm_data::{Assets, odm::Odm};
 
 fn main() {
-    let lod_manager = LodManager::new(openmm_data::get_data_path()).unwrap();
-    let map = Odm::load(&lod_manager, "oute3.odm").unwrap();
+    let assets = Assets::new(openmm_data::get_data_path()).unwrap();
+    let map = Odm::load(&assets, "oute3.odm").unwrap();
 
     println!("Spawn points: {}", map.spawn_points.len());
     for (i, sp) in map.spawn_points.iter().enumerate() {

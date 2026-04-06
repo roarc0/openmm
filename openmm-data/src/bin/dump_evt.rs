@@ -1,12 +1,12 @@
 use std::io::Read;
 
 fn main() {
-    let lod = openmm_data::LodManager::new(openmm_data::get_data_path()).unwrap();
+    let lod = openmm_data::Assets::new(openmm_data::get_data_path()).unwrap();
 
     let evt_data = lod
-        .try_get_bytes("icons/oute3.evt")
-        .or_else(|_| lod.try_get_bytes("games/oute3.evt"))
-        .or_else(|_| lod.try_get_bytes("new/oute3.evt"))
+        .get_bytes("icons/oute3.evt")
+        .or_else(|_| lod.get_bytes("games/oute3.evt"))
+        .or_else(|_| lod.get_bytes("new/oute3.evt"))
         .expect("Could not find oute3.evt");
 
     // Decompress (LOD data may have header before zlib)
