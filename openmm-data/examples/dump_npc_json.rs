@@ -2,7 +2,7 @@
 fn main() {
     let lod_path = openmm_data::get_data_path();
     let mgr = openmm_data::Assets::new(&lod_path).unwrap();
-    let monlist = openmm_data::monlist::MonsterList::load(&mgr).unwrap();
+    let monlist = openmm_data::dmonlist::MonsterList::load(&mgr).unwrap();
     let npc_table = mgr.game().npc_table().expect("npcdata.txt");
 
     let map = "oute3.odm";

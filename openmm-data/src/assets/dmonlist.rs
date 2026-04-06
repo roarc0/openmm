@@ -235,5 +235,5 @@ impl LodSerialise for MonsterList {
 }
 
 #[cfg(test)]
-#[path = "monlist_tests.rs"]
+#[path = "dmonlist_tests.rs"]
 mod tests;

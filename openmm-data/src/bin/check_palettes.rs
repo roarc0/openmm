@@ -18,7 +18,7 @@ fn main() {
         }
     }
     let base = actor_start + 4;
-    let monlist = openmm_data::monlist::MonsterList::load(&lod).unwrap();
+    let monlist = openmm_data::dmonlist::MonsterList::load(&lod).unwrap();
 
     // Try offsets around 0x58, 0x5A, 0x5C, 0x60 for monsterInfo.id as u16
     println!("Checking candidate offsets for monsterInfo.id (u16):\n");

@@ -19,7 +19,7 @@ fn actor_monlist_id_is_zero_indexed() {
         return;
     };
     let ddm = Ddm::load(&assets, "oute3.odm").unwrap();
-    let monlist = crate::assets::monlist::MonsterList::load(&assets).unwrap();
+    let monlist = crate::assets::dmonlist::MonsterList::load(&assets).unwrap();
     for actor in &ddm.actors {
         assert!(
             (actor.monlist_id as usize) < monlist.monsters.len(),
@@ -61,7 +61,7 @@ fn parse_multiple_maps() {
 #[test]
 fn oute3_ddm_actors_near_goblin_spawn() {
     let Some(assets) = test_lod() else { return };
-    let ml = crate::assets::monlist::MonsterList::load(&assets).unwrap();
+    let ml = crate::assets::dmonlist::MonsterList::load(&assets).unwrap();
     let ddm = Ddm::load(&assets, "oute3.odm").unwrap();
     let target = (-13480_i32, -20192_i32);
     let mut nearby: Vec<_> = ddm

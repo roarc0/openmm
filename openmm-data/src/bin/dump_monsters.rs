@@ -1,4 +1,4 @@
-use openmm_data::{Assets, monlist::MonsterList};
+use openmm_data::{Assets, dmonlist::MonsterList};
 
 fn main() {
     let lod_path = openmm_data::get_data_path();

@@ -1,10 +1,8 @@
 use std::error::Error;
 
+use super::billboard_manager::BillboardManager;
 use crate::Assets;
-use crate::assets::{
-    billboard::{Billboard, BillboardManager},
-    blv::BlvDecoration,
-};
+use crate::assets::{billboard::Billboard, blv::BlvDecoration};
 
 /// A single resolved decoration (billboard/spawn point) from an outdoor map.
 #[derive(Clone)]

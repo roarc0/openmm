@@ -33,7 +33,7 @@ fn goblin_variants_have_distinct_dsft_palettes() {
         return;
     };
     let dsft = DSFT::load(&assets).unwrap();
-    let monlist = crate::assets::monlist::MonsterList::load(&assets).unwrap();
+    let monlist = crate::assets::dmonlist::MonsterList::load(&assets).unwrap();
 
     // Resolve goblin A, B, C through monlist + DSFT
     let gob_a = monlist.find_by_name("Goblin", 1).expect("Goblin A should exist");
@@ -179,7 +179,7 @@ fn ghost_dsft_palette_differs_from_header() {
         return;
     };
     let dsft = DSFT::load(&assets).unwrap();
-    let monlist = crate::assets::monlist::MonsterList::load(&assets).unwrap();
+    let monlist = crate::assets::dmonlist::MonsterList::load(&assets).unwrap();
 
     // Ghost variant B should have a non-zero DSFT palette_id
     let ghost_b = monlist.find_by_name("Ghost", 2).expect("Ghost B should exist");
@@ -223,7 +223,7 @@ fn monster_variants_resolve_through_dsft() {
         return;
     };
     let dsft = DSFT::load(&assets).unwrap();
-    let monlist = crate::assets::monlist::MonsterList::load(&assets).unwrap();
+    let monlist = crate::assets::dmonlist::MonsterList::load(&assets).unwrap();
 
     // (monster_name, variants_to_test, expect_distinct_palettes)
     // expect_distinct_palettes: if true, variant B/C must have different palette_id than A

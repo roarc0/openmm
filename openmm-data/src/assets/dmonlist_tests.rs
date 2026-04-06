@@ -126,9 +126,9 @@ fn ghost_walking_and_standing_palette_match() {
             .unwrap_or_else(|| panic!("Ghost variant {} should exist", dif));
         let st_group = &desc.sprite_names[0];
         let wa_group = &desc.sprite_names[1];
-        let st = crate::assets::monster::resolve_sprite_group(st_group, &gd.dsft, &assets)
+        let st = crate::assets::provider::monster::resolve_sprite_group(st_group, &gd.dsft, &assets)
             .unwrap_or_else(|| panic!("Ghost {} standing group '{}' should resolve", dif, st_group));
-        let wa = crate::assets::monster::resolve_sprite_group(wa_group, &gd.dsft, &assets)
+        let wa = crate::assets::provider::monster::resolve_sprite_group(wa_group, &gd.dsft, &assets)
             .unwrap_or_else(|| panic!("Ghost {} walking group '{}' should resolve", dif, wa_group));
         assert_eq!(
             st.0, wa.0,

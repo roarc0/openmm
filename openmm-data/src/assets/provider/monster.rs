@@ -397,5 +397,5 @@ pub fn resolve_entry(monlist_id: u8, game_data: &GameData, assets: &Assets) -> O
 }
 
 #[cfg(test)]
-#[path = "monster_tests.rs"]
+#[path = "monster_tests.rs"] // relative to provider/
 mod tests;

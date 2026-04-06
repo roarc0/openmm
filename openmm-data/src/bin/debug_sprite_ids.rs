@@ -1,4 +1,4 @@
-use openmm_data::{Assets, ddm::Ddm, dsft::DSFT, monlist::MonsterList};
+use openmm_data::{Assets, ddm::Ddm, dmonlist::MonsterList, dsft::DSFT};
 
 fn main() {
     let assets = Assets::new(openmm_data::get_data_path()).unwrap();

@@ -88,11 +88,11 @@ pub struct MonsterStats {
 
 /// All monster stats keyed by full internal name (e.g. "GoblinA").
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Monsters {
+pub struct MonsterStatsTable {
     pub entries: HashMap<String, MonsterStats>,
 }
 
-impl Monsters {
+impl MonsterStatsTable {
     pub fn load(assets: &Assets) -> Result<Self, Box<dyn Error>> {
         let raw = assets.get_bytes("icons/monsters.txt")?;
         Self::try_from(raw.as_slice())
@@ -162,7 +162,7 @@ impl Monsters {
             entries.insert(internal.to_string(), stats);
         }
 
-        Ok(Monsters { entries })
+        Ok(MonsterStatsTable { entries })
     }
 
     /// Look up all stats for a specific monster variant.
@@ -210,7 +210,7 @@ impl Monsters {
     }
 }
 
-impl TryFrom<&[u8]> for Monsters {
+impl TryFrom<&[u8]> for MonsterStatsTable {
     type Error = Box<dyn Error>;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
@@ -223,7 +223,7 @@ impl TryFrom<&[u8]> for Monsters {
     }
 }
 
-impl LodSerialise for Monsters {
+impl LodSerialise for MonsterStatsTable {
     fn to_bytes(&self) -> Vec<u8> {
         let mut out = String::new();
         // MM6 monsters.txt header (3 lines)
@@ -254,12 +254,12 @@ impl LodSerialise for Monsters {
 impl MonsterStats {
     /// Aggro detection radius in MM6 world units derived from hostile_type.
     pub fn aggro_range(&self) -> f32 {
-        Monsters::aggro_range_for_hostile_type(self.hostile_type)
+        MonsterStatsTable::aggro_range_for_hostile_type(self.hostile_type)
     }
 
     /// Attack recovery in seconds derived from the recovery ticks field.
     pub fn recovery_secs(&self) -> f32 {
-        Monsters::recovery_secs_for(self.recovery)
+        MonsterStatsTable::recovery_secs_for(self.recovery)
     }
 }
 
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn goblin_a_all_stats() {
         let Some(lod) = test_lod() else { return };
-        let txt = Monsters::load(&lod).unwrap();
+        let txt = MonsterStatsTable::load(&lod).unwrap();
         let g = txt.get("Goblin", 1).expect("GoblinA must exist");
         assert_eq!(g.display_name, "Goblin");
         assert!(g.hp > 0);
@@ -309,7 +309,7 @@ mod tests {
     fn archer_c_has_quoted_exp_and_spell() {
         // ArcherC EXP is "1,131" (quoted with comma) and spell is "Fireball,N,5".
         let Some(lod) = test_lod() else { return };
-        let txt = Monsters::load(&lod).unwrap();
+        let txt = MonsterStatsTable::load(&lod).unwrap();
         let a = txt.get("Archer", 3).expect("ArcherC must exist");
         assert_eq!(a.experience, 1131, "quoted comma-number must parse correctly");
         assert_eq!(a.spell, "Fireball,N,5");
@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn peasant_m2_variants_have_distinct_names() {
         let Some(lod) = test_lod() else { return };
-        let txt = Monsters::load(&lod).unwrap();
+        let txt = MonsterStatsTable::load(&lod).unwrap();
         assert_eq!(txt.display_name("PeasantM2", 1), Some("Apprentice Mage"));
         assert_eq!(txt.display_name("PeasantM2", 2), Some("Journeyman Mage"));
         assert_eq!(txt.display_name("PeasantM2", 3), Some("Mage"));
@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn resistances_are_loaded() {
         let Some(lod) = test_lod() else { return };
-        let txt = Monsters::load(&lod).unwrap();
+        let txt = MonsterStatsTable::load(&lod).unwrap();
         // ArcherA has 10 resistance across Fire/Elec/Cold/Pois (row 1 of data).
         let a = txt.get("Archer", 1).expect("ArcherA must exist");
         assert_eq!(a.resist_fire, 10);
@@ -341,7 +341,7 @@ mod tests {
     #[test]
     fn unknown_monster_returns_none() {
         let Some(lod) = test_lod() else { return };
-        let txt = Monsters::load(&lod).unwrap();
+        let txt = MonsterStatsTable::load(&lod).unwrap();
         assert!(txt.display_name("NonExistentXyz", 1).is_none());
     }
 }

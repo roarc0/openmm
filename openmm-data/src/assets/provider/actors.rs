@@ -120,7 +120,7 @@ impl Actors {
             // monsters because the original engine initialises HP from monsters.txt at load time.
             // Dead actors are tracked by dead_actor_ids once map-state persistence is implemented.
 
-            let Some(entry) = crate::assets::monster::resolve_entry(raw.monlist_id, game_data, assets) else {
+            let Some(entry) = super::monster::resolve_entry(raw.monlist_id, game_data, assets) else {
                 log::warn!(
                     "Actor '{}' idx={} npc_id={} monlist_id={} has no DSFT sprite — skipping",
                     raw.name,
@@ -222,7 +222,7 @@ impl Actors {
             }
             // See Actors::new — hp=0 means uninitialized in fresh DDM files, not dead.
 
-            let Some(entry) = crate::assets::monster::resolve_entry(raw.monlist_id, game_data, assets) else {
+            let Some(entry) = super::monster::resolve_entry(raw.monlist_id, game_data, assets) else {
                 log::warn!(
                     "Actor '{}' monlist_id={} has no DSFT sprite — skipping",
                     raw.name,

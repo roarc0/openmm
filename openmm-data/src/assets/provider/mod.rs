@@ -13,14 +13,22 @@ use crate::assets::vid::{VidArchive, VidExt};
 pub use openmm_archive::Archive;
 pub use openmm_archive::lod::{LodArchive, LodWriter, Version};
 
+pub mod actors;
+pub mod billboard_manager;
+pub mod decorations;
+pub mod lod_decoder;
+pub mod monster;
+
+pub use lod_decoder::LodDecoder;
+
 /// Global game data loaded once at startup — map-independent, shared across all maps.
 pub struct StaticGameData {
     /// Sprite-frame table (icons/dsft.bin)
     pub dsft: crate::assets::dsft::DSFT,
     /// Monster species list (icons/dmonlist.bin)
-    pub monlist: crate::assets::monlist::MonsterList,
+    pub monlist: crate::assets::dmonlist::MonsterList,
     /// Per-variant monster display names and stats (icons/monsters.txt).
-    pub monsters: crate::assets::monsters::Monsters,
+    pub monsters: crate::assets::monsters::MonsterStatsTable,
     /// Per-map monster configuration (icons/mapstats.txt).
     pub mapstats: crate::assets::mapstats::MapStats,
     /// Global NPC metadata table (icons/npcdata.txt).
@@ -44,8 +52,8 @@ pub struct StaticGameData {
 impl StaticGameData {
     pub fn load(assets: &Assets) -> Result<Self, Box<dyn Error>> {
         let dsft = crate::assets::dsft::DSFT::load(assets)?;
-        let monlist = crate::assets::monlist::MonsterList::load(assets)?;
-        let monsters_txt = crate::assets::monsters::Monsters::load(assets)?;
+        let monlist = crate::assets::dmonlist::MonsterList::load(assets)?;
+        let monsters_txt = crate::assets::monsters::MonsterStatsTable::load(assets)?;
         let mapstats = crate::assets::mapstats::MapStats::load(assets)?;
 
         let name_pool = assets
@@ -158,9 +166,9 @@ impl Assets {
             .get_or_init(|| StaticGameData::load(self).expect("failed to load static game data"))
     }
 
-    /// Access the high-level game-engine API.
-    pub fn game(&self) -> crate::game::GameLod<'_> {
-        crate::game::GameLod::new(self)
+    /// Access the high-level LOD decoder (decoded sprites, bitmaps, icons, fonts).
+    pub fn game(&self) -> lod_decoder::LodDecoder<'_> {
+        lod_decoder::LodDecoder::new(self)
     }
 
     /// Find raw bytes for an asset, searching through applicable archives.
