@@ -66,7 +66,7 @@ pub fn resolve_building_image(
 /// `map_base` is the map filename stem without extension, e.g. "oute3" or "d01".
 /// `indoor` controls whether to skip loading 2devents.txt (only relevant for outdoor maps).
 pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_base: &str, indoor: bool) {
-    let mut evt = match openmm_data::EvtFile::parse(game_assets.lod_manager(), map_base) {
+    let mut evt = match openmm_data::EvtFile::parse(game_assets.assets(), map_base) {
         Ok(e) => {
             info!("Loaded {}.evt: {} events", map_base, e.events.len());
             Some(e)
@@ -78,7 +78,7 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
     };
 
     // Merge global.evt events (map-independent global events)
-    match openmm_data::EvtFile::parse(game_assets.lod_manager(), "global") {
+    match openmm_data::EvtFile::parse(game_assets.assets(), "global") {
         Ok(global) => {
             info!("Loaded global.evt: {} events", global.events.len());
             if let Some(ref mut map_evt) = evt {
@@ -96,7 +96,7 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
     let houses = if indoor {
         None
     } else {
-        match openmm_data::TwoDEvents::parse(game_assets.lod_manager()) {
+        match openmm_data::TwoDEvents::parse(game_assets.assets()) {
             Ok(h) => {
                 info!("Loaded 2devents.txt: {} houses", h.houses.len());
                 Some(h)
@@ -117,8 +117,8 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
             }
         }
     }
-    let npc_table = game_assets.game_data().street_npcs.clone();
-    let name_pool = game_assets.game_data().name_pool.clone();
+    let npc_table = game_assets.data().street_npcs.clone();
+    let name_pool = game_assets.data().name_pool.clone();
 
     commands.insert_resource(MapEvents {
         evt,

@@ -10,7 +10,6 @@ pub use self::archive::lod::{LodArchive, Version};
 pub use self::archive::smk::SmkArchive;
 pub use self::archive::snd::SndArchive;
 pub use self::archive::{Archive, ArchiveEntry};
-use self::smk::SmkExt;
 use crate::assets::dsounds::DSounds;
 use crate::assets::image::Image;
 use crate::assets::lod_data::LodData;
@@ -258,7 +257,7 @@ impl Assets {
             .or_else(|| name.strip_suffix(".bik"))
             .unwrap_or(name);
         for smk in self.smks.values() {
-            if let Some(data) = smk.smk_by_name(name) {
+            if let Some(data) = smk.get_file(name) {
                 return Ok(data);
             }
         }

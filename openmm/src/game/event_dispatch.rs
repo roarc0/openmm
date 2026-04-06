@@ -728,7 +728,7 @@ fn process_events(
                 let Some((new_mat, new_mesh, _new_w, new_h)) =
                     crate::game::entities::sprites::load_static_decoration_sprite(
                         sprite_name,
-                        game_assets.lod_manager(),
+                        game_assets.assets(),
                         &mut images,
                         &mut materials,
                         &mut audio.meshes,

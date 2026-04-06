@@ -427,7 +427,7 @@ fn spawn_indoor_world(
         if dec.is_directional {
             let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
                 key,
-                game_assets.lod_manager(),
+                game_assets.assets(),
                 &mut images,
                 &mut materials,
                 &mut Some(&mut sprite_cache),
@@ -666,7 +666,7 @@ fn spawn_indoor_world(
                 &mon.walking_sprite,
                 &mon.attacking_sprite,
                 &mon.dying_sprite,
-                game_assets.lod_manager(),
+                game_assets.assets(),
                 &mut images,
                 &mut materials,
                 &mut Some(&mut sprite_cache),

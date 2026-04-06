@@ -435,7 +435,7 @@ fn loading_step(
         LoadingStep::ParseMap => {
             let map_name = load_request.map_name.to_string();
             if load_request.map_name.is_indoor() {
-                match Blv::load(game_assets.lod_manager(), &map_name) {
+                match Blv::load(game_assets.assets(), &map_name) {
                     Ok(blv) => {
                         progress.blv = Some(blv);
                         // Skip terrain — jump straight to BuildModels
@@ -450,12 +450,12 @@ fn loading_step(
                 }
                 return;
             }
-            match Odm::load(game_assets.lod_manager(), &map_name) {
+            match Odm::load(game_assets.assets(), &map_name) {
                 Ok(odm) => {
-                    match odm.tile_table(game_assets.lod_manager()) {
+                    match odm.tile_table(game_assets.assets()) {
                         Ok(tile_table) => {
                             // Build water map from tile data
-                            if let Ok(dtile) = Dtile::load(game_assets.lod_manager()) {
+                            if let Ok(dtile) = Dtile::load(game_assets.assets()) {
                                 let water_cells: Vec<bool> =
                                     odm.tile_map.iter().map(|&idx| dtile.is_deep_water_tile(idx)).collect();
                                 progress.water_cells = Some(water_cells);
@@ -498,7 +498,7 @@ fn loading_step(
         }
         LoadingStep::BuildAtlas => {
             if let Some(tile_table) = &progress.tile_table {
-                match tile_table.atlas_image(game_assets.lod_manager()) {
+                match tile_table.atlas_image(game_assets.assets()) {
                     Ok(mut atlas) => {
                         let mask = openmm_data::image::extract_water_mask(&mut atlas);
                         progress.terrain_texture = Some(crate::assets::dynamic_to_bevy_image(atlas));
@@ -533,7 +533,7 @@ fn loading_step(
                 }
                 // Load DLV to get door data
                 let dlv_result = openmm_data::dlv::Dlv::new(
-                    game_assets.lod_manager(),
+                    game_assets.assets(),
                     &load_request.map_name.to_string(),
                     blv.door_count,
                     blv.doors_data_size,
@@ -819,7 +819,7 @@ fn loading_step(
                         .flat_map(|c| (1..=3).map(move |n| format!("out{}{}", c, n)))
                         .collect();
                     let evt_entry = outdoor_bases.iter().find_map(|base| {
-                        openmm_data::evt::EvtFile::parse(game_assets.lod_manager(), base)
+                        openmm_data::evt::EvtFile::parse(game_assets.assets(), base)
                             .ok()
                             .and_then(|evt| {
                                 evt.events.values().flatten().find_map(|s| {
@@ -880,7 +880,7 @@ fn loading_step(
                 };
                 // Resolve BLV decorations (torches, chests, etc.)
                 let decorations =
-                    openmm_data::assets::Decorations::from_blv(game_assets.lod_manager(), &blv.decorations)
+                    openmm_data::assets::Decorations::from_blv(game_assets.assets(), &blv.decorations)
                         .unwrap_or_else(|e| {
                             warn!("Failed to resolve indoor decorations: {e}");
                             openmm_data::assets::Decorations::empty()
@@ -925,8 +925,8 @@ fn loading_step(
                 let resolved_actors = openmm_data::assets::Monsters::load_for_blv(
                     &blv.spawn_points,
                     &load_request.map_name.to_string(),
-                    game_assets.game_data(),
-                    game_assets.lod_manager(),
+                    game_assets.data(),
+                    game_assets.assets(),
                 )
                 .ok();
 
@@ -1071,7 +1071,7 @@ fn loading_step(
                         }
                     }
                     // Decorations::new filters invisible/marker/no-draw entries automatically
-                    openmm_data::assets::Decorations::load(game_assets.lod_manager(), &odm.billboards).ok()
+                    openmm_data::assets::Decorations::load(game_assets.assets(), &odm.billboards).ok()
                 };
                 progress.start_points = Some(start_points);
                 progress.decorations = decorations;
@@ -1099,10 +1099,10 @@ fn loading_step(
                     })
                 });
                 let lod_actors = openmm_data::assets::Actors::new(
-                    game_assets.lod_manager(),
+                    game_assets.assets(),
                     &load_request.map_name.to_string(),
                     snapshot.as_ref(),
-                    game_assets.game_data(),
+                    game_assets.data(),
                 )
                 .ok();
                 if let Some(ref actors) = lod_actors {
@@ -1125,17 +1125,17 @@ fn loading_step(
                 // Spawn-point monsters: outdoor uses ODM spawn points, indoor uses BLV spawn points.
                 let lod_monsters = if load_request.map_name.is_outdoor() {
                     openmm_data::assets::Monsters::load(
-                        game_assets.lod_manager(),
+                        game_assets.assets(),
                         &load_request.map_name.to_string(),
-                        game_assets.game_data(),
+                        game_assets.data(),
                     )
                     .ok()
                 } else if let Some(ref blv) = progress.blv {
                     openmm_data::assets::Monsters::load_for_blv(
                         &blv.spawn_points,
                         &load_request.map_name.to_string(),
-                        game_assets.game_data(),
-                        game_assets.lod_manager(),
+                        game_assets.data(),
+                        game_assets.assets(),
                     )
                     .ok()
                 } else {
@@ -1171,7 +1171,7 @@ fn loading_step(
                 let queue = progress.preload_queue.as_mut().unwrap();
                 if !queue.music_resolved {
                     queue.music_resolved = true;
-                    if let Some(cfg) = game_assets.game_data().mapstats.get(&load_request.map_name.to_string()) {
+                    if let Some(cfg) = game_assets.data().mapstats.get(&load_request.map_name.to_string()) {
                         progress.music_track = cfg.music_track;
                     }
                 }
@@ -1188,7 +1188,7 @@ fn loading_step(
                     let (root, variant, palette_id) = &queue.sprite_roots[queue.sprite_idx];
                     cache.preload(
                         &[(root.as_str(), *variant, *palette_id)],
-                        game_assets.lod_manager(),
+                        game_assets.assets(),
                         &mut images,
                         &mut materials,
                     );

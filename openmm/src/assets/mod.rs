@@ -23,7 +23,7 @@ impl GameAssets {
         &self.assets
     }
 
-    pub fn game_data(&self) -> &openmm_data::GameData {
+    pub fn data(&self) -> &openmm_data::GameData {
         self.assets.data()
     }
 
@@ -34,11 +34,6 @@ impl GameAssets {
     /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).
     pub fn lod(&self) -> openmm_data::assets::LodDecoder<'_> {
         self.assets.lod()
-    }
-
-    /// Compatibility method for old code expecting lod_manager.
-    pub fn lod_manager(&self) -> &Assets {
-        &self.assets
     }
 
     /// Load a LOD icon by name as a nearest-neighbor Bevy Image handle.

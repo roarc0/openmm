@@ -88,7 +88,7 @@ pub fn prepare_npc_dialogue(
             .filter(|e| e.profession_id > 0)
             .map(|e| e.profession_id as u16)
     };
-    let prof_entry = profession_id.and_then(|id| game_assets.game_data().prof_table.as_ref()?.get(id));
+    let prof_entry = profession_id.and_then(|id| game_assets.data().prof_table.as_ref()?.get(id));
 
     let portrait_img = game_assets
         .lod()

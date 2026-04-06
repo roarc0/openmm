@@ -1,28 +1,13 @@
 //! SMK video support — archive extensions and frame-by-frame decoding.
 
-use crate::assets::provider::archive::Archive;
 pub use crate::assets::provider::archive::smk::{SmkArchive, SmkWriter};
 pub use crate::assets::smk::{SmkAudioInfo, SmkDecoder, SmkError, SmkInfo, parse_smk_info};
 
-pub trait SmkExt {
-    fn smk_bytes(&self, index: usize) -> Option<&[u8]>;
-    fn smk_by_name(&self, name: &str) -> Option<Vec<u8>>;
-}
-
-impl SmkExt for SmkArchive {
-    fn smk_bytes(&self, _index: usize) -> Option<&[u8]> {
-        // Legacy support if needed, but Archive trait is preferred.
-        None
-    }
-
-    fn smk_by_name(&self, name: &str) -> Option<Vec<u8>> {
-        self.get_file(name)
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::assets::provider::archive::Archive;
     use std::path::Path;
 
     #[test]

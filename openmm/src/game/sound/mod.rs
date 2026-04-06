@@ -98,7 +98,7 @@ impl Plugin for SoundPlugin {
 }
 
 fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
-    let dsounds = match DSounds::load(game_assets.lod_manager()) {
+    let dsounds = match DSounds::load(game_assets.assets()) {
         Ok(d) => d,
         Err(e) => {
             warn!("Failed to load dsounds.bin: {e}");

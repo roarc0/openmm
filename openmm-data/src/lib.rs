@@ -1,7 +1,5 @@
 use std::env;
 
-pub use crate::assets::provider::archive::Archive;
-
 /// Serialise a parsed LOD structure back to its binary/text wire format.
 pub trait LodSerialise {
     fn to_bytes(&self) -> Vec<u8>;
