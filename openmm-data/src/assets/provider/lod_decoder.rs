@@ -73,15 +73,15 @@ impl<'a> LodDecoder<'a> {
     pub fn icon(&self, name: &str) -> Option<DynamicImage> {
         let path = format!("icons/{}", name.to_lowercase());
         let raw = self.assets.get_bytes(&path).ok()?;
-        // Try LodData decompression once; fall back to raw if not compressed.
+        // Try LodData decompression once; fall back to raw bytes if not compressed.
         let data = match crate::assets::lod_data::LodData::try_from(raw.as_slice()) {
             Ok(d) => d.data,
-            Err(_) => raw.clone(),
+            Err(_) => raw, // move: no copy needed when data is already uncompressed
         };
         if data.len() > 4 && data[0] == 0x0A {
             crate::assets::pcx::decode(&data)
         } else {
-            let img = crate::assets::image::Image::try_from(raw.as_slice()).ok()?;
+            let img = crate::assets::image::Image::try_from(data.as_slice()).ok()?;
             img.to_image_buffer().ok()
         }
     }

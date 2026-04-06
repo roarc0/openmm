@@ -371,13 +371,15 @@ fn decode_sprite_frames(
     // Some dying sprites are stored as a single image with no frame/direction
     // suffix (e.g. "arc1diq" — the DSFT sprite_name IS the file name). Detect
     // this by attempting to load the root itself before the frame-letter loop.
-    let single_frame_root = assets.lod().sprite(root).is_some()
-        && assets.lod().sprite(&format!("{}a0", root)).is_none()
-        && assets.lod().sprite(&format!("{}a", root)).is_none();
+    let root_lower = root.to_lowercase();
+    let root_img = assets.lod().sprite(root);
+    let single_frame_root = root_img.is_some()
+        && !assets.lod_contains("sprites", &format!("{}a0", root_lower))
+        && !assets.lod_contains("sprites", &format!("{}a", root_lower));
 
     if single_frame_root {
         // Load the single image for all 5 directional slots.
-        let img = assets.lod().sprite(root);
+        let img = root_img;
         if let Some(ref i) = img {
             max_w = max_w.max(i.width());
             max_h = max_h.max(i.height());
@@ -389,7 +391,7 @@ fn decode_sprite_frames(
             let test0 = format!("{}{}0", root, frame_letter);
             let test_nodir = format!("{}{}", root, frame_letter);
 
-            let has_frame = assets.lod().sprite(&test0).is_some() || assets.lod().sprite(&test_nodir).is_some();
+            let has_frame = assets.lod_contains("sprites", &test0) || assets.lod_contains("sprites", &test_nodir);
             if !has_frame {
                 break;
             }
@@ -399,7 +401,7 @@ fn decode_sprite_frames(
                 let name = format!("{}{}{}", root, frame_letter, dir);
                 let img = if variant > 1 && palette_id > 0 {
                     // Use DSFT palette directly (sprite header palettes differ in numbering)
-                    let sprite_name = if assets.get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
+                    let sprite_name = if assets.lod_contains("sprites", &name.to_lowercase()) {
                         &name
                     } else {
                         &test_nodir
@@ -489,10 +491,11 @@ fn load_sprite_with_palette_offset(
     fallback: &str,
     palette_offset: u16,
 ) -> Option<DynamicImage> {
-    // Try the primary name first, then the fallback (no-direction variant)
-    let sprite_name = if assets.get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
+    // Try the primary name first, then the fallback (no-direction variant).
+    // Use O(1) lod_contains to pick the name, then fetch bytes exactly once.
+    let sprite_name = if assets.lod_contains("sprites", &name.to_lowercase()) {
         name
-    } else if assets.get_bytes(format!("sprites/{}", fallback.to_lowercase())).is_ok() {
+    } else if assets.lod_contains("sprites", &fallback.to_lowercase()) {
         fallback
     } else {
         return None;

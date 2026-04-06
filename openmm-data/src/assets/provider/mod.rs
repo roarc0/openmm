@@ -313,6 +313,14 @@ impl Assets {
         self.lods.get(&name.to_lowercase())
     }
 
+    /// O(1) check: does `name` exist in the given LOD archive?
+    /// No allocation, no decoding — just a hash lookup.
+    pub fn lod_contains(&self, archive: &str, name: &str) -> bool {
+        self.lods
+            .get(&archive.to_lowercase())
+            .map_or(false, |lod| lod.contains(name))
+    }
+
     pub fn lod_names(&self) -> Vec<String> {
         self.lods.keys().cloned().collect()
     }
