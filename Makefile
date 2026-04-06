@@ -67,6 +67,8 @@ test-ci:
 
 # --- Tools ---
 
+dump: dump_assets dump_sounds dump_saves dump_vid
+
 dump_assets:
 	cargo run --release -p openmm-data --bin dump_assets
 

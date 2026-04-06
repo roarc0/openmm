@@ -42,13 +42,19 @@ fn main() {
 
     // Dump all files
     println!("\nDumping files to {}/ ...", out_dir.display());
+    let palettes = assets.palettes().ok();
     for (archive, files) in &asset_map {
         let arch_dir = out_dir.join(archive);
         let _ = fs::create_dir_all(&arch_dir);
         for file in files {
             let path = format!("{}/{}", archive, file);
-            if let Ok(bytes) = assets.get_bytes(&path) {
-                let _ = fs::write(arch_dir.join(file), bytes);
+            if let Ok(bytes) = assets.get_decompressed(&path) {
+                if let Some(img) = try_decode_image(&bytes, palettes) {
+                    let png_name = format!("{}.png", file);
+                    let _ = img.save(arch_dir.join(&png_name));
+                } else {
+                    let _ = fs::write(arch_dir.join(file), bytes);
+                }
             }
         }
     }
@@ -70,6 +76,33 @@ fn main() {
         }
     }
     dump_readable_files(&assets, out_dir);
+}
+
+/// Try to decode raw (decompressed) bytes as an image.
+/// Tries PCX (0x0A magic), LOD bitmap, and LOD sprite formats in order.
+/// Returns None if none match.
+fn try_decode_image(data: &[u8], palettes: Option<&openmm_data::assets::palette::Palettes>) -> Option<image::DynamicImage> {
+    // PCX: first byte is 0x0A (manufacturer byte)
+    if data.len() > 4 && data[0] == 0x0A {
+        if let Some(img) = openmm_data::assets::pcx::decode(data) {
+            return Some(img);
+        }
+    }
+    // LOD bitmap format
+    if let Ok(img) = openmm_data::assets::image::Image::try_from(data) {
+        if let Ok(dyn_img) = img.to_image_buffer() {
+            return Some(dyn_img);
+        }
+    }
+    // LOD sprite format (needs palettes)
+    if let Some(palettes) = palettes {
+        if let Ok(img) = openmm_data::assets::image::Image::try_from((data, palettes)) {
+            if let Ok(dyn_img) = img.to_image_buffer() {
+                return Some(dyn_img);
+            }
+        }
+    }
+    None
 }
 
 fn dump_readable_files(assets: &Assets, out_dir: &Path) {

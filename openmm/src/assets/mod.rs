@@ -27,6 +27,42 @@ impl GameAssets {
         &self.assets.data().quests
     }
 
+    pub fn autonotes(&self) -> Option<&openmm_data::autonotes::AutonotesTable> {
+        self.assets.data().autonotes_table.as_ref()
+    }
+
+    pub fn npcbtb(&self) -> Option<&openmm_data::npcbtb::NpcBtbTable> {
+        self.assets.data().npcbtb_table.as_ref()
+    }
+
+    pub fn npctext(&self) -> Option<&openmm_data::npctext::NpcTextTable> {
+        self.assets.data().npctext_table.as_ref()
+    }
+
+    pub fn npctopic(&self) -> Option<&openmm_data::npctopic::NpcTopicTable> {
+        self.assets.data().npctopic_table.as_ref()
+    }
+
+    pub fn proftext(&self) -> Option<&openmm_data::proftext::ProfTextTable> {
+        self.assets.data().proftext_table.as_ref()
+    }
+
+    pub fn scroll(&self) -> Option<&openmm_data::scroll::ScrollTable> {
+        self.assets.data().scroll_table.as_ref()
+    }
+
+    pub fn trans(&self) -> Option<&openmm_data::trans::TransTable> {
+        self.assets.data().trans_table.as_ref()
+    }
+
+    pub fn passwords(&self) -> Option<&openmm_data::passwords::PasswordsTable> {
+        self.assets.data().passwords_table.as_ref()
+    }
+
+    pub fn merchant(&self) -> Option<&openmm_data::merchant::MerchantTable> {
+        self.assets.data().merchant_table.as_ref()
+    }
+
     /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).
     pub fn lod(&self) -> openmm_data::assets::LodDecoder<'_> {
         self.assets.lod()

@@ -236,6 +236,15 @@ fn log_tail_unreachable(steps: &[EvtStep], from_pc: usize) {
     }
 }
 
+/// Show the autonote text in the footer when a note is newly acquired.
+fn show_autonote_text(id: i32, assets: &GameAssets, footer: &mut FooterText, time_secs: f64) {
+    if let Some(note) = assets.autonotes().and_then(|t| t.get(id as u16)) {
+        if !note.text.is_empty() {
+            footer.set_status(&note.text, 4.0, time_secs);
+        }
+    }
+}
+
 /// Returns true if this variable is per-character (not global).
 fn is_character_var(var: EvtVariable) -> bool {
     matches!(var.0, 0x01..=0x68)
@@ -492,6 +501,10 @@ fn process_events(
                 footer.set(text);
             }
             GameEvent::SpeakInHouse { house_id } => {
+                // Show transition/location description if one exists for this house_id.
+                if let Some(desc) = game_assets.trans().and_then(|t| t.get(*house_id as u16)).map(|e| e.description.clone()).filter(|s| !s.is_empty()) {
+                    footer.set_status(&desc, 4.0, time.elapsed_secs_f64());
+                }
                 let image = map_events
                     .as_ref()
                     .and_then(|me| {
@@ -672,13 +685,25 @@ fn process_events(
 
             // ── Variable operations (NOW WORKING) ────────────────────
             GameEvent::Add { var, value } => {
+                let show_note = *var == EvtVariable::AUTONOTES_BITS
+                    && *value != 0
+                    && !world_state.game_vars.has_autonote(*value);
                 add_variable(&mut world_state.game_vars, &mut party, *var, *value);
+                if show_note {
+                    show_autonote_text(*value, &game_assets, &mut footer, time.elapsed_secs_f64());
+                }
             }
             GameEvent::Subtract { var, value } => {
                 subtract_variable(&mut world_state.game_vars, &mut party, *var, *value);
             }
             GameEvent::Set { var, value } => {
+                let show_note = *var == EvtVariable::AUTONOTES_BITS
+                    && *value != 0
+                    && !world_state.game_vars.has_autonote(*value);
                 set_variable(&mut world_state.game_vars, &mut party, *var, *value);
+                if show_note {
+                    show_autonote_text(*value, &game_assets, &mut footer, time.elapsed_secs_f64());
+                }
             }
 
             // ── World operations (stubs with warns) ──────────────────
@@ -828,7 +853,8 @@ fn process_events(
                 topic_index,
                 event_id,
             } => {
-                info!("SetNPCTopic: npc={} topic={} event={}", npc_id, topic_index, event_id);
+                let label = game_assets.npctopic().and_then(|t| t.get(*topic_index as u16)).map(|e| e.topic.as_str()).unwrap_or("?");
+                info!("SetNPCTopic: npc={} topic_index={}({}) event={}", npc_id, topic_index, label, event_id);
                 // Store event override keyed by npc_id; topic_index is ignored (MM6 has one active topic).
                 world_state.game_vars.npc_topics.insert(*npc_id, *event_id);
             }
@@ -837,8 +863,11 @@ fn process_events(
                 world_state.game_vars.npc_locations.insert(*npc_id, *map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
+                // day_of_week: GameTime uses 0=Monday epoch; proftext uses 0=Sunday.
+                // Shift by 6 to convert: Monday(0)→1, …, Sunday(6)→0.
+                let dow = audio.game_time.as_ref().map(|gt| (gt.day_of_week() + 6) % 7).unwrap_or(0);
                 if let Some((portrait, profile)) =
-                    crate::game::hud::overlay::prepare_npc_dialogue(*npc_id, &map_events, &game_assets, &mut images)
+                    crate::game::hud::overlay::prepare_npc_dialogue(*npc_id, &map_events, &game_assets, &mut images, dow, &world_state.game_vars.npc_greetings)
                 {
                     commands.insert_resource(portrait);
                     commands.insert_resource(profile);

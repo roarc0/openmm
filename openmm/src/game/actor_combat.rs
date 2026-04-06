@@ -131,20 +131,21 @@ fn monster_attack_system(
 /// Handle click-to-kill: set dying animation, play die sound, add DyingTimer.
 fn monster_die_system(
     mut kill_events: bevy::ecs::message::MessageReader<KillActorEvent>,
-    mut actors: Query<(&Actor, &Transform, &mut AnimationState), Without<DyingTimer>>,
+    mut actors: Query<(&mut Actor, &Transform, &mut AnimationState), Without<DyingTimer>>,
     mut commands: Commands,
     mut sounds: MessageWriter<PlayOnceSoundEvent>,
     mut world_state: Option<ResMut<crate::game::world_state::WorldState>>,
 ) {
     for KillActorEvent(entity) in kill_events.read() {
-        let Ok((actor, transform, mut anim_state)) = actors.get_mut(*entity) else {
+        let Ok((mut actor, transform, mut anim_state)) = actors.get_mut(*entity) else {
             continue;
         };
         if matches!(*anim_state, AnimationState::Dying | AnimationState::Dead) {
             continue;
         }
+        actor.hp = 0;
         info!(
-            "Actor '{}' (ddm_id={}) killed by player click",
+            "Actor '{}' (ddm_id={}) killed by player click (hp→0)",
             actor.name, actor.ddm_id
         );
         *anim_state = AnimationState::Dying;
