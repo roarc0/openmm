@@ -4,7 +4,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub mod archive;
-pub mod smk;
 
 pub use self::archive::lod::{LodArchive, Version};
 pub use self::archive::smk::SmkArchive;
