@@ -19,7 +19,8 @@ use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
 use crate::game::actor_combat::{ActorDead, DyingTimer};
-use crate::game::collision::{BuildingColliders, MAX_STEP_UP, TerrainHeightMap, sample_terrain_height};
+use crate::game::actor_physics::{is_passable, snap_actor_y};
+use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
 use crate::game::entities::actor::Actor;
 use crate::game::entities::{AnimationState, WorldEntity};
 use crate::game::hud::HudView;
@@ -113,6 +114,7 @@ fn monster_ai_system(
     time: Res<Time>,
     colliders: Option<Res<BuildingColliders>>,
     terrain: Option<Res<TerrainHeightMap>>,
+    water_map: Option<Res<WaterMap>>,
     player: Query<&Transform, With<Player>>,
     mut query: Query<
         (&mut Transform, &mut Actor, &mut AnimationState, &mut MonsterAiMode),
@@ -132,41 +134,7 @@ fn monster_ai_system(
     let dt = time.delta_secs();
     let c = colliders.as_deref();
     let hm = terrain.as_deref();
-
-    // Snap actor Y to the correct floor surface (terrain or BSP) after XZ movement.
-    // Flying actors hover above the surface; grounded actors stand on it.
-    // Works for both outdoor (terrain + optional BSP) and indoor (BSP only).
-    //
-    // Key invariant: if an actor is elevated on a BSP floor (balcony, rooftop) and wanders
-    // to an XZ position where no BSP floor exists, we keep their current Y rather than
-    // dropping them to terrain. They should only fall to terrain when they're already at
-    // ground level (within MAX_STEP_UP of terrain).
-    let snap_y = |pos: Vec3, sh: f32, flying: bool| -> f32 {
-        let feet_y = pos.y - sh;
-        let terrain_h = hm
-            .map(|t| sample_terrain_height(&t.heights, pos.x, pos.z))
-            .unwrap_or(f32::MIN);
-        let bsp_h = c
-            .and_then(|col| col.floor_height_at(pos.x, pos.z, feet_y, MAX_STEP_UP))
-            .unwrap_or(f32::MIN);
-
-        let ground = if bsp_h > f32::MIN {
-            // BSP floor found — use whichever is higher (outdoor actor on building or ground).
-            terrain_h.max(bsp_h)
-        } else if terrain_h > f32::MIN {
-            // No BSP floor at new XZ — only snap to terrain if actor is already near ground level.
-            // If they're elevated (on a balcony/rooftop), keep current Y to avoid dropping them.
-            if terrain_h >= feet_y - MAX_STEP_UP {
-                terrain_h
-            } else {
-                return pos.y;
-            }
-        } else {
-            return pos.y; // no floor at all (indoor, no BSP hit) — keep current Y
-        };
-
-        if flying { ground + sh * 4.0 } else { ground + sh }
-    };
+    let wm = water_map.as_deref();
 
     for (mut transform, mut actor, mut anim_state, mut ai_mode) in query.iter_mut() {
         if actor.hp <= 0 {
@@ -270,10 +238,13 @@ fn monster_ai_system(
                 let chase_target = player_pos + jitter_offset;
 
                 let (dest, facing) = steer_toward(my_pos, chase_target, speed, c);
-                transform.translation.x = dest.x;
-                transform.translation.z = dest.z;
-                transform.translation.y = snap_y(dest, actor.sprite_half_height, actor.can_fly);
                 actor.facing_yaw = facing;
+                let new_y = snap_actor_y(dest, actor.sprite_half_height, actor.can_fly, hm, c);
+                if is_passable(&actor, transform.translation.y, dest, new_y, wm) {
+                    transform.translation.x = dest.x;
+                    transform.translation.z = dest.z;
+                    transform.translation.y = new_y;
+                }
             }
             continue;
         }
@@ -307,10 +278,19 @@ fn monster_ai_system(
                 // Wander uses capped speed; steering handles indoor walls.
                 let speed = actor.move_speed.min(60.0) * dt;
                 let (dest, facing) = steer_toward(my_pos, actor.wander_target, speed, c);
-                transform.translation.x = dest.x;
-                transform.translation.z = dest.z;
-                transform.translation.y = snap_y(dest, actor.sprite_half_height, actor.can_fly);
                 actor.facing_yaw = facing;
+                let new_y = snap_actor_y(dest, actor.sprite_half_height, actor.can_fly, hm, c);
+                // If wall-stuck (moved <10% of intended), or terrain blocked, abandon target.
+                let wall_stuck = (dest - my_pos).length() < speed * 0.1;
+                if is_passable(&actor, transform.translation.y, dest, new_y, wm) && !wall_stuck {
+                    transform.translation.x = dest.x;
+                    transform.translation.z = dest.z;
+                    transform.translation.y = new_y;
+                } else {
+                    // Can't reach wander target — go idle and pick a new one next tick.
+                    *anim_state = AnimationState::Idle;
+                    actor.wander_timer = 0.0;
+                }
             } else {
                 *anim_state = AnimationState::Idle;
                 actor.wander_timer = 2.0;

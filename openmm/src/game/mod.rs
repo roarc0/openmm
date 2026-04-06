@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 pub(crate) mod actor_combat;
+pub(crate) mod actor_physics;
 pub(crate) mod blv;
 pub(crate) mod collision;
 pub(crate) mod debug;
@@ -51,6 +52,7 @@ impl Plugin for InGamePlugin {
             sound::SoundPlugin,
         ))
         .add_plugins(actor_combat::ActorCombatPlugin)
+        .add_plugins(actor_physics::ActorPhysicsPlugin)
         .add_plugins(monster_ai::MonsterAiPlugin)
         .add_plugins(MaterialPlugin::<terrain_material::TerrainMaterial>::default())
         .add_plugins(MaterialPlugin::<sprite_material::SpriteMaterial>::default())

@@ -57,6 +57,9 @@ fn actor_fidget_sounds(
     let range_sq = ACTOR_SOUND_RANGE * ACTOR_SOUND_RANGE;
 
     for (transform, mut actor) in actor_query.iter_mut() {
+        if actor.hp <= 0 {
+            continue;
+        }
         // Use bypass_change_detection for the timer tick so decrementing the timer each frame
         // does not mark the Actor component as Changed (which would wake up change-detection
         // watchers for every actor every frame). Only the re-arm write below needs detection.

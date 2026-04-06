@@ -907,6 +907,7 @@ fn lazy_spawn(
                     recovery_secs: actor.recovery_secs,
                     sprite_half_height: sh / 2.0,
                     can_fly: actor.can_fly,
+                    vertical_velocity: 0.0,
                     ai_type: actor.ai_type.clone(),
                 },
             ));
@@ -1039,6 +1040,7 @@ fn lazy_spawn(
                 recovery_secs: actor.recovery_secs,
                 sprite_half_height: sh / 2.0,
                 can_fly: actor.can_fly,
+                    vertical_velocity: 0.0,
                 ai_type: actor.ai_type.clone(),
             },
             crate::game::interaction::NpcInteractable {
@@ -1139,6 +1141,7 @@ fn lazy_spawn(
                 recovery_secs: mon.recovery_secs,
                 sprite_half_height: sh / 2.0,
                 can_fly: mon.can_fly,
+                    vertical_velocity: 0.0,
                 ai_type: mon.ai_type.clone(),
             },
         ));

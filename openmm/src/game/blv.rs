@@ -740,6 +740,7 @@ fn spawn_indoor_world(
                     recovery_secs: mon.recovery_secs,
                     sprite_half_height: sh / 2.0,
                     can_fly: mon.can_fly,
+                    vertical_velocity: 0.0,
                     ai_type: mon.ai_type.clone(),
                 },
                 crate::game::entities::Billboard,

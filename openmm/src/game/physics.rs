@@ -216,6 +216,7 @@ fn gravity_system(
             }
 
             // Slope sliding: only on outdoor terrain
+
             if physics.on_ground
                 && let Some(ref hm) = height_map
             {
@@ -240,3 +241,4 @@ fn gravity_system(
         }
     }
 }
+

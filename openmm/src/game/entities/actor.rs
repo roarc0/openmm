@@ -41,6 +41,8 @@ pub struct Actor {
     pub sprite_half_height: f32,
     /// Whether this monster can fly. Flying actors are not terrain-snapped during movement.
     pub can_fly: bool,
+    /// Vertical velocity in world units/sec. Applied by the gravity system when airborne.
+    pub vertical_velocity: f32,
     /// AI behaviour type from monsters.txt: "Normal", "Aggress", "Wimp", "Suicidal".
     /// Controls aggro probability and flee behaviour.
     pub ai_type: String,

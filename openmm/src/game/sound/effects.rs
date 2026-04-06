@@ -64,7 +64,7 @@ fn handle_play_sound(
             AudioPlayer(handle),
             PlaybackSettings::LOOP
                 .with_spatial(true)
-                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 4.0)),
+                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume)),
             Transform::from_translation(ev.position),
             InGame,
         ));
@@ -124,7 +124,7 @@ fn handle_play_once_sound(
             AudioPlayer(handle),
             PlaybackSettings::ONCE
                 .with_spatial(true)
-                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 2.0)),
+                .with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume)),
             Transform::from_translation(ev.position),
             InGame,
         ));

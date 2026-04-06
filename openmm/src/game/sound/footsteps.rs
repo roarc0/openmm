@@ -92,7 +92,7 @@ fn footstep_system(
     let entity = commands
         .spawn((
             AudioPlayer(handle),
-            PlaybackSettings::LOOP.with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume * 3.0)),
+            PlaybackSettings::LOOP.with_volume(bevy::audio::Volume::Linear(cfg.sfx_volume)),
             InGame,
         ))
         .id();
