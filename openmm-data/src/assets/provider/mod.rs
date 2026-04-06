@@ -20,6 +20,7 @@ pub mod actors;
 pub mod decorations;
 pub mod lod_decoder;
 pub mod monster;
+pub mod npc;
 
 pub use lod_decoder::LodDecoder;
 
@@ -34,21 +35,39 @@ pub struct StaticGameData {
     /// Per-map monster configuration (icons/mapstats.txt).
     pub mapstats: crate::assets::mapstats::MapStats,
     /// Global NPC metadata table (icons/npcdata.txt).
-    pub street_npcs: Option<crate::assets::npc::StreetNpcs>,
+    pub street_npcs: Option<npc::StreetNpcs>,
     /// Name pool (icons/npcnames.txt) for fallback peasant name generation.
-    pub name_pool: Option<crate::assets::npc::NpcNamePool>,
+    pub name_pool: Option<crate::assets::npcnames::NpcNamePools>,
     /// NPC profession definitions (icons/npcprof.txt).
     pub prof_table: Option<crate::assets::npcprof::NpcProfTable>,
     /// Regional NPC news lines (icons/npcnews.txt).
     pub news_table: Option<crate::assets::npcnews::NpcNewsTable>,
     /// Award/achievement definitions (icons/awards.txt).
     pub awards_table: Option<crate::assets::awards::AwardsTable>,
+    /// Auto-journal entry definitions (icons/autonotes.txt).
+    pub autonotes_table: Option<crate::assets::autonotes::AutonotesTable>,
     /// Item definitions (icons/items.txt).
     pub items_table: Option<crate::assets::items::ItemsTable>,
     /// Spell definitions (icons/spells.txt).
     pub spells_table: Option<crate::assets::spells::SpellsTable>,
     /// Player class descriptions (icons/class.txt).
     pub class_table: Option<crate::assets::class::ClassTable>,
+    /// NPC beg/bribe/threat flags and greeting messages (icons/npcbtb.txt).
+    pub npcbtb_table: Option<crate::assets::npcbtb::NpcBtbTable>,
+    /// NPC dialogue text strings (icons/npctext.txt).
+    pub npctext_table: Option<crate::assets::npctext::NpcTextTable>,
+    /// NPC dialogue topic labels (icons/npctopic.txt).
+    pub npctopic_table: Option<crate::assets::npctopic::NpcTopicTable>,
+    /// NPC profession day-of-week dialogue (icons/PROFTEXT.txt).
+    pub proftext_table: Option<crate::assets::proftext::ProfTextTable>,
+    /// Scroll item text strings (icons/scroll.txt).
+    pub scroll_table: Option<crate::assets::scroll::ScrollTable>,
+    /// Area transition descriptions (icons/trans.txt).
+    pub trans_table: Option<crate::assets::trans::TransTable>,
+    /// Dungeon password questions and answers (icons/passwords.txt).
+    pub passwords_table: Option<crate::assets::passwords::PasswordsTable>,
+    /// Merchant dialogue strings (icons/merchant.txt).
+    pub merchant_table: Option<crate::assets::merchant::MerchantTable>,
     /// Decoration descriptors (icons/ddeclist.bin).
     pub ddeclist: crate::assets::ddeclist::DDecList,
     /// QBit ID → human-readable label (icons/quests.txt).
@@ -63,21 +82,24 @@ impl StaticGameData {
         let mapstats = crate::assets::mapstats::MapStats::load(assets)?;
         let ddeclist = crate::assets::ddeclist::DDecList::load(assets)?;
 
-        let name_pool = assets
-            .get_decompressed("icons/npcnames.txt")
-            .ok()
-            .and_then(|d| crate::assets::npc::NpcNamePool::parse(d.as_slice()).ok());
-        let street_npcs = assets
-            .get_decompressed("icons/npcdata.txt")
-            .ok()
-            .and_then(|d| crate::assets::npc::StreetNpcs::parse(d.as_slice(), name_pool.as_ref()).ok());
+        let name_pool = crate::assets::npcnames::NpcNamePools::load(assets).ok();
+        let street_npcs = npc::StreetNpcs::load(assets).ok();
 
         let prof_table = crate::assets::npcprof::NpcProfTable::load(assets).ok();
         let news_table = crate::assets::npcnews::NpcNewsTable::load(assets).ok();
         let awards_table = crate::assets::awards::AwardsTable::load(assets).ok();
+        let autonotes_table = crate::assets::autonotes::AutonotesTable::load(assets).ok();
         let items_table = crate::assets::items::ItemsTable::load(assets).ok();
         let spells_table = crate::assets::spells::SpellsTable::load(assets).ok();
         let class_table = crate::assets::class::ClassTable::load(assets).ok();
+        let npcbtb_table = crate::assets::npcbtb::NpcBtbTable::load(assets).ok();
+        let npctext_table = crate::assets::npctext::NpcTextTable::load(assets).ok();
+        let npctopic_table = crate::assets::npctopic::NpcTopicTable::load(assets).ok();
+        let proftext_table = crate::assets::proftext::ProfTextTable::load(assets).ok();
+        let scroll_table = crate::assets::scroll::ScrollTable::load(assets).ok();
+        let trans_table = crate::assets::trans::TransTable::load(assets).ok();
+        let passwords_table = crate::assets::passwords::PasswordsTable::load(assets).ok();
+        let merchant_table = crate::assets::merchant::MerchantTable::load(assets).ok();
 
         let quests = crate::assets::quests::QuestNames::load(assets)
             .unwrap_or_else(|_| crate::assets::quests::QuestNames { names: vec![] });
@@ -92,9 +114,18 @@ impl StaticGameData {
             prof_table,
             news_table,
             awards_table,
+            autonotes_table,
             items_table,
             spells_table,
             class_table,
+            npcbtb_table,
+            npctext_table,
+            npctopic_table,
+            proftext_table,
+            scroll_table,
+            trans_table,
+            passwords_table,
+            merchant_table,
             ddeclist,
             quests,
         })

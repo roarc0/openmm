@@ -980,7 +980,7 @@ fn lazy_spawn(
             if let Some(ref mut me) = map_events {
                 me.generated_npcs.insert(
                     generated_id,
-                    openmm_data::assets::npc::GeneratedNpc {
+                    openmm_data::GeneratedNpc {
                         name: name.clone(),
                         portrait,
                         profession_id: npc_profession_id,

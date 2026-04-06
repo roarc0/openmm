@@ -18,10 +18,10 @@ pub struct MapEvents {
     /// Loaded from `npcdata.txt` in icons.lod; same for every map.
     pub npc_table: Option<openmm_data::StreetNpcs>,
     /// Name pool for generating street NPC names (from `npcnames.txt`).
-    pub name_pool: Option<openmm_data::NpcNamePool>,
+    pub name_pool: Option<openmm_data::NpcNamePools>,
     /// Dynamically generated NPCs for peasant actors (npc_id ≥ GENERATED_NPC_ID_BASE).
     /// Populated at actor spawn time; keyed by the assigned npc_id.
-    pub generated_npcs: std::collections::HashMap<i32, openmm_data::npc::GeneratedNpc>,
+    pub generated_npcs: std::collections::HashMap<i32, openmm_data::GeneratedNpc>,
 }
 
 /// Map building type string → fallback background image name.

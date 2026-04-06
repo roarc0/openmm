@@ -1,28 +1,14 @@
-//! Parser for `npcdata.txt` from icons.lod — the global MM6 NPC metadata table.
-//!
-//! # Format
-//! Tab-separated text file with 2 header rows followed by data rows.
-//! Columns (0-indexed):
-//!   0  = NPC id (#)
-//!   1  = name
-//!   2  = portrait index (Pic) — e.g. 81 → "NPC081" image
-//!   3  = state
-//!   4  = fame
-//!   5  = reputation
-//!   6  = 2D map location id
-//!   7  = profession id (index into npcprof.txt)
-//!   8  = join cost
-//!   9  = news
-//!   10 = event A
-//!   11 = event B
-//!   12 = event C
-//!   13 = notes (may be absent)
+//! Aggregate loader for `npcdata.txt` — loads and cross-references NPC names against
+//! `npcnames.txt` to build sex-split peasant portrait pools.
 
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::Cursor;
 
 use csv::ReaderBuilder;
+
+use crate::Assets;
+use crate::assets::npcnames::NpcNamePools;
 
 /// A name+portrait+profession for a dynamically generated street NPC (peasant).
 #[derive(Debug, Clone)]
@@ -32,64 +18,6 @@ pub struct GeneratedNpc {
     pub portrait: u32,
     /// Profession ID from npcprof.txt (e.g. 56 = Farmer). 0 if unknown.
     pub profession_id: u32,
-}
-
-/// Pool of first names from `npcnames.txt` for dynamic NPC generation.
-/// The file has a "Male\tFemale" header then one pair per line.
-#[derive(Clone)]
-pub struct NpcNamePool {
-    male: Vec<String>,
-    female: Vec<String>,
-}
-
-impl NpcNamePool {
-    pub fn parse(data: &[u8]) -> Result<Self, Box<dyn Error>> {
-        let text: String = data.iter().map(|&b| b as char).collect();
-        // Skip "Male\tFemale" header line
-        let body: String = text.lines().skip(1).collect::<Vec<_>>().join("\n");
-        let mut rdr = ReaderBuilder::new()
-            .delimiter(b'\t')
-            .has_headers(false)
-            .flexible(true)
-            .from_reader(Cursor::new(body.as_bytes()));
-
-        let mut male = Vec::new();
-        let mut female = Vec::new();
-        for result in rdr.records() {
-            let rec = result?;
-            let m = rec.get(0).unwrap_or("").trim();
-            if !m.is_empty() {
-                male.push(m.to_string());
-            }
-            let f = rec.get(1).unwrap_or("").trim();
-            if !f.is_empty() {
-                female.push(f.to_string());
-            }
-        }
-        Ok(Self { male, female })
-    }
-
-    /// Pick a name deterministically from the pool using `seed` as the index.
-    pub fn name_for(&self, is_female: bool, seed: usize) -> &str {
-        let pool = if is_female { &self.female } else { &self.male };
-        if pool.is_empty() {
-            return "Peasant";
-        }
-        &pool[seed % pool.len()]
-    }
-
-    /// Classify a first name as female (true), male (false), or unknown (None)
-    /// by checking against the male/female name pools from npcnames.txt.
-    pub fn classify_name(&self, first_name: &str) -> Option<bool> {
-        let lower = first_name.to_ascii_lowercase();
-        let in_female = self.female.iter().any(|n| n.to_ascii_lowercase() == lower);
-        let in_male = self.male.iter().any(|n| n.to_ascii_lowercase() == lower);
-        match (in_female, in_male) {
-            (true, false) => Some(true),  // female
-            (false, true) => Some(false), // male
-            _ => None,                    // ambiguous or not found
-        }
-    }
 }
 
 /// Metadata for one street NPC from npcdata.txt.
@@ -136,12 +64,19 @@ pub struct StreetNpcs {
 }
 
 impl StreetNpcs {
+    /// Load from assets — reads npcdata.txt and cross-references npcnames.txt for sex classification.
+    pub fn load(assets: &Assets) -> Result<Self, Box<dyn Error>> {
+        let name_pool = NpcNamePools::load(assets).ok();
+        let data = assets.get_decompressed("icons/npcdata.txt")?;
+        Self::parse(&data, name_pool.as_ref())
+    }
+
     /// Parse raw bytes from `npcdata.txt`.
     /// The file is Latin-1 (Windows-1252) encoded, not UTF-8.
     /// `name_pool` (from npcnames.txt) is used to classify peasant entries by sex for
     /// sex-appropriate portrait assignment. Entries whose sex can't be determined are
     /// added to both pools as fallback portraits.
-    pub fn parse(data: &[u8], name_pool: Option<&NpcNamePool>) -> Result<Self, Box<dyn Error>> {
+    pub fn parse(data: &[u8], name_pool: Option<&NpcNamePools>) -> Result<Self, Box<dyn Error>> {
         // Decode as Latin-1: every byte is a valid Unicode scalar value
         let text: String = data.iter().map(|&b| b as char).collect();
         let mut npcs = HashMap::new();
@@ -262,7 +197,7 @@ impl StreetNpcs {
 
     /// Pick a peasant portrait+profession from the sex-appropriate pool.
     /// Returns (portrait_number, profession_id).
-    /// For the NPC name, use `NpcNamePool::name_for(is_female, seed)` — it has sex-split lists.
+    /// For the NPC name, use `NpcNamePools::name_for(is_female, seed)` — it has sex-split lists.
     pub fn peasant_identity(&self, is_female: bool, seed: usize) -> Option<(u32, u32)> {
         let pool = if is_female {
             &self.peasant_female

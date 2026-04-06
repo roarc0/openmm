@@ -7,7 +7,8 @@
 use crate::assets::ddeclist::DDecListItem;
 use crate::assets::dsft::DSFTFrame;
 use crate::assets::provider::Assets;
-use crate::assets::{font, npc};
+use crate::assets::font;
+use super::npc;
 use image::{DynamicImage, GenericImageView};
 
 /// High-level LOD decoder: returns game-ready decoded assets from LOD archives.
@@ -113,15 +114,12 @@ impl<'a> LodDecoder<'a> {
 
     /// Load and parse the global NPC metadata table from `npcdata.txt`.
     pub fn npc_table(&self) -> Option<npc::StreetNpcs> {
-        let data = self.assets.get_decompressed("icons/npcdata.txt").ok()?;
-        let name_pool = self.npc_name_pool();
-        npc::StreetNpcs::parse(&data, name_pool.as_ref()).ok()
+        npc::StreetNpcs::load(self.assets).ok()
     }
 
     /// Load the NPC name pool from `npcnames.txt` for generating street NPC names.
-    pub fn npc_name_pool(&self) -> Option<npc::NpcNamePool> {
-        let data = self.assets.get_decompressed("icons/npcnames.txt").ok()?;
-        npc::NpcNamePool::parse(&data).ok()
+    pub fn npc_name_pool(&self) -> Option<crate::assets::npcnames::NpcNamePools> {
+        crate::assets::npcnames::NpcNamePools::load(self.assets).ok()
     }
 
     /// Get the decoration list item for a given declist_id.

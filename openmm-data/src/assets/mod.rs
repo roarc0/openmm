@@ -5,6 +5,7 @@ pub fn test_lod() -> Option<crate::Assets> {
     crate::Assets::new(crate::get_data_path()).ok()
 }
 
+pub mod autonotes;
 pub mod awards;
 pub mod billboard;
 pub mod blv;
@@ -29,20 +30,29 @@ pub mod image;
 pub mod items;
 pub mod lod_data;
 pub mod mapstats;
+pub mod merchant;
 pub mod monsters;
-pub mod npc;
+pub mod npcbtb;
+pub mod npcnames;
 pub mod npcnews;
 pub mod npcprof;
+pub mod npctext;
+pub mod npctopic;
 pub mod odm;
 pub mod palette;
+pub mod passwords;
 pub mod pcx;
+pub mod proftext;
 pub mod quests;
 pub mod save;
+pub mod scroll;
 pub mod smk;
 pub mod snd;
 pub mod spells;
+pub mod stats;
 pub mod terrain;
 pub mod tft;
+pub mod trans;
 pub mod twodevents;
 pub mod zlib;
 
@@ -64,6 +74,7 @@ pub use self::snd::SndArchive;
 pub use self::zlib::*;
 
 // Re-export specific types
+pub use self::autonotes::AutonotesTable;
 pub use self::awards::AwardsTable;
 pub use self::billboard::BillboardData;
 pub use self::bsp_model::BSPModel;
@@ -71,14 +82,24 @@ pub use self::class::ClassTable;
 pub use self::dlv::Dlv;
 pub use self::dmonlist::MonsterList;
 pub use self::dtile::{Dtile, TileTable};
-pub use self::npc::{NpcNamePool, StreetNpcs};
+pub use self::merchant::MerchantTable;
+pub use self::provider::npc::{GeneratedNpc, NpcEntry, StreetNpcs};
+pub use self::npcbtb::NpcBtbTable;
+pub use self::npcnames::NpcNamePools;
 pub use self::npcnews::NpcNewsTable;
 pub use self::npcprof::NpcProfTable;
+pub use self::npctext::NpcTextTable;
+pub use self::npctopic::NpcTopicTable;
+pub use self::passwords::PasswordsTable;
+pub use self::proftext::ProfTextTable;
 pub use self::provider::actors::Actors;
 pub use self::provider::decorations::Decorations;
 pub use self::provider::lod_decoder::LodDecoder;
 pub use self::provider::monster::Monsters;
 pub use self::quests::QuestNames;
 pub use self::save::{SaveFile, SaveHeader, list_saves};
+pub use self::scroll::ScrollTable;
 pub use self::spells::SpellsTable;
+pub use self::stats::StatsTable;
+pub use self::trans::TransTable;
 pub use self::twodevents::TwoDEvents;
