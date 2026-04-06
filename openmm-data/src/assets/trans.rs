@@ -90,6 +90,10 @@ mod tests {
     fn entry_1_mentions_dragon() {
         let Some(table) = load() else { return };
         let e = table.get(1).expect("entry 1 missing");
-        assert!(e.description.contains("dragon") || e.description.contains("Dragon"), "unexpected: {}", e.description);
+        assert!(
+            e.description.contains("dragon") || e.description.contains("Dragon"),
+            "unexpected: {}",
+            e.description
+        );
     }
 }

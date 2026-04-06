@@ -152,7 +152,9 @@ impl StreetNpcs {
                 Some(false) => peasant_male.push(pair),
                 None => log::warn!(
                     "peasant NPC id={} name={:?} first={:?} — sex unclassifiable, excluded from portrait pools",
-                    entry.id, entry.name, entry.name.split_whitespace().next().unwrap_or("")
+                    entry.id,
+                    entry.name,
+                    entry.name.split_whitespace().next().unwrap_or("")
                 ),
             }
         }
@@ -161,17 +163,18 @@ impl StreetNpcs {
         // sexes in npcdata.txt (two different NPC entries, one female-named, one male-named,
         // same portrait number). Using such portraits in both pools causes sex-mismatched
         // portraits, e.g. a female actor showing a male portrait.
-        let female_portraits: std::collections::HashSet<u32> =
-            peasant_female.iter().map(|(p, _)| *p).collect();
-        let male_portraits: std::collections::HashSet<u32> =
-            peasant_male.iter().map(|(p, _)| *p).collect();
-        let shared: std::collections::HashSet<u32> =
-            female_portraits.intersection(&male_portraits).copied().collect();
+        let female_portraits: std::collections::HashSet<u32> = peasant_female.iter().map(|(p, _)| *p).collect();
+        let male_portraits: std::collections::HashSet<u32> = peasant_male.iter().map(|(p, _)| *p).collect();
+        let shared: std::collections::HashSet<u32> = female_portraits.intersection(&male_portraits).copied().collect();
         if !shared.is_empty() {
             log::warn!(
                 "peasant portrait pool: {} portrait(s) appear in both female and male pools — removing from both: {:?}",
                 shared.len(),
-                { let mut v: Vec<_> = shared.iter().copied().collect(); v.sort(); v }
+                {
+                    let mut v: Vec<_> = shared.iter().copied().collect();
+                    v.sort();
+                    v
+                }
             );
             peasant_female.retain(|(p, _)| !shared.contains(p));
             peasant_male.retain(|(p, _)| !shared.contains(p));

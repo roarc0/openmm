@@ -67,7 +67,11 @@ pub fn snap_actor_y(
         return pos.y; // indoor, no BSP hit — keep current Y
     };
 
-    if can_fly { ground + sprite_half_height * 4.0 } else { ground + sprite_half_height }
+    if can_fly {
+        ground + sprite_half_height * 4.0
+    } else {
+        ground + sprite_half_height
+    }
 }
 
 /// Check whether an actor can move from `from_y` to `dest` at height `dest_y`.

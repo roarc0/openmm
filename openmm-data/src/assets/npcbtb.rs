@@ -39,7 +39,12 @@ impl NpcBtbTable {
     fn parse(text: &str) -> Self {
         let mut lines = text.lines();
         let header = lines.next().unwrap_or("").trim_end_matches('\r');
-        let type_names: Vec<String> = header.split('\t').skip(2).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        let type_names: Vec<String> = header
+            .split('\t')
+            .skip(2)
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
         let n = type_names.len();
 
         let mut beg_flags = vec![false; n];
@@ -73,7 +78,13 @@ impl NpcBtbTable {
                 _ => {
                     if key.parse::<u16>().is_ok() {
                         for (i, msg_list) in messages.iter_mut().enumerate() {
-                            let text = cols.get(i + 2).copied().unwrap_or("").trim().trim_matches('"').to_string();
+                            let text = cols
+                                .get(i + 2)
+                                .copied()
+                                .unwrap_or("")
+                                .trim()
+                                .trim_matches('"')
+                                .to_string();
                             msg_list.push(text);
                         }
                     }
@@ -81,20 +92,26 @@ impl NpcBtbTable {
             }
         }
 
-        let npc_types = type_names.into_iter().enumerate().map(|(i, name)| NpcBtbType {
-            name,
-            can_beg: beg_flags.get(i).copied().unwrap_or(false),
-            can_bribe: bribe_flags.get(i).copied().unwrap_or(false),
-            can_threat: threat_flags.get(i).copied().unwrap_or(false),
-            messages: messages.get(i).cloned().unwrap_or_default(),
-        }).collect();
+        let npc_types = type_names
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| NpcBtbType {
+                name,
+                can_beg: beg_flags.get(i).copied().unwrap_or(false),
+                can_bribe: bribe_flags.get(i).copied().unwrap_or(false),
+                can_threat: threat_flags.get(i).copied().unwrap_or(false),
+                messages: messages.get(i).cloned().unwrap_or_default(),
+            })
+            .collect();
 
         Self { npc_types }
     }
 
     /// Get NPC type by name (case-insensitive prefix).
     pub fn get(&self, name: &str) -> Option<&NpcBtbType> {
-        self.npc_types.iter().find(|t| t.name.to_ascii_lowercase().starts_with(&name.to_ascii_lowercase()))
+        self.npc_types
+            .iter()
+            .find(|t| t.name.to_ascii_lowercase().starts_with(&name.to_ascii_lowercase()))
     }
 
     /// Get message text for a given NPC type index and message ID (1-based).

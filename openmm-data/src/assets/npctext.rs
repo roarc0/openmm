@@ -42,9 +42,16 @@ impl NpcTextTable {
                 Some(v) => v,
                 None => continue,
             };
-            let text_val = fields.get(1).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default();
+            let text_val = fields
+                .get(1)
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .unwrap_or_default();
             let notes = fields.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
-            entries.push(NpcText { id, text: text_val, notes });
+            entries.push(NpcText {
+                id,
+                text: text_val,
+                notes,
+            });
         }
         Self { entries }
     }

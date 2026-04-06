@@ -9,7 +9,15 @@ use std::error::Error;
 use crate::Assets;
 use crate::LodSerialise;
 
-pub const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+pub const DAYS: [&str; 7] = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+];
 
 /// Dialogue topic + text for one day.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,8 +74,14 @@ impl ProfTextTable {
             let days = std::array::from_fn(|i| {
                 let base = 2 + i * 2;
                 DayDialogue {
-                    topic: cols.get(base).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default(),
-                    text: cols.get(base + 1).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default(),
+                    topic: cols
+                        .get(base)
+                        .map(|s| s.trim().trim_matches('"').to_string())
+                        .unwrap_or_default(),
+                    text: cols
+                        .get(base + 1)
+                        .map(|s| s.trim().trim_matches('"').to_string())
+                        .unwrap_or_default(),
                 }
             });
             professions.push(ProfText { id, profession, days });
@@ -96,7 +110,11 @@ impl TryFrom<&[u8]> for ProfTextTable {
 
 impl LodSerialise for ProfTextTable {
     fn to_bytes(&self) -> Vec<u8> {
-        let day_headers: String = DAYS.iter().flat_map(|d| [format!("{} topic", d), format!("{} text", d)]).collect::<Vec<_>>().join("\t");
+        let day_headers: String = DAYS
+            .iter()
+            .flat_map(|d| [format!("{} topic", d), format!("{} text", d)])
+            .collect::<Vec<_>>()
+            .join("\t");
         let mut out = format!("Day of Week Profession Text\r\n#\t\t{}\r\n", day_headers);
         for p in &self.professions {
             out.push_str(&format!("{}\t{}", p.id, p.profession));

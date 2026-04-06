@@ -89,6 +89,10 @@ mod tests {
     fn might_description_mentions_strength() {
         let Some(table) = load() else { return };
         let e = table.get("Might").expect("Might stat missing");
-        assert!(e.description.to_ascii_lowercase().contains("strength"), "unexpected: {}", e.description);
+        assert!(
+            e.description.to_ascii_lowercase().contains("strength"),
+            "unexpected: {}",
+            e.description
+        );
     }
 }

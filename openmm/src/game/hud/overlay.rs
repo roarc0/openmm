@@ -63,7 +63,10 @@ pub fn prepare_npc_dialogue(
     let (portrait_name, display_name) = if npc_id >= GENERATED_NPC_ID_BASE {
         let entry = map_events.as_ref().and_then(|me| me.generated_npcs.get(&npc_id));
         if entry.is_none() {
-            warn!("SpeakNPC: generated_npcs miss for npc_id={} (expected GENERATED_NPC_ID_BASE+actor_idx)", npc_id);
+            warn!(
+                "SpeakNPC: generated_npcs miss for npc_id={} (expected GENERATED_NPC_ID_BASE+actor_idx)",
+                npc_id
+            );
         }
         let portrait = entry
             .map(|g| format!("NPC{:03}", g.portrait))
@@ -120,14 +123,19 @@ pub fn prepare_npc_dialogue(
     // Greeting text from npcbtb: look up greeting_id, match personality code to NPC type column.
     let greeting_text = (|| -> Option<String> {
         let greeting_id = *npc_greetings.get(&npc_id)? as usize;
-        if greeting_id == 0 { return None; }
+        if greeting_id == 0 {
+            return None;
+        }
         let personality = prof_entry.map(|p| p.personality.as_str()).unwrap_or("");
         let btb = game_assets.npcbtb()?;
         // Find the NPC type whose name contains the personality code (e.g. "BTB", "BT").
         let npc_type_idx = if personality.is_empty() {
             0 // default to first column (Peasant)
         } else {
-            btb.npc_types.iter().position(|t| t.name.to_ascii_uppercase().contains(&personality.to_ascii_uppercase())).unwrap_or(0)
+            btb.npc_types
+                .iter()
+                .position(|t| t.name.to_ascii_uppercase().contains(&personality.to_ascii_uppercase()))
+                .unwrap_or(0)
         };
         let text = btb.message(npc_type_idx, greeting_id)?;
         if text.is_empty() { None } else { Some(text.to_string()) }
@@ -137,10 +145,19 @@ pub fn prepare_npc_dialogue(
     let (day_topic, day_text) = (|| -> Option<(String, String)> {
         let pid = profession_id?;
         let day = game_assets.proftext()?.get(pid)?.day(day_of_week as usize)?;
-        let topic = if day.topic.is_empty() { None } else { Some(day.topic.clone()) }?;
-        let text = if day.text.is_empty() { None } else { Some(day.text.clone()) }?;
+        let topic = if day.topic.is_empty() {
+            None
+        } else {
+            Some(day.topic.clone())
+        }?;
+        let text = if day.text.is_empty() {
+            None
+        } else {
+            Some(day.text.clone())
+        }?;
         Some((topic, text))
-    })().map_or((None, None), |(t, d)| (Some(t), Some(d)));
+    })()
+    .map_or((None, None), |(t, d)| (Some(t), Some(d)));
 
     let first_name = display_name
         .as_deref()

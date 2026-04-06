@@ -4,11 +4,11 @@
 //! `LodDecoder` wraps an `Assets` reference and returns decoded, game-ready data:
 //! sprites, bitmaps, icons, fonts, and NPC tables.
 
+use super::npc;
 use crate::assets::ddeclist::DDecListItem;
 use crate::assets::dsft::DSFTFrame;
-use crate::assets::provider::Assets;
 use crate::assets::font;
-use super::npc;
+use crate::assets::provider::Assets;
 use image::{DynamicImage, GenericImageView};
 
 /// High-level LOD decoder: returns game-ready decoded assets from LOD archives.

@@ -81,26 +81,29 @@ fn main() {
 /// Try to decode raw (decompressed) bytes as an image.
 /// Tries PCX (0x0A magic), LOD bitmap, and LOD sprite formats in order.
 /// Returns None if none match.
-fn try_decode_image(data: &[u8], palettes: Option<&openmm_data::assets::palette::Palettes>) -> Option<image::DynamicImage> {
+fn try_decode_image(
+    data: &[u8],
+    palettes: Option<&openmm_data::assets::palette::Palettes>,
+) -> Option<image::DynamicImage> {
     // PCX: first byte is 0x0A (manufacturer byte)
-    if data.len() > 4 && data[0] == 0x0A {
-        if let Some(img) = openmm_data::assets::pcx::decode(data) {
-            return Some(img);
-        }
+    if data.len() > 4
+        && data[0] == 0x0A
+        && let Some(img) = openmm_data::assets::pcx::decode(data)
+    {
+        return Some(img);
     }
     // LOD bitmap format
-    if let Ok(img) = openmm_data::assets::image::Image::try_from(data) {
-        if let Ok(dyn_img) = img.to_image_buffer() {
-            return Some(dyn_img);
-        }
+    if let Ok(img) = openmm_data::assets::image::Image::try_from(data)
+        && let Ok(dyn_img) = img.to_image_buffer()
+    {
+        return Some(dyn_img);
     }
     // LOD sprite format (needs palettes)
-    if let Some(palettes) = palettes {
-        if let Ok(img) = openmm_data::assets::image::Image::try_from((data, palettes)) {
-            if let Ok(dyn_img) = img.to_image_buffer() {
-                return Some(dyn_img);
-            }
-        }
+    if let Some(palettes) = palettes
+        && let Ok(img) = openmm_data::assets::image::Image::try_from((data, palettes))
+        && let Ok(dyn_img) = img.to_image_buffer()
+    {
+        return Some(dyn_img);
     }
     None
 }

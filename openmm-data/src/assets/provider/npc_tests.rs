@@ -79,10 +79,8 @@ fn street_npc_table_portrait_name_format() {
 fn peasant_portrait_pools_no_shared_portraits() {
     let Some(assets) = test_lod() else { return };
     let table = StreetNpcs::load(&assets).unwrap();
-    let female_set: std::collections::HashSet<u32> =
-        table.peasant_female.iter().map(|(p, _)| *p).collect();
-    let male_set: std::collections::HashSet<u32> =
-        table.peasant_male.iter().map(|(p, _)| *p).collect();
+    let female_set: std::collections::HashSet<u32> = table.peasant_female.iter().map(|(p, _)| *p).collect();
+    let male_set: std::collections::HashSet<u32> = table.peasant_male.iter().map(|(p, _)| *p).collect();
     let shared: Vec<u32> = female_set.intersection(&male_set).copied().collect();
     assert!(
         shared.is_empty(),
@@ -114,8 +112,14 @@ fn peasant_portrait_no_cross_sex_in_synthetic() {
     // portrait 10 shared between Alice(female) and Bob(male) — removed from both pools
     let female_portraits: Vec<u32> = table.peasant_female.iter().map(|(p, _)| *p).collect();
     let male_portraits: Vec<u32> = table.peasant_male.iter().map(|(p, _)| *p).collect();
-    assert!(!female_portraits.contains(&10), "portrait 10 should be excluded from female pool");
-    assert!(!male_portraits.contains(&10), "portrait 10 should be excluded from male pool");
+    assert!(
+        !female_portraits.contains(&10),
+        "portrait 10 should be excluded from female pool"
+    );
+    assert!(
+        !male_portraits.contains(&10),
+        "portrait 10 should be excluded from male pool"
+    );
     // portrait 20 (Carol, female) and 30 (Dave, male) should be in their respective pools
     assert!(female_portraits.contains(&20));
     assert!(male_portraits.contains(&30));

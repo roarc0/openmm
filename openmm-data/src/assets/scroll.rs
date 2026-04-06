@@ -45,10 +45,21 @@ impl ScrollTable {
                 Some(v) => v,
                 None => continue,
             };
-            let text_val = fields.get(1).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default();
+            let text_val = fields
+                .get(1)
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .unwrap_or_default();
             let dungeon = fields.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
-            let notes = fields.get(3).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default();
-            entries.push(ScrollEntry { id, text: text_val, dungeon, notes });
+            let notes = fields
+                .get(3)
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .unwrap_or_default();
+            entries.push(ScrollEntry {
+                id,
+                text: text_val,
+                dungeon,
+                notes,
+            });
         }
         Self { entries }
     }

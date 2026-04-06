@@ -68,7 +68,6 @@ struct PendingSpawns {
 }
 use crate::states::loading::PreparedWorld;
 
-
 /// Max time budget per frame for entity spawning (milliseconds).
 /// Keeps frame time from ballooning when spawning many entities.
 const SPAWN_TIME_BUDGET_MS: f32 = 4.0;
@@ -452,11 +451,11 @@ fn lazy_spawn(
     spawn_decorations(
         &mut commands,
         &mut *p,
-        &*prepared,
-        &*game_assets,
-        &mut *images,
-        &mut *meshes,
-        &mut *sprite_materials,
+        &prepared,
+        &game_assets,
+        &mut images,
+        &mut meshes,
+        &mut sprite_materials,
         spawn_tint,
         start,
         time_budget,
@@ -470,11 +469,11 @@ fn lazy_spawn(
     spawn_npc_actors(
         &mut commands,
         &mut *p,
-        &*prepared,
-        &*game_assets,
-        &mut *images,
-        &mut *meshes,
-        &mut *sprite_materials,
+        &prepared,
+        &game_assets,
+        &mut images,
+        &mut meshes,
+        &mut sprite_materials,
         spawn_tint,
         start,
         time_budget,
@@ -488,11 +487,11 @@ fn lazy_spawn(
     spawn_odm_monsters(
         &mut commands,
         &mut *p,
-        &*prepared,
-        &*game_assets,
-        &mut *images,
-        &mut *meshes,
-        &mut *sprite_materials,
+        &prepared,
+        &game_assets,
+        &mut images,
+        &mut meshes,
+        &mut sprite_materials,
         spawn_tint,
         start,
         time_budget,

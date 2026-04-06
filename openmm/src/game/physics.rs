@@ -245,4 +245,3 @@ fn gravity_system(
         }
     }
 }
-

@@ -62,7 +62,10 @@ impl MerchantTable {
 }
 
 fn col(fields: &[&str], i: usize) -> String {
-    fields.get(i).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default()
+    fields
+        .get(i)
+        .map(|s| s.trim().trim_matches('"').to_string())
+        .unwrap_or_default()
 }
 
 /// Split a TSV line respecting quoted fields that may contain tabs.
@@ -87,7 +90,10 @@ impl LodSerialise for MerchantTable {
     fn to_bytes(&self) -> Vec<u8> {
         let mut out = String::from("\tBuy\tSell\tRepair\tIdentify\r\n");
         for r in &self.rows {
-            out.push_str(&format!("{}\t{}\t{}\t{}\t{}\r\n", r.label, r.buy, r.sell, r.repair, r.identify));
+            out.push_str(&format!(
+                "{}\t{}\t{}\t{}\t{}\r\n",
+                r.label, r.buy, r.sell, r.repair, r.identify
+            ));
         }
         out.into_bytes()
     }

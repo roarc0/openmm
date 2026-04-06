@@ -43,12 +43,19 @@ impl AutonotesTable {
                 Some(v) => v,
                 None => continue,
             };
-            let text_val = fields.get(1).map(|s| s.trim().trim_matches('"').to_string()).unwrap_or_default();
+            let text_val = fields
+                .get(1)
+                .map(|s| s.trim().trim_matches('"').to_string())
+                .unwrap_or_default();
             if text_val.is_empty() {
                 continue;
             }
             let category = fields.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
-            entries.push(Autonote { id, text: text_val, category });
+            entries.push(Autonote {
+                id,
+                text: text_val,
+                category,
+            });
         }
         Self { entries }
     }
