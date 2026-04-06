@@ -658,116 +658,86 @@ fn spawn_indoor_world(
         ));
     }
 
-    // Spawn actors (NPCs and monsters) from pre-resolved DLV data.
-    if let Some(ref actors) = prepared.resolved_actors {
-        for (ddm_idx, actor) in actors.get_actors().iter().enumerate() {
-            let variant = actor.variant;
-            let is_monster = actor.is_monster();
-
+    // Spawn BLV monsters from spawn_points → mapstats (same pipeline as ODM).
+    if let Some(ref monsters) = prepared.resolved_actors {
+        for mon in monsters.iter() {
             let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
-                &actor.standing_sprite,
-                &actor.walking_sprite,
-                &actor.attacking_sprite,
-                &actor.dying_sprite,
+                &mon.standing_sprite,
+                &mon.walking_sprite,
+                &mon.attacking_sprite,
+                &mon.dying_sprite,
                 game_assets.lod_manager(),
                 &mut images,
                 &mut materials,
                 &mut Some(&mut sprite_cache),
-                variant,
-                actor.palette_id,
+                mon.variant,
+                mon.palette_id,
             );
             if states.is_empty() || states[0].is_empty() {
                 error!(
-                    "Indoor actor '{}' monlist_id={} sprite '{}' failed to load — skipping",
-                    actor.name, actor.monlist_id, actor.standing_sprite
+                    "Indoor monster '{}' sprite '{}' failed to load — skipping",
+                    mon.name, mon.standing_sprite
                 );
                 continue;
             }
-            // Apply DSFT scale for consistent sizing
-            let dsft_scale = bb_mgr.dsft_scale_for_group(&actor.standing_sprite);
+            let dsft_scale = bb_mgr.dsft_scale_for_group(&mon.standing_sprite);
             let sw = raw_w * dsft_scale;
             let sh = raw_h * dsft_scale;
             let state_count = states.len();
             let initial_mat = states[0][0][0].clone();
             let quad = meshes.add(Rectangle::new(sw, sh));
-            // Indoor actors use MM6 coordinates directly (no heightmap probing)
-            let [bx, by, bz] = mm6_to_bevy(actor.position[0], actor.position[1], actor.position[2]);
+
+            // Spread group members using golden angle (same as ODM, no terrain probe for indoor).
+            let angle = mon.group_index as f32 * 2.399_f32;
+            let r = mon.spawn_radius as f32;
+            let [bx, by, bz] = mm6_to_bevy(
+                mon.spawn_position[0] + (r * angle.cos()) as i32,
+                mon.spawn_position[1] + (r * angle.sin()) as i32,
+                mon.spawn_position[2],
+            );
             let pos = Vec3::new(bx, by + sh / 2.0, bz);
 
-            let actor_component = actor::Actor {
-                name: actor.name.clone(),
-                hp: actor.hp,
-                max_hp: actor.hp,
-                move_speed: actor.move_speed as f32,
-                initial_position: pos,
-                guarding_position: pos,
-                tether_distance: actor.tether_distance as f32,
-                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
-                wander_target: pos,
-                facing_yaw: 0.0,
-                hostile: is_monster,
-                variant: actor.variant,
-                sound_ids: actor.sound_ids,
-                fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
-                attack_range: actor.radius as f32 * 2.0,
-                attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
-                attack_anim_remaining: 0.0,
-                ddm_id: ddm_idx as i32,
-                group_id: actor.group,
-                aggro_range: actor.aggro_range,
-                recovery_secs: actor.recovery_secs,
-                sprite_half_height: sh / 2.0,
-                can_fly: actor.can_fly,
-                ai_type: actor.ai_type.clone(),
-            };
-            let ai_mode = crate::game::monster_ai::MonsterAiMode::Wander;
-
-            if is_monster {
-                commands.spawn((
-                    Name::new(format!("monster:{}", actor.name)),
-                    Mesh3d(quad),
-                    MeshMaterial3d(initial_mat),
-                    Transform::from_translation(pos),
-                    crate::game::entities::WorldEntity,
-                    crate::game::entities::EntityKind::Monster,
-                    crate::game::entities::AnimationState::Idle,
-                    sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
-                    crate::game::interaction::MonsterInteractable {
-                        name: actor.name.clone(),
-                    },
-                    actor_component,
-                    ai_mode,
-                    crate::game::entities::Billboard,
-                    InGame,
-                ));
-                info!("Spawned indoor monster '{}' at {:?}", actor.name, pos);
-            } else {
-                // NPC: hover name = profession/first name, never a personal name.
-                let hover_name = if actor.is_peasant {
-                    "Peasant".to_string()
-                } else {
-                    actor.name.split_whitespace().next().unwrap_or(&actor.name).to_string()
-                };
-                commands.spawn((
-                    Name::new(format!("npc:{}", actor.name)),
-                    Mesh3d(quad),
-                    MeshMaterial3d(initial_mat),
-                    Transform::from_translation(pos),
-                    crate::game::entities::WorldEntity,
-                    crate::game::entities::EntityKind::Npc,
-                    crate::game::entities::AnimationState::Idle,
-                    sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
-                    actor_component,
-                    ai_mode,
-                    crate::game::interaction::NpcInteractable {
-                        name: hover_name,
-                        npc_id: actor.npc_id(),
-                    },
-                    crate::game::entities::Billboard,
-                    InGame,
-                ));
-                info!("Spawned indoor NPC '{}' at {:?}", actor.name, pos);
-            }
+            commands.spawn((
+                Name::new(format!("monster:{}", mon.name)),
+                Mesh3d(quad),
+                MeshMaterial3d(initial_mat),
+                Transform::from_translation(pos),
+                crate::game::entities::WorldEntity,
+                crate::game::entities::EntityKind::Monster,
+                crate::game::entities::AnimationState::Idle,
+                sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
+                crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
+                crate::game::monster_ai::MonsterAiMode::Wander,
+                actor::Actor {
+                    name: mon.name.clone(),
+                    hp: mon.hp,
+                    max_hp: mon.hp,
+                    move_speed: mon.move_speed as f32,
+                    initial_position: pos,
+                    guarding_position: pos,
+                    tether_distance: mon.radius as f32 * 2.0,
+                    wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
+                    wander_target: pos,
+                    facing_yaw: 0.0,
+                    hostile: true,
+                    variant: mon.variant,
+                    sound_ids: mon.sound_ids,
+                    fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                    attack_range: mon.body_radius as f32 * 2.0,
+                    attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
+                    attack_anim_remaining: 0.0,
+                    ddm_id: -1,
+                    group_id: 0,
+                    aggro_range: mon.aggro_range,
+                    recovery_secs: mon.recovery_secs,
+                    sprite_half_height: sh / 2.0,
+                    can_fly: mon.can_fly,
+                    ai_type: mon.ai_type.clone(),
+                },
+                crate::game::entities::Billboard,
+                InGame,
+            ));
+            info!("Spawned indoor monster '{}' at {:?}", mon.name, pos);
         }
     }
 }

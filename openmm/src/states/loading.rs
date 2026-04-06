@@ -116,12 +116,10 @@ pub struct PreparedIndoorWorld {
     pub occluder_faces: Vec<OccluderFaceData>,
     /// Map base name for EVT loading (e.g. "d01").
     pub map_base: String,
-    /// Raw actors from DLV file (used to build resolved_actors).
-    pub actors: Vec<openmm_data::ddm::DdmActor>,
     /// Resolved decorations from BLV decoration list.
     pub decorations: openmm_data::game::decorations::Decorations,
-    /// Resolved actors (NPCs + monsters) for spawn, with dead actor filtering applied.
-    pub resolved_actors: Option<openmm_data::game::actors::Actors>,
+    /// Resolved monsters from BLV spawn_points → mapstats (same pipeline as ODM).
+    pub resolved_actors: Option<openmm_data::game::monster::Monsters>,
     /// Static point lights from the BLV file (position in Bevy coords, brightness 0–65535).
     /// These are the designer-placed lights that illuminate campfires, cauldrons, etc.
     pub blv_lights: Vec<(Vec3, u16)>,
@@ -540,7 +538,6 @@ fn loading_step(
                     blv.door_count,
                     blv.doors_data_size,
                 );
-                let dlv_actors = dlv_result.as_ref().map(|d| d.actors.clone()).unwrap_or_default();
                 let mut dlv_doors = dlv_result.as_ref().map(|d| d.doors.clone()).unwrap_or_default();
 
                 // Fill in any doors missing face/vertex data from BLV geometry.
@@ -924,20 +921,12 @@ fn loading_step(
                     .collect();
 
                 // Resolve DLV actors with dead-actor filtering applied.
-                let map_key = load_request.map_name.to_string();
-                let actor_snapshot = world_state.as_ref().and_then(|ws| {
-                    ws.game_vars
-                        .dead_actor_ids
-                        .get(&map_key)
-                        .map(|ids| openmm_data::game::actors::MapStateSnapshot {
-                            dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
-                        })
-                });
-                let resolved_actors = openmm_data::game::actors::Actors::from_raw_actors(
-                    game_assets.lod_manager(),
-                    &dlv_actors,
-                    actor_snapshot.as_ref(),
+                // Resolve BLV spawn-point actors (same pipeline as ODM monsters).
+                let resolved_actors = openmm_data::game::monster::Monsters::load_for_blv(
+                    &blv.spawn_points,
+                    &load_request.map_name.to_string(),
                     game_assets.game_data(),
+                    game_assets.lod_manager(),
                 )
                 .ok();
 
@@ -955,7 +944,6 @@ fn loading_step(
                     touch_trigger_faces,
                     occluder_faces,
                     map_base,
-                    actors: dlv_actors,
                     decorations,
                     resolved_actors,
                     blv_lights,
@@ -1135,12 +1123,20 @@ fn loading_step(
                 }
                 progress.resolved_actors = lod_actors;
 
-                // ODM spawn-point monsters (outdoor only): one Monster per group member
+                // Spawn-point monsters: outdoor uses ODM spawn points, indoor uses BLV spawn points.
                 let lod_monsters = if load_request.map_name.is_outdoor() {
                     openmm_data::game::monster::Monsters::load(
                         game_assets.lod_manager(),
                         &load_request.map_name.to_string(),
                         game_assets.game_data(),
+                    )
+                    .ok()
+                } else if let Some(ref blv) = progress.blv {
+                    openmm_data::game::monster::Monsters::load_for_blv(
+                        &blv.spawn_points,
+                        &load_request.map_name.to_string(),
+                        game_assets.game_data(),
+                        game_assets.lod_manager(),
                     )
                     .ok()
                 } else {

@@ -61,6 +61,14 @@ pub struct Monsters {
     entries: Vec<Monster>,
 }
 
+/// Minimal spawn-point interface shared by ODM and BLV.
+pub struct SpawnPointRef {
+    pub position: [i32; 3],
+    pub radius: u16,
+    pub spawn_type: u16,
+    pub monster_index: u16,
+}
+
 impl Monsters {
     /// Resolve all monster spawns for the given outdoor map.
     ///
@@ -69,6 +77,44 @@ impl Monsters {
     /// Position spreading (angle × radius) is left to the caller.
     pub fn load(assets: &Assets, map_name: &str, game_data: &GameData) -> Result<Self, Box<dyn Error>> {
         let odm = crate::assets::odm::Odm::load(assets, map_name)?;
+        let spawn_points: Vec<SpawnPointRef> = odm
+            .spawn_points
+            .iter()
+            .map(|sp| SpawnPointRef {
+                position: sp.position,
+                radius: sp.radius,
+                spawn_type: sp.spawn_type,
+                monster_index: sp.monster_index,
+            })
+            .collect();
+        Self::from_spawn_points(&spawn_points, map_name, game_data, assets)
+    }
+
+    /// Resolve monster spawns for an indoor (BLV) map from its spawn points.
+    pub fn load_for_blv(
+        blv_spawn_points: &[crate::assets::blv::BlvSpawnPoint],
+        map_name: &str,
+        game_data: &GameData,
+        assets: &Assets,
+    ) -> Result<Self, Box<dyn Error>> {
+        let spawn_points: Vec<SpawnPointRef> = blv_spawn_points
+            .iter()
+            .map(|sp| SpawnPointRef {
+                position: sp.position,
+                radius: sp.radius,
+                spawn_type: sp.spawn_type,
+                monster_index: sp.monster_index,
+            })
+            .collect();
+        Self::from_spawn_points(&spawn_points, map_name, game_data, assets)
+    }
+
+    fn from_spawn_points(
+        spawn_points: &[SpawnPointRef],
+        map_name: &str,
+        game_data: &GameData,
+        assets: &Assets,
+    ) -> Result<Self, Box<dyn Error>> {
         let map_name_lower = map_name.to_lowercase();
         let cfg = game_data
             .mapstats
@@ -76,7 +122,7 @@ impl Monsters {
             .ok_or("map not found in mapstats")?;
 
         let mut entries = Vec::new();
-        for sp in &odm.spawn_points {
+        for sp in spawn_points {
             // Skip item/treasure spawns (spawn_type=2); only process monsters (spawn_type=3).
             if sp.spawn_type != 3 {
                 continue;
