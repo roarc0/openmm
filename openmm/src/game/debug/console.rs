@@ -13,7 +13,7 @@ use bevy::window::{PrimaryWindow, WindowMode};
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::debug::DebugHud;
+use crate::game::debug::hud::DebugHud;
 use crate::game::hud::viewport_inner_rect;
 use crate::game::map_name::MapName;
 use crate::game::odm::{OdmName, PLAY_WIDTH};

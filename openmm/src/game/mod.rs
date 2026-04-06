@@ -47,7 +47,7 @@ impl Plugin for InGamePlugin {
             hud::HudPlugin,
             interaction::InteractionPlugin,
             event_dispatch::EventDispatchPlugin,
-            debug::ConsolePlugin,
+            debug::console::ConsolePlugin,
             world_state::WorldStatePlugin,
             sound::SoundPlugin,
         ))
