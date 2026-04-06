@@ -109,6 +109,8 @@ pub struct Assets {
     game_dir: PathBuf,
     dsounds: Option<DSounds>,
     static_data: std::sync::OnceLock<StaticGameData>,
+    /// Palettes loaded once at startup — reloading all ~200 palette files per sprite decode was a perf killer.
+    palettes_cache: Option<Palettes>,
 }
 
 impl Assets {
@@ -122,9 +124,11 @@ impl Assets {
             game_dir,
             dsounds: None,
             static_data: std::sync::OnceLock::new(),
+            palettes_cache: None,
         };
 
         assets.refresh()?;
+        assets.palettes_cache = Palettes::try_from(&assets).ok();
         Ok(assets)
     }
 
@@ -280,8 +284,8 @@ impl Assets {
         })
     }
 
-    pub fn palettes(&self) -> Result<Palettes, Box<dyn Error>> {
-        Palettes::try_from(self)
+    pub fn palettes(&self) -> Result<&Palettes, Box<dyn Error>> {
+        self.palettes_cache.as_ref().ok_or_else(|| "palettes not loaded".into())
     }
 
     pub fn archives(&self) -> Vec<String> {
@@ -326,7 +330,7 @@ impl Assets {
                     if let Err(e) = image.save(out_path.join(format!("{}.png", file_name))) {
                         eprintln!("Error saving image {} : {}", file_name, e);
                     }
-                } else if let Ok(sprite) = Image::try_from((data.as_slice(), &palettes)) {
+                } else if let Ok(sprite) = Image::try_from((data.as_slice(), palettes)) {
                     if let Err(e) = sprite.save(out_path.join(format!("{}.png", file_name))) {
                         eprintln!("Error saving sprite {} : {}", file_name, e)
                     }

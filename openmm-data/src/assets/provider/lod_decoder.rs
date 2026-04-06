@@ -48,7 +48,7 @@ impl<'a> LodDecoder<'a> {
     pub fn sprite(&self, name: &str) -> Option<DynamicImage> {
         let sprite = self.assets.get_bytes(format!("sprites/{}", name.to_lowercase())).ok()?;
         let palettes = self.assets.palettes().ok()?;
-        let sprite = crate::assets::image::Image::try_from((sprite.as_slice(), &palettes)).ok()?;
+        let sprite = crate::assets::image::Image::try_from((sprite.as_slice(), palettes)).ok()?;
         sprite.to_image_buffer().ok()
     }
 
@@ -57,7 +57,7 @@ impl<'a> LodDecoder<'a> {
         let sprite_data = self.assets.get_bytes(format!("sprites/{}", name.to_lowercase())).ok()?;
         let palettes = self.assets.palettes().ok()?;
         let sprite =
-            crate::assets::image::Image::try_from_with_palette(sprite_data.as_slice(), &palettes, palette_id).ok()?;
+            crate::assets::image::Image::try_from_with_palette(sprite_data.as_slice(), palettes, palette_id).ok()?;
         sprite.to_image_buffer().ok()
     }
 
@@ -73,8 +73,11 @@ impl<'a> LodDecoder<'a> {
     pub fn icon(&self, name: &str) -> Option<DynamicImage> {
         let path = format!("icons/{}", name.to_lowercase());
         let raw = self.assets.get_bytes(&path).ok()?;
-        let data = self.assets.get_decompressed(&path).ok()?;
-
+        // Try LodData decompression once; fall back to raw if not compressed.
+        let data = match crate::assets::lod_data::LodData::try_from(raw.as_slice()) {
+            Ok(d) => d.data,
+            Err(_) => raw.clone(),
+        };
         if data.len() > 4 && data[0] == 0x0A {
             crate::assets::pcx::decode(&data)
         } else {
