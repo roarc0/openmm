@@ -211,7 +211,7 @@ Add to `raycast.rs` at the bottom of the `#[cfg(test)]` block:
     #[test]
     fn resolve_event_name_hint_wins() {
         use std::collections::HashMap;
-        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
         events.insert(1, vec![
             EvtStep { step: 0, event: GameEvent::StatusText { text: "status".into(), duration: 0 } },
@@ -226,7 +226,7 @@ Add to `raycast.rs` at the bottom of the `#[cfg(test)]` block:
     #[test]
     fn resolve_event_name_hint_first() {
         use std::collections::HashMap;
-        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
         events.insert(2, vec![
             EvtStep { step: 0, event: GameEvent::Hint { text: "hint".into(), duration: 0 } },
@@ -238,7 +238,7 @@ Add to `raycast.rs` at the bottom of the `#[cfg(test)]` block:
     #[test]
     fn resolve_event_name_empty_text_skipped() {
         use std::collections::HashMap;
-        use lod::evt::{EvtFile, EvtStep, GameEvent};
+        use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
         let mut events: HashMap<u16, Vec<EvtStep>> = HashMap::new();
         events.insert(3, vec![
             EvtStep { step: 0, event: GameEvent::Hint { text: "".into(), duration: 0 } },
@@ -262,7 +262,7 @@ Expected: compile error — `resolve_event_name_from_evt` not defined.
 Add these imports at the top of `raycast.rs`:
 
 ```rust
-use lod::evt::EvtFile;
+use openmm_data::evt::EvtFile;
 use crate::game::events::MapEvents;
 ```
 
@@ -276,14 +276,14 @@ pub fn resolve_event_name_from_evt(event_id: u16, evt: &EvtFile) -> Option<Strin
     let steps = evt.events.get(&event_id)?;
     for s in steps {
         let text = match &s.event {
-            lod::evt::GameEvent::Hint { text, .. } if !text.is_empty() => text.clone(),
-            lod::evt::GameEvent::StatusText { text, .. } if !text.is_empty() => text.clone(),
-            lod::evt::GameEvent::LocationName { text, .. } if !text.is_empty() => text.clone(),
-            lod::evt::GameEvent::SpeakInHouse { house_id } => {
+            openmm_data::evt::GameEvent::Hint { text, .. } if !text.is_empty() => text.clone(),
+            openmm_data::evt::GameEvent::StatusText { text, .. } if !text.is_empty() => text.clone(),
+            openmm_data::evt::GameEvent::LocationName { text, .. } if !text.is_empty() => text.clone(),
+            openmm_data::evt::GameEvent::SpeakInHouse { house_id } => {
                 format!("Building #{}", house_id)
             }
-            lod::evt::GameEvent::OpenChest { id } => format!("Chest #{}", id),
-            lod::evt::GameEvent::MoveToMap { map_name, .. } => {
+            openmm_data::evt::GameEvent::OpenChest { id } => format!("Chest #{}", id),
+            openmm_data::evt::GameEvent::MoveToMap { map_name, .. } => {
                 format!("Enter {}", map_name)
             }
             _ => continue,
@@ -302,7 +302,7 @@ pub fn resolve_event_name(event_id: u16, map_events: &Option<bevy::prelude::Res<
     // For SpeakInHouse, look up the house name from the loaded house table
     if let Some(steps) = evt.events.get(&event_id) {
         for s in steps {
-            if let lod::evt::GameEvent::SpeakInHouse { house_id } = &s.event {
+            if let openmm_data::evt::GameEvent::SpeakInHouse { house_id } = &s.event {
                 if let Some(houses) = me.houses.as_ref()
                     && let Some(entry) = houses.houses.get(house_id)
                 {
@@ -1189,7 +1189,7 @@ fn npc_interact_system(
     }
 
     let Some((_, npc_id)) = nearest else { return };
-    event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: npc_id as i32 });
+    event_queue.push_single(openmm_data::evt::GameEvent::SpeakNPC { npc_id: npc_id as i32 });
 }
 ```
 

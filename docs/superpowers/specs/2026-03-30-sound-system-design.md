@@ -4,11 +4,11 @@
 
 Add sound support to OpenMM: parse the MM6 sound descriptor table (`dsounds.bin`), read the sound file container (`audio.snd`), and play sounds in-game with 3D positional audio via Bevy.
 
-## lod crate: Two New Modules
+## openmm-data crate: Two New Modules
 
 ### `dsounds.rs` — Sound Descriptor Table
 
-Parses `dsounds.bin` from `icons.lod`. This is a binary table mapping sound IDs to filenames, similar to `dtile.rs` for tiles.
+Parses `dsounds.bin` from `icons.openmm-data`. This is a binary table mapping sound IDs to filenames, similar to `dtile.rs` for tiles.
 
 **MM6 record format (112 bytes):**
 
@@ -139,7 +139,7 @@ The player camera entity gets `SpatialListener::default()` added in `player.rs`.
 ## Loading Flow
 
 1. During `LoadingPlugin` (or app startup), `SndArchive::open()` reads `sounds/audio.snd` from the game data directory
-2. `DSounds::new()` parses `dsounds.bin` from `icons.lod` via `LodManager`
+2. `DSounds::new()` parses `dsounds.bin` from `icons.openmm-data` via `LodManager`
 3. Both are stored in `SoundManager` resource
 4. Sounds are loaded on-demand: first `play_sound_at(id)` call looks up name via `DSounds`, extracts WAV via `SndArchive`, adds to Bevy `Assets<AudioSource>`, caches the handle
 
@@ -152,8 +152,8 @@ The player camera entity gets `SpatialListener::default()` added in `player.rs`.
 
 ## Testing Strategy
 
-1. **lod crate unit tests**: Parse `dsounds.bin`, verify record count and spot-check known sound IDs/names
-2. **lod crate unit tests**: Open `audio.snd`, list entries, extract a known WAV file, verify it starts with RIFF header
+1. **openmm-data crate unit tests**: Parse `dsounds.bin`, verify record count and spot-check known sound IDs/names
+2. **openmm-data crate unit tests**: Open `audio.snd`, list entries, extract a known WAV file, verify it starts with RIFF header
 3. **Integration**: Load a map, verify decorations with `sound_id` produce audio at their positions
 
 ## Future Considerations

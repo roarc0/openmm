@@ -63,7 +63,7 @@ fn dawn_dusk_sound_system(
     for dec in prepared.decorations.iter() {
         let should_play = (is_dawn && dec.sound_on_dawn) || (is_dusk && dec.sound_on_dusk);
         if should_play && dec.sound_id > 0 {
-            let pos = lod::odm::mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]);
+            let pos = openmm_data::odm::mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]);
             sound_events.write(PlaySoundEvent {
                 sound_id: dec.sound_id as u32,
                 position: Vec3::from(pos),

@@ -5,7 +5,7 @@ pub(crate) mod footsteps;
 pub(crate) mod music;
 
 use bevy::prelude::*;
-use lod::{dsounds::DSounds, snd::SndArchive};
+use openmm_data::{dsounds::DSounds, snd::SndArchive};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -87,7 +87,7 @@ fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
         }
     };
 
-    let data_path = lod::get_data_path();
+    let data_path = openmm_data::get_data_path();
     let base = Path::new(&data_path);
     let snd_path = [base.join("../Sounds/Audio.snd"), base.join("Sounds/Audio.snd")]
         .into_iter()

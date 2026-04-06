@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use crate::{
     GameState, assets::GameAssets, config::GameConfig, despawn_all, game::map_name::MapName, game::odm::OdmName,
 };
-use lod::{
+use openmm_data::{
     blv::Blv,
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData, mm6_to_bevy},
@@ -54,9 +54,9 @@ struct LoadingProgress {
     water_mask: Option<Image>,
     water_texture: Option<Image>,
     models: Option<Vec<PreparedModel>>,
-    decorations: Option<lod::game::decorations::Decorations>,
-    resolved_actors: Option<lod::game::actors::Actors>,
-    resolved_monsters: Option<lod::game::monster::Monsters>,
+    decorations: Option<openmm_data::game::decorations::Decorations>,
+    resolved_actors: Option<openmm_data::game::actors::Actors>,
+    resolved_monsters: Option<openmm_data::game::monster::Monsters>,
     start_points: Option<Vec<StartPoint>>,
     sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
     dec_sprite_cache: Option<
@@ -72,7 +72,7 @@ struct LoadingProgress {
         >,
     >,
     water_cells: Option<Vec<bool>>,
-    terrain_lookup: Option<lod::terrain::TerrainLookup>,
+    terrain_lookup: Option<openmm_data::terrain::TerrainLookup>,
     music_track: u8,
     blv: Option<Blv>,
     /// Queued sprite preload work, processed in batches across frames.
@@ -103,7 +103,7 @@ pub struct PreparedIndoorWorld {
     /// Ceiling collision geometry extracted from BLV faces.
     pub collision_ceilings: Vec<crate::game::collision::CollisionTriangle>,
     /// Door definitions from DLV.
-    pub doors: Vec<lod::blv::BlvDoor>,
+    pub doors: Vec<openmm_data::blv::BlvDoor>,
     /// Individual door face meshes for animation.
     pub door_face_meshes: Vec<PreparedDoorFace>,
     /// Collision geometry for ALL door faces (including invisible), for DoorColliders.
@@ -117,11 +117,11 @@ pub struct PreparedIndoorWorld {
     /// Map base name for EVT loading (e.g. "d01").
     pub map_base: String,
     /// Raw actors from DLV file (used to build resolved_actors).
-    pub actors: Vec<lod::ddm::DdmActor>,
+    pub actors: Vec<openmm_data::ddm::DdmActor>,
     /// Resolved decorations from BLV decoration list.
-    pub decorations: lod::game::decorations::Decorations,
+    pub decorations: openmm_data::game::decorations::Decorations,
     /// Resolved actors (NPCs + monsters) for spawn, with dead actor filtering applied.
-    pub resolved_actors: Option<lod::game::actors::Actors>,
+    pub resolved_actors: Option<openmm_data::game::actors::Actors>,
     /// Static point lights from the BLV file (position in Bevy coords, brightness 0–65535).
     /// These are the designer-placed lights that illuminate campfires, cauldrons, etc.
     pub blv_lights: Vec<(Vec3, u16)>,
@@ -274,9 +274,9 @@ pub struct PreparedWorld {
     pub water_mask: Option<Image>,
     pub water_texture: Option<Image>,
     pub models: Vec<PreparedModel>,
-    pub decorations: lod::game::decorations::Decorations,
-    pub resolved_actors: Option<lod::game::actors::Actors>,
-    pub resolved_monsters: Option<lod::game::monster::Monsters>,
+    pub decorations: openmm_data::game::decorations::Decorations,
+    pub resolved_actors: Option<openmm_data::game::actors::Actors>,
+    pub resolved_monsters: Option<openmm_data::game::monster::Monsters>,
     pub start_points: Vec<StartPoint>,
     pub sprite_cache: crate::game::entities::sprites::SpriteCache,
     pub dec_sprite_cache: std::collections::HashMap<
@@ -290,14 +290,14 @@ pub struct PreparedWorld {
         ),
     >,
     pub water_cells: Vec<bool>,
-    pub terrain_lookup: lod::terrain::TerrainLookup,
+    pub terrain_lookup: openmm_data::terrain::TerrainLookup,
     /// Music track ID from mapstats.txt (maps to Music/{track}.mp3). 0 = no music.
     pub music_track: u8,
 }
 
 impl PreparedWorld {
     /// Get the terrain tileset at a Bevy world position.
-    pub fn terrain_at(&self, x: f32, z: f32) -> Option<lod::dtile::Tileset> {
+    pub fn terrain_at(&self, x: f32, z: f32) -> Option<openmm_data::dtile::Tileset> {
         self.terrain_lookup.tileset_at(&self.map, x, z)
     }
 }
@@ -461,7 +461,7 @@ fn loading_step(
                                 let water_cells: Vec<bool> =
                                     odm.tile_map.iter().map(|&idx| dtile.is_deep_water_tile(idx)).collect();
                                 progress.water_cells = Some(water_cells);
-                                progress.terrain_lookup = Some(lod::terrain::TerrainLookup::new(&dtile, odm.tile_data));
+                                progress.terrain_lookup = Some(openmm_data::terrain::TerrainLookup::new(&dtile, odm.tile_data));
                             }
                             progress.tile_table = Some(tile_table);
                             progress.odm = Some(odm);
@@ -501,7 +501,7 @@ fn loading_step(
             if let Some(tile_table) = &progress.tile_table {
                 match tile_table.atlas_image(game_assets.lod_manager()) {
                     Ok(mut atlas) => {
-                        let mask = lod::image::extract_water_mask(&mut atlas);
+                        let mask = openmm_data::image::extract_water_mask(&mut atlas);
                         progress.terrain_texture = Some(crate::assets::dynamic_to_bevy_image(atlas));
                         progress.water_mask = Some(crate::assets::dynamic_to_bevy_image(mask));
 
@@ -533,7 +533,7 @@ fn loading_step(
                     }
                 }
                 // Load DLV to get door data
-                let dlv_result = lod::dlv::Dlv::new(
+                let dlv_result = openmm_data::dlv::Dlv::new(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
                     blv.door_count,
@@ -548,7 +548,7 @@ fn loading_step(
                 blv.initialize_doors(&mut dlv_doors);
 
                 // Exclude door faces from batched geometry
-                let door_faces = lod::blv::Blv::door_face_set(&dlv_doors, &blv.faces);
+                let door_faces = openmm_data::blv::Blv::door_face_set(&dlv_doors, &blv.faces);
                 let textured = blv.textured_meshes(&texture_sizes, &door_faces);
 
                 // Generate individual door face meshes
@@ -628,7 +628,7 @@ fn loading_step(
                                 .iter()
                                 .filter_map(|&vid| {
                                     let v = blv.vertices.get(vid as usize)?;
-                                    Some(Vec3::from(lod::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                    Some(Vec3::from(openmm_data::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                                 })
                                 .collect();
                             if verts.len() < 3 {
@@ -672,7 +672,7 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(lod::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -703,7 +703,7 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(lod::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -737,7 +737,7 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(lod::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -813,11 +813,11 @@ fn loading_step(
                         .flat_map(|c| (1..=3).map(move |n| format!("out{}{}", c, n)))
                         .collect();
                     let evt_entry = outdoor_bases.iter().find_map(|base| {
-                        lod::evt::EvtFile::parse(game_assets.lod_manager(), base)
+                        openmm_data::evt::EvtFile::parse(game_assets.lod_manager(), base)
                             .ok()
                             .and_then(|evt| {
                                 evt.events.values().flatten().find_map(|s| {
-                                    if let lod::evt::GameEvent::MoveToMap {
+                                    if let openmm_data::evt::GameEvent::MoveToMap {
                                         x,
                                         y,
                                         z,
@@ -837,7 +837,7 @@ fn loading_step(
                             })
                     });
                     if let Some((x, y, z, dir)) = evt_entry {
-                        let pos = Vec3::from(lod::odm::mm6_to_bevy(x, y, z));
+                        let pos = Vec3::from(openmm_data::odm::mm6_to_bevy(x, y, z));
                         let yaw = (dir as f32) * std::f32::consts::TAU / 65536.0;
                         info!(
                             "Indoor spawn from EVT self-MoveToMap: mm6=({},{},{}) dir={}",
@@ -852,7 +852,7 @@ fn loading_step(
                             let cy = (sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2;
                             let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
                             info!("Indoor spawn from sector center: floors={}", sector.floor_count);
-                            Vec3::from(lod::odm::mm6_to_bevy(cx, cy, floor_z))
+                            Vec3::from(openmm_data::odm::mm6_to_bevy(cx, cy, floor_z))
                         } else {
                             Vec3::ZERO
                         };
@@ -873,13 +873,13 @@ fn loading_step(
                     _ => load_request.map_name.to_string().replace(".blv", ""),
                 };
                 // Resolve BLV decorations (torches, chests, etc.)
-                let decorations = lod::game::decorations::Decorations::from_blv(
+                let decorations = openmm_data::game::decorations::Decorations::from_blv(
                     game_assets.lod_manager(),
                     &blv.decorations,
                 )
                 .unwrap_or_else(|e| {
                     warn!("Failed to resolve indoor decorations: {e}");
-                    lod::game::decorations::Decorations::empty()
+                    openmm_data::game::decorations::Decorations::empty()
                 });
 
                 // Per-sector ambient data for the lighting system.
@@ -920,12 +920,12 @@ fn loading_step(
                 let map_key = load_request.map_name.to_string();
                 let actor_snapshot = world_state.as_ref().and_then(|ws| {
                     ws.game_vars.dead_actor_ids.get(&map_key).map(|ids| {
-                        lod::game::actors::MapStateSnapshot {
+                        openmm_data::game::actors::MapStateSnapshot {
                             dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
                         }
                     })
                 });
-                let resolved_actors = lod::game::actors::Actors::from_raw_actors(
+                let resolved_actors = openmm_data::game::actors::Actors::from_raw_actors(
                     game_assets.lod_manager(),
                     &dlv_actors,
                     actor_snapshot.as_ref(),
@@ -1013,7 +1013,7 @@ fn loading_step(
                             })
                             .collect();
                         let pos =
-                            lod::odm::mm6_to_bevy(b.header.position[0], b.header.position[1], b.header.position[2]);
+                            openmm_data::odm::mm6_to_bevy(b.header.position[0], b.header.position[1], b.header.position[2]);
                         let mut event_ids: Vec<u16> = b
                             .faces
                             .iter()
@@ -1058,7 +1058,7 @@ fn loading_step(
                             .unwrap_or(false);
                         let name_lower = bb.declist_name.to_lowercase();
                         if name_lower.contains("start") || is_marker {
-                            let pos = Vec3::from(lod::odm::mm6_to_bevy(
+                            let pos = Vec3::from(openmm_data::odm::mm6_to_bevy(
                                 bb.data.position[0],
                                 bb.data.position[1],
                                 bb.data.position[2],
@@ -1072,7 +1072,7 @@ fn loading_step(
                         }
                     }
                     // Decorations::new filters invisible/marker/no-draw entries automatically
-                    lod::game::decorations::Decorations::load(game_assets.lod_manager(), &odm.billboards).ok()
+                    openmm_data::game::decorations::Decorations::load(game_assets.lod_manager(), &odm.billboards).ok()
                 };
                 progress.start_points = Some(start_points);
                 progress.decorations = decorations;
@@ -1094,12 +1094,12 @@ fn loading_step(
                 let map_key = load_request.map_name.to_string();
                 let snapshot = world_state.as_ref().and_then(|ws| {
                     ws.game_vars.dead_actor_ids.get(&map_key).map(|ids| {
-                        lod::game::actors::MapStateSnapshot {
+                        openmm_data::game::actors::MapStateSnapshot {
                             dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
                         }
                     })
                 });
-                let lod_actors = lod::game::actors::Actors::new(
+                let lod_actors = openmm_data::game::actors::Actors::new(
                     game_assets.lod_manager(),
                     &load_request.map_name.to_string(),
                     snapshot.as_ref(),
@@ -1125,7 +1125,7 @@ fn loading_step(
 
                 // ODM spawn-point monsters (outdoor only): one Monster per group member
                 let lod_monsters = if load_request.map_name.is_outdoor() {
-                    lod::game::monster::Monsters::load(
+                    openmm_data::game::monster::Monsters::load(
                         game_assets.lod_manager(),
                         &load_request.map_name.to_string(),
                         game_assets.game_data(),
@@ -1280,7 +1280,7 @@ fn loading_step(
                     decorations: progress
                         .decorations
                         .take()
-                        .unwrap_or_else(lod::game::decorations::Decorations::empty),
+                        .unwrap_or_else(openmm_data::game::decorations::Decorations::empty),
                     resolved_actors: progress.resolved_actors.take(),
                     resolved_monsters: progress.resolved_monsters.take(),
                     start_points: progress.start_points.take().unwrap_or_default(),
@@ -1289,7 +1289,7 @@ fn loading_step(
                     terrain_lookup: progress
                         .terrain_lookup
                         .take()
-                        .unwrap_or_else(lod::terrain::TerrainLookup::empty),
+                        .unwrap_or_else(openmm_data::terrain::TerrainLookup::empty),
                     music_track: progress.music_track,
                 });
                 commands.remove_resource::<LoadingProgress>();
@@ -1312,8 +1312,8 @@ fn extract_blv_collision(
     Vec<crate::game::collision::CollisionTriangle>,
 ) {
     use crate::game::collision::{CollisionTriangle, CollisionWall};
-    use lod::enums::PolygonType;
-    use lod::odm::mm6_to_bevy;
+    use openmm_data::enums::PolygonType;
+    use openmm_data::odm::mm6_to_bevy;
 
     let mut walls = Vec::new();
     let mut floors = Vec::new();

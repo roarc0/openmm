@@ -6,7 +6,7 @@
 
 **Architecture:** BLV files contain face-based geometry (vertices + textured polygonal faces organized into sectors). We parse the BLV binary format into a `Blv` struct, extract per-texture meshes using the same fan-triangulation pattern as outdoor BSP models, and introduce a `MapName` enum to let the loading pipeline branch between outdoor (ODM) and indoor (BLV) paths. DLV delta files are parsed for actor data (same format as DDM actors). Sector-based visibility and doors are deferred — we render all visible faces with ambient lighting.
 
-**Tech Stack:** Rust, byteorder (binary parsing), Bevy 0.18 (rendering), existing lod crate patterns.
+**Tech Stack:** Rust, byteorder (binary parsing), Bevy 0.18 (rendering), existing openmm-data crate patterns.
 
 ---
 
@@ -14,9 +14,9 @@
 
 | Action | File | Responsibility |
 |--------|------|----------------|
-| Create | `lod/src/blv.rs` | BLV binary parser: header, vertices, faces, face data, textures, sectors, decorations, lights, BSP nodes, spawn points, map outlines |
-| Create | `lod/src/dlv.rs` | DLV binary parser: actors (reuses DdmActor struct) |
-| Modify | `lod/src/lib.rs` | Export `blv` and `dlv` modules |
+| Create | `openmm-data/src/blv.rs` | BLV binary parser: header, vertices, faces, face data, textures, sectors, decorations, lights, BSP nodes, spawn points, map outlines |
+| Create | `openmm-data/src/dlv.rs` | DLV binary parser: actors (reuses DdmActor struct) |
+| Modify | `openmm-data/src/lib.rs` | Export `blv` and `dlv` modules |
 | Create | `openmm/src/game/map_name.rs` | `MapName` enum (Outdoor/Indoor), parsing from string, Display |
 | Modify | `openmm/src/states/loading.rs` | `LoadRequest` uses `MapName`; add indoor loading branch |
 | Modify | `openmm/src/game/odm.rs` | Move `OdmName` into `map_name.rs`, re-export for compatibility |
@@ -28,10 +28,10 @@
 ### Task 1: BLV Parser — Vertices and Faces
 
 **Files:**
-- Create: `lod/src/blv.rs`
-- Modify: `lod/src/lib.rs`
+- Create: `openmm-data/src/blv.rs`
+- Modify: `openmm-data/src/lib.rs`
 
-- [ ] **Step 1: Create `lod/src/blv.rs` with header + vertex + face parsing**
+- [ ] **Step 1: Create `openmm-data/src/blv.rs` with header + vertex + face parsing**
 
 ```rust
 use std::error::Error;
@@ -709,19 +709,19 @@ mod tests {
 }
 ```
 
-- [ ] **Step 5: Export `blv` module from `lod/src/lib.rs`**
+- [ ] **Step 5: Export `blv` module from `openmm-data/src/lib.rs`**
 
-Add `pub mod blv;` to `lod/src/lib.rs` alongside the existing module declarations.
+Add `pub mod blv;` to `openmm-data/src/lib.rs` alongside the existing module declarations.
 
 - [ ] **Step 6: Run tests**
 
-Run: `OPENMM_6_PATH=./data/mm6/data cargo test -p lod -- blv --nocapture`
+Run: `OPENMM_6_PATH=./data/mm6/data cargo test -p openmm-data -- blv --nocapture`
 Expected: Both tests pass, prints face/vertex counts for d01.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add lod/src/blv.rs lod/src/lib.rs
+git add openmm-data/src/blv.rs openmm-data/src/lib.rs
 git commit -m "feat: add BLV indoor map parser (vertices, faces, sectors, decorations, lights, spawns)"
 ```
 
@@ -730,10 +730,10 @@ git commit -m "feat: add BLV indoor map parser (vertices, faces, sectors, decora
 ### Task 2: DLV Parser — Indoor Actor Loading
 
 **Files:**
-- Create: `lod/src/dlv.rs`
-- Modify: `lod/src/lib.rs`
+- Create: `openmm-data/src/dlv.rs`
+- Modify: `openmm-data/src/lib.rs`
 
-- [ ] **Step 1: Create `lod/src/dlv.rs`**
+- [ ] **Step 1: Create `openmm-data/src/dlv.rs`**
 
 The DLV format stores actors using the same `MapMonster` struct as DDM. We reuse `DdmActor` and the same parsing logic.
 
@@ -784,7 +784,7 @@ impl Dlv {
 
 - [ ] **Step 2: Expose `Ddm::parse_from_data` as a public helper**
 
-In `lod/src/ddm.rs`, rename the internal `parse` method or add a public entry point so DLV can reuse it:
+In `openmm-data/src/ddm.rs`, rename the internal `parse` method or add a public entry point so DLV can reuse it:
 
 ```rust
 // Add to Ddm impl block:
@@ -812,18 +812,18 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Export `dlv` module from `lod/src/lib.rs`**
+- [ ] **Step 4: Export `dlv` module from `openmm-data/src/lib.rs`**
 
-Add `pub mod dlv;` to `lod/src/lib.rs`.
+Add `pub mod dlv;` to `openmm-data/src/lib.rs`.
 
 - [ ] **Step 5: Run tests**
 
-Run: `OPENMM_6_PATH=./data/mm6/data cargo test -p lod -- dlv --nocapture`
+Run: `OPENMM_6_PATH=./data/mm6/data cargo test -p openmm-data -- dlv --nocapture`
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lod/src/dlv.rs lod/src/ddm.rs lod/src/lib.rs
+git add openmm-data/src/dlv.rs openmm-data/src/ddm.rs openmm-data/src/lib.rs
 git commit -m "feat: add DLV indoor delta parser (reuses DDM actor parsing)"
 ```
 
@@ -1023,7 +1023,7 @@ This is the core integration — when `MapName::Indoor` is loaded, use BLV parse
 - [ ] **Step 1: Add indoor-specific prepared data to `LoadingProgress`**
 
 ```rust
-use lod::blv::Blv;
+use openmm_data::blv::Blv;
 
 // Add to LoadingProgress struct:
     blv: Option<Blv>,
@@ -1043,10 +1043,10 @@ LoadingStep::ParseMap => {
             MapName::Indoor(name) => name.clone(),
             _ => unreachable!(),
         };
-        match lod::blv::Blv::new(game_assets.lod_manager(), &blv_stem) {
+        match openmm_data::blv::Blv::new(game_assets.lod_manager(), &blv_stem) {
             Ok(blv) => {
                 // Load actors from DLV
-                let actors = lod::dlv::Dlv::new(game_assets.lod_manager(), &blv_stem)
+                let actors = openmm_data::dlv::Dlv::new(game_assets.lod_manager(), &blv_stem)
                     .map(|dlv| dlv.actors)
                     .unwrap_or_default();
                 progress.actors = Some(actors);
@@ -1162,7 +1162,7 @@ LoadingStep::BuildBillboards => {
         let mut start_points = Vec::new();
         let mut billboards = Vec::new();
         for dec in &blv.decorations {
-            let pos = Vec3::from(lod::odm::mm6_to_bevy(
+            let pos = Vec3::from(openmm_data::odm::mm6_to_bevy(
                 dec.position[0], dec.position[1], dec.position[2],
             ));
             let name_lower = dec.name.to_lowercase();
@@ -1399,7 +1399,7 @@ Expected: All existing tests pass plus new BLV/DLV tests.
 
 - [ ] **Step 4: Update CLAUDE.md**
 
-Add BLV/DLV to the architecture docs and lod crate structure sections.
+Add BLV/DLV to the architecture docs and openmm-data crate structure sections.
 
 - [ ] **Step 5: Final commit**
 

@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-05  
 **Scope:** SMK video decoding + Bevy video player state  
-**Files added/changed:** lod/vendor/libsmacker/, lod/build.rs, lod/src/smk.rs, openmm/src/states/video.rs, openmm/src/lib.rs, openmm/src/game/event_dispatch.rs
+**Files added/changed:** openmm-data/vendor/libsmacker/, openmm-data/build.rs, openmm-data/src/smk.rs, openmm/src/states/video.rs, openmm/src/lib.rs, openmm/src/game/event_dispatch.rs
 
 ---
 
@@ -22,24 +22,24 @@ Source: https://github.com/greg-kennedy/libsmacker (v1.2.0r43)
 
 Vendor two files only:
 ```
-lod/vendor/libsmacker/smacker.c
-lod/vendor/libsmacker/smacker.h
+openmm-data/vendor/libsmacker/smacker.c
+openmm-data/vendor/libsmacker/smacker.h
 ```
 
-`lod/build.rs` compiles via the `cc` crate:
+`openmm-data/build.rs` compiles via the `cc` crate:
 ```rust
 cc::Build::new()
     .file("vendor/libsmacker/smacker.c")
     .compile("smacker");
 ```
 
-Add `cc` to `[build-dependencies]` in `lod/Cargo.toml`.
+Add `cc` to `[build-dependencies]` in `openmm-data/Cargo.toml`.
 
 The C library is self-contained (no external deps). Builds on Linux, Windows, macOS via `cc`.
 
 ---
 
-## 2. Safe Rust Bindings — `lod/src/smk.rs`
+## 2. Safe Rust Bindings — `openmm-data/src/smk.rs`
 
 Wraps `smk_open_memory` / `smk_first` / `smk_next` / `smk_get_video` / `smk_get_palette` / `smk_close`.
 
@@ -140,7 +140,7 @@ GameEvent::PlayVideo { name, skippable } => {
 }
 ```
 
-`PlayVideo` variant added to `lod::evt::GameEvent` enum.
+`PlayVideo` variant added to `openmm_data::evt::GameEvent` enum.
 
 ---
 

@@ -7,8 +7,8 @@ use bevy::{
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
-use lod::dtile::Tileset;
-use lod::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
+use openmm_data::dtile::Tileset;
+use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
 use crate::config::GameConfig;

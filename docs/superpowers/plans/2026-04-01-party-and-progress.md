@@ -6,7 +6,7 @@
 
 **Architecture:** A new `game/party/` module owns the `Party` resource (4 fixed members, active EVT target). `GameVariables` gains explicit logging methods for QBit/Autonote ops. `GameSave` is extended with a `SavedProgress` block. `event_dispatch.rs` is wired to read `Party` for `ForPartyMember` and `CheckSkill`.
 
-**Tech Stack:** Rust, Bevy 0.18 ECS (Resource), serde_json (already in Cargo.toml), `lod::enums::EvtTargetCharacter` + `EvtVariable`
+**Tech Stack:** Rust, Bevy 0.18 ECS (Resource), serde_json (already in Cargo.toml), `openmm_data::enums::EvtTargetCharacter` + `EvtVariable`
 
 ---
 
@@ -14,7 +14,7 @@
 
 | File | Action | Purpose |
 |---|---|---|
-| `lod/src/enums.rs` | Modify | Add `is_skill()` + `skill_index()` to `EvtVariable` |
+| `openmm-data/src/enums.rs` | Modify | Add `is_skill()` + `skill_index()` to `EvtVariable` |
 | `openmm/src/game/party/member.rs` | Create | `CharacterClass` enum, `PartyMember` struct with skills array |
 | `openmm/src/game/party/mod.rs` | Create | `Party` resource, mock default party, `PartyPlugin` |
 | `openmm/src/game/mod.rs` | Modify | Add `pub(crate) mod party;` + register `PartyPlugin` |
@@ -27,13 +27,13 @@
 ## Task 1: Add `is_skill()` and `skill_index()` to `EvtVariable`
 
 **Files:**
-- Modify: `lod/src/enums.rs`
+- Modify: `openmm-data/src/enums.rs`
 
 Skills occupy `0x38..=0x56` (31 values). We need helpers to query this range and get a 0-based index, mirroring `is_map_var()` / `map_var_index()` already in the file.
 
 - [ ] **Step 1: Add methods to `EvtVariable`**
 
-In `lod/src/enums.rs`, find the block after `map_var_index()` (around line 1040) and add:
+In `openmm-data/src/enums.rs`, find the block after `map_var_index()` (around line 1040) and add:
 
 ```rust
     /// Returns true if this variable ID refers to a skill (SkillStaff..SkillMisc).
@@ -54,7 +54,7 @@ In `lod/src/enums.rs`, find the block after `map_var_index()` (around line 1040)
 - [ ] **Step 2: Build to verify**
 
 ```bash
-cd /home/roarc/repos/openmm && cargo build -p lod 2>&1 | grep -E "^error"
+cd /home/roarc/repos/openmm && cargo build -p openmm-data 2>&1 | grep -E "^error"
 ```
 
 Expected: no errors.
@@ -62,8 +62,8 @@ Expected: no errors.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add lod/src/enums.rs
-git commit --no-gpg-sign -m "feat(lod): add is_skill() and skill_index() to EvtVariable"
+git add openmm-data/src/enums.rs
+git commit --no-gpg-sign -m "feat(openmm-data): add is_skill() and skill_index() to EvtVariable"
 ```
 
 ---
@@ -78,7 +78,7 @@ git commit --no-gpg-sign -m "feat(lod): add is_skill() and skill_index() to EvtV
 - [ ] **Step 1: Write the file**
 
 ```rust
-use lod::enums::EvtVariable;
+use openmm_data::enums::EvtVariable;
 
 pub const SKILL_COUNT: usize = 31; // EvtVariable 0x38..=0x56
 
@@ -162,7 +162,7 @@ We cannot build yet (mod not declared). Proceed to Task 3, which declares it.
 pub mod member;
 
 use bevy::prelude::*;
-use lod::enums::{EvtTargetCharacter, EvtVariable};
+use openmm_data::enums::{EvtTargetCharacter, EvtVariable};
 
 use member::{CharacterClass, PartyMember, SKILL_COUNT};
 
@@ -508,7 +508,7 @@ Find the `GameEvent::ForPartyMember { player }` arm (~line 440). Replace the ent
 
 ```rust
             GameEvent::ForPartyMember { player } => {
-                if let Some(target) = lod::enums::EvtTargetCharacter::from_u8(*player) {
+                if let Some(target) = openmm_data::enums::EvtTargetCharacter::from_u8(*player) {
                     info!("  ForPartyMember: target = {:?}", target);
                     party.active_target = target;
                 } else {

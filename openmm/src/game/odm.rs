@@ -54,11 +54,11 @@ struct PendingSpawns {
         ),
     >,
     /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).
-    decorations: lod::game::decorations::Decorations,
+    decorations: openmm_data::game::decorations::Decorations,
     /// Pre-resolved DDM actors (NPCs only for outdoor maps) for this map.
-    actors: Option<lod::game::actors::Actors>,
+    actors: Option<openmm_data::game::actors::Actors>,
     /// ODM spawn-point monsters (outdoor only). Each entry is one group member.
-    monsters: Option<lod::game::monster::Monsters>,
+    monsters: Option<openmm_data::game::monster::Monsters>,
     monster_order: Vec<usize>,
     terrain_entity: Entity,
 }
@@ -164,9 +164,9 @@ impl Plugin for OdmPlugin {
 }
 
 /// Half-size of the playable area in world units.
-const PLAY_BOUNDARY: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32 / 2.0;
+const PLAY_BOUNDARY: f32 = openmm_data::odm::ODM_TILE_SCALE * openmm_data::odm::ODM_PLAY_SIZE as f32 / 2.0;
 /// Full playable area width (used to translate player position to new map).
-pub const PLAY_WIDTH: f32 = lod::odm::ODM_TILE_SCALE * lod::odm::ODM_PLAY_SIZE as f32;
+pub const PLAY_WIDTH: f32 = openmm_data::odm::ODM_TILE_SCALE * openmm_data::odm::ODM_PLAY_SIZE as f32;
 
 /// Detect when the player crosses the play area boundary and load the adjacent map.
 fn check_map_boundary(
@@ -519,7 +519,7 @@ fn lazy_spawn(
         p.idx += 1;
         let dec = &p.decorations.entries()[dec_idx];
         let key = &dec.sprite_name;
-        let dec_pos = Vec3::from(lod::odm::mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
+        let dec_pos = Vec3::from(openmm_data::odm::mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
 
         if dec.is_directional {
             let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
@@ -930,7 +930,7 @@ fn lazy_spawn(
             if let Some(ref mut me) = map_events {
                 me.generated_npcs.insert(
                     generated_id,
-                    lod::game::npc::GeneratedNpc {
+                    openmm_data::game::npc::GeneratedNpc {
                         name: name.clone(),
                         portrait,
                         profession_id: npc_profession_id,

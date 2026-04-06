@@ -340,7 +340,7 @@ fn world_interact_system(
                 false
             };
             if !ran_event {
-                event_queue.push_single(lod::evt::GameEvent::SpeakNPC { npc_id: npc_id_i32 });
+                event_queue.push_single(openmm_data::evt::GameEvent::SpeakNPC { npc_id: npc_id_i32 });
             }
         }
         Some((_, Hit::Monster(entity))) => {

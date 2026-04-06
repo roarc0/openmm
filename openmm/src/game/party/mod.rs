@@ -1,7 +1,7 @@
 pub mod member;
 
 use bevy::prelude::*;
-use lod::enums::{EvtTargetCharacter, EvtVariable};
+use openmm_data::enums::{EvtTargetCharacter, EvtVariable};
 
 use member::{CharacterClass, PartyMember};
 

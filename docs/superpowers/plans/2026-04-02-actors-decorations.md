@@ -1,26 +1,26 @@
-# Actors and Decorations lod Game Layer Implementation Plan
+# Actors and Decorations openmm-data Game Layer Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move DSFT sprite resolution, NPC identity lookup, and decoration metadata out of `openmm/src/game/odm.rs` into a clean game API layer in the `lod` crate.
+**Goal:** Move DSFT sprite resolution, NPC identity lookup, and decoration metadata out of `openmm/src/game/odm.rs` into a clean game API layer in the `openmm-data` crate.
 
-**Architecture:** Add four new modules under `lod/src/game/`: `npc.rs` (rename of npctable.rs), `monster.rs` (DSFT sprite resolution), `actors.rs` (per-map DDM actor roster), `decorations.rs` (per-map billboard roster). `openmm` iterates pre-resolved entries from `Actors` and `Decorations` instead of querying LOD archives directly during spawn.
+**Architecture:** Add four new modules under `openmm-data/src/game/`: `npc.rs` (rename of npctable.rs), `monster.rs` (DSFT sprite resolution), `actors.rs` (per-map DDM actor roster), `decorations.rs` (per-map billboard roster). `openmm` iterates pre-resolved entries from `Actors` and `Decorations` instead of querying LOD archives directly during spawn.
 
-**Tech Stack:** Rust 2024, `lod` crate (no Bevy), `openmm` crate (Bevy 0.18). Run tests with `make test`. Build with `make build`.
+**Tech Stack:** Rust 2024, `openmm-data` crate (no Bevy), `openmm` crate (Bevy 0.18). Run tests with `make test`. Build with `make build`.
 
 ---
 
 ## File Map
 
 **Create:**
-- `lod/src/game/npc.rs` — rename of `npctable.rs`; `StreetNpcTable`→`StreetNpcs`, `StreetNpcEntry`→`NpcEntry`
-- `lod/src/game/monster.rs` — `MonsterEntry`, `resolve_sprite_group()`, `resolve_entry()`
-- `lod/src/game/actors.rs` — `Actor`, `MapStateSnapshot`, `Actors`
-- `lod/src/game/decorations.rs` — `DecorationEntry`, `Decorations`
+- `openmm-data/src/game/npc.rs` — rename of `npctable.rs`; `StreetNpcTable`→`StreetNpcs`, `StreetNpcEntry`→`NpcEntry`
+- `openmm-data/src/game/monster.rs` — `MonsterEntry`, `resolve_sprite_group()`, `resolve_entry()`
+- `openmm-data/src/game/actors.rs` — `Actor`, `MapStateSnapshot`, `Actors`
+- `openmm-data/src/game/decorations.rs` — `DecorationEntry`, `Decorations`
 
 **Modify:**
-- `lod/src/game/mod.rs` — add module declarations, update `GameLod` methods
-- `lod/src/lib.rs` — re-export new public types if needed
+- `openmm-data/src/game/mod.rs` — add module declarations, update `GameLod` methods
+- `openmm-data/src/lib.rs` — re-export new public types if needed
 - `openmm/src/game/odm.rs` — remove `resolve_dsft_sprite`, `build_npc_sprite_table`, `NpcSpriteEntry`; simplify NPC + billboard lazy_spawn
 - `openmm/src/states/loading.rs` — simplify PreloadSprites billboard section
 - `openmm/src/game/events/map_events.rs` — update `npc_table` field type
@@ -28,33 +28,33 @@
 **Delete (after task 5+6):**
 - Dead code in `odm.rs`: `resolve_dsft_sprite`, `build_npc_sprite_table`, `NpcSpriteEntry`
 - Dead code in `sprites.rs`: `has_directional_sprites`
-- `lod/src/game/npctable.rs` (replaced by `npc.rs`)
+- `openmm-data/src/game/npctable.rs` (replaced by `npc.rs`)
 
 ---
 
 ## Task 1: Rename `npctable.rs` → `npc.rs` and update type names
 
 **Files:**
-- Rename: `lod/src/game/npctable.rs` → `lod/src/game/npc.rs`
-- Modify: `lod/src/game/mod.rs`
+- Rename: `openmm-data/src/game/npctable.rs` → `openmm-data/src/game/npc.rs`
+- Modify: `openmm-data/src/game/mod.rs`
 - Modify: `openmm/src/game/events/map_events.rs` (uses `npctable::` path)
 - Modify: `openmm/src/game/odm.rs` (uses `npctable::GeneratedNpc`)
 
 - [ ] **Step 1: Copy npctable.rs to npc.rs**
 
 ```bash
-cp lod/src/game/npctable.rs lod/src/game/npc.rs
+cp openmm-data/src/game/npctable.rs openmm-data/src/game/npc.rs
 ```
 
 - [ ] **Step 2: Rename types inside `npc.rs`**
 
-In `lod/src/game/npc.rs`, make these replacements throughout the file:
+In `openmm-data/src/game/npc.rs`, make these replacements throughout the file:
 - `StreetNpcTable` → `StreetNpcs`
 - `StreetNpcEntry` → `NpcEntry`
 
 The `pub struct NpcNamePool` and `pub struct GeneratedNpc` names stay the same.
 
-- [ ] **Step 3: Update `lod/src/game/mod.rs`**
+- [ ] **Step 3: Update `openmm-data/src/game/mod.rs`**
 
 Replace:
 ```rust
@@ -76,14 +76,14 @@ Also update the `GameLod` methods at the bottom of `mod.rs`:
 ```rust
 /// Load and parse the global NPC metadata table from `npcdata.txt`.
 pub fn npc_table(&self) -> Option<npc::StreetNpcs> {
-    let data = self.lod.get_decompressed("icons/npcdata.txt").ok()?;
+    let data = self.openmm-data.get_decompressed("icons/npcdata.txt").ok()?;
     let name_pool = self.npc_name_pool();
     npc::StreetNpcs::parse(&data, name_pool.as_ref()).ok()
 }
 
 /// Load the NPC name pool from `npcnames.txt`.
 pub fn npc_name_pool(&self) -> Option<npc::NpcNamePool> {
-    let data = self.lod.get_decompressed("icons/npcnames.txt").ok()?;
+    let data = self.openmm-data.get_decompressed("icons/npcnames.txt").ok()?;
     npc::NpcNamePool::parse(&data).ok()
 }
 ```
@@ -91,10 +91,10 @@ pub fn npc_name_pool(&self) -> Option<npc::NpcNamePool> {
 - [ ] **Step 4: Fix all `npctable::StreetNpcTable` references in openmm**
 
 In `openmm/src/game/events/map_events.rs`, update the field type:
-- `npc_table: Option<lod::game::npctable::StreetNpcTable>` → `npc_table: Option<lod::game::npc::StreetNpcs>`
+- `npc_table: Option<openmm_data::game::npctable::StreetNpcTable>` → `npc_table: Option<openmm_data::game::npc::StreetNpcs>`
 
 In `openmm/src/game/odm.rs`, update:
-- `lod::game::npctable::GeneratedNpc` → `lod::game::npc::GeneratedNpc`
+- `openmm_data::game::npctable::GeneratedNpc` → `openmm_data::game::npc::GeneratedNpc`
 
 Search for any other `npctable::` usages:
 ```bash
@@ -105,7 +105,7 @@ Fix each one to use `npc::` or the new type name.
 - [ ] **Step 5: Delete `npctable.rs`**
 
 ```bash
-rm lod/src/game/npctable.rs
+rm openmm-data/src/game/npctable.rs
 ```
 
 - [ ] **Step 6: Run tests**
@@ -118,17 +118,17 @@ Expected: all tests pass. Fix any compilation errors from missed renames.
 
 ---
 
-## Task 2: Add `lod/src/game/monster.rs` with DSFT sprite resolution
+## Task 2: Add `openmm-data/src/game/monster.rs` with DSFT sprite resolution
 
-Move `resolve_dsft_sprite()` from `openmm/src/game/odm.rs` into the lod crate as `resolve_sprite_group()`. Add `resolve_entry()` as a higher-level wrapper.
+Move `resolve_dsft_sprite()` from `openmm/src/game/odm.rs` into the openmm-data crate as `resolve_sprite_group()`. Add `resolve_entry()` as a higher-level wrapper.
 
 **Files:**
-- Create: `lod/src/game/monster.rs`
-- Modify: `lod/src/game/mod.rs`
+- Create: `openmm-data/src/game/monster.rs`
+- Modify: `openmm-data/src/game/mod.rs`
 
 - [ ] **Step 1: Write the failing test**
 
-Add at the bottom of `lod/src/game/monster.rs` (create the file with just the test module first):
+Add at the bottom of `openmm-data/src/game/monster.rs` (create the file with just the test module first):
 
 ```rust
 //! Monster sprite resolution — maps DSFT group names to sprite file roots.
@@ -142,9 +142,9 @@ mod tests {
 
     #[test]
     fn goblin_a_resolves_standing_sprite() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
         // Goblin A monlist_id is 0 in MM6 dmonlist.bin
-        let entry = resolve_entry(0, &lod);
+        let entry = resolve_entry(0, &openmm-data);
         assert!(entry.is_some(), "GoblinA (monlist_id=0) should resolve");
         let entry = entry.unwrap();
         assert!(!entry.standing_sprite.is_empty(), "standing sprite should not be empty");
@@ -153,26 +153,26 @@ mod tests {
 
     #[test]
     fn resolve_sprite_group_goblin_standing() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
         // GoblinA standing group from dmonlist.bin
-        let monlist = crate::monlist::MonsterList::new(&lod).unwrap();
+        let monlist = crate::monlist::MonsterList::new(&openmm-data).unwrap();
         let goblin_a = monlist.find_by_name("Goblin", 1).unwrap();
         let group = &goblin_a.sprite_names[0];
-        let result = resolve_sprite_group(group, &lod);
+        let result = resolve_sprite_group(group, &openmm-data);
         assert!(result.is_some(), "GoblinA standing group '{}' should resolve", group);
     }
 
     #[test]
     fn resolve_sprite_group_empty_name_returns_none() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
-        assert!(resolve_sprite_group("", &lod).is_none());
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
+        assert!(resolve_sprite_group("", &openmm-data).is_none());
     }
 
     #[test]
     fn resolve_entry_peasant_male_is_flagged() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
         // PeasantM1A is monlist_id 132 (from monlist tests)
-        let entry = resolve_entry(132, &lod);
+        let entry = resolve_entry(132, &openmm-data);
         assert!(entry.is_some(), "PeasantM1A should resolve");
         let entry = entry.unwrap();
         assert!(entry.is_peasant);
@@ -181,9 +181,9 @@ mod tests {
 
     #[test]
     fn resolve_entry_peasant_female_is_flagged() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
         // PeasantF1A is monlist_id 120
-        let entry = resolve_entry(120, &lod);
+        let entry = resolve_entry(120, &openmm-data);
         assert!(entry.is_some(), "PeasantF1A should resolve");
         let entry = entry.unwrap();
         assert!(entry.is_peasant);
@@ -195,14 +195,14 @@ mod tests {
 - [ ] **Step 2: Run the test to confirm it fails**
 
 ```bash
-cargo test -p lod game::monster 2>&1 | head -20
+cargo test -p openmm-data game::monster 2>&1 | head -20
 ```
 
 Expected: compile error — `resolve_entry` and `resolve_sprite_group` not defined.
 
 - [ ] **Step 3: Implement `monster.rs`**
 
-Write `lod/src/game/monster.rs` with the full implementation. The `resolve_sprite_group` logic is copied verbatim from `openmm/src/game/odm.rs:resolve_dsft_sprite()` — only the function name and signature change:
+Write `openmm-data/src/game/monster.rs` with the full implementation. The `resolve_sprite_group` logic is copied verbatim from `openmm/src/game/odm.rs:resolve_dsft_sprite()` — only the function name and signature change:
 
 ```rust
 //! Monster sprite resolution — maps DSFT group names to sprite file roots.
@@ -223,9 +223,9 @@ pub struct MonsterEntry {
 /// digits to get the root (e.g. "fmpstaa" → "fmpsta"), verifies the file exists.
 /// Falls back to progressively shorter prefixes of the group name itself.
 /// Returns (sprite_root, palette_id) or None if not found.
-pub fn resolve_sprite_group(group_name: &str, lod: &LodManager) -> Option<(String, i16)> {
+pub fn resolve_sprite_group(group_name: &str, openmm-data: &LodManager) -> Option<(String, i16)> {
     if group_name.is_empty() { return None; }
-    let Ok(dsft) = crate::dsft::DSFT::new(lod) else { return None };
+    let Ok(dsft) = crate::dsft::DSFT::new(openmm-data) else { return None };
     for frame in &dsft.frames {
         if let Some(gname) = frame.group_name() {
             if gname.eq_ignore_ascii_case(group_name) {
@@ -242,7 +242,7 @@ pub fn resolve_sprite_group(group_name: &str, lod: &LodManager) -> Option<(Strin
                         without_digits
                     };
                     let test = format!("sprites/{}a0", root.to_lowercase());
-                    if lod.try_get_bytes(&test).is_ok() {
+                    if openmm-data.try_get_bytes(&test).is_ok() {
                         return Some((root.to_lowercase(), frame.palette_id));
                     }
                 }
@@ -255,7 +255,7 @@ pub fn resolve_sprite_group(group_name: &str, lod: &LodManager) -> Option<(Strin
     let mut try_root = root;
     while try_root.len() >= 3 {
         let test = format!("sprites/{}a0", try_root.to_lowercase());
-        if lod.try_get_bytes(&test).is_ok() {
+        if openmm-data.try_get_bytes(&test).is_ok() {
             return Some((try_root.to_lowercase(), 0));
         }
         try_root = &try_root[..try_root.len() - 1];
@@ -265,14 +265,14 @@ pub fn resolve_sprite_group(group_name: &str, lod: &LodManager) -> Option<(Strin
 
 /// Resolve sprite roots and metadata for a monlist entry by 0-based index.
 /// Loads MonsterList and DSFT internally.
-pub fn resolve_entry(monlist_id: u8, lod: &LodManager) -> Option<MonsterEntry> {
-    let monlist = crate::monlist::MonsterList::new(lod).ok()?;
+pub fn resolve_entry(monlist_id: u8, openmm-data: &LodManager) -> Option<MonsterEntry> {
+    let monlist = crate::monlist::MonsterList::new(openmm-data).ok()?;
     let desc = monlist.get(monlist_id as usize)?;
     let st_group = &desc.sprite_names[0];
     let wa_group = &desc.sprite_names[1];
     if st_group.is_empty() { return None; }
-    let (standing_sprite, palette_id) = resolve_sprite_group(st_group, lod)?;
-    let walking_sprite = resolve_sprite_group(wa_group, lod)
+    let (standing_sprite, palette_id) = resolve_sprite_group(st_group, openmm-data)?;
+    let walking_sprite = resolve_sprite_group(wa_group, openmm-data)
         .map(|(n, _)| n)
         .unwrap_or_else(|| standing_sprite.clone());
     Some(MonsterEntry {
@@ -290,7 +290,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Declare the module in `lod/src/game/mod.rs`**
+- [ ] **Step 4: Declare the module in `openmm-data/src/game/mod.rs`**
 
 Add after the existing module declarations:
 ```rust
@@ -307,15 +307,15 @@ Expected: all new monster tests pass, existing tests unaffected.
 
 ---
 
-## Task 3: Add `lod/src/game/actors.rs` — per-map DDM actor roster
+## Task 3: Add `openmm-data/src/game/actors.rs` — per-map DDM actor roster
 
 **Files:**
-- Create: `lod/src/game/actors.rs`
-- Modify: `lod/src/game/mod.rs`
+- Create: `openmm-data/src/game/actors.rs`
+- Modify: `openmm-data/src/game/mod.rs`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `lod/src/game/actors.rs` with only the test module:
+Create `openmm-data/src/game/actors.rs` with only the test module:
 
 ```rust
 //! Per-map actor roster: pre-resolved DDM actors (NPCs and named monsters).
@@ -327,15 +327,15 @@ mod tests {
 
     #[test]
     fn actors_loads_oute3() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
+        let actors = Actors::new(&openmm-data, "oute3.odm", None).unwrap();
         assert!(!actors.get_actors().is_empty(), "oute3 should have actors");
     }
 
     #[test]
     fn get_npcs_all_have_sprites() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
+        let actors = Actors::new(&openmm-data, "oute3.odm", None).unwrap();
         for npc in actors.get_npcs() {
             assert!(npc.is_npc());
             assert!(!npc.standing_sprite.is_empty(),
@@ -345,8 +345,8 @@ mod tests {
 
     #[test]
     fn get_npcs_returns_only_npcs() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
+        let actors = Actors::new(&openmm-data, "oute3.odm", None).unwrap();
         for npc in actors.get_npcs() {
             assert!(npc.is_npc(), "get_npcs() should not return monsters");
         }
@@ -357,8 +357,8 @@ mod tests {
 
     #[test]
     fn npc_portrait_name_format() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
+        let actors = Actors::new(&openmm-data, "oute3.odm", None).unwrap();
         for npc in actors.get_npcs() {
             if let Some(portrait) = &npc.portrait_name {
                 assert!(portrait.starts_with("NPC"), "portrait '{}' should start with NPC", portrait);
@@ -369,15 +369,15 @@ mod tests {
 
     #[test]
     fn state_snapshot_filters_dead_actors() {
-        let lod = LodManager::new(get_lod_path()).unwrap();
-        let actors_all = Actors::new(&lod, "oute3.odm", None).unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
+        let actors_all = Actors::new(&openmm-data, "oute3.odm", None).unwrap();
         let all_count = actors_all.get_actors().len();
 
         // Build a snapshot that kills the first actor if any
         if all_count > 0 {
             // We don't have real actor IDs from DDM yet — just verify None vs Some differs
             let snapshot = MapStateSnapshot { dead_actor_ids: vec![] };
-            let actors_with_state = Actors::new(&lod, "oute3.odm", Some(&snapshot)).unwrap();
+            let actors_with_state = Actors::new(&openmm-data, "oute3.odm", Some(&snapshot)).unwrap();
             assert_eq!(actors_with_state.get_actors().len(), all_count,
                 "empty snapshot should not filter anything");
         }
@@ -388,7 +388,7 @@ mod tests {
 - [ ] **Step 2: Run to confirm compile failure**
 
 ```bash
-cargo test -p lod game::actors 2>&1 | head -20
+cargo test -p openmm-data game::actors 2>&1 | head -20
 ```
 
 Expected: compile error — types not defined.
@@ -398,7 +398,7 @@ Expected: compile error — types not defined.
 ```rust
 //! Per-map actor roster: pre-resolved DDM actors (NPCs and named monsters).
 //!
-//! `Actors::new(lod, map_name, state)` loads and resolves all DDM actors for the map.
+//! `Actors::new(openmm-data, map_name, state)` loads and resolves all DDM actors for the map.
 //! Each `Actor` carries pre-resolved sprite roots and NPC identity so openmm needs
 //! no direct LOD queries during spawn.
 
@@ -450,13 +450,13 @@ impl Actors {
     /// Internally loads: MonsterList, DSFT, StreetNpcs, NpcNamePool, Ddm.
     /// Actors with ids in `state.dead_actor_ids` are excluded.
     pub fn new(
-        lod: &LodManager,
+        openmm-data: &LodManager,
         map_name: &str,
         state: Option<&MapStateSnapshot>,
     ) -> Result<Self, Box<dyn Error>> {
-        let ddm = crate::ddm::Ddm::new(lod, map_name)?;
-        let street_npcs = lod.game().npc_table();
-        let name_pool = lod.game().npc_name_pool();
+        let ddm = crate::ddm::Ddm::new(openmm-data, map_name)?;
+        let street_npcs = openmm-data.game().npc_table();
+        let name_pool = openmm-data.game().npc_name_pool();
 
         let dead_ids: &[u16] = state
             .map(|s| s.dead_actor_ids.as_slice())
@@ -474,7 +474,7 @@ impl Actors {
             if raw.hp <= 0 { continue; }
             if raw.position[0].abs() > 20000 || raw.position[1].abs() > 20000 { continue; }
 
-            let Some(entry) = monster::resolve_entry(raw.monlist_id, lod) else {
+            let Some(entry) = monster::resolve_entry(raw.monlist_id, openmm-data) else {
                 log::warn!("Actor '{}' monlist_id={} has no DSFT sprite — skipping",
                     raw.name, raw.monlist_id);
                 continue;
@@ -549,17 +549,17 @@ mod tests {
 }
 ```
 
-**Confirmed `DdmActor` field names** (from `lod/src/ddm.rs`): `name`, `monlist_id: u8`, `npc_id: i16`, `hp: i16`, `position: [i16; 3]`, `radius: u16`, `height: u16`, `move_speed: u16`, `tether_distance: u16`. All accesses in the code above use these exact names.
+**Confirmed `DdmActor` field names** (from `openmm-data/src/ddm.rs`): `name`, `monlist_id: u8`, `npc_id: i16`, `hp: i16`, `position: [i16; 3]`, `radius: u16`, `height: u16`, `move_speed: u16`, `tether_distance: u16`. All accesses in the code above use these exact names.
 
 - [ ] **Step 4: Check `DdmActor` field names**
 
 ```bash
-grep -n "pub " lod/src/ddm.rs | head -40
+grep -n "pub " openmm-data/src/ddm.rs | head -40
 ```
 
 Adjust the field accesses in `actors.rs` to match exactly.
 
-- [ ] **Step 5: Declare module in `lod/src/game/mod.rs`**
+- [ ] **Step 5: Declare module in `openmm-data/src/game/mod.rs`**
 
 Add:
 ```rust
@@ -576,17 +576,17 @@ Expected: all new actors tests pass.
 
 ---
 
-## Task 4: Add `lod/src/game/decorations.rs` — per-map decoration roster
+## Task 4: Add `openmm-data/src/game/decorations.rs` — per-map decoration roster
 
-Moves `has_directional_sprites()` from `openmm/src/game/entities/sprites.rs` into the lod crate. Pre-resolves DSFT scale for each decoration.
+Moves `has_directional_sprites()` from `openmm/src/game/entities/sprites.rs` into the openmm-data crate. Pre-resolves DSFT scale for each decoration.
 
 **Files:**
-- Create: `lod/src/game/decorations.rs`
-- Modify: `lod/src/game/mod.rs`
+- Create: `openmm-data/src/game/decorations.rs`
+- Modify: `openmm-data/src/game/mod.rs`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `lod/src/game/decorations.rs` with tests only:
+Create `openmm-data/src/game/decorations.rs` with tests only:
 
 ```rust
 //! Per-map decoration roster from ODM billboards.
@@ -597,10 +597,10 @@ mod tests {
     use crate::{get_lod_path, LodManager, odm::Odm};
 
     fn load_oute3_decorations() -> Decorations {
-        let lod = LodManager::new(get_lod_path()).unwrap();
-        let raw = lod.try_get_bytes("games/oute3.odm").unwrap();
+        let openmm-data = LodManager::new(get_lod_path()).unwrap();
+        let raw = openmm-data.try_get_bytes("games/oute3.odm").unwrap();
         let odm = Odm::parse(&raw).unwrap();
-        Decorations::new(&lod, &odm.billboards).unwrap()
+        Decorations::new(&openmm-data, &odm.billboards).unwrap()
     }
 
     #[test]
@@ -642,7 +642,7 @@ mod tests {
 - [ ] **Step 2: Run to confirm compile failure**
 
 ```bash
-cargo test -p lod game::decorations 2>&1 | head -20
+cargo test -p openmm-data game::decorations 2>&1 | head -20
 ```
 
 Expected: compile error.
@@ -652,7 +652,7 @@ Expected: compile error.
 ```rust
 //! Per-map decoration roster from ODM billboards.
 //!
-//! `Decorations::new(lod, odm_billboards)` resolves all renderable decorations:
+//! `Decorations::new(openmm-data, odm_billboards)` resolves all renderable decorations:
 //! filters out markers/invisible entries, detects directional sprites, and
 //! pre-extracts DSFT scale factors so openmm needs no BillboardManager queries.
 
@@ -692,8 +692,8 @@ impl Decorations {
     /// Takes pre-parsed billboards (they are embedded in the ODM file which
     /// openmm already parses for terrain/models — avoids re-parsing).
     /// Internally loads BillboardManager (DDecList + DSFT).
-    pub fn new(lod: &LodManager, odm_billboards: &[Billboard]) -> Result<Self, Box<dyn Error>> {
-        let mgr = BillboardManager::new(lod)?;
+    pub fn new(openmm-data: &LodManager, odm_billboards: &[Billboard]) -> Result<Self, Box<dyn Error>> {
+        let mgr = BillboardManager::new(openmm-data)?;
         let mut entries = Vec::new();
 
         for (bb_i, bb) in odm_billboards.iter().enumerate() {
@@ -713,7 +713,7 @@ impl Decorations {
             let facing_yaw = bb.data.direction_degrees as f32 * std::f32::consts::PI / 1024.0;
 
             // Detect directional sprites: {root}0 and {root}1 must exist in LOD
-            let directional_root = find_directional_root(&bb.declist_name, lod);
+            let directional_root = find_directional_root(&bb.declist_name, openmm-data);
             let is_directional = directional_root.is_some();
             let sprite_name = directional_root.unwrap_or_else(|| bb.declist_name.to_lowercase());
 
@@ -724,7 +724,7 @@ impl Decorations {
 
             // Pre-compute world dimensions for non-directional sprites
             let (width, height) = if !is_directional {
-                mgr.get(lod, &bb.declist_name, bb.data.declist_id)
+                mgr.get(openmm-data, &bb.declist_name, bb.data.declist_id)
                     .map(|s| s.dimensions())
                     .unwrap_or((0.0, 0.0))
             } else {
@@ -763,14 +763,14 @@ impl Decorations {
 /// Check if a decoration has directional sprites ({root}0 and {root}1 exist).
 /// Equivalent to `has_directional_sprites()` in openmm — moved here as it is
 /// pure data-layer LOD file existence logic.
-fn find_directional_root(name: &str, lod: &LodManager) -> Option<String> {
+fn find_directional_root(name: &str, openmm-data: &LodManager) -> Option<String> {
     let root = name.trim_end_matches(|c: char| c.is_ascii_digit());
     let mut try_root = root;
     while try_root.len() >= 3 {
         let lower = try_root.to_lowercase();
         let test0 = format!("sprites/{}0", lower);
         let test1 = format!("sprites/{}1", lower);
-        if lod.try_get_bytes(&test0).is_ok() && lod.try_get_bytes(&test1).is_ok() {
+        if openmm-data.try_get_bytes(&test0).is_ok() && openmm-data.try_get_bytes(&test1).is_ok() {
             return Some(lower);
         }
         try_root = &try_root[..try_root.len() - 1];
@@ -784,17 +784,17 @@ mod tests {
 }
 ```
 
-**Note:** Check whether `BillboardManager::get_dsft_scale` takes a `DDecListItem` reference or the declist_id. Read `lod/src/billboard.rs` to confirm the exact signature and adjust the call above.
+**Note:** Check whether `BillboardManager::get_dsft_scale` takes a `DDecListItem` reference or the declist_id. Read `openmm-data/src/billboard.rs` to confirm the exact signature and adjust the call above.
 
 - [ ] **Step 4: Check `Billboard` and `BillboardManager` signatures**
 
 ```bash
-grep -n "pub fn\|pub struct\|pub " lod/src/billboard.rs | head -40
+grep -n "pub fn\|pub struct\|pub " openmm-data/src/billboard.rs | head -40
 ```
 
 Adjust field names (`bb.data.position`, `bb.data.declist_id`, `bb.data.direction_degrees`, `bb.data.event`, `bb.data.is_invisible()`) to match the actual struct. The current code in `loading.rs` uses `bb.data.*` so check whether that matches.
 
-- [ ] **Step 5: Declare module in `lod/src/game/mod.rs`**
+- [ ] **Step 5: Declare module in `openmm-data/src/game/mod.rs`**
 
 Add:
 ```rust
@@ -825,13 +825,13 @@ Find the `PendingSpawns` struct in `openmm/src/game/odm.rs`. It currently has `n
 
 ```rust
 // In PendingSpawns struct, add:
-pub actors: Option<lod::game::actors::Actors>,
+pub actors: Option<openmm_data::game::actors::Actors>,
 ```
 
 And in the place where `PendingSpawns` is constructed (the call to `build_npc_sprite_table`), replace with:
 
 ```rust
-actors: lod::game::actors::Actors::new(
+actors: openmm_data::game::actors::Actors::new(
     game_assets.lod_manager(),
     &map_name.to_string(),
     None,
@@ -861,7 +861,7 @@ if let Some(actors) = &progress.actors {
 Replace with (using `Actors` from the map name):
 
 ```rust
-if let Ok(actors) = lod::game::actors::Actors::new(
+if let Ok(actors) = openmm_data::game::actors::Actors::new(
     game_assets.lod_manager(),
     &load_request.map_name.to_string(),
     None,
@@ -931,14 +931,14 @@ Replace billboard resolution in `loading.rs` and `odm.rs` with `Decorations`.
 In `openmm/src/game/odm.rs`, find where `PreparedWorld` is defined and add a `decorations` field:
 
 ```rust
-pub decorations: Option<lod::game::decorations::Decorations>,
+pub decorations: Option<openmm_data::game::decorations::Decorations>,
 ```
 
 In the loading step where `PreparedWorld` is constructed (or in `spawn_world`), populate it:
 
 ```rust
 decorations: odm.as_ref().map(|o| {
-    lod::game::decorations::Decorations::new(game_assets.lod_manager(), &o.billboards).ok()
+    openmm_data::game::decorations::Decorations::new(game_assets.lod_manager(), &o.billboards).ok()
 }).flatten(),
 ```
 
@@ -962,7 +962,7 @@ The billboard preload section in `PreloadSprites` (lines 975-1010) currently loa
                 queue.billboard_idx += 1;
                 if bb_cache.contains_key(&bb.declist_name) { continue; }
                 // Only preload non-directional sprites (directional loaded during spawn)
-                if let Some(sprite) = lod::billboard::BillboardManager::new(game_assets.lod_manager())
+                if let Some(sprite) = openmm_data::billboard::BillboardManager::new(game_assets.lod_manager())
                     .ok()
                     .and_then(|mgr| mgr.get(game_assets.lod_manager(), &bb.declist_name, bb.declist_id))
                 {
@@ -998,7 +998,7 @@ In `lazy_spawn()`, the billboard section (lines 611-720) uses `sprites::has_dire
 // DecorationEntry.is_directional replaces the has_directional_sprites() call
 // DecorationEntry.scale replaces the bb_mgr.get_dsft_scale() call
 
-let bb_mgr = None::<lod::billboard::BillboardManager>; // no longer needed
+let bb_mgr = None::<openmm_data::billboard::BillboardManager>; // no longer needed
 
 while bb_idx < bb_len && spawned < batch_max && ... {
     let idx = p.billboard_order[bb_idx];
@@ -1063,7 +1063,7 @@ Remove code from `openmm` that has been replaced.
 **Files:**
 - Modify: `openmm/src/game/odm.rs`
 - Modify: `openmm/src/game/entities/sprites.rs`
-- Remove: compat shim from `lod/src/game/mod.rs`
+- Remove: compat shim from `openmm-data/src/game/mod.rs`
 
 - [ ] **Step 1: Delete `resolve_dsft_sprite` from `odm.rs`**
 
@@ -1101,7 +1101,7 @@ Expected: no matches.
 
 - [ ] **Step 4: Remove backwards-compat `npctable` shim from `mod.rs`**
 
-In `lod/src/game/mod.rs`, remove the compat re-export added in Task 1:
+In `openmm-data/src/game/mod.rs`, remove the compat re-export added in Task 1:
 ```rust
 /// Backwards-compatible re-export — remove once openmm is updated.
 pub mod npctable {

@@ -1,16 +1,16 @@
-# lod Game Layer Part 2 Implementation Design
+# openmm-data Game Layer Part 2 Implementation Design
 
 ## Goal
 
-Three targeted clean-ups to the `lod::game` layer introduced in the actors/decorations refactor: pre-compute palette variant inside `Actors`, consolidate monster spawn resolution into `lod::game::monster` as `Monsters`/`Monster`, and eliminate the now-redundant `PreparedBillboard` struct.
+Three targeted clean-ups to the `openmm_data::game` layer introduced in the actors/decorations refactor: pre-compute palette variant inside `Actors`, consolidate monster spawn resolution into `openmm_data::game::monster` as `Monsters`/`Monster`, and eliminate the now-redundant `PreparedBillboard` struct.
 
 ## Architecture
 
-All three changes push data-resolution logic further into the `lod` crate and simplify `openmm` to pure spawning. No new crate boundaries, no Bevy dependencies in `lod`.
+All three changes push data-resolution logic further into the `openmm-data` crate and simplify `openmm` to pure spawning. No new crate boundaries, no Bevy dependencies in `openmm-data`.
 
 ## Tech Stack
 
-Rust, Bevy 0.18 (openmm side only), existing `lod` crate infrastructure.
+Rust, Bevy 0.18 (openmm side only), existing `openmm-data` crate infrastructure.
 
 ---
 
@@ -18,7 +18,7 @@ Rust, Bevy 0.18 (openmm side only), existing `lod` crate infrastructure.
 
 ### What changes
 
-`ActorEntry.variant` is currently set to `0` in `lod/src/game/actors.rs` and recomputed by both `odm.rs` and `blv.rs` after the fact. Move the computation into `Actors` as a second pass.
+`ActorEntry.variant` is currently set to `0` in `openmm-data/src/game/actors.rs` and recomputed by both `odm.rs` and `blv.rs` after the fact. Move the computation into `Actors` as a second pass.
 
 ### Algorithm
 
@@ -45,13 +45,13 @@ This second pass runs in both `Actors::new()` and `Actors::from_raw_actors()`.
 
 ---
 
-## Task 2: `lod::game::monster` — `Monsters` and `Monster`
+## Task 2: `openmm_data::game::monster` — `Monsters` and `Monster`
 
 ### What changes
 
-`resolve_monsters()` in `openmm/src/game/odm.rs` resolves sprite/palette data from lod. That logic belongs in the `lod` crate. Position spreading (angle × radius) stays in `openmm` because it requires geometry math that doesn't belong in a pure data crate.
+`resolve_monsters()` in `openmm/src/game/odm.rs` resolves sprite/palette data from openmm-data. That logic belongs in the `openmm-data` crate. Position spreading (angle × radius) stays in `openmm` because it requires geometry math that doesn't belong in a pure data crate.
 
-### New types in `lod/src/game/monster.rs`
+### New types in `openmm-data/src/game/monster.rs`
 
 ```rust
 pub struct Monster {
@@ -72,7 +72,7 @@ pub struct Monsters {
 }
 
 impl Monsters {
-    pub fn new(lod: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>>
+    pub fn new(openmm-data: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>>
     pub fn entries(&self) -> &[Monster]
     pub fn iter(&self) -> impl Iterator<Item = &Monster>
     pub fn len(&self) -> usize
@@ -80,14 +80,14 @@ impl Monsters {
 }
 ```
 
-One `Monster` entry per group member. Group size = `3 + (position_sum % 3)` (current formula in `resolve_monsters`). Sprite resolution uses the existing `resolve_sprite_group()` already in `lod/src/game/monster.rs`. Variant pre-computation uses the same min-palette-per-sprite-root formula as Task 1.
+One `Monster` entry per group member. Group size = `3 + (position_sum % 3)` (current formula in `resolve_monsters`). Sprite resolution uses the existing `resolve_sprite_group()` already in `openmm-data/src/game/monster.rs`. Variant pre-computation uses the same min-palette-per-sprite-root formula as Task 1.
 
 ### Callers to update
 
 - `openmm/src/game/odm.rs`:
   - Delete `resolve_monsters()` function
   - `PendingSpawns.resolved_monsters: Vec<PreparedMonster>` → `monsters: Option<Monsters>`
-  - `spawn_world`: call `Monsters::new(lod, map_name)` instead of `resolve_monsters()`
+  - `spawn_world`: call `Monsters::new(openmm-data, map_name)` instead of `resolve_monsters()`
   - Monster spawn loop reads `m.spawn_position`, `m.spawn_radius`, `m.group_index` and computes spread inline
 - `openmm/src/states/loading.rs`:
   - `PreparedWorld.monsters: Vec<PreparedMonster>` → `monsters: Monsters` (populated lazily in `spawn_world`, passed through `PreparedWorld` as before)
@@ -99,12 +99,12 @@ One `Monster` entry per group member. Group size = `3 + (position_sum % 3)` (cur
 
 ### What changes
 
-`PreparedBillboard` in `openmm/src/states/loading.rs` carries the same data already in `lod::game::decorations::Decorations`. Replace the vec with the struct directly.
+`PreparedBillboard` in `openmm/src/states/loading.rs` carries the same data already in `openmm_data::game::decorations::Decorations`. Replace the vec with the struct directly.
 
 ### Changes in `loading.rs`
 
 - `PreparedWorld.billboards: Vec<PreparedBillboard>` → `PreparedWorld.decorations: Decorations`
-- `BuildBillboards` step: call `Decorations::new(lod, &map.billboards)` instead of building a `Vec<PreparedBillboard>`; start-points still extracted from ODM separately
+- `BuildBillboards` step: call `Decorations::new(openmm-data, &map.billboards)` instead of building a `Vec<PreparedBillboard>`; start-points still extracted from ODM separately
 - `PreloadSprites` step: iterate `decorations.iter()` for non-directional entries instead of iterating `billboards`
 - Delete `PreparedBillboard` struct
 
@@ -117,4 +117,4 @@ One `Monster` entry per group member. Group size = `3 + (position_sum % 3)` (cur
 
 ### What stays the same
 
-`lod::game::decorations::Decorations` keeps `position: [i32; 3]` (no Bevy dep in lod). The coordinate conversion is the caller's responsibility.
+`openmm_data::game::decorations::Decorations` keeps `position: [i32; 3]` (no Bevy dep in openmm-data). The coordinate conversion is the caller's responsibility.

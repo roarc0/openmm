@@ -6,7 +6,7 @@ Event processing is currently embedded in `interaction.rs` — it resolves one b
 
 ## Goals
 
-1. Rename `EventAction` to `GameEvent` throughout `lod/src/evt.rs`.
+1. Rename `EventAction` to `GameEvent` throughout `openmm-data/src/evt.rs`.
 2. An `EventQueue` resource with depth-first sub-event support.
 3. A `process_events` system dispatching each event type to its handler.
 4. **MoveToMap** actually transitions maps via `LoadRequest` + `GameState::Loading`.
@@ -17,7 +17,7 @@ Event processing is currently embedded in `interaction.rs` — it resolves one b
 
 ### Rename: EventAction -> GameEvent
 
-In `lod/src/evt.rs`:
+In `openmm-data/src/evt.rs`:
 
 ```rust
 #[derive(Debug, Clone)]
@@ -73,7 +73,7 @@ The existing map transition machinery:
 The dispatch handler:
 1. Parse `map_name` into `MapName` via `MapName::try_from()`
 2. Insert `LoadRequest { map_name }`
-3. Convert MM6 position (x, y, z) to Bevy coords via `lod::odm::mm6_to_bevy(x, y, z)`
+3. Convert MM6 position (x, y, z) to Bevy coords via `openmm_data::odm::mm6_to_bevy(x, y, z)`
 4. Convert MM6 direction (0-65535) to Bevy yaw: `direction as f32 / 65536.0 * TAU`
 5. Update `GameSave.player.position` and `GameSave.player.yaw`
 6. For outdoor maps, update `GameSave.map.map_x` and `map_y` from the OdmName

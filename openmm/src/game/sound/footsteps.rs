@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use lod::dtile::Tileset;
+use openmm_data::dtile::Tileset;
 
 use super::SoundManager;
 use crate::game::InGame;

@@ -4,16 +4,16 @@
 
 **Goal:** Build an event dispatch system that routes game events (building interactions, map transitions, chests, hints) through a queue processed one-per-frame, replacing the inline handling in interaction.rs.
 
-**Architecture:** Rename `EventAction` to `GameEvent` in the lod crate. Add `EventQueue` resource and `process_events` system in a new `event_dispatch.rs`. Refactor `interaction.rs` to push events instead of handling them. MoveToMap uses the existing `LoadRequest` + `GameState::Loading` pipeline.
+**Architecture:** Rename `EventAction` to `GameEvent` in the openmm-data crate. Add `EventQueue` resource and `process_events` system in a new `event_dispatch.rs`. Refactor `interaction.rs` to push events instead of handling them. MoveToMap uses the existing `LoadRequest` + `GameState::Loading` pipeline.
 
-**Tech Stack:** Rust, Bevy 0.18 ECS, lod crate
+**Tech Stack:** Rust, Bevy 0.18 ECS, openmm-data crate
 
 ---
 
 ## File Structure
 
 ```
-lod/src/evt.rs                     — Rename EventAction -> GameEvent, derive Clone
+openmm-data/src/evt.rs                     — Rename EventAction -> GameEvent, derive Clone
 openmm/src/game/event_dispatch.rs  — EventQueue, EventDispatchPlugin, process_events, building_background
 openmm/src/game/interaction.rs     — Simplified: trigger-only (push to queue), exit input, hover hints
 openmm/src/game/mod.rs             — Register EventDispatchPlugin
@@ -21,14 +21,14 @@ openmm/src/game/mod.rs             — Register EventDispatchPlugin
 
 ---
 
-### Task 1: Rename EventAction to GameEvent in lod crate
+### Task 1: Rename EventAction to GameEvent in openmm-data crate
 
 **Files:**
-- Modify: `lod/src/evt.rs`
+- Modify: `openmm-data/src/evt.rs`
 
 - [ ] **Step 1: Rename the enum and update all internal references**
 
-In `lod/src/evt.rs`, rename `EventAction` to `GameEvent`. The enum already derives `Debug, Clone` from the previous work. Update the `EvtFile` type alias and `primary_action` method:
+In `openmm-data/src/evt.rs`, rename `EventAction` to `GameEvent`. The enum already derives `Debug, Clone` from the previous work. Update the `EvtFile` type alias and `primary_action` method:
 
 ```rust
 // Line 22: rename enum
@@ -59,14 +59,14 @@ pub fn primary_action(&self, event_id: u16) -> Option<&GameEvent> {
 
 - [ ] **Step 2: Update all references in openmm crate**
 
-In `openmm/src/game/interaction.rs`, update `resolve_building_name` which references `lod::evt::EventAction`:
+In `openmm/src/game/interaction.rs`, update `resolve_building_name` which references `openmm_data::evt::EventAction`:
 
 ```rust
 // Lines 245, 248, 256, 261: change EventAction:: to GameEvent::
-lod::evt::GameEvent::OpenChest { id } => { ... }
-lod::evt::GameEvent::SpeakInHouse { house_id } => { ... }
-lod::evt::GameEvent::Hint { text, .. } => { ... }
-lod::evt::GameEvent::MoveToMap { map_name, .. } => { ... }
+openmm_data::evt::GameEvent::OpenChest { id } => { ... }
+openmm_data::evt::GameEvent::SpeakInHouse { house_id } => { ... }
+openmm_data::evt::GameEvent::Hint { text, .. } => { ... }
+openmm_data::evt::GameEvent::MoveToMap { map_name, .. } => { ... }
 ```
 
 Also in `resolve_image` (lines 129-142), change all `EventAction::` to `GameEvent::`.
@@ -79,7 +79,7 @@ Expected: no errors
 - [ ] **Step 4: Commit**
 
 ```bash
-git add lod/src/evt.rs openmm/src/game/interaction.rs
+git add openmm-data/src/evt.rs openmm/src/game/interaction.rs
 git commit --no-gpg-sign -m "rename EventAction to GameEvent throughout codebase"
 ```
 
@@ -99,8 +99,8 @@ use std::collections::VecDeque;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use lod::evt::{EvtFile, GameEvent};
-use lod::odm::mm6_to_bevy;
+use openmm_data::evt::{EvtFile, GameEvent};
+use openmm_data::odm::mm6_to_bevy;
 
 use crate::GameState;
 use crate::assets::GameAssets;
@@ -459,7 +459,7 @@ fn interaction_input(
 
 - [ ] **Step 5: Update resolve_building_name to use GameEvent**
 
-The `resolve_building_name` function references `lod::evt::GameEvent` (already renamed in Task 1). Make sure the match arms use `GameEvent::`:
+The `resolve_building_name` function references `openmm_data::evt::GameEvent` (already renamed in Task 1). Make sure the match arms use `GameEvent::`:
 
 ```rust
 fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>>) -> Option<String> {
@@ -470,10 +470,10 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
         if let Some(actions) = evt.events.get(&eid) {
             for action in actions {
                 match action {
-                    lod::evt::GameEvent::OpenChest { id } => {
+                    openmm_data::evt::GameEvent::OpenChest { id } => {
                         return Some(format!("Chest #{}", id));
                     }
-                    lod::evt::GameEvent::SpeakInHouse { house_id } => {
+                    openmm_data::evt::GameEvent::SpeakInHouse { house_id } => {
                         if let Some(houses) = me.houses.as_ref() {
                             if let Some(entry) = houses.houses.get(house_id) {
                                 return Some(entry.name.clone());
@@ -481,12 +481,12 @@ fn resolve_building_name(info: &BuildingInfo, map_events: &Option<Res<MapEvents>
                         }
                         return Some(format!("Building #{}", house_id));
                     }
-                    lod::evt::GameEvent::Hint { text, .. } => {
+                    openmm_data::evt::GameEvent::Hint { text, .. } => {
                         if !text.is_empty() {
                             return Some(text.clone());
                         }
                     }
-                    lod::evt::GameEvent::MoveToMap { map_name, .. } => {
+                    openmm_data::evt::GameEvent::MoveToMap { map_name, .. } => {
                         return Some(format!("Enter {}", map_name));
                     }
                 }
@@ -536,7 +536,7 @@ Add a new section after "HUD views":
 ```
 ### Event dispatch
 
-- `GameEvent` enum in `lod::evt` — renamed from EventAction: SpeakInHouse, MoveToMap, OpenChest, Hint
+- `GameEvent` enum in `openmm_data::evt` — renamed from EventAction: SpeakInHouse, MoveToMap, OpenChest, Hint
 - `EventQueue` resource — any system can push events, processed one per frame by `process_events`
 - Sub-events use `push_front()` for depth-first processing
 - UI-opening events (SpeakInHouse, OpenChest) block the queue until HudView returns to World

@@ -33,7 +33,7 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         let cfg = GameConfig::load();
-        let game_assets = GameAssets::new(lod::get_data_path().into()).expect("unable to load game data files");
+        let game_assets = GameAssets::new(openmm_data::get_data_path().into()).expect("unable to load game data files");
         let game_fonts = fonts::GameFonts::load(&game_assets);
         let save_data = GameSave::load_or_default();
 

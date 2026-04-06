@@ -2,8 +2,8 @@ use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
-use lod::smk::SmkDecoder;
-use lod::vid::Vid;
+use openmm_data::smk::SmkDecoder;
+use openmm_data::vid::Vid;
 
 use crate::GameState;
 
@@ -83,7 +83,7 @@ fn video_setup(
     mut audio_sources: ResMut<Assets<AudioSource>>,
     request: Res<VideoRequest>,
 ) {
-    let data_path = lod::get_data_path();
+    let data_path = openmm_data::get_data_path();
     let anims_dir = std::path::Path::new(&data_path).join("Anims");
 
     // Search Anims1.vid then Anims2.vid for the requested name.

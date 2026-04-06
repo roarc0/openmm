@@ -49,19 +49,19 @@ test-ci:
 # --- Tools ---
 
 dump_assets:
-	cargo run --release -p lod --bin dump_assets
+	cargo run --release -p openmm-data --bin dump_assets
 
 dump_sounds:
-	cargo run --release -p lod --bin dump_sounds
+	cargo run --release -p openmm-data --bin dump_sounds
 
 dump_vid:
-	cargo run --release -p lod --bin dump_vid
+	cargo run --release -p openmm-data --bin dump_vid
 
 clean:
 	cargo clean
 
 check-data:
-	cargo run --release -p lod --example data_roundtrip
+	cargo run --release -p openmm-data --example data_roundtrip
 
 help:
 	@echo "Available commands:"

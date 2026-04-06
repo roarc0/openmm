@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use bevy::prelude::*;
-use lod::LodManager;
+use openmm_data::LodManager;
 
 /// Wraps LodManager with global game data loaded once at startup.
 #[derive(Resource)]
@@ -9,19 +9,19 @@ pub struct GameAssets {
     lod_manager: LodManager,
     /// Global map-independent data: DSFT, MonsterList, MapStats, StreetNpcs.
     /// Passed to Actors::new, Monsters::new, etc. to avoid per-call LOD reads.
-    game_data: lod::game::global::GameData,
+    game_data: openmm_data::game::global::GameData,
     /// Billboard manager (DDecList + DSFT) for decoration sprite lookups.
-    billboard_manager: lod::billboard::BillboardManager,
+    billboard_manager: openmm_data::billboard::BillboardManager,
     /// QBit ID → human-readable label for debug logging.
-    quest_bits: lod::quest_bits::QuestBitNames,
+    quest_bits: openmm_data::quest_bits::QuestBitNames,
 }
 
 impl GameAssets {
     pub fn new(path: std::path::PathBuf) -> Result<Self, Box<dyn Error>> {
         let lod_manager = LodManager::new(path)?;
-        let game_data = lod::game::global::GameData::load(&lod_manager)?;
-        let billboard_manager = lod::billboard::BillboardManager::load(&lod_manager)?;
-        let quest_bits = lod::quest_bits::QuestBitNames::load(&lod_manager)?;
+        let game_data = openmm_data::game::global::GameData::load(&lod_manager)?;
+        let billboard_manager = openmm_data::billboard::BillboardManager::load(&lod_manager)?;
+        let quest_bits = openmm_data::quest_bits::QuestBitNames::load(&lod_manager)?;
         Ok(Self {
             lod_manager,
             game_data,
@@ -34,20 +34,20 @@ impl GameAssets {
         &self.lod_manager
     }
 
-    pub fn game_data(&self) -> &lod::game::global::GameData {
+    pub fn game_data(&self) -> &openmm_data::game::global::GameData {
         &self.game_data
     }
 
-    pub fn billboard_manager(&self) -> &lod::billboard::BillboardManager {
+    pub fn billboard_manager(&self) -> &openmm_data::billboard::BillboardManager {
         &self.billboard_manager
     }
 
-    pub fn quest_bits(&self) -> &lod::quest_bits::QuestBitNames {
+    pub fn quest_bits(&self) -> &openmm_data::quest_bits::QuestBitNames {
         &self.quest_bits
     }
 
     /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).
-    pub fn game_lod(&self) -> lod::game::GameLod<'_> {
+    pub fn game_lod(&self) -> openmm_data::game::GameLod<'_> {
         self.lod_manager.game()
     }
 

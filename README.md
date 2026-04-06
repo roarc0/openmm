@@ -44,7 +44,7 @@ The goal is to reproduce original MM6 gameplay — movement, combat, dialogue, q
 
 ## Game Data Setup
 
-OpenMM requires the original Might and Magic VI data files — the `.lod` archives from your MM6 installation (`games.lod`, `bitmaps.lod`, `icons.lod`, `sprites.lod`, etc.).
+OpenMM requires the original Might and Magic VI data files — the `.openmm-data` archives from your MM6 installation (`games.openmm-data`, `bitmaps.openmm-data`, `icons.openmm-data`, `sprites.openmm-data`, etc.).
 
 > MM6 is available on [GOG](https://www.gog.com). The GOG version installs directly to a folder you can point the engine at.
 
@@ -52,16 +52,16 @@ The engine searches for game data in this order:
 
 **Option 1 — `mm6/` folder next to the binary (recommended for release builds):**
 
-Place your MM6 installation folder (or a copy of it) as `mm6/` in the same directory as the executable. The engine expects the `.lod` files inside `mm6/data/`:
+Place your MM6 installation folder (or a copy of it) as `mm6/` in the same directory as the executable. The engine expects the `.openmm-data` files inside `mm6/data/`:
 
 ```
 openmm          ← the executable
 mm6/
   data/
-    games.lod
-    bitmaps.lod
-    icons.lod
-    sprites.lod
+    games.openmm-data
+    bitmaps.openmm-data
+    icons.openmm-data
+    sprites.openmm-data
     …
 ```
 
@@ -71,7 +71,7 @@ export OPENMM_6_PATH=/path/to/your/mm6
 ./openmm
 ```
 
-Point `OPENMM_6_PATH` at your MM6 installation directory (the one that contains the `data/` subfolder with the `.lod` files).
+Point `OPENMM_6_PATH` at your MM6 installation directory (the one that contains the `data/` subfolder with the `.openmm-data` files).
 
 ## Build from Source
 
@@ -225,7 +225,7 @@ Type `help` in-game for the current full list.
 
 ## Project Structure
 
-- **`lod/`** - Library for reading MM6 data formats (LOD archives, maps, sprites, etc.)
+- **`openmm-data/`** - Library for reading MM6 data formats (LOD archives, maps, sprites, etc.)
 - **`openmm/`** - Bevy game engine application
 - **`docs/`** - Technical documentation
 - **`assets/`** - Asset metadata and configuration files

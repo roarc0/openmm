@@ -1,18 +1,18 @@
-# Design: `lod/src/game` Actor and Decoration Tables
+# Design: `openmm-data/src/game` Actor and Decoration Tables
 
 **Date:** 2026-04-02  
 **Status:** Approved
 
 ## Goal
 
-Move data-layer complexity (DSFT sprite resolution, NPC identity lookup, decoration metadata extraction) out of `openmm/src/game/odm.rs` into the `lod` crate. `openmm` becomes a thin consumer that iterates pre-resolved entries and spawns Bevy entities — no direct LOD queries, no DSFT frame iteration, no sprite name stripping.
+Move data-layer complexity (DSFT sprite resolution, NPC identity lookup, decoration metadata extraction) out of `openmm/src/game/odm.rs` into the `openmm-data` crate. `openmm` becomes a thin consumer that iterates pre-resolved entries and spawns Bevy entities — no direct LOD queries, no DSFT frame iteration, no sprite name stripping.
 
 ---
 
 ## Module Structure
 
 ```
-lod/src/game/
+openmm-data/src/game/
 ├── mod.rs          — GameLod; re-exports Actors, Decorations; adds constructor helpers
 ├── actors.rs       — Actors, Actor struct + classification methods
 ├── npc.rs          — StreetNpcs, NpcNamePool (rename of npctable.rs)
@@ -68,7 +68,7 @@ impl Actors {
     /// Load and fully resolve all actors for a map.
     /// Internally loads: MonsterList, DSFT, StreetNpcs, NpcNamePool, Ddm.
     pub fn new(
-        lod: &LodManager,
+        openmm-data: &LodManager,
         map_name: &str,
         state: Option<&MapStateSnapshot>,
     ) -> Result<Self, Box<dyn Error>>
@@ -86,7 +86,7 @@ impl Actors {
 1. Load `MonsterList`, `Ddm`, `StreetNpcs`, `NpcNamePool`
 2. For each `DdmActor`:
    - If `dead_actor_ids` contains its id → skip
-   - Resolve sprites via `monster::resolve_entry(monlist_id, lod)` → `MonsterEntry`
+   - Resolve sprites via `monster::resolve_entry(monlist_id, openmm-data)` → `MonsterEntry`
    - If `npc_id > 0`: resolve name + portrait from `StreetNpcs`; assign peasant identity via `NpcNamePool` if needed
    - Build `Actor`
 
@@ -107,7 +107,7 @@ pub struct MonsterEntry {
 
 /// Resolve DSFT sprite file root + palette for a monlist entry.
 /// Moves resolve_dsft_sprite() from openmm verbatim.
-pub(super) fn resolve_entry(monlist_id: u8, lod: &LodManager) -> Option<MonsterEntry>
+pub(super) fn resolve_entry(monlist_id: u8, openmm-data: &LodManager) -> Option<MonsterEntry>
 ```
 
 `resolve_dsft_sprite()` disappears from `openmm` entirely.
@@ -158,7 +158,7 @@ impl Decorations {
     /// Takes pre-parsed billboards because they are embedded in the ODM file,
     /// which openmm already parses for terrain/models — avoids re-parsing.
     /// Internally loads: BillboardManager, DSFT.
-    pub fn new(lod: &LodManager, odm_billboards: &[Billboard]) -> Result<Self, Box<dyn Error>>
+    pub fn new(openmm-data: &LodManager, odm_billboards: &[Billboard]) -> Result<Self, Box<dyn Error>>
 
     pub fn iter(&self) -> impl Iterator<Item = &DecorationEntry>
     pub fn len(&self) -> usize
@@ -170,7 +170,7 @@ impl Decorations {
 1. Load `BillboardManager` (wraps DDecList + DSFT)
 2. For each `Billboard` in `odm_billboards`:
    - Skip if `is_no_draw()` or `is_marker()`
-   - Call `has_directional_sprites(name, lod)` → sets `is_directional`
+   - Call `has_directional_sprites(name, openmm-data)` → sets `is_directional`
    - Extract pixel dimensions from `BillboardManager.get()`
    - Apply DSFT scale → final `width`, `height` in world units
    - Build `DecorationEntry`
@@ -183,10 +183,10 @@ impl Decorations {
 
 | Function / Struct | Current location | Destination |
 |---|---|---|
-| `resolve_dsft_sprite()` | `odm.rs` | `lod/game/monster.rs` (private) |
+| `resolve_dsft_sprite()` | `odm.rs` | `openmm-data/game/monster.rs` (private) |
 | `build_npc_sprite_table()` | `odm.rs` | absorbed into `Actors::new()` |
 | `NpcSpriteEntry` | `odm.rs` | deleted (replaced by `Actor`) |
-| `has_directional_sprites()` | `sprites.rs` | `lod/game/decorations.rs` (private) |
+| `has_directional_sprites()` | `sprites.rs` | `openmm-data/game/decorations.rs` (private) |
 | DSFT scale extraction (3 sites) | `loading.rs` + `odm.rs` | `Decorations::new()` |
 | BillboardManager queries in spawn | `odm.rs` | `Decorations::new()` |
 

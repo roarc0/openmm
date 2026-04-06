@@ -4,7 +4,7 @@
 
 **Goal:** Parse MM6 sound data (dsounds.bin + audio.snd), extract WAV files, and play them in-game with 3D positional audio via Bevy.
 
-**Architecture:** Two new modules in the `lod` crate (`dsounds.rs` for the sound descriptor table, `snd.rs` for the audio container). One new `sound/` module in the `openmm` crate that consolidates all audio (music + effects) behind a `SoundManager` resource with spatial audio support.
+**Architecture:** Two new modules in the `openmm-data` crate (`dsounds.rs` for the sound descriptor table, `snd.rs` for the audio container). One new `sound/` module in the `openmm` crate that consolidates all audio (music + effects) behind a `SoundManager` resource with spatial audio support.
 
 **Tech Stack:** Rust, Bevy 0.18 (built-in audio + spatial), flate2 (zlib, already a dependency), byteorder (already a dependency)
 
@@ -12,12 +12,12 @@
 
 ## File Map
 
-### lod crate (new files)
-- `lod/src/dsounds.rs` — Parse dsounds.bin sound descriptor table
-- `lod/src/snd.rs` — Read audio.snd container, extract/decompress WAV files
+### openmm-data crate (new files)
+- `openmm-data/src/dsounds.rs` — Parse dsounds.bin sound descriptor table
+- `openmm-data/src/snd.rs` — Read audio.snd container, extract/decompress WAV files
 
-### lod crate (modify)
-- `lod/src/lib.rs` — Add `pub mod dsounds; pub mod snd;` exports
+### openmm-data crate (modify)
+- `openmm-data/src/lib.rs` — Add `pub mod dsounds; pub mod snd;` exports
 
 ### openmm crate (new files)
 - `openmm/src/game/sound/mod.rs` — SoundPlugin, SoundManager resource, SpatialListener setup
@@ -31,17 +31,17 @@
 
 ---
 
-### Task 1: Parse dsounds.bin in lod crate
+### Task 1: Parse dsounds.bin in openmm-data crate
 
 **Files:**
-- Create: `lod/src/dsounds.rs`
-- Modify: `lod/src/lib.rs`
+- Create: `openmm-data/src/dsounds.rs`
+- Modify: `openmm-data/src/lib.rs`
 
-**Context:** `dsounds.bin` lives in `icons.lod`. Format: `u32` count, then 1355 records of 112 bytes each. Each record has a 32-byte name, u32 sound_id, u32 type, u32 attributes, 68 bytes padding (runtime pointers, zeros on disk). The file is accessed via `LodManager::try_get_bytes("icons/dsounds.bin")` and may need decompression via `LodData::try_from()`. Follow the exact pattern in `lod/src/ddeclist.rs`.
+**Context:** `dsounds.bin` lives in `icons.openmm-data`. Format: `u32` count, then 1355 records of 112 bytes each. Each record has a 32-byte name, u32 sound_id, u32 type, u32 attributes, 68 bytes padding (runtime pointers, zeros on disk). The file is accessed via `LodManager::try_get_bytes("icons/dsounds.bin")` and may need decompression via `LodData::try_from()`. Follow the exact pattern in `openmm-data/src/ddeclist.rs`.
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `lod/src/dsounds.rs`:
+Add to `openmm-data/src/dsounds.rs`:
 
 ```rust
 #[cfg(test)]
@@ -73,12 +73,12 @@ mod tests {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd lod && cargo test dsounds -- --nocapture 2>&1 | tail -5`
+Run: `cd openmm-data && cargo test dsounds -- --nocapture 2>&1 | tail -5`
 Expected: FAIL — module doesn't exist yet
 
 - [ ] **Step 3: Write the dsounds.rs module**
 
-Create `lod/src/dsounds.rs`:
+Create `openmm-data/src/dsounds.rs`:
 
 ```rust
 use std::{
@@ -156,7 +156,7 @@ impl DSounds {
 
 - [ ] **Step 4: Add module export to lib.rs**
 
-In `lod/src/lib.rs`, add after the `pub mod dtile;` line:
+In `openmm-data/src/lib.rs`, add after the `pub mod dtile;` line:
 
 ```rust
 pub mod dsounds;
@@ -164,29 +164,29 @@ pub mod dsounds;
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd lod && cargo test dsounds -- --nocapture`
+Run: `cd openmm-data && cargo test dsounds -- --nocapture`
 Expected: 2 tests PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lod/src/dsounds.rs lod/src/lib.rs
-git commit --no-gpg-sign -m "feat(lod): add dsounds.bin parser for MM6 sound descriptor table"
+git add openmm-data/src/dsounds.rs openmm-data/src/lib.rs
+git commit --no-gpg-sign -m "feat(openmm-data): add dsounds.bin parser for MM6 sound descriptor table"
 ```
 
 ---
 
-### Task 2: Read audio.snd container in lod crate
+### Task 2: Read audio.snd container in openmm-data crate
 
 **Files:**
-- Create: `lod/src/snd.rs`
-- Modify: `lod/src/lib.rs`
+- Create: `openmm-data/src/snd.rs`
+- Modify: `openmm-data/src/lib.rs`
 
 **Context:** `audio.snd` is at `{OPENMM_6_PATH}/../Sounds/Audio.snd` (path: `data/mm6/Sounds/Audio.snd`). It's a standalone file, NOT inside a LOD archive. Format: `u32` entry count (1526 entries), then 52-byte index entries (`[u8; 40]` name, `u32` offset, `u32` compressed_size, `u32` decompressed_size`), then raw data. Files are zlib-compressed when `decompressed_size > 0`. Decompressed data is standard WAV (RIFF header). Use `flate2` for decompression (already in Cargo.toml).
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `lod/src/snd.rs`:
+Add to `openmm-data/src/snd.rs`:
 
 ```rust
 #[cfg(test)]
@@ -233,12 +233,12 @@ mod tests {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd lod && cargo test snd -- --nocapture 2>&1 | tail -5`
+Run: `cd openmm-data && cargo test snd -- --nocapture 2>&1 | tail -5`
 Expected: FAIL — module doesn't exist
 
 - [ ] **Step 3: Write the snd.rs module**
 
-Create `lod/src/snd.rs`:
+Create `openmm-data/src/snd.rs`:
 
 ```rust
 use std::{
@@ -315,7 +315,7 @@ impl SndArchive {
 
 - [ ] **Step 4: Make zlib module accessible to snd**
 
-In `lod/src/lib.rs`, change:
+In `openmm-data/src/lib.rs`, change:
 
 ```rust
 mod zlib;
@@ -335,14 +335,14 @@ pub mod snd;
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `cd lod && cargo test snd -- --nocapture`
+Run: `cd openmm-data && cargo test snd -- --nocapture`
 Expected: 2 tests PASS
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add lod/src/snd.rs lod/src/lib.rs
-git commit --no-gpg-sign -m "feat(lod): add audio.snd container reader for MM6 sound files"
+git add openmm-data/src/snd.rs openmm-data/src/lib.rs
+git commit --no-gpg-sign -m "feat(openmm-data): add audio.snd container reader for MM6 sound files"
 ```
 
 ---
@@ -355,7 +355,7 @@ git commit --no-gpg-sign -m "feat(lod): add audio.snd container reader for MM6 s
 
 **Context:** The `SoundManager` resource is the central point for all audio. It holds the `DSounds` table (sound ID -> name mapping) and the `SndArchive` (extracts WAV bytes). It caches loaded sounds as Bevy `Handle<AudioSource>` to avoid re-adding duplicates. The `SoundPlugin` registers this resource, the sub-plugins for music and effects, and adds the `SpatialListener` to the player camera.
 
-The `SndArchive` file path is: the MM6 data path goes up one level then into `Sounds/Audio.snd`. The data path is `lod::get_data_path()` which returns `OPENMM_6_PATH` env or `./data/mm6`. Audio.snd is at `{base}/Sounds/Audio.snd` where `{base}` is the parent of the LOD data directory.
+The `SndArchive` file path is: the MM6 data path goes up one level then into `Sounds/Audio.snd`. The data path is `openmm_data::get_data_path()` which returns `OPENMM_6_PATH` env or `./data/mm6`. Audio.snd is at `{base}/Sounds/Audio.snd` where `{base}` is the parent of the LOD data directory.
 
 - [ ] **Step 1: Create sound/mod.rs with SoundPlugin and SoundManager**
 
@@ -366,7 +366,7 @@ pub(crate) mod effects;
 pub(crate) mod music;
 
 use bevy::prelude::*;
-use lod::{dsounds::DSounds, snd::SndArchive};
+use openmm_data::{dsounds::DSounds, snd::SndArchive};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -423,7 +423,7 @@ fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
         }
     };
 
-    let data_path = lod::get_data_path();
+    let data_path = openmm_data::get_data_path();
     let base = Path::new(&data_path);
     // Audio.snd is at the MM6 root/Sounds/Audio.snd
     // data_path might be mm6/data or mm6, try both
@@ -536,7 +536,7 @@ git commit --no-gpg-sign -m "feat: add SoundPlugin with SoundManager resource an
 
 **Context:** Currently `odm.rs` has `MapMusic` component (line 10-12), and `spawn_world` (line 201) takes `audio_sources: ResMut<Assets<AudioSource>>` and `existing_music: Query<Entity, With<MapMusic>>` to handle music. Lines 373-399 stop old music and start new music. This needs to move to `sound/music.rs`. The `spawn_world` function should call a public function from the music module instead.
 
-Music files are MP3 at `{data_path}/Music/{track}.mp3` where `data_path` is `lod::get_data_path()`. Track number comes from `prepared.music_track` (u8, 0 = no music). Volume comes from `cfg.music_volume` (f32).
+Music files are MP3 at `{data_path}/Music/{track}.mp3` where `data_path` is `openmm_data::get_data_path()`. Track number comes from `prepared.music_track` (u8, 0 = no music). Volume comes from `cfg.music_volume` (f32).
 
 - [ ] **Step 1: Implement music.rs**
 
@@ -583,7 +583,7 @@ fn handle_play_music(
             continue;
         }
 
-        let data_path = lod::get_data_path();
+        let data_path = openmm_data::get_data_path();
         let music_path =
             std::path::Path::new(&data_path).join(format!("Music/{}.mp3", ev.track));
 
@@ -884,7 +884,7 @@ Add to the `openmm crate structure` section:
       effects.rs         — EffectsPlugin, PlaySoundEvent, PlayUiSoundEvent, spatial audio
 ```
 
-Add to the `lod crate structure` section:
+Add to the `openmm-data crate structure` section:
 
 ```
 - `dsounds.rs` — Sound descriptor table (dsounds.bin): sound ID -> filename mapping

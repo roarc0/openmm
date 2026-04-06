@@ -1,12 +1,12 @@
-# lod Game Layer Part 2 Implementation Plan
+# openmm-data Game Layer Part 2 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Push three related clean-ups into the `lod` crate: pre-compute palette `variant` inside `Actors`, expose monster spawn resolution as `lod::game::monster::Monsters`/`Monster`, and eliminate the `PreparedBillboard` struct by replacing it with `lod::game::decorations::Decorations` throughout.
+**Goal:** Push three related clean-ups into the `openmm-data` crate: pre-compute palette `variant` inside `Actors`, expose monster spawn resolution as `openmm_data::game::monster::Monsters`/`Monster`, and eliminate the `PreparedBillboard` struct by replacing it with `openmm_data::game::decorations::Decorations` throughout.
 
-**Architecture:** All three tasks are independent but ordered by risk. Task 1 is pure `lod` crate (no openmm changes). Task 2 adds a new `lod` type + updates `openmm`. Task 3 removes `PreparedBillboard` from `loading.rs` and simplifies the billboard spawn path in `odm.rs`.
+**Architecture:** All three tasks are independent but ordered by risk. Task 1 is pure `openmm-data` crate (no openmm changes). Task 2 adds a new `openmm-data` type + updates `openmm`. Task 3 removes `PreparedBillboard` from `loading.rs` and simplifies the billboard spawn path in `odm.rs`.
 
-**Tech Stack:** Rust 2024 edition, cargo workspace (`lod` + `openmm` crates), `make test` to verify.
+**Tech Stack:** Rust 2024 edition, cargo workspace (`openmm-data` + `openmm` crates), `make test` to verify.
 
 ---
 
@@ -14,8 +14,8 @@
 
 | File | Change |
 |------|--------|
-| `lod/src/game/actors.rs` | Add variant second-pass to `new()` and `from_raw_actors()` |
-| `lod/src/game/monster.rs` | Add `Monster` struct and `Monsters` struct with `new()` |
+| `openmm-data/src/game/actors.rs` | Add variant second-pass to `new()` and `from_raw_actors()` |
+| `openmm-data/src/game/monster.rs` | Add `Monster` struct and `Monsters` struct with `new()` |
 | `openmm/src/game/odm.rs` | Replace `resolve_monsters()` + `PreparedMonster` with `Monsters`; remove variant computation from NPC loop; fix billboard spawn to use `Decorations` directly |
 | `openmm/src/states/loading.rs` | Replace `PreparedWorld.billboards: Vec<PreparedBillboard>` with `Decorations`; delete `PreparedBillboard`; delete `PreparedMonster`; update `BuildBillboards` and `PreloadSprites` steps |
 
@@ -24,7 +24,7 @@
 ## Task 1: Pre-compute `variant` in `Actors`
 
 **Files:**
-- Modify: `lod/src/game/actors.rs`
+- Modify: `openmm-data/src/game/actors.rs`
 
 ### Context
 
@@ -41,13 +41,13 @@ Move this into `Actors` as a second pass so callers just read `actor.variant`.
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `lod/src/game/actors.rs` in the `#[cfg(test)]` block:
+Add to `openmm-data/src/game/actors.rs` in the `#[cfg(test)]` block:
 
 ```rust
 #[test]
 fn variant_is_precomputed() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
-    let actors = Actors::new(&lod, "oute3.odm", None).unwrap();
+    let openmm-data = LodManager::new(get_lod_path()).unwrap();
+    let actors = Actors::new(&openmm-data, "oute3.odm", None).unwrap();
     // Every actor should have variant 1, 2, or 3 — never 0 (unless there is truly only one palette).
     // The test checks that at least one actor has variant > 0 (proving the pass ran).
     // Actors with a unique standing_sprite will always be variant 1.
@@ -59,14 +59,14 @@ fn variant_is_precomputed() {
 - [ ] **Step 2: Run test to verify it fails**
 
 ```
-cd /home/roarc/repos/openmm && cargo test -p lod variant_is_precomputed 2>&1 | tail -5
+cd /home/roarc/repos/openmm && cargo test -p openmm-data variant_is_precomputed 2>&1 | tail -5
 ```
 
 Expected: FAIL — `assertion failed: all_variants_nonzero`
 
 - [ ] **Step 3: Implement the variant second pass**
 
-In `lod/src/game/actors.rs`, add a helper function above `impl Actors`:
+In `openmm-data/src/game/actors.rs`, add a helper function above `impl Actors`:
 
 ```rust
 fn compute_variants(actors: &mut Vec<Actor>) {
@@ -115,15 +115,15 @@ pub variant: u8,
 - [ ] **Step 4: Run the test to verify it passes**
 
 ```
-cd /home/roarc/repos/openmm && cargo test -p lod variant_is_precomputed 2>&1 | tail -5
+cd /home/roarc/repos/openmm && cargo test -p openmm-data variant_is_precomputed 2>&1 | tail -5
 ```
 
 Expected: PASS
 
-- [ ] **Step 5: Run full lod test suite**
+- [ ] **Step 5: Run full openmm-data test suite**
 
 ```
-cd /home/roarc/repos/openmm && cargo test -p lod 2>&1 | tail -10
+cd /home/roarc/repos/openmm && cargo test -p openmm-data 2>&1 | tail -10
 ```
 
 Expected: all tests pass
@@ -184,22 +184,22 @@ Expected: all tests pass
 
 ```bash
 cd /home/roarc/repos/openmm
-git add lod/src/game/actors.rs openmm/src/game/odm.rs openmm/src/game/blv.rs
+git add openmm-data/src/game/actors.rs openmm/src/game/odm.rs openmm/src/game/blv.rs
 git commit --no-gpg-sign -m "refactor: pre-compute palette variant in Actors, remove duplicate callers"
 ```
 
 ---
 
-## Task 2: `lod::game::monster::Monsters` and `Monster`
+## Task 2: `openmm_data::game::monster::Monsters` and `Monster`
 
 **Files:**
-- Modify: `lod/src/game/monster.rs`
+- Modify: `openmm-data/src/game/monster.rs`
 - Modify: `openmm/src/game/odm.rs`
 - Modify: `openmm/src/states/loading.rs`
 
 ### Context
 
-`resolve_monsters()` in `openmm/src/game/odm.rs:428` mixes sprite/palette resolution (belongs in `lod`) with position spreading (geometry, stays in openmm). The function:
+`resolve_monsters()` in `openmm/src/game/odm.rs:428` mixes sprite/palette resolution (belongs in `openmm-data`) with position spreading (geometry, stays in openmm). The function:
 
 1. Loads `MapStats` + `MonsterList` from LOD
 2. Iterates `prepared.map.spawn_points` (each ODM `SpawnPoint` has `position: [i32; 3]`, `radius: u16`, `monster_index: u16`)
@@ -209,9 +209,9 @@ git commit --no-gpg-sign -m "refactor: pre-compute palette variant in Actors, re
 6. **Computes spread position**: `angle = g as f32 * 2.094`, `spread = sp.radius.max(200) as f32 * 0.5`, position offset
 7. Pushes a `PreparedMonster` with the already-spread position
 
-The new design: `Monsters::new()` in `lod` does steps 1–5 and produces one `Monster` per group member with the **center position** and **group_index**. The spread computation (step 6) stays in `openmm/src/game/odm.rs`.
+The new design: `Monsters::new()` in `openmm-data` does steps 1–5 and produces one `Monster` per group member with the **center position** and **group_index**. The spread computation (step 6) stays in `openmm/src/game/odm.rs`.
 
-### New types to add at the top of `lod/src/game/monster.rs`
+### New types to add at the top of `openmm-data/src/game/monster.rs`
 
 ```rust
 /// A single resolved monster spawn entry for a map.
@@ -253,10 +253,10 @@ impl Monsters {
     /// Loads MapStats and MonsterList from LOD; resolves sprite roots via DSFT.
     /// Returns one `Monster` per group member, with `spawn_position` = group center.
     /// Position spreading (angle × radius) is left to the caller.
-    pub fn new(lod: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>> {
-        let odm = crate::odm::Odm::new(lod, map_name)?;
-        let mapstats = crate::mapstats::MapStats::new(lod)?;
-        let monlist = crate::monlist::MonsterList::new(lod)?;
+    pub fn new(openmm-data: &LodManager, map_name: &str) -> Result<Self, Box<dyn Error>> {
+        let odm = crate::odm::Odm::new(openmm-data, map_name)?;
+        let mapstats = crate::mapstats::MapStats::new(openmm-data)?;
+        let monlist = crate::monlist::MonsterList::new(openmm-data)?;
         let map_name_lower = map_name.to_lowercase();
         let cfg = mapstats.get(&map_name_lower).ok_or("map not found in mapstats")?;
 
@@ -270,11 +270,11 @@ impl Monsters {
 
                 let st_group = &desc.sprite_names[0];
                 let wa_group = &desc.sprite_names[1];
-                let Some((st_root, palette_id)) = resolve_sprite_group(st_group, lod) else {
+                let Some((st_root, palette_id)) = resolve_sprite_group(st_group, openmm-data) else {
                     log::warn!("Monster '{}' standing sprite '{}' not found in DSFT — skipping", mon_name, st_group);
                     continue;
                 };
-                let wa_root = resolve_sprite_group(wa_group, lod)
+                let wa_root = resolve_sprite_group(wa_group, openmm-data)
                     .map(|(n, _)| n)
                     .unwrap_or_else(|| st_root.clone());
 
@@ -305,20 +305,20 @@ impl Monsters {
 
 - [ ] **Step 1: Write the failing test**
 
-Add to the `#[cfg(test)]` block in `lod/src/game/monster.rs`:
+Add to the `#[cfg(test)]` block in `openmm-data/src/game/monster.rs`:
 
 ```rust
 #[test]
 fn monsters_loads_oute3() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
-    let monsters = Monsters::new(&lod, "oute3.odm").unwrap();
+    let openmm-data = LodManager::new(get_lod_path()).unwrap();
+    let monsters = Monsters::new(&openmm-data, "oute3.odm").unwrap();
     assert!(!monsters.is_empty(), "oute3 should have monster spawns");
 }
 
 #[test]
 fn monsters_all_have_sprites() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
-    let monsters = Monsters::new(&lod, "oute3.odm").unwrap();
+    let openmm-data = LodManager::new(get_lod_path()).unwrap();
+    let monsters = Monsters::new(&openmm-data, "oute3.odm").unwrap();
     for m in monsters.iter() {
         assert!(!m.standing_sprite.is_empty(),
             "every monster should have a standing sprite");
@@ -327,8 +327,8 @@ fn monsters_all_have_sprites() {
 
 #[test]
 fn monsters_variant_in_range() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
-    let monsters = Monsters::new(&lod, "oute3.odm").unwrap();
+    let openmm-data = LodManager::new(get_lod_path()).unwrap();
+    let monsters = Monsters::new(&openmm-data, "oute3.odm").unwrap();
     for m in monsters.iter() {
         assert!(m.variant >= 1 && m.variant <= 3,
             "variant should be 1-3, got {}", m.variant);
@@ -337,8 +337,8 @@ fn monsters_variant_in_range() {
 
 #[test]
 fn monsters_group_index_within_group_size() {
-    let lod = LodManager::new(get_lod_path()).unwrap();
-    let monsters = Monsters::new(&lod, "oute3.odm").unwrap();
+    let openmm-data = LodManager::new(get_lod_path()).unwrap();
+    let monsters = Monsters::new(&openmm-data, "oute3.odm").unwrap();
     // group_size is 3..=5, so group_index must be < 5
     for m in monsters.iter() {
         assert!(m.group_index < 6,
@@ -350,29 +350,29 @@ fn monsters_group_index_within_group_size() {
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```
-cd /home/roarc/repos/openmm && cargo test -p lod monsters_loads_oute3 2>&1 | tail -5
+cd /home/roarc/repos/openmm && cargo test -p openmm-data monsters_loads_oute3 2>&1 | tail -5
 ```
 
 Expected: FAIL — `Monsters` not defined
 
-- [ ] **Step 3: Add `Monster`, `Monsters`, and `Monsters::new()` to `lod/src/game/monster.rs`**
+- [ ] **Step 3: Add `Monster`, `Monsters`, and `Monsters::new()` to `openmm-data/src/game/monster.rs`**
 
 Add the structs and impl block shown in the Context section above, before the existing `#[cfg(test)]` block. Also add `use std::error::Error;` at the top if not already present.
 
-Note: `crate::odm::Odm` is used here but only in this module — the lod crate already uses it elsewhere.
+Note: `crate::odm::Odm` is used here but only in this module — the openmm-data crate already uses it elsewhere.
 
-- [ ] **Step 4: Run the lod tests to verify they pass**
+- [ ] **Step 4: Run the openmm-data tests to verify they pass**
 
 ```
-cd /home/roarc/repos/openmm && cargo test -p lod monsters_ 2>&1 | tail -10
+cd /home/roarc/repos/openmm && cargo test -p openmm-data monsters_ 2>&1 | tail -10
 ```
 
 Expected: all 4 `monsters_*` tests PASS
 
-- [ ] **Step 5: Run full lod test suite**
+- [ ] **Step 5: Run full openmm-data test suite**
 
 ```
-cd /home/roarc/repos/openmm && cargo test -p lod 2>&1 | tail -10
+cd /home/roarc/repos/openmm && cargo test -p openmm-data 2>&1 | tail -10
 ```
 
 Expected: all tests pass
@@ -386,7 +386,7 @@ In the `PendingSpawns` struct (lines ~19–36), change:
 resolved_monsters: Vec<crate::states::loading::PreparedMonster>,
 
 // AFTER:
-monsters: lod::game::monster::Monsters,
+monsters: openmm_data::game::monster::Monsters,
 ```
 
 In `spawn_world` (around line 372), replace:
@@ -396,16 +396,16 @@ In `spawn_world` (around line 372), replace:
 let resolved_monsters = resolve_monsters(&prepared, &game_assets, &world_state.map.name);
 
 // AFTER:
-let monsters = lod::game::monster::Monsters::new(
+let monsters = openmm_data::game::monster::Monsters::new(
     game_assets.lod_manager(),
     &world_state.map.name.to_string(),
 ).unwrap_or_else(|e| {
     warn!("Failed to resolve monsters for {}: {}", world_state.map.name, e);
-    lod::game::monster::Monsters::default_empty()
+    openmm_data::game::monster::Monsters::default_empty()
 });
 ```
 
-Add a `default_empty()` helper to `Monsters` in `lod/src/game/monster.rs`:
+Add a `default_empty()` helper to `Monsters` in `openmm-data/src/game/monster.rs`:
 
 ```rust
 pub fn default_empty() -> Self { Monsters { entries: Vec::new() } }
@@ -505,8 +505,8 @@ Expected: all tests pass
 
 ```bash
 cd /home/roarc/repos/openmm
-git add lod/src/game/monster.rs openmm/src/game/odm.rs openmm/src/states/loading.rs
-git commit --no-gpg-sign -m "refactor: move monster spawn resolution to lod::game::monster::Monsters"
+git add openmm-data/src/game/monster.rs openmm/src/game/odm.rs openmm/src/states/loading.rs
+git commit --no-gpg-sign -m "refactor: move monster spawn resolution to openmm_data::game::monster::Monsters"
 ```
 
 ---
@@ -523,20 +523,20 @@ git commit --no-gpg-sign -m "refactor: move monster spawn resolution to lod::gam
 1. `PreloadSprites` step in `loading.rs` — iterates billboards to preload sprites into `billboard_cache`
 2. `lazy_spawn` in `odm.rs` — reads `bb.position`, `bb.declist_name`, `bb.declist_id`, `bb.sound_id`, `bb.facing_yaw`, `bb.event_id`, `bb.billboard_index`
 
-`lod::game::decorations::Decorations` already provides all the same information except:
+`openmm_data::game::decorations::Decorations` already provides all the same information except:
 - `position` is `[i32; 3]` (MM6) instead of `Vec3` (Bevy) — caller converts inline with `mm6_to_bevy`
-- No `declist_id` field — but `declist_id` in `PreloadSprites` was only used for `BillboardManager::get(lod, name, declist_id)`, and `Decorations` already pre-resolved the sprite name so we can pass `0` or restructure
+- No `declist_id` field — but `declist_id` in `PreloadSprites` was only used for `BillboardManager::get(openmm-data, name, declist_id)`, and `Decorations` already pre-resolved the sprite name so we can pass `0` or restructure
 
 Actually `PreparedWorld.billboard_cache` uses `declist_name` as key and passes `declist_id` to `BillboardManager::get()`. With `Decorations`, we have `dec.sprite_name` and no `declist_id`. Check: `BillboardManager::get()` signature:
 
-In `lod/src/billboard.rs`, `get()` takes `name: &str, declist_id: u16` but uses `declist_id` only to look up DSFT scale. We can pass `0` and it will just return `1.0` scale (already handled separately via `dsft_scale_for_group`).
+In `openmm-data/src/billboard.rs`, `get()` takes `name: &str, declist_id: u16` but uses `declist_id` only to look up DSFT scale. We can pass `0` and it will just return `1.0` scale (already handled separately via `dsft_scale_for_group`).
 
 **The plan:**
 
-- `BuildBillboards` step: call `Decorations::new(lod, &odm.billboards)` AND extract start_points separately (start_point detection uses `is_marker()` + name contains "start", which `Decorations` filters out — so start_points must still be extracted from the raw `odm.billboards` before `Decorations::new()` filters them)
-- Replace `PreparedWorld.billboards: Vec<PreparedBillboard>` with `PreparedWorld.decorations: lod::game::decorations::Decorations`
+- `BuildBillboards` step: call `Decorations::new(openmm-data, &odm.billboards)` AND extract start_points separately (start_point detection uses `is_marker()` + name contains "start", which `Decorations` filters out — so start_points must still be extracted from the raw `odm.billboards` before `Decorations::new()` filters them)
+- Replace `PreparedWorld.billboards: Vec<PreparedBillboard>` with `PreparedWorld.decorations: openmm_data::game::decorations::Decorations`
 - `PreloadSprites`: iterate `decorations.iter()` for non-directional entries; use `dec.sprite_name` and pass `declist_id=0` to `BillboardManager::get()`
-- `PendingSpawns`: remove `decorations: Option<Decorations>` and `dec_by_billboard: HashMap<usize, usize>`; add `decorations: lod::game::decorations::Decorations`
+- `PendingSpawns`: remove `decorations: Option<Decorations>` and `dec_by_billboard: HashMap<usize, usize>`; add `decorations: openmm_data::game::decorations::Decorations`
 - `billboard_order` now indexes `decorations.entries()` directly (0..decorations.len() sorted by distance)
 - Billboard spawn loop: `let dec = &p.decorations.entries()[p.billboard_order[bb_idx]];` — direct index
 
@@ -549,10 +549,10 @@ In the `PreparedWorld` struct (around line 249), change:
 pub billboards: Vec<PreparedBillboard>,
 
 // AFTER:
-pub decorations: lod::game::decorations::Decorations,
+pub decorations: openmm_data::game::decorations::Decorations,
 ```
 
-Add `use lod::game::decorations::Decorations;` near the top of the file if not already imported.
+Add `use openmm_data::game::decorations::Decorations;` near the top of the file if not already imported.
 
 - [ ] **Step 2: Update `BuildBillboards` step in `loading.rs`**
 
@@ -561,7 +561,7 @@ Replace the entire `LoadingStep::BuildBillboards` arm (lines ~835–890) with:
 ```rust
 LoadingStep::BuildBillboards => {
     if let Some(odm) = &progress.odm {
-        let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+        let bb_mgr = openmm_data::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
         let mut start_points = Vec::new();
 
         // Extract start/teleport markers from raw billboard list (Decorations filters these out)
@@ -573,7 +573,7 @@ LoadingStep::BuildBillboards => {
                 .unwrap_or(false);
             let name_lower = bb.declist_name.to_lowercase();
             if name_lower.contains("start") || is_marker {
-                let pos = Vec3::from(lod::odm::mm6_to_bevy(
+                let pos = Vec3::from(openmm_data::odm::mm6_to_bevy(
                     bb.data.position[0], bb.data.position[1], bb.data.position[2],
                 ));
                 let yaw = bb.data.direction_degrees as f32 * std::f32::consts::PI / 1024.0;
@@ -587,7 +587,7 @@ LoadingStep::BuildBillboards => {
 
         progress.start_points = Some(start_points);
         // Decorations::new filters out invisible/marker/no-draw entries automatically
-        progress.decorations = lod::game::decorations::Decorations::new(
+        progress.decorations = openmm_data::game::decorations::Decorations::new(
             game_assets.lod_manager(),
             &odm.billboards,
         ).ok();
@@ -596,7 +596,7 @@ LoadingStep::BuildBillboards => {
 }
 ```
 
-Add `decorations: Option<lod::game::decorations::Decorations>,` to `LoadingProgress` struct (around line 60), and `decorations: None,` in its initializer (around line 328).
+Add `decorations: Option<openmm_data::game::decorations::Decorations>,` to `LoadingProgress` struct (around line 60), and `decorations: None,` in its initializer (around line 328).
 
 - [ ] **Step 3: Update `PreloadSprites` step in `loading.rs`**
 
@@ -605,7 +605,7 @@ In the billboard preload section of `PreloadSprites` (lines ~975–1011), replac
 ```rust
 // BEFORE:
 let billboards = progress.billboards.take();
-let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+let bb_mgr = openmm_data::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
 if let Some(ref bbs) = billboards {
     let queue = progress.preload_queue.as_mut().unwrap();
     if let Some(ref mgr) = bb_mgr {
@@ -634,7 +634,7 @@ if let Some(ref bbs) = billboards {
 progress.billboards = billboards;
 
 // AFTER:
-let bb_mgr = lod::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
+let bb_mgr = openmm_data::billboard::BillboardManager::new(game_assets.lod_manager()).ok();
 if let Some(ref decs) = progress.decorations {
     let queue = progress.preload_queue.as_mut().unwrap();
     if let Some(ref mgr) = bb_mgr {
@@ -685,11 +685,11 @@ billboards,       // was: progress.billboards.take().unwrap_or_default()
 
 // AFTER:
 decorations: progress.decorations.take().unwrap_or_else(|| {
-    lod::game::decorations::Decorations::empty()
+    openmm_data::game::decorations::Decorations::empty()
 }),
 ```
 
-Add `Decorations::empty()` to `lod/src/game/decorations.rs`:
+Add `Decorations::empty()` to `openmm-data/src/game/decorations.rs`:
 
 ```rust
 impl Decorations {
@@ -706,12 +706,12 @@ In `PendingSpawns`, replace:
 ```rust
 // BEFORE:
 billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
-decorations: Option<lod::game::decorations::Decorations>,
+decorations: Option<openmm_data::game::decorations::Decorations>,
 dec_by_billboard: std::collections::HashMap<usize, usize>,
 
 // AFTER:
 billboard_cache: std::collections::HashMap<String, (Handle<StandardMaterial>, Handle<Mesh>, f32)>,
-decorations: lod::game::decorations::Decorations,
+decorations: openmm_data::game::decorations::Decorations,
 ```
 
 In `spawn_world`, replace the `Decorations::new` + `dec_by_billboard` block (lines ~352–368) with:
@@ -721,7 +721,7 @@ In `spawn_world`, replace the `Decorations::new` + `dec_by_billboard` block (lin
 let decorations = prepared.decorations.clone();
 ```
 
-Note: Both `Decorations` and `DecorationEntry` need `#[derive(Clone)]` — add to both structs in `lod/src/game/decorations.rs`.
+Note: Both `Decorations` and `DecorationEntry` need `#[derive(Clone)]` — add to both structs in `openmm-data/src/game/decorations.rs`.
 
 Replace the billboard distance sort (line ~388):
 
@@ -784,7 +784,7 @@ Update all references from `bb.position` → compute inline:
 let pos = bb.position + Vec3::new(0.0, sh / 2.0, 0.0);
 
 // AFTER:
-let dec_pos = Vec3::from(lod::odm::mm6_to_bevy(
+let dec_pos = Vec3::from(openmm_data::odm::mm6_to_bevy(
     dec.position[0], dec.position[1], dec.position[2],
 ));
 let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
@@ -814,6 +814,6 @@ Expected: all tests pass
 
 ```bash
 cd /home/roarc/repos/openmm
-git add lod/src/game/decorations.rs lod/src/game/monster.rs openmm/src/game/odm.rs openmm/src/states/loading.rs
+git add openmm-data/src/game/decorations.rs openmm-data/src/game/monster.rs openmm/src/game/odm.rs openmm/src/states/loading.rs
 git commit --no-gpg-sign -m "refactor: eliminate PreparedBillboard, use Decorations throughout"
 ```

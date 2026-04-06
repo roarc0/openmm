@@ -8,8 +8,8 @@ use bevy::mesh::VertexAttributeValues;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use lod::blv::DoorState;
-use lod::odm::mm6_to_bevy;
+use openmm_data::blv::DoorState;
+use openmm_data::odm::mm6_to_bevy;
 
 use crate::GameState;
 use crate::game::InGame;

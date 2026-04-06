@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use image::DynamicImage;
 
-use lod::LodManager;
+use openmm_data::LodManager;
 
 use crate::game::entities::actor::Actor;
 use crate::game::entities::{AnimationState, FacingYaw};
@@ -803,7 +803,7 @@ pub fn load_decoration_directions(
 pub fn load_static_decoration_sprite(
     sprite_name: &str,
     lod_manager: &LodManager,
-    bb_mgr: &lod::billboard::BillboardManager,
+    bb_mgr: &openmm_data::billboard::BillboardManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     meshes: &mut Assets<Mesh>,

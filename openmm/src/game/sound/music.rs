@@ -37,7 +37,7 @@ fn handle_play_music(
             continue;
         }
 
-        let data_path = lod::get_data_path();
+        let data_path = openmm_data::get_data_path();
         let music_path = std::path::Path::new(&data_path).join(format!("Music/{}.mp3", ev.track));
 
         if let Ok(bytes) = std::fs::read(&music_path) {

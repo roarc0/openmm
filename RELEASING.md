@@ -24,8 +24,8 @@ Releases are automatically built and published via GitHub Actions when you push 
 
 1. **Update version numbers** (if needed):
    ```bash
-   # Update version in openmm/Cargo.toml and lod/Cargo.toml
-   vim openmm/Cargo.toml lod/Cargo.toml
+   # Update version in openmm/Cargo.toml and openmm-data/Cargo.toml
+   vim openmm/Cargo.toml openmm-data/Cargo.toml
    ```
 
 2. **Commit any pending changes**:
@@ -59,8 +59,8 @@ Each release includes:
 
 The binaries do not include MM6 game data. End users must supply their own copy. The engine searches for data in this order:
 
-1. **`mm6/` folder next to the binary** — place your MM6 installation as `mm6/` in the same directory as the executable, with `.lod` files inside `mm6/data/`. This is the recommended layout for release builds.
-2. **`OPENMM_6_PATH` environment variable** — set it to the MM6 installation directory (the one containing the `data/` subfolder with `.lod` files).
+1. **`mm6/` folder next to the binary** — place your MM6 installation as `mm6/` in the same directory as the executable, with `.openmm-data` files inside `mm6/data/`. This is the recommended layout for release builds.
+2. **`OPENMM_6_PATH` environment variable** — set it to the MM6 installation directory (the one containing the `data/` subfolder with `.openmm-data` files).
 
 See the [README](README.md#game-data-setup) for a full example.
 
