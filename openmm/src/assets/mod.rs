@@ -7,16 +7,12 @@ use openmm_data::Assets;
 #[derive(Resource)]
 pub struct GameAssets {
     assets: Assets,
-    /// QBit ID → human-readable label for debug logging.
-    quest_bits: openmm_data::quest_bits::QuestBitNames,
 }
 
 impl GameAssets {
     pub fn new(path: std::path::PathBuf) -> Result<Self, Box<dyn Error>> {
         let assets = Assets::new(&*path.to_string_lossy())?;
-        // GameData is now inside Assets and lazy-loaded via assets.data()
-        let quest_bits = openmm_data::quest_bits::QuestBitNames::load(&assets)?;
-        Ok(Self { assets, quest_bits })
+        Ok(Self { assets })
     }
 
     pub fn assets(&self) -> &Assets {
@@ -27,8 +23,8 @@ impl GameAssets {
         self.assets.data()
     }
 
-    pub fn quest_bits(&self) -> &openmm_data::quest_bits::QuestBitNames {
-        &self.quest_bits
+    pub fn quests(&self) -> &openmm_data::quests::QuestNames {
+        &self.assets.data().quests
     }
 
     /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).

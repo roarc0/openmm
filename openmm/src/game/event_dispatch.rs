@@ -463,7 +463,7 @@ fn process_events(
         .map(|id| format!(" event_id={}", id))
         .unwrap_or_default();
     info!("── Event{} ({} steps) ──", id_str, steps.len());
-    let qb = game_assets.quest_bits();
+    let qb = game_assets.quests();
     let mut pc = 0usize; // program counter (index into steps vec)
     let mut iterations = 0u32;
     const MAX_ITERATIONS: u32 = 500;

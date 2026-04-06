@@ -52,6 +52,8 @@ pub struct StaticGameData {
     pub class_table: Option<crate::assets::class::ClassTable>,
     /// Decoration descriptors (icons/ddeclist.bin).
     pub ddeclist: crate::assets::ddeclist::DDecList,
+    /// QBit ID → human-readable label (icons/quests.txt).
+    pub quests: crate::assets::quests::QuestNames,
 }
 
 impl StaticGameData {
@@ -78,6 +80,8 @@ impl StaticGameData {
         let spells_table = crate::assets::spells::SpellsTable::load(assets).ok();
         let class_table = crate::assets::class::ClassTable::load(assets).ok();
 
+        let quests = crate::assets::quests::QuestNames::load(assets).unwrap_or_else(|_| crate::assets::quests::QuestNames { names: vec![] });
+
         Ok(Self {
             dsft,
             monlist,
@@ -92,6 +96,7 @@ impl StaticGameData {
             spells_table,
             class_table,
             ddeclist,
+            quests,
         })
     }
 }

@@ -6,12 +6,12 @@ use crate::LodSerialise;
 
 /// Quest bit name table loaded from `icons/quests.txt`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QuestBitNames {
+pub struct QuestNames {
     /// `names[i]` = label for QBit `(i+1)`, i.e. 0-indexed over 1-based IDs.
     pub names: Vec<Option<String>>,
 }
 
-impl QuestBitNames {
+impl QuestNames {
     pub fn load(assets: &Assets) -> Result<Self, Box<dyn Error>> {
         let raw = assets.get_bytes("icons/quests.txt")?;
         Self::try_from(raw.as_slice())
@@ -82,7 +82,7 @@ impl QuestBitNames {
     }
 }
 
-impl TryFrom<&[u8]> for QuestBitNames {
+impl TryFrom<&[u8]> for QuestNames {
     type Error = Box<dyn Error>;
 
     fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
@@ -95,7 +95,7 @@ impl TryFrom<&[u8]> for QuestBitNames {
     }
 }
 
-impl LodSerialise for QuestBitNames {
+impl LodSerialise for QuestNames {
     fn to_bytes(&self) -> Vec<u8> {
         let mut out = String::new();
         // MM6 quests.txt header
@@ -135,10 +135,10 @@ mod tests {
     use super::*;
     use crate::get_data_path;
 
-    fn load() -> Option<QuestBitNames> {
+    fn load() -> Option<QuestNames> {
         let path = get_data_path();
         let lod = crate::Assets::new(path).ok()?;
-        Some(QuestBitNames::load(&lod).unwrap())
+        Some(QuestNames::load(&lod).unwrap())
     }
 
     #[test]
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn annotate_unknown_qbit_unchanged() {
-        let names = QuestBitNames { names: vec![] };
+        let names = QuestNames { names: vec![] };
         let input = "Compare(QBit[9999] set? skip step 1)";
         let out = names.annotate(input);
         assert_eq!(out, input);
