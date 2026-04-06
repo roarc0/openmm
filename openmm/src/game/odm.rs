@@ -512,7 +512,7 @@ fn lazy_spawn(
 
     // Billboards — directional decorations (e.g. ships) get SpriteSheet + FacingYaw
     // so they show the correct side based on camera angle.
-    let bb_mgr = game_assets.billboard_manager();
+    let lod = game_assets.lod();
     while bb_idx < bb_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
         let dec_idx = p.billboard_order[bb_idx];
         bb_idx += 1;
@@ -535,7 +535,7 @@ fn lazy_spawn(
             );
             if px_w > 0.0 {
                 // Apply DSFT scale via sprite group name lookup
-                let dsft_scale = bb_mgr.dsft_scale_for_group(&dec.sprite_name);
+                let dsft_scale = lod.dsft_scale_for_group(&dec.sprite_name);
                 let sw = px_w * dsft_scale;
                 let sh = px_h * dsft_scale;
                 let initial_mat = dirs[0].clone();
@@ -593,7 +593,7 @@ fn lazy_spawn(
         } else if dec.num_frames > 1 {
             // Animated non-directional decoration: build a SpriteSheet so update_sprite_sheets
             // handles frame cycling and camera-facing rotation.
-            let frame_sprites = bb_mgr.get_animation_frames(game_assets.lod_manager(), key, dec.declist_id);
+            let frame_sprites = lod.billboard_animation_frames(key, dec.declist_id);
             if frame_sprites.is_empty() {
                 warn!("Animated decoration '{}' has no loadable frames, skipping", key);
                 continue;
@@ -692,7 +692,7 @@ fn lazy_spawn(
             let (mat, quad, w, h, mask) = if let Some((m, q, w, h, msk)) = p.dec_sprite_cache.get(key) {
                 (m.clone(), q.clone(), *w, *h, msk.clone())
             } else {
-                let sprite = match bb_mgr.get(game_assets.lod_manager(), key, dec.declist_id) {
+                let sprite = match lod.billboard(key, dec.declist_id) {
                     Some(s) => s,
                     None => {
                         warn!("Billboard '{}' sprite not found, skipping", key);
@@ -764,7 +764,7 @@ fn lazy_spawn(
             let effective_static_lr = if dec.light_radius > 0 {
                 dec.light_radius
             } else {
-                let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
+                let dsft_lr = lod.billboard_luminous_light_radius(dec.declist_id);
                 dsft_lr.saturating_mul(DSFT_STATIC_LR_SCALE)
             };
             if effective_static_lr > 0 {
@@ -819,7 +819,7 @@ fn lazy_spawn(
                 );
                 continue;
             }
-            let dsft_scale = bb_mgr.dsft_scale_for_group(&actor.standing_sprite);
+            let dsft_scale = lod.dsft_scale_for_group(&actor.standing_sprite);
             let sw = raw_w * dsft_scale;
             let sh = raw_h * dsft_scale;
             let state_count = states.len();
@@ -895,7 +895,7 @@ fn lazy_spawn(
             continue;
         }
         // Apply DSFT scale (same as decorations — sprite group name lookup)
-        let dsft_scale = bb_mgr.dsft_scale_for_group(&actor.standing_sprite);
+        let dsft_scale = lod.dsft_scale_for_group(&actor.standing_sprite);
         let states = s2;
         let state_masks = m2;
         let sw = w2 * dsft_scale;
@@ -1032,7 +1032,7 @@ fn lazy_spawn(
             continue;
         }
 
-        let dsft_scale = bb_mgr.dsft_scale_for_group(&mon.standing_sprite);
+        let dsft_scale = game_assets.lod().dsft_scale_for_group(&mon.standing_sprite);
         let sw = raw_w * dsft_scale;
         let sh = raw_h * dsft_scale;
         let state_count = states.len();
@@ -1148,7 +1148,7 @@ fn apply_texture_outdoors(
             continue;
         };
 
-        let Some(img) = game_assets.game_lod().bitmap(&ev.texture_name) else {
+        let Some(img) = game_assets.lod().bitmap(&ev.texture_name) else {
             warn!("SetTextureOutdoors: texture '{}' not found in LOD", ev.texture_name);
             continue;
         };

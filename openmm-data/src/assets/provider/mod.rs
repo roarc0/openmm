@@ -6,20 +6,19 @@ use std::path::{Path, PathBuf};
 pub mod archive;
 pub mod smk;
 
+pub use self::archive::lod::{LodArchive, Version};
+pub use self::archive::smk::SmkArchive;
+pub use self::archive::snd::SndArchive;
+pub use self::archive::{Archive, ArchiveEntry};
+use self::smk::SmkExt;
 use crate::assets::dsounds::DSounds;
 use crate::assets::image::Image;
 use crate::assets::lod_data::LodData;
 use crate::assets::palette::Palettes;
-pub use self::archive::{Archive, ArchiveEntry};
-pub use self::archive::lod::{LodArchive, Version};
-pub use self::archive::snd::SndArchive;
-pub use self::archive::smk::SmkArchive;
-use self::smk::SmkExt;
 
 pub use self::archive::lod::LodWriter;
 
 pub mod actors;
-pub mod billboard_manager;
 pub mod decorations;
 pub mod lod_decoder;
 pub mod monster;
@@ -52,6 +51,8 @@ pub struct StaticGameData {
     pub spells_table: Option<crate::assets::spells::SpellsTable>,
     /// Player class descriptions (icons/class.txt).
     pub class_table: Option<crate::assets::class::ClassTable>,
+    /// Decoration descriptors (icons/ddeclist.bin).
+    pub ddeclist: crate::assets::ddeclist::DDecList,
 }
 
 impl StaticGameData {
@@ -60,6 +61,7 @@ impl StaticGameData {
         let monlist = crate::assets::dmonlist::MonsterList::load(assets)?;
         let monsters_txt = crate::assets::monsters::MonsterStatsTable::load(assets)?;
         let mapstats = crate::assets::mapstats::MapStats::load(assets)?;
+        let ddeclist = crate::assets::ddeclist::DDecList::load(assets)?;
 
         let name_pool = assets
             .get_decompressed("icons/npcnames.txt")
@@ -90,6 +92,7 @@ impl StaticGameData {
             items_table,
             spells_table,
             class_table,
+            ddeclist,
         })
     }
 }
@@ -172,7 +175,7 @@ impl Assets {
     }
 
     /// Access the high-level LOD decoder (decoded sprites, bitmaps, icons, fonts).
-    pub fn game(&self) -> lod_decoder::LodDecoder<'_> {
+    pub fn lod(&self) -> lod_decoder::LodDecoder<'_> {
         lod_decoder::LodDecoder::new(self)
     }
 

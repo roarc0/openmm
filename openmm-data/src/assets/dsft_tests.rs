@@ -103,7 +103,7 @@ fn campfire_dsft_frame_names_resolve() {
         let frame = &dsft.frames[idx];
         let sprite_name = frame.sprite_name().unwrap_or_default();
         // Verify each frame's sprite exists in the LOD
-        let found = assets.game().sprite(&sprite_name).is_some();
+        let found = assets.lod().sprite(&sprite_name).is_some();
         assert!(
             found,
             "campfireon frame {} sprite '{}' should exist in LOD",
@@ -201,7 +201,7 @@ fn ghost_dsft_palette_differs_from_header() {
         root
     };
     let test_name = format!("{}a0", root);
-    let img = assets.game().sprite_with_palette(&test_name, frame.palette_id as u16);
+    let img = assets.lod().sprite_with_palette(&test_name, frame.palette_id as u16);
     assert!(
         img.is_some(),
         "should load ghost sprite with DSFT palette {}",

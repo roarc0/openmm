@@ -38,7 +38,7 @@ impl UiAssets {
         if let Some(handle) = self.textures.get(name) {
             return Some(handle.clone());
         }
-        let img = game_assets.game_lod().icon(name)?;
+        let img = game_assets.lod().icon(name)?;
         let (w, h) = img.dimensions();
         let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
         bevy_img.sampler = hud_sampler(cfg);
@@ -63,7 +63,7 @@ impl UiAssets {
         if let Some(handle) = self.textures.get(cache_key) {
             return Some(handle.clone());
         }
-        let mut img = game_assets.game_lod().icon(name)?;
+        let mut img = game_assets.lod().icon(name)?;
         let (w, h) = img.dimensions();
         transform(&mut img);
         let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);

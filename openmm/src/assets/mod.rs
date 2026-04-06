@@ -7,8 +7,6 @@ use openmm_data::Assets;
 #[derive(Resource)]
 pub struct GameAssets {
     assets: Assets,
-    /// Billboard manager (DDecList + DSFT) for decoration sprite lookups.
-    billboard_manager: openmm_data::billboard::BillboardManager,
     /// QBit ID → human-readable label for debug logging.
     quest_bits: openmm_data::quest_bits::QuestBitNames,
 }
@@ -17,13 +15,8 @@ impl GameAssets {
     pub fn new(path: std::path::PathBuf) -> Result<Self, Box<dyn Error>> {
         let assets = Assets::new(&*path.to_string_lossy())?;
         // GameData is now inside Assets and lazy-loaded via assets.data()
-        let billboard_manager = openmm_data::billboard::BillboardManager::load(&assets)?;
         let quest_bits = openmm_data::quest_bits::QuestBitNames::load(&assets)?;
-        Ok(Self {
-            assets,
-            billboard_manager,
-            quest_bits,
-        })
+        Ok(Self { assets, quest_bits })
     }
 
     pub fn assets(&self) -> &Assets {
@@ -34,17 +27,13 @@ impl GameAssets {
         self.assets.data()
     }
 
-    pub fn billboard_manager(&self) -> &openmm_data::billboard::BillboardManager {
-        &self.billboard_manager
-    }
-
     pub fn quest_bits(&self) -> &openmm_data::quest_bits::QuestBitNames {
         &self.quest_bits
     }
 
     /// Game-engine API: decoded, game-ready assets (sprites, bitmaps, icons, fonts, NPC tables).
-    pub fn game_lod(&self) -> openmm_data::assets::LodDecoder<'_> {
-        self.assets.game()
+    pub fn lod(&self) -> openmm_data::assets::LodDecoder<'_> {
+        self.assets.lod()
     }
 
     /// Compatibility method for old code expecting lod_manager.
@@ -55,7 +44,7 @@ impl GameAssets {
     /// Load a LOD icon by name as a nearest-neighbor Bevy Image handle.
     /// Returns `None` if the icon is not found.
     pub fn load_icon(&self, name: &str, images: &mut bevy::asset::Assets<Image>) -> Option<bevy::asset::Handle<Image>> {
-        let img = self.game_lod().icon(name)?;
+        let img = self.lod().icon(name)?;
         let mut bevy_img = dynamic_to_bevy_image(img);
         bevy_img.sampler = bevy::image::ImageSampler::nearest();
         Some(images.add(bevy_img))

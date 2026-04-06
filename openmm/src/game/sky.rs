@@ -82,9 +82,9 @@ fn spawn_sky(
 
     // Load sky texture from LOD
     let sky_img = game_assets
-        .game_lod()
+        .lod()
         .bitmap(sky_name)
-        .or_else(|| game_assets.game_lod().bitmap("plansky1"));
+        .or_else(|| game_assets.lod().bitmap("plansky1"));
     info!("Sky: texture loaded = {}", sky_img.is_some());
 
     let sky_tex_handle = if let Some(img) = sky_img {

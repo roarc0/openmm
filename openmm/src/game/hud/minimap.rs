@@ -35,7 +35,7 @@ pub(super) fn load_map_overview(
     images: &mut Assets<Image>,
     cfg: &GameConfig,
 ) -> Option<Handle<Image>> {
-    let img = game_assets.game_lod().icon(map_name)?;
+    let img = game_assets.lod().icon(map_name)?;
     let mut bevy_img = assets::dynamic_to_bevy_image(img);
     bevy_img.sampler = crate::ui_assets::hud_sampler(cfg);
     Some(images.add(bevy_img))

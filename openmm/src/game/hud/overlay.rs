@@ -91,9 +91,9 @@ pub fn prepare_npc_dialogue(
     let prof_entry = profession_id.and_then(|id| game_assets.game_data().prof_table.as_ref()?.get(id));
 
     let portrait_img = game_assets
-        .game_lod()
+        .lod()
         .icon(&portrait_name)
-        .or_else(|| game_assets.game_lod().icon("npc001"))?;
+        .or_else(|| game_assets.lod().icon("npc001"))?;
 
     let size = Vec2::new(portrait_img.width() as f32, portrait_img.height() as f32);
     let portrait = NpcPortrait {

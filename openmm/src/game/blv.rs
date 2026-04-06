@@ -414,7 +414,7 @@ fn spawn_indoor_world(
     ));
 
     // Spawn decorations from BLV decoration list.
-    let bb_mgr = game_assets.billboard_manager();
+    let lod = game_assets.lod();
     let mut sprite_cache = sprites::SpriteCache::default();
     for dec in prepared.decorations.entries() {
         let dec_pos = Vec3::from(mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
@@ -435,7 +435,7 @@ fn spawn_indoor_world(
             if px_w == 0.0 {
                 continue;
             }
-            let dsft_scale = bb_mgr.dsft_scale_for_group(key);
+            let dsft_scale = lod.dsft_scale_for_group(key);
             let sw = px_w * dsft_scale;
             let sh = px_h * dsft_scale;
             let initial_mat = dirs[0].clone();
@@ -472,7 +472,7 @@ fn spawn_indoor_world(
             dec_entity = Some(ent.id());
         } else if dec.num_frames > 1 {
             // Animated decoration
-            let frame_sprites = bb_mgr.get_animation_frames(game_assets.lod_manager(), key, dec.declist_id);
+            let frame_sprites = lod.billboard_animation_frames(key, dec.declist_id);
             if frame_sprites.is_empty() {
                 continue;
             }
@@ -543,7 +543,7 @@ fn spawn_indoor_world(
             // Luminous animated decorations (campfires, braziers) carry their point-light
             // radius in the DSFT frame, not in the ddeclist.light_radius field.
             // Campfireon: DSFT light_radius=256, is_luminous=true.
-            let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
+            let dsft_lr = lod.billboard_luminous_light_radius(dec.declist_id);
             if dsft_lr > 0 {
                 commands.spawn((
                     crate::game::odm::decoration_point_light(
@@ -555,10 +555,10 @@ fn spawn_indoor_world(
             }
         } else {
             // Static single-frame decoration
-            let Some(sprite) = bb_mgr.get(game_assets.lod_manager(), key, dec.declist_id) else {
+            let Some(sprite) = lod.billboard(key, dec.declist_id) else {
                 continue;
             };
-            let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
+            let dsft_lr = lod.billboard_luminous_light_radius(dec.declist_id);
             let (w, h) = sprite.dimensions();
             if w == 0.0 || h == 0.0 {
                 continue;
@@ -680,7 +680,7 @@ fn spawn_indoor_world(
                 );
                 continue;
             }
-            let dsft_scale = bb_mgr.dsft_scale_for_group(&mon.standing_sprite);
+            let dsft_scale = lod.dsft_scale_for_group(&mon.standing_sprite);
             let sw = raw_w * dsft_scale;
             let sh = raw_h * dsft_scale;
             let state_count = states.len();

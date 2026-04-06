@@ -371,13 +371,13 @@ fn decode_sprite_frames(
     // Some dying sprites are stored as a single image with no frame/direction
     // suffix (e.g. "arc1diq" — the DSFT sprite_name IS the file name). Detect
     // this by attempting to load the root itself before the frame-letter loop.
-    let single_frame_root = assets.game().sprite(root).is_some()
-        && assets.game().sprite(&format!("{}a0", root)).is_none()
-        && assets.game().sprite(&format!("{}a", root)).is_none();
+    let single_frame_root = assets.lod().sprite(root).is_some()
+        && assets.lod().sprite(&format!("{}a0", root)).is_none()
+        && assets.lod().sprite(&format!("{}a", root)).is_none();
 
     if single_frame_root {
         // Load the single image for all 5 directional slots.
-        let img = assets.game().sprite(root);
+        let img = assets.lod().sprite(root);
         if let Some(ref i) = img {
             max_w = max_w.max(i.width());
             max_h = max_h.max(i.height());
@@ -389,7 +389,7 @@ fn decode_sprite_frames(
             let test0 = format!("{}{}0", root, frame_letter);
             let test_nodir = format!("{}{}", root, frame_letter);
 
-            let has_frame = assets.game().sprite(&test0).is_some() || assets.game().sprite(&test_nodir).is_some();
+            let has_frame = assets.lod().sprite(&test0).is_some() || assets.lod().sprite(&test_nodir).is_some();
             if !has_frame {
                 break;
             }
@@ -405,17 +405,14 @@ fn decode_sprite_frames(
                         &test_nodir
                     };
                     assets
-                        .game()
+                        .lod()
                         .sprite_with_palette(sprite_name, palette_id)
-                        .or_else(|| assets.game().sprite(sprite_name))
+                        .or_else(|| assets.lod().sprite(sprite_name))
                 } else if variant > 1 {
                     let pal_offset = (variant - 1) as u16;
                     load_sprite_with_palette_offset(assets, &name, &test_nodir, pal_offset)
                 } else {
-                    assets
-                        .game()
-                        .sprite(&name)
-                        .or_else(|| assets.game().sprite(&test_nodir))
+                    assets.lod().sprite(&name).or_else(|| assets.lod().sprite(&test_nodir))
                 };
                 if let Some(ref i) = img {
                     max_w = max_w.max(i.width());
@@ -513,9 +510,9 @@ fn load_sprite_with_palette_offset(
 
     // Try with variant palette, fall back to normal decode
     assets
-        .game()
+        .lod()
         .sprite_with_palette(sprite_name, variant_palette_id)
-        .or_else(|| assets.game().sprite(sprite_name))
+        .or_else(|| assets.lod().sprite(sprite_name))
 }
 
 /// Update sprite sheets based on camera angle, entity facing, and animation state.
@@ -689,7 +686,7 @@ pub fn load_decoration_directions(
     let mut max_h = 0u32;
     for dir in 0..5u8 {
         let name = format!("{}{}", root, dir);
-        let img = assets.game().sprite(&name);
+        let img = assets.lod().sprite(&name);
         if let Some(ref i) = img {
             max_w = max_w.max(i.width());
             max_h = max_h.max(i.height());
@@ -775,14 +772,13 @@ pub fn load_decoration_directions(
 pub fn load_static_decoration_sprite(
     sprite_name: &str,
     assets: &DataAssets,
-    bb_mgr: &openmm_data::billboard::BillboardManager,
     images: &mut Assets<Image>,
     materials: &mut Assets<StandardMaterial>,
     meshes: &mut Assets<Mesh>,
 ) -> Option<(Handle<StandardMaterial>, Handle<Mesh>, f32, f32)> {
     let name_lower = sprite_name.to_lowercase();
-    let img = assets.game().sprite(&name_lower)?;
-    let dsft_scale = bb_mgr.dsft_scale_for_group(&name_lower);
+    let img = assets.lod().sprite(&name_lower)?;
+    let dsft_scale = assets.lod().dsft_scale_for_group(&name_lower);
     let w = img.width() as f32 * dsft_scale;
     let h = img.height() as f32 * dsft_scale;
     let bevy_img = crate::assets::dynamic_to_bevy_image(img);

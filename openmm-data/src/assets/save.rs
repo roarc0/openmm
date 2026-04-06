@@ -6,8 +6,8 @@ use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use image::{DynamicImage, RgbImage};
 use crate::assets::provider::archive::{Archive, lod::LodArchive};
+use image::{DynamicImage, RgbImage};
 
 /// Metadata from `header.bin` (100 bytes) inside a save LOD.
 #[derive(Debug, Clone, Default)]

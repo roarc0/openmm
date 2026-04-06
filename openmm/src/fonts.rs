@@ -41,7 +41,7 @@ pub struct GameFonts {
 impl GameFonts {
     /// Load all .fnt files from the LOD icons archive.
     pub fn load(game_assets: &GameAssets) -> Self {
-        let lod = game_assets.game_lod();
+        let lod = game_assets.lod();
         let mut fonts = HashMap::new();
         for name in lod.font_names() {
             let fnt_file = format!("{}.fnt", name);

@@ -1,11 +1,11 @@
 fn main() {
-    let lod = openmm_data::Assets::new(openmm_data::get_data_path()).unwrap();
+    let assets = openmm_data::Assets::new(openmm_data::get_data_path()).unwrap();
     let out = std::path::Path::new("/tmp/borders");
     std::fs::create_dir_all(out).unwrap();
     for name in &["border1.pcx", "border2.pcx", "border3", "border4", "border5", "border6"] {
         // Dump raw PCX header
         let path = format!("icons/{}", name.to_lowercase());
-        if let Ok(data) = lod.get_decompressed(&path)
+        if let Ok(data) = assets.get_decompressed(&path)
             && data.len() >= 128
             && data[0] == 0x0A
         {
@@ -26,7 +26,7 @@ fn main() {
                 y_max - y_min + 1
             );
         }
-        if let Some(img) = lod.game().icon(name) {
+        if let Some(img) = assets.lod().icon(name) {
             let fname = name.replace(".pcx", "");
             img.save(out.join(format!("{}.png", fname))).unwrap();
             println!("Saved {}: {}x{}", name, img.width(), img.height());

@@ -227,7 +227,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `MapName` enum: `Outdoor(OdmName)` or `Indoor(String)`. `TryFrom<&str>` parses `"oute3"` (5 chars, starts with `"out"`) as outdoor; anything else as indoor.
 - `OdmName` supports directional navigation: `go_north/go_south/go_east/go_west` return `Option<OdmName>` (None at boundary). Valid columns `'a'–'e'`, rows `'1'–'3'`.
 - `GameSave` → JSON at `data/saves/{slot}.json`. Default spawn: `[-10178, 340, 11206]` yaw -38.7°.
-- `GameAssets` resource: wraps `LodManager` + `GameData` + `BillboardManager`. `game_lod()` for sprites, bitmaps, icons, fonts.
+- `GameAssets` resource: wraps `Assets` + quest bit names. `lod()` for decoded sprites, bitmaps, icons, fonts.
 
 ### Developer console
 

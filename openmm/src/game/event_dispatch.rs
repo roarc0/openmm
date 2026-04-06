@@ -729,7 +729,6 @@ fn process_events(
                     crate::game::entities::sprites::load_static_decoration_sprite(
                         sprite_name,
                         game_assets.lod_manager(),
-                        game_assets.billboard_manager(),
                         &mut images,
                         &mut materials,
                         &mut audio.meshes,

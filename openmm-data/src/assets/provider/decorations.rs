@@ -1,6 +1,5 @@
 use std::error::Error;
 
-use super::billboard_manager::BillboardManager;
 use crate::Assets;
 use crate::assets::{billboard::Billboard, blv::BlvDecoration};
 
@@ -25,7 +24,7 @@ pub struct DecorationEntry {
     pub billboard_index: usize,
     /// Facing yaw in radians, converted from MM6 direction_degrees.
     pub facing_yaw: f32,
-    /// Declist ID used to resolve sprite name, SFT frame, and scale via BillboardManager::get().
+    /// Declist ID used to resolve sprite name, SFT frame, and scale via LodDecoder::billboard().
     pub declist_id: u16,
     /// Number of animation frames in the DSFT group (1 = static, >1 = animated loop).
     pub num_frames: usize,
@@ -71,7 +70,7 @@ impl Decorations {
     /// Resolves sprite names, detects directional sprites, pre-extracts DSFT scale,
     /// and pre-computes world dimensions for non-directional sprites.
     pub fn load(assets: &Assets, odm_billboards: &[Billboard]) -> Result<Self, Box<dyn Error>> {
-        let mgr = BillboardManager::load(assets)?;
+        let lod = assets.lod();
         let mut entries = Vec::new();
 
         for (billboard_index, bb) in odm_billboards.iter().enumerate() {
@@ -81,7 +80,7 @@ impl Decorations {
             }
 
             // Resolve declist item; skip if not found
-            let Some(declist_item) = mgr.get_declist_item(bb.data.declist_id) else {
+            let Some(declist_item) = lod.billboard_item(bb.data.declist_id) else {
                 log::warn!(
                     "decorations: declist_id {} not found for billboard {}",
                     bb.data.declist_id,
@@ -120,11 +119,11 @@ impl Decorations {
             // Check for directional sprites
             let name = &bb.declist_name;
             let (sprite_name, is_directional, width, height) = if let Some(root) = find_directional_root(name, assets) {
-                (root, true, 0.0, 0.0)
+                (root, true, 0.0_f32, 0.0_f32)
             } else {
                 // Non-directional: pre-compute world dimensions
-                let (w, h) = mgr
-                    .get(assets, name, bb.data.declist_id)
+                let (w, h) = lod
+                    .billboard(name, bb.data.declist_id)
                     .map(|sprite| sprite.dimensions())
                     .unwrap_or((1.0, 1.0));
                 (name.clone(), false, w, h)
@@ -133,7 +132,7 @@ impl Decorations {
             let num_frames = if is_directional {
                 1 // Directional animation handled separately
             } else {
-                mgr.animation_frame_count(bb.data.declist_id)
+                lod.billboard_animation_frame_count(bb.data.declist_id)
             };
 
             entries.push(DecorationEntry {
@@ -171,7 +170,7 @@ impl Decorations {
     /// declist_id (pristine files always store 0). We resolve via name-based lookup.
     /// Markers ("Party Start"), invisible, and no-draw entries are filtered out.
     pub fn from_blv(assets: &Assets, blv_decorations: &[BlvDecoration]) -> Result<Self, Box<dyn Error>> {
-        let mgr = BillboardManager::load(assets)?;
+        let lod = assets.lod();
         let mut entries = Vec::new();
 
         for (billboard_index, dec) in blv_decorations.iter().enumerate() {
@@ -181,7 +180,7 @@ impl Decorations {
                 continue;
             }
 
-            let Some((declist_id, declist_item)) = mgr.get_declist_item_by_name(&dec.name) else {
+            let Some((declist_id, declist_item)) = lod.billboard_item_by_name(&dec.name) else {
                 log::warn!(
                     "blv decoration idx={} name='{}': not found in ddeclist — skipping",
                     billboard_index,
@@ -216,10 +215,10 @@ impl Decorations {
 
             let (sprite_name, is_directional, width, height) =
                 if let Some(root) = find_directional_root(&dec.name, assets) {
-                    (root, true, 0.0, 0.0)
+                    (root, true, 0.0_f32, 0.0_f32)
                 } else {
-                    let (w, h) = mgr
-                        .get(assets, &dec.name, declist_id)
+                    let (w, h) = lod
+                        .billboard(&dec.name, declist_id)
                         .map(|sprite| sprite.dimensions())
                         .unwrap_or((1.0, 1.0));
                     (dec.name.to_lowercase(), false, w, h)
@@ -228,7 +227,7 @@ impl Decorations {
             let num_frames = if is_directional {
                 1
             } else {
-                mgr.animation_frame_count(declist_id)
+                lod.billboard_animation_frame_count(declist_id)
             };
 
             entries.push(DecorationEntry {

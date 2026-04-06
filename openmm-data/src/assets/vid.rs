@@ -1,6 +1,8 @@
 use openmm_archive::Archive;
 pub use openmm_archive::vid::*;
 
+pub use crate::assets::smk::{SmkInfo, parse_smk_info};
+
 pub type Vid = VidArchive;
 
 pub trait VidExt {
@@ -21,47 +23,4 @@ impl VidExt for VidArchive {
     fn smk_by_name(&self, name: &str) -> Option<Vec<u8>> {
         self.get_file(name) // Archive trait implementation already supports this!
     }
-}
-
-// ── Decoder tools preserved for data ──
-
-/// Basic SMK header info extracted without a full decoder.
-#[derive(Debug)]
-pub struct SmkInfo {
-    pub magic: [u8; 4],
-    pub width: u32,
-    pub height: u32,
-    pub frames: u32,
-    pub frame_rate: i32,
-}
-
-impl SmkInfo {
-    pub fn fps(&self) -> f32 {
-        match self.frame_rate {
-            0 => 10.0,
-            r if r > 0 => 1000.0 / r as f32,
-            r => 100_000.0 / (-r) as f32,
-        }
-    }
-}
-
-pub fn parse_smk_info(smk: &[u8]) -> Option<SmkInfo> {
-    if smk.len() < 24 {
-        return None;
-    }
-    let magic: [u8; 4] = smk[0..4].try_into().ok()?;
-    if &magic != b"SMK2" && &magic != b"SMK4" {
-        return None;
-    }
-    let width = u32::from_le_bytes(smk[4..8].try_into().ok()?);
-    let height = u32::from_le_bytes(smk[8..12].try_into().ok()?);
-    let frames = u32::from_le_bytes(smk[12..16].try_into().ok()?);
-    let frame_rate = i32::from_le_bytes(smk[16..20].try_into().ok()?);
-    Some(SmkInfo {
-        magic,
-        width,
-        height,
-        frames,
-        frame_rate,
-    })
 }

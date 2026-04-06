@@ -505,7 +505,7 @@ fn loading_step(
                         progress.water_mask = Some(crate::assets::dynamic_to_bevy_image(mask));
 
                         // Load water texture
-                        progress.water_texture = game_assets.game_lod().bitmap("wtrtyl").map(|img| {
+                        progress.water_texture = game_assets.lod().bitmap("wtrtyl").map(|img| {
                             let mut water_img = crate::assets::dynamic_to_bevy_image(img);
                             water_img.sampler = crate::assets::repeat_sampler();
                             water_img
@@ -527,7 +527,7 @@ fn loading_step(
                     if name.is_empty() || texture_sizes.contains_key(name) {
                         continue;
                     }
-                    if let Some(img) = game_assets.game_lod().bitmap(name) {
+                    if let Some(img) = game_assets.lod().bitmap(name) {
                         texture_sizes.insert(name.clone(), (img.width(), img.height()));
                     }
                 }
@@ -567,7 +567,7 @@ fn loading_step(
                         mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, dfm.uvs);
                         // Skip generate_tangents — door vertices are animated and
                         // tangents would become stale. Not needed for flat surfaces.
-                        let texture = game_assets.game_lod().bitmap(&dfm.texture_name).map(|img| {
+                        let texture = game_assets.lod().bitmap(&dfm.texture_name).map(|img| {
                             let mut image = crate::assets::dynamic_to_bevy_image(img);
                             image.sampler = crate::assets::repeat_sampler();
                             image
@@ -769,7 +769,7 @@ fn loading_step(
                             mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, tm.normals);
                             mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, tm.uvs);
                             _ = mesh.generate_tangents();
-                            let texture = game_assets.game_lod().bitmap(&tm.texture_name).map(|img| {
+                            let texture = game_assets.lod().bitmap(&tm.texture_name).map(|img| {
                                 let mut image = crate::assets::dynamic_to_bevy_image(img);
                                 image.sampler = crate::assets::repeat_sampler();
                                 image
@@ -960,7 +960,7 @@ fn loading_step(
                 for b in &odm.bsp_models {
                     for name in &b.texture_names {
                         if !texture_sizes.contains_key(name)
-                            && let Some(img) = game_assets.game_lod().bitmap(name)
+                            && let Some(img) = game_assets.lod().bitmap(name)
                         {
                             texture_sizes.insert(name.clone(), (img.width(), img.height()));
                         }
@@ -982,7 +982,7 @@ fn loading_step(
                                 mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, tm.uvs);
                                 _ = mesh.generate_tangents();
 
-                                let texture = game_assets.game_lod().bitmap(&tm.texture_name).map(|img| {
+                                let texture = game_assets.lod().bitmap(&tm.texture_name).map(|img| {
                                     let mut image = crate::assets::dynamic_to_bevy_image(img);
                                     image.sampler = crate::assets::repeat_sampler();
                                     image
@@ -1040,7 +1040,7 @@ fn loading_step(
         }
         LoadingStep::BuildBillboards => {
             if progress.odm.is_some() {
-                let bb_mgr = game_assets.billboard_manager();
+                let lod = game_assets.lod();
                 let mut start_points = Vec::new();
 
                 // Extract start/teleport markers from raw billboard list (Decorations filters these out)
@@ -1051,8 +1051,8 @@ fn loading_step(
                         if bb.data.is_original_invisible() {
                             continue;
                         }
-                        let is_marker = bb_mgr
-                            .get_declist_item(bb.data.declist_id)
+                        let is_marker = lod
+                            .billboard_item(bb.data.declist_id)
                             .map(|item| item.is_marker() || item.is_no_draw())
                             .unwrap_or(false);
                         let name_lower = bb.declist_name.to_lowercase();
@@ -1092,12 +1092,11 @@ fn loading_step(
                 // DDM actors (NPCs): resolve once, cache for spawn_world reuse
                 let map_key = load_request.map_name.to_string();
                 let snapshot = world_state.as_ref().and_then(|ws| {
-                    ws.game_vars
-                        .dead_actor_ids
-                        .get(&map_key)
-                        .map(|ids| openmm_data::assets::provider::actors::MapStateSnapshot {
+                    ws.game_vars.dead_actor_ids.get(&map_key).map(|ids| {
+                        openmm_data::assets::provider::actors::MapStateSnapshot {
                             dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
-                        })
+                        }
+                    })
                 });
                 let lod_actors = openmm_data::assets::Actors::new(
                     game_assets.lod_manager(),
@@ -1204,7 +1203,7 @@ fn loading_step(
                     >= progress.preload_queue.as_ref().unwrap().sprite_roots.len();
                 if sprites_done {
                     let mut bb_cache = progress.dec_sprite_cache.take().unwrap_or_default();
-                    let bb_mgr = game_assets.billboard_manager();
+                    let lod = game_assets.lod();
                     // Take decorations to allow simultaneous mutable borrow of preload_queue
                     let decorations = progress.decorations.take();
                     if let Some(ref decs) = decorations {
@@ -1222,9 +1221,7 @@ fn loading_step(
                                 if bb_cache.contains_key(&dec.sprite_name) {
                                     continue;
                                 }
-                                if let Some(sprite) =
-                                    bb_mgr.get(game_assets.lod_manager(), &dec.sprite_name, dec.declist_id)
-                                {
+                                if let Some(sprite) = lod.billboard(&dec.sprite_name, dec.declist_id) {
                                     let (w, h) = sprite.dimensions();
                                     let rgba = sprite.image.to_rgba8();
                                     let mask = std::sync::Arc::new(

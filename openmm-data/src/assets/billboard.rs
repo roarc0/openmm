@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::try_read_string_block;
 
-// BillboardManager and BillboardSprite are compositors — they combine ddeclist + dsft + GameLod.
-pub use crate::assets::provider::billboard_manager::{BillboardManager, BillboardSprite};
+// BillboardSprite is a compositor — it combines ddeclist + dsft + GameLod.
+pub use crate::assets::provider::lod_decoder::BillboardSprite;
 
 #[repr(C)]
 #[derive(Default, Debug, Serialize, Deserialize)]

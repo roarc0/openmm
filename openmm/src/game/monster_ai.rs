@@ -165,11 +165,7 @@ fn monster_ai_system(
             return pos.y; // no floor at all (indoor, no BSP hit) — keep current Y
         };
 
-        if flying {
-            ground + sh * 4.0
-        } else {
-            ground + sh
-        }
+        if flying { ground + sh * 4.0 } else { ground + sh }
     };
 
     for (mut transform, mut actor, mut anim_state, mut ai_mode) in query.iter_mut() {

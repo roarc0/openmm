@@ -1,8 +1,50 @@
 //! SMK video decoder — thin wrapper around the `smk` crate.
 
 use ::smk::{FrameStatus, Smk};
+use std::convert::TryInto;
 
 pub use ::smk::SmkError;
+
+/// Basic SMK header info extracted without a full decoder.
+#[derive(Debug, Clone, Copy)]
+pub struct SmkInfo {
+    pub magic: [u8; 4],
+    pub width: u32,
+    pub height: u32,
+    pub frames: u32,
+    pub frame_rate: i32,
+}
+
+impl SmkInfo {
+    pub fn fps(&self) -> f32 {
+        match self.frame_rate {
+            0 => 10.0,
+            r if r > 0 => 1000.0 / r as f32,
+            r => 100_000.0 / (-r) as f32,
+        }
+    }
+}
+
+pub fn parse_smk_info(smk: &[u8]) -> Option<SmkInfo> {
+    if smk.len() < 24 {
+        return None;
+    }
+    let magic: [u8; 4] = smk[0..4].try_into().ok()?;
+    if &magic != b"SMK2" && &magic != b"SMK4" {
+        return None;
+    }
+    let width = u32::from_le_bytes(smk[4..8].try_into().ok()?);
+    let height = u32::from_le_bytes(smk[8..12].try_into().ok()?);
+    let frames = u32::from_le_bytes(smk[12..16].try_into().ok()?);
+    let frame_rate = i32::from_le_bytes(smk[16..20].try_into().ok()?);
+    Some(SmkInfo {
+        magic,
+        width,
+        height,
+        frames,
+        frame_rate,
+    })
+}
 
 /// Audio properties for the active track in an SMK file.
 #[derive(Debug, Clone, Copy)]
@@ -124,8 +166,8 @@ impl SmkDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::vid::Vid;
-    use openmm_archive::Archive;
+    use crate::assets::provider::archive::Archive;
+    use crate::assets::provider::archive::smk::SmkArchive;
 
     #[test]
     fn smk_decoder_reads_3dologo() {
@@ -135,12 +177,12 @@ mod tests {
             eprintln!("test: MM6 Anims not found — skipping");
             return;
         }
-        let vid = Vid::open(&vid_path).expect("open Anims2.vid");
-        let bytes = vid
+        let archive = SmkArchive::open(&vid_path).expect("open Anims2.vid");
+        let bytes = archive
             .list_files()
             .iter()
             .find(|e| e.name.eq_ignore_ascii_case("3dologo"))
-            .and_then(|e| vid.get_file(&e.name))
+            .and_then(|e| archive.get_file(&e.name))
             .expect("3dologo not found in Anims2.vid");
 
         let mut dec = SmkDecoder::new(bytes).expect("SmkDecoder::new");

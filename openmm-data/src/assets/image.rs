@@ -307,7 +307,7 @@ pub fn get_atlas(assets: &Assets, names: &[&str], row_size: usize) -> Result<Dyn
             continue;
         }
 
-        let mut image = assets.game().bitmap(name).ok_or("image not found")?;
+        let mut image = assets.lod().bitmap(name).ok_or("image not found")?;
         if image.dimensions() != (128, 128) {
             image = DynamicImage::ImageRgba8(imageops::resize(&image, 128, 128, imageops::FilterType::Triangle));
         }

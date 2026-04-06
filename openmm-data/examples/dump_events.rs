@@ -4,24 +4,21 @@
 fn main() {
     let map = std::env::args().nth(1).unwrap_or_else(|| "oute3".to_string());
     let data_path = std::env::var("OPENMM_6_PATH").unwrap_or_else(|_| "./data/mm6/data".to_string());
-    let lod = openmm_data::Assets::new(&data_path).expect("Failed to load LOD");
+    let assets = openmm_data::Assets::new(&data_path).expect("Failed to load LOD");
 
     // Dump billboard events
     println!("=== {map} BILLBOARD EVENTS ===");
     let odm_name = format!("{}.odm", map);
-    match openmm_data::odm::Odm::load(&lod, &odm_name) {
+    match openmm_data::odm::Odm::load(&assets, &odm_name) {
         Ok(odm) => {
-            let bb_mgr = openmm_data::billboard::BillboardManager::load(&lod).ok();
+            let lod = assets.lod();
             for (i, bb) in odm.billboards.iter().enumerate() {
                 let has_event = bb.data.event != 0;
                 let has_var = bb.data.event_variable != 0;
                 let has_attrs = bb.data.attributes != 0;
                 if has_event || has_var || has_attrs {
-                    let display_name = bb_mgr
-                        .as_ref()
-                        .and_then(|mgr: &openmm_data::billboard::BillboardManager| {
-                            mgr.get_declist_item(bb.data.declist_id)
-                        })
+                    let display_name = lod
+                        .billboard_item(bb.data.declist_id)
                         .and_then(|item| item.display_name())
                         .unwrap_or_default();
                     println!(
@@ -72,7 +69,7 @@ fn main() {
 
     // Dump map EVT events
     println!("\n=== {map}.EVT EVENTS ===");
-    match openmm_data::evt::EvtFile::parse(&lod, &map) {
+    match openmm_data::evt::EvtFile::parse(&assets, &map) {
         Ok(evt) => {
             let mut ids: Vec<_> = evt.events.keys().collect();
             ids.sort();
@@ -90,7 +87,7 @@ fn main() {
 
     // Dump global.evt events
     println!("\n=== GLOBAL.EVT EVENTS ===");
-    match openmm_data::evt::EvtFile::parse(&lod, "global") {
+    match openmm_data::evt::EvtFile::parse(&assets, "global") {
         Ok(evt) => {
             let mut ids: Vec<_> = evt.events.keys().collect();
             ids.sort();

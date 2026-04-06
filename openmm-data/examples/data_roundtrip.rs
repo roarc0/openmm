@@ -3,21 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use openmm_data::{Archive, LodSerialise, get_data_path};
 use openmm_data::assets::{
-    LodArchive, LodData, LodWriter,
-    SmkArchive, SmkWriter,
-    dchest::ChestList,
-    ddeclist::DDecList,
-    ddm::Ddm,
-    dmonlist::MonsterList,
-    dpft::PFT,
-    dsft::DSFT,
-    dsounds::DSounds,
-    items::ItemsTable,
-    mapstats::MapStats,
-    odm::Odm,
+    LodArchive, LodData, LodWriter, SmkArchive, SmkWriter, dchest::ChestList, ddeclist::DDecList, ddm::Ddm,
+    dmonlist::MonsterList, dpft::PFT, dsft::DSFT, dsounds::DSounds, items::ItemsTable, mapstats::MapStats, odm::Odm,
 };
+use openmm_data::{Archive, LodSerialise, get_data_path};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let src_root = PathBuf::from(get_data_path());

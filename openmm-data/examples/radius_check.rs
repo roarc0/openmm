@@ -1,7 +1,7 @@
 fn main() {
     let lod_path = openmm_data::get_data_path();
-    let mgr = openmm_data::Assets::new(&lod_path).unwrap();
-    let monlist = openmm_data::dmonlist::MonsterList::load(&mgr).unwrap();
+    let assets = openmm_data::Assets::new(&lod_path).unwrap();
+    let monlist = openmm_data::dmonlist::MonsterList::load(&assets).unwrap();
     for d in &monlist.monsters {
         println!(
             "{} {} {} {} {}",
