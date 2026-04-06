@@ -39,12 +39,12 @@ pub fn make_box_bsp(pos: [i32; 3], half: [i32; 3], texture: &str) -> BSPModel {
     // Each face: vertex indices (CCW), normal, and texture
     let face_defs: &[(u16, u16, u16, u16, [i32; 3])] = &[
         // (v0, v1, v2, v3, normal_mm6)
-        (0, 1, 5, 4, [0, -65536, 0]),  // front  (-Y)
-        (2, 3, 7, 6, [0,  65536, 0]),  // back   (+Y)
-        (1, 2, 6, 5, [65536, 0, 0]),   // right  (+X)
-        (3, 0, 4, 7, [-65536, 0, 0]),  // left   (-X)
-        (4, 5, 6, 7, [0, 0,  65536]),  // top    (+Z)
-        (0, 3, 2, 1, [0, 0, -65536]),  // bottom (-Z)
+        (0, 1, 5, 4, [0, -65536, 0]), // front  (-Y)
+        (2, 3, 7, 6, [0, 65536, 0]),  // back   (+Y)
+        (1, 2, 6, 5, [65536, 0, 0]),  // right  (+X)
+        (3, 0, 4, 7, [-65536, 0, 0]), // left   (-X)
+        (4, 5, 6, 7, [0, 0, 65536]),  // top    (+Z)
+        (0, 3, 2, 1, [0, 0, -65536]), // bottom (-Z)
     ];
 
     let faces_count = face_defs.len() as i32;
@@ -109,7 +109,7 @@ pub fn make_box_bsp(pos: [i32; 3], half: [i32; 3], texture: &str) -> BSPModel {
     };
     let _ = bb_i16; // used by face bounding_box above
 
-    let radius = (*[hx, hy, hz].iter().max().unwrap_or(&0)) as i32;
+    let radius = *[hx, hy, hz].iter().max().unwrap_or(&0);
 
     let header = BSPModelHeader {
         name: "testbox".to_string(),
@@ -154,8 +154,7 @@ pub fn make_box_bsp(pos: [i32; 3], half: [i32; 3], texture: &str) -> BSPModel {
 }
 
 fn dot_i32(a: [i32; 3], b: [i32; 3]) -> i32 {
-    ((a[0] as i64 * b[0] as i64 + a[1] as i64 * b[1] as i64 + a[2] as i64 * b[2] as i64)
-        >> 16) as i32
+    ((a[0] as i64 * b[0] as i64 + a[1] as i64 * b[1] as i64 + a[2] as i64 * b[2] as i64) >> 16) as i32
 }
 
 #[cfg(test)]

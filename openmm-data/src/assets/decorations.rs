@@ -1,7 +1,10 @@
 use std::error::Error;
 
 use crate::Assets;
-use crate::assets::{billboard::{Billboard, BillboardManager}, blv::BlvDecoration};
+use crate::assets::{
+    billboard::{Billboard, BillboardManager},
+    blv::BlvDecoration,
+};
 
 /// A single resolved decoration (billboard/spawn point) from an outdoor map.
 #[derive(Clone)]
@@ -183,7 +186,8 @@ impl Decorations {
             let Some((declist_id, declist_item)) = mgr.get_declist_item_by_name(&dec.name) else {
                 log::warn!(
                     "blv decoration idx={} name='{}': not found in ddeclist — skipping",
-                    billboard_index, dec.name
+                    billboard_index,
+                    dec.name
                 );
                 continue;
             };
@@ -206,19 +210,28 @@ impl Decorations {
             } else {
                 0.0_f32
             };
-            let frame_duration = if declist_item.is_slow_loop() { 0.30_f32 } else { 0.15_f32 };
-
-            let (sprite_name, is_directional, width, height) = if let Some(root) = find_directional_root(&dec.name, assets) {
-                (root, true, 0.0, 0.0)
+            let frame_duration = if declist_item.is_slow_loop() {
+                0.30_f32
             } else {
-                let (w, h) = mgr
-                    .get(assets, &dec.name, declist_id)
-                    .map(|sprite| sprite.dimensions())
-                    .unwrap_or((1.0, 1.0));
-                (dec.name.to_lowercase(), false, w, h)
+                0.15_f32
             };
 
-            let num_frames = if is_directional { 1 } else { mgr.animation_frame_count(declist_id) };
+            let (sprite_name, is_directional, width, height) =
+                if let Some(root) = find_directional_root(&dec.name, assets) {
+                    (root, true, 0.0, 0.0)
+                } else {
+                    let (w, h) = mgr
+                        .get(assets, &dec.name, declist_id)
+                        .map(|sprite| sprite.dimensions())
+                        .unwrap_or((1.0, 1.0));
+                    (dec.name.to_lowercase(), false, w, h)
+                };
+
+            let num_frames = if is_directional {
+                1
+            } else {
+                mgr.animation_frame_count(declist_id)
+            };
 
             entries.push(DecorationEntry {
                 position: dec.position,

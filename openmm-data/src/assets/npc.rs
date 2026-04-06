@@ -124,11 +124,12 @@ pub struct NpcEntry {
 #[derive(Debug, Default, Clone)]
 pub struct StreetNpcs {
     pub npcs: HashMap<u32, NpcEntry>,
-    /// Peasant-profession entries split by sex for deterministic identity assignment.
-    /// Each entry is a (name, portrait, profession_id) triple from npcdata.txt with profession 52-77.
-    /// Sex is determined by cross-referencing the NPC's first name against npcnames.txt pools.
-    pub peasant_male: Vec<(String, u32, u32)>,
-    pub peasant_female: Vec<(String, u32, u32)>,
+    /// Peasant-profession (52-77) portrait+profession pairs for female actors.
+    /// Classified by cross-referencing npcdata.txt first names against npcnames.txt.
+    /// Entries whose sex is unknown are added to BOTH pools as fallback portraits.
+    pub peasant_female: Vec<(u32, u32)>,
+    /// Peasant-profession (52-77) portrait+profession pairs for male actors.
+    pub peasant_male: Vec<(u32, u32)>,
     /// Portrait IDs collected from entries with peasant professions (52-77).
     /// Used for deterministic portrait assignment to generated street NPCs.
     pub peasant_portraits: Vec<u32>,
@@ -137,8 +138,9 @@ pub struct StreetNpcs {
 impl StreetNpcs {
     /// Parse raw bytes from `npcdata.txt`.
     /// The file is Latin-1 (Windows-1252) encoded, not UTF-8.
-    /// If `name_pool` is provided, peasant-profession entries are split by sex
-    /// by cross-referencing each NPC's first name against the male/female name pools.
+    /// `name_pool` (from npcnames.txt) is used to classify peasant entries by sex for
+    /// sex-appropriate portrait assignment. Entries whose sex can't be determined are
+    /// added to both pools as fallback portraits.
     pub fn parse(data: &[u8], name_pool: Option<&NpcNamePool>) -> Result<Self, Box<dyn Error>> {
         // Decode as Latin-1: every byte is a valid Unicode scalar value
         let text: String = data.iter().map(|&b| b as char).collect();
@@ -191,46 +193,38 @@ impl StreetNpcs {
         peasant_portraits.sort();
         peasant_portraits.dedup();
 
-        // Build sex-split peasant entry lists for identity assignment.
-        // Each peasant-profession NPC from npcdata.txt is classified by cross-referencing
-        // their first name against npcnames.txt male/female pools.
-        let mut peasant_male: Vec<(String, u32, u32)> = Vec::new();
-        let mut peasant_female: Vec<(String, u32, u32)> = Vec::new();
-
-        // Collect peasant entries sorted by id for deterministic ordering
+        // Build sex-split portrait+profession pools from npcdata.txt peasant entries.
+        // npcdata.txt has no sex column, so sex is inferred by cross-referencing each
+        // entry's first name against npcnames.txt. Entries whose sex is unknown go to
+        // both pools — these are fallback portraits, not gender guesses.
         let mut peasant_entries: Vec<&NpcEntry> = npcs
             .values()
             .filter(|e| (52..=77).contains(&e.profession_id) && e.portrait > 0)
             .collect();
         peasant_entries.sort_by_key(|e| e.id);
 
+        let mut peasant_female: Vec<(u32, u32)> = Vec::new();
+        let mut peasant_male: Vec<(u32, u32)> = Vec::new();
         for entry in peasant_entries {
-            let triple = (entry.name.clone(), entry.portrait, entry.profession_id);
-            let classified = if let Some(pool) = name_pool {
+            let pair = (entry.portrait, entry.profession_id);
+            let sex = name_pool.and_then(|pool| {
                 let first = entry.name.split_whitespace().next().unwrap_or("");
                 pool.classify_name(first)
-            } else {
-                None
-            };
-            match classified {
-                Some(true) => peasant_female.push(triple),
-                Some(false) => peasant_male.push(triple),
+            });
+            match sex {
+                Some(true) => peasant_female.push(pair),
+                Some(false) => peasant_male.push(pair),
                 None => {
-                    // Unknown sex: skip rather than pollute gendered pools.
-                    // ~40% of peasant-profession names aren't in npcnames.txt.
-                    log::warn!(
-                        "peasant NPC '{}' (pic={}) sex unknown, skipping",
-                        entry.name,
-                        entry.portrait
-                    );
+                    peasant_female.push(pair);
+                    peasant_male.push(pair);
                 }
             }
         }
 
         Ok(Self {
             npcs,
-            peasant_male,
             peasant_female,
+            peasant_male,
             peasant_portraits,
         })
     }
@@ -266,10 +260,10 @@ impl StreetNpcs {
         Some(self.peasant_portraits[seed % self.peasant_portraits.len()])
     }
 
-    /// Pick a complete peasant identity (name + portrait + profession_id) from the sex-appropriate pool.
-    /// Uses a npcdata.txt entry with peasant profession, deterministically selected by `seed`.
-    /// Returns (name, portrait_number, profession_id).
-    pub fn peasant_identity(&self, is_female: bool, seed: usize) -> Option<(&str, u32, u32)> {
+    /// Pick a peasant portrait+profession from the sex-appropriate pool.
+    /// Returns (portrait_number, profession_id).
+    /// For the NPC name, use `NpcNamePool::name_for(is_female, seed)` — it has sex-split lists.
+    pub fn peasant_identity(&self, is_female: bool, seed: usize) -> Option<(u32, u32)> {
         let pool = if is_female {
             &self.peasant_female
         } else {
@@ -278,8 +272,7 @@ impl StreetNpcs {
         if pool.is_empty() {
             return None;
         }
-        let entry = &pool[seed % pool.len()];
-        Some((&entry.0, entry.1, entry.2))
+        Some(pool[seed % pool.len()])
     }
 }
 

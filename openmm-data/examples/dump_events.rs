@@ -19,7 +19,9 @@ fn main() {
                 if has_event || has_var || has_attrs {
                     let display_name = bb_mgr
                         .as_ref()
-                        .and_then(|mgr: &openmm_data::billboard::BillboardManager| mgr.get_declist_item(bb.data.declist_id))
+                        .and_then(|mgr: &openmm_data::billboard::BillboardManager| {
+                            mgr.get_declist_item(bb.data.declist_id)
+                        })
                         .and_then(|item| item.display_name())
                         .unwrap_or_default();
                     println!(

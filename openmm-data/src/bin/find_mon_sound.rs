@@ -11,7 +11,10 @@ fn main() {
     for (i, mon) in monlist.monsters.iter().enumerate() {
         for (sid_idx, &sid) in mon.sound_ids.iter().enumerate() {
             if bad_sids.contains(&sid) {
-                println!("Monster {} ('{}') uses empty sound_id {} for slot {}", i, mon.internal_name, sid, sid_idx);
+                println!(
+                    "Monster {} ('{}') uses empty sound_id {} for slot {}",
+                    i, mon.internal_name, sid, sid_idx
+                );
             }
         }
     }

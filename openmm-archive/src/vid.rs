@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    error::Error,
-    fs,
-    path::Path,
-};
+use std::{collections::HashMap, error::Error, fs, path::Path};
 
 use crate::{Archive, ArchiveEntry, ArchiveFileType};
 
@@ -40,7 +35,7 @@ impl VidArchive {
             let null = name_bytes.iter().position(|&b| b == 0).unwrap_or(ENTRY_NAME_LEN);
             let name = String::from_utf8_lossy(&name_bytes[..null]).into_owned();
             let offset = u32::from_le_bytes(data[base + ENTRY_NAME_LEN..base + ENTRY_LEN].try_into()?) as usize;
-            
+
             entries.push(ArchiveEntry {
                 name: name.clone(),
                 size: 0, // Calculated correctly next step
@@ -52,11 +47,7 @@ impl VidArchive {
 
         // Compute sizes from offset differences.
         for i in 0..num_files {
-            let next = if i + 1 < num_files {
-                offsets[i + 1]
-            } else {
-                data.len()
-            };
+            let next = if i + 1 < num_files { offsets[i + 1] } else { data.len() };
             entries[i].size = next.saturating_sub(offsets[i]);
             // Case-insensitive mapping BY DEFAULT
             lookup.insert(entries[i].name.to_lowercase(), i);

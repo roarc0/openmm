@@ -10,14 +10,14 @@
 //!   21:Atk2Type  22:Atk2Dmg  23:Atk2Miss  24:Atk2%
 //!   25:Spell  26:Fire  27:Elec  28:Cold  29:Pois  30:Phys  31:Mag  32:Special
 
+use csv::ReaderBuilder;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::Cursor;
-use csv::ReaderBuilder;
-use serde::{Serialize, Deserialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 
 /// All per-variant stats for one monster from monsters.txt.
 #[derive(Debug, Clone, Serialize, Deserialize)]

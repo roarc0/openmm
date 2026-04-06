@@ -4,10 +4,13 @@ use std::{
 };
 
 use image::{DynamicImage, GenericImageView};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
+use crate::assets::{
+    ddeclist::{DDecList, DDecListItem},
+    dsft::{DSFT, DSFTFrame},
+};
 use crate::{Assets, utils::try_read_string_block};
-use crate::assets::{ddeclist::{DDecList, DDecListItem}, dsft::{DSFT, DSFTFrame}};
 
 #[repr(C)]
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -266,10 +269,7 @@ impl BillboardManager {
                     .or_else(|| assets.game().sprite(&format!("{}0", sft_name)))
                     .or_else(|| assets.game().sprite(&format!("{}0", name)))
             } else {
-                assets
-                    .game()
-                    .sprite(&sft_name)
-                    .or_else(|| assets.game().sprite(name))
+                assets.game().sprite(&sft_name).or_else(|| assets.game().sprite(name))
             };
             match image {
                 Some(img) => results.push(BillboardSprite {

@@ -1,6 +1,6 @@
+use flate2::Compression;
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use flate2::Compression;
 use std::{
     error::Error,
     io::{BufReader, Cursor, Read, Write},
@@ -12,7 +12,6 @@ pub(crate) fn compress(data: &[u8]) -> Vec<u8> {
     encoder.write_all(data).unwrap_or(());
     encoder.finish().unwrap_or_default()
 }
-
 
 pub fn decompress(data: &[u8], compressed_size: usize, uncompressed_size: usize) -> Result<Vec<u8>, Box<dyn Error>> {
     check_size(data.len(), compressed_size)?;

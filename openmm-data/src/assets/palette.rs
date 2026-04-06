@@ -1,6 +1,6 @@
+use crate::Assets;
 use std::collections::HashMap;
 use std::error::Error;
-use crate::Assets;
 
 const PALETTE_HEADER_SIZE: usize = 48;
 const PALETTE_SIZE: usize = 768;

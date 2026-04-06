@@ -38,9 +38,11 @@ fn handle_play_music(
         }
 
         let data_path = openmm_data::get_data_path();
-        let base_dir = std::path::Path::new(&data_path).parent().unwrap_or(std::path::Path::new(&data_path));
+        let base_dir = std::path::Path::new(&data_path)
+            .parent()
+            .unwrap_or(std::path::Path::new(&data_path));
         let track_name = format!("Music/{}.mp3", ev.track);
-        
+
         let music_path = openmm_data::find_path_case_insensitive(base_dir, &track_name);
 
         if let Some(path) = music_path {
@@ -57,7 +59,10 @@ fn handle_play_music(
                     MapMusic,
                     InGame,
                 ));
-                info!("Playing music track {} (vol={:.1}) from {:?}", ev.track, ev.volume, path);
+                info!(
+                    "Playing music track {} (vol={:.1}) from {:?}",
+                    ev.track, ev.volume, path
+                );
             } else {
                 warn!("Failed to read music file: {:?}", path);
             }

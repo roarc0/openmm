@@ -835,7 +835,7 @@ fn party_torch_system(
         true
     } else if let Some(gt) = game_time {
         let t = gt.time_of_day();
-        t < 0.25 || t > 0.75
+        !(0.25..=0.75).contains(&t)
     } else {
         false
     };

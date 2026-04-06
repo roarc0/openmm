@@ -47,8 +47,7 @@ fn main() {
                 }
             };
             let out_path = out_dir.join(format!("{}.smk", entry.name));
-            fs::write(&out_path, &smk_bytes)
-                .unwrap_or_else(|e| panic!("write {}: {e}", out_path.display()));
+            fs::write(&out_path, &smk_bytes).unwrap_or_else(|e| panic!("write {}: {e}", out_path.display()));
 
             let info_str = if let Some(info) = parse_smk_info(&smk_bytes) {
                 format!(
@@ -78,4 +77,3 @@ fn main() {
     println!("\nDumped {total} SMK files to {}/", out_dir.display());
     println!("Index: {}", index_path.display());
 }
-

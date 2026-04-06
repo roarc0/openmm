@@ -124,8 +124,8 @@ impl SmkDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openmm_archive::Archive;
     use crate::assets::vid::Vid;
+    use openmm_archive::Archive;
 
     #[test]
     fn smk_decoder_reads_3dologo() {

@@ -1,5 +1,5 @@
-use crate::assets::GameData;
 use super::*;
+use crate::assets::GameData;
 use crate::{Assets, test_lod};
 
 fn game_data(assets: &Assets) -> GameData {

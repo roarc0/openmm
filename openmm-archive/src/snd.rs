@@ -82,7 +82,7 @@ impl Archive for SndArchive {
         })?;
         let start = self._offsets[*idx];
         let size = self.entries[*idx].size;
-        
+
         if start + size <= self.data.len() {
             Some(self.data[start..start + size].to_vec())
         } else {

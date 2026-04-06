@@ -1,19 +1,21 @@
+use byteorder::{LittleEndian, ReadBytesExt};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::{Cursor, Read, Seek};
-use byteorder::{LittleEndian, ReadBytesExt};
-use serde::{Serialize, Deserialize};
 
-fn default_odm_map() -> [u8; 16384] { [0; 16384] }
+fn default_odm_map() -> [u8; 16384] {
+    [0; 16384]
+}
 
 use crate::LodSerialise;
 
-use crate::{Assets, utils::try_read_string_block};
 use crate::assets::{
     billboard::{Billboard, read_billboards},
     bsp_model::{BSPModel, read_bsp_models},
     dtile::{Dtile, TileTable},
     lod_data::LodData,
 };
+use crate::{Assets, utils::try_read_string_block};
 
 pub const ODM_SIZE: usize = 128;
 pub const ODM_PLAY_SIZE: usize = 88;

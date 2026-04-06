@@ -27,4 +27,3 @@ pub fn get_data_path() -> String {
         String::from("data/mm6/data")
     }
 }
-

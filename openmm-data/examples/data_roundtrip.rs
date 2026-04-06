@@ -4,20 +4,19 @@ use std::{
 };
 
 use openmm_data::{
+    Archive, LodArchive, LodData, LodSerialise, LodWriter,
     dchest::ChestList,
     ddeclist::DDecList,
+    ddm::Ddm,
     dpft::PFT,
     dsft::DSFT,
     dsounds::DSounds,
     get_data_path,
     items::ItemsTable,
-    LodData,
     mapstats::MapStats,
     monlist::MonsterList,
     odm::Odm,
-    ddm::Ddm,
     vid::{Vid, VidWriter},
-    Archive, LodArchive, LodSerialise, LodWriter,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,10 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dst_root = PathBuf::from("./data/mm6_serialized");
 
     if !src_root.exists() {
-        eprintln!(
-            "Source root {} not found. Set OPENMM_6_PATH?",
-            src_root.display()
-        );
+        eprintln!("Source root {} not found. Set OPENMM_6_PATH?", src_root.display());
         return Ok(());
     }
 
@@ -49,11 +45,7 @@ fn mirror_dir(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>> 
         let target = dst.join(rel);
 
         if path.is_dir() {
-            let dir_name = path
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_lowercase();
+            let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
             if dir_name.ends_with("_lod") || dir_name.ends_with("_vid") || dir_name.ends_with("_snd") {
                 continue;
             }
@@ -117,12 +109,22 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
             "items.txt" => ItemsTable::parse(&String::from_utf8_lossy(&lod_data.data))
                 .ok()
                 .map(|p| p.to_bytes()),
-            "dsft.bin" => DSFT::try_from(lod_data.data.as_slice()).ok().map(|p: DSFT| p.to_bytes()),
-            "ddeclist.bin" => DDecList::try_from(lod_data.data.as_slice()).ok().map(|p: DDecList| p.to_bytes()),
-            "dsounds.bin" => DSounds::try_from(lod_data.data.as_slice()).ok().map(|p: DSounds| p.to_bytes()),
+            "dsft.bin" => DSFT::try_from(lod_data.data.as_slice())
+                .ok()
+                .map(|p: DSFT| p.to_bytes()),
+            "ddeclist.bin" => DDecList::try_from(lod_data.data.as_slice())
+                .ok()
+                .map(|p: DDecList| p.to_bytes()),
+            "dsounds.bin" => DSounds::try_from(lod_data.data.as_slice())
+                .ok()
+                .map(|p: DSounds| p.to_bytes()),
             "dpft.bin" => PFT::try_from(lod_data.data.as_slice()).ok().map(|p: PFT| p.to_bytes()),
-            "dchest.bin" => ChestList::try_from(lod_data.data.as_slice()).ok().map(|p: ChestList| p.to_bytes()),
-            "dmonlist.bin" => MonsterList::try_from(lod_data.data.as_slice()).ok().map(|p: MonsterList| p.to_bytes()),
+            "dchest.bin" => ChestList::try_from(lod_data.data.as_slice())
+                .ok()
+                .map(|p: ChestList| p.to_bytes()),
+            "dmonlist.bin" => MonsterList::try_from(lod_data.data.as_slice())
+                .ok()
+                .map(|p: MonsterList| p.to_bytes()),
             _ if lower.ends_with(".odm") => Odm::try_from(lod_data.data.as_slice()).ok().map(|p: Odm| p.to_bytes()),
             _ if lower.ends_with(".ddm") => Ddm::try_from(lod_data.data.as_slice()).ok().map(|p: Ddm| p.to_bytes()),
             _ => None,
@@ -134,11 +136,10 @@ fn process_lod(src: &Path, dst: &Path) -> Result<(), Box<dyn std::error::Error>>
                 mismatches += 1;
             }
             lod_data.data = serialized;
-            // pack() restores original zlib compression (if any)
             writer.add_file(&entry_name, lod_data.pack());
         } else {
-            // NO CHEATING: skip files we haven't successfully parsed and re-serialized.
-            // This ensures only "OpenMM-Verified" files end up in the output LOD.
+            // Passthrough: no parser for this file type, copy raw bytes unchanged.
+            writer.add_file(&entry_name, data);
         }
     }
 

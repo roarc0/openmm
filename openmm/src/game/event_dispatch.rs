@@ -538,7 +538,11 @@ fn process_events(
                     if let Ok(mut tf) = entities.player.single_mut() {
                         tf.translation = pos;
                         tf.rotation = Quat::from_rotation_y(yaw);
-                        info!("MoveToMap same-map teleport: pos={:?} yaw={:.1}deg", pos, yaw.to_degrees());
+                        info!(
+                            "MoveToMap same-map teleport: pos={:?} yaw={:.1}deg",
+                            pos,
+                            yaw.to_degrees()
+                        );
                     }
                     event_queue.clear();
                     return;

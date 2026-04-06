@@ -233,15 +233,7 @@ pub fn load_entity_sprites(
 
     // Load dying animation (state 3), padded to the unified quad size.
     let (dying, dying_masks, _, _) = load_sprite_frames(
-        dying_root,
-        assets,
-        images,
-        materials,
-        cache,
-        variant,
-        qw as u32,
-        qh as u32,
-        palette_id,
+        dying_root, assets, images, materials, cache, variant, qw as u32, qh as u32, palette_id,
     );
 
     let mut states = vec![standing];
@@ -294,16 +286,8 @@ pub fn load_sprite_frames(
     // Try progressively shorter root names (e.g. "gobla" -> "gobl" -> "gob")
     let mut try_root = root;
     while try_root.len() >= 3 {
-        let (frames, frame_masks, w, h) = decode_sprite_frames(
-            try_root,
-            assets,
-            images,
-            materials,
-            variant,
-            min_w,
-            min_h,
-            palette_id,
-        );
+        let (frames, frame_masks, w, h) =
+            decode_sprite_frames(try_root, assets, images, materials, variant, min_w, min_h, palette_id);
         if !frames.is_empty() {
             store_in_cache(&key, &frames, &frame_masks, w, h, cache);
             return (frames, frame_masks, w, h);
@@ -387,14 +371,9 @@ fn decode_sprite_frames(
     // Some dying sprites are stored as a single image with no frame/direction
     // suffix (e.g. "arc1diq" — the DSFT sprite_name IS the file name). Detect
     // this by attempting to load the root itself before the frame-letter loop.
-    let single_frame_root = if assets.game().sprite(root).is_some()
+    let single_frame_root = assets.game().sprite(root).is_some()
         && assets.game().sprite(&format!("{}a0", root)).is_none()
-        && assets.game().sprite(&format!("{}a", root)).is_none()
-    {
-        true
-    } else {
-        false
-    };
+        && assets.game().sprite(&format!("{}a", root)).is_none();
 
     if single_frame_root {
         // Load the single image for all 5 directional slots.
@@ -405,51 +384,47 @@ fn decode_sprite_frames(
         }
         raw_sprites.push(vec![img, None, None, None, None]);
     } else {
+        for frame_char in b'a'..=b'f' {
+            let frame_letter = frame_char as char;
+            let test0 = format!("{}{}0", root, frame_letter);
+            let test_nodir = format!("{}{}", root, frame_letter);
 
-    for frame_char in b'a'..=b'f' {
-        let frame_letter = frame_char as char;
-        let test0 = format!("{}{}0", root, frame_letter);
-        let test_nodir = format!("{}{}", root, frame_letter);
-
-        let has_frame = assets.game().sprite(&test0).is_some() || assets.game().sprite(&test_nodir).is_some();
-        if !has_frame {
-            break;
-        }
-
-        let mut dir_imgs: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
-        for dir in 0..5u8 {
-            let name = format!("{}{}{}", root, frame_letter, dir);
-            let img = if variant > 1 && palette_id > 0 {
-                // Use DSFT palette directly (sprite header palettes differ in numbering)
-                let sprite_name = if assets
-                    .get_bytes(&format!("sprites/{}", name.to_lowercase()))
-                    .is_ok()
-                {
-                    &name
-                } else {
-                    &test_nodir
-                };
-                assets
-                    .game()
-                    .sprite_with_palette(sprite_name, palette_id)
-                    .or_else(|| assets.game().sprite(sprite_name))
-            } else if variant > 1 {
-                let pal_offset = (variant - 1) as u16;
-                load_sprite_with_palette_offset(assets, &name, &test_nodir, pal_offset)
-            } else {
-                assets
-                    .game()
-                    .sprite(&name)
-                    .or_else(|| assets.game().sprite(&test_nodir))
-            };
-            if let Some(ref i) = img {
-                max_w = max_w.max(i.width());
-                max_h = max_h.max(i.height());
+            let has_frame = assets.game().sprite(&test0).is_some() || assets.game().sprite(&test_nodir).is_some();
+            if !has_frame {
+                break;
             }
-            dir_imgs.push(img);
+
+            let mut dir_imgs: Vec<Option<DynamicImage>> = Vec::with_capacity(5);
+            for dir in 0..5u8 {
+                let name = format!("{}{}{}", root, frame_letter, dir);
+                let img = if variant > 1 && palette_id > 0 {
+                    // Use DSFT palette directly (sprite header palettes differ in numbering)
+                    let sprite_name = if assets.get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
+                        &name
+                    } else {
+                        &test_nodir
+                    };
+                    assets
+                        .game()
+                        .sprite_with_palette(sprite_name, palette_id)
+                        .or_else(|| assets.game().sprite(sprite_name))
+                } else if variant > 1 {
+                    let pal_offset = (variant - 1) as u16;
+                    load_sprite_with_palette_offset(assets, &name, &test_nodir, pal_offset)
+                } else {
+                    assets
+                        .game()
+                        .sprite(&name)
+                        .or_else(|| assets.game().sprite(&test_nodir))
+                };
+                if let Some(ref i) = img {
+                    max_w = max_w.max(i.width());
+                    max_h = max_h.max(i.height());
+                }
+                dir_imgs.push(img);
+            }
+            raw_sprites.push(dir_imgs);
         }
-        raw_sprites.push(dir_imgs);
-    }
     } // end else (multi-frame sprites)
 
     if raw_sprites.is_empty() || max_w == 0 {
@@ -518,15 +493,9 @@ fn load_sprite_with_palette_offset(
     palette_offset: u16,
 ) -> Option<DynamicImage> {
     // Try the primary name first, then the fallback (no-direction variant)
-    let sprite_name = if assets
-        .get_bytes(&format!("sprites/{}", name.to_lowercase()))
-        .is_ok()
-    {
+    let sprite_name = if assets.get_bytes(format!("sprites/{}", name.to_lowercase())).is_ok() {
         name
-    } else if assets
-        .get_bytes(&format!("sprites/{}", fallback.to_lowercase()))
-        .is_ok()
-    {
+    } else if assets.get_bytes(format!("sprites/{}", fallback.to_lowercase())).is_ok() {
         fallback
     } else {
         return None;
@@ -534,7 +503,7 @@ fn load_sprite_with_palette_offset(
 
     // Read the base palette_id from the sprite header (offset 20, u16 LE)
     let sprite_data = assets
-        .get_bytes(&format!("sprites/{}", sprite_name.to_lowercase()))
+        .get_bytes(format!("sprites/{}", sprite_name.to_lowercase()))
         .ok()?;
     if sprite_data.len() < 22 {
         return None;
@@ -590,7 +559,10 @@ pub fn update_sprite_sheets(
         let state_idx = match anim_state {
             AnimationState::Attacking if sprites.states.len() > 2 && !sprites.states[2].is_empty() => 2,
             AnimationState::Dying | AnimationState::Dead
-                if sprites.states.len() > 3 && !sprites.states[3].is_empty() => 3,
+                if sprites.states.len() > 3 && !sprites.states[3].is_empty() =>
+            {
+                3
+            }
             AnimationState::Walking if sprites.states.len() > 1 && !sprites.states[1].is_empty() => 1,
             _ => 0,
         };

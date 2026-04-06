@@ -1,5 +1,5 @@
-use crate::assets::GameData;
 use super::*;
+use crate::assets::GameData;
 use crate::{Assets, test_lod};
 
 fn game_data(assets: &Assets) -> GameData {
@@ -96,6 +96,36 @@ fn resolve_sprite_group_empty_name_returns_none() {
     };
     let gd = game_data(&assets);
     assert!(resolve_sprite_group("", &gd.dsft, &assets).is_none());
+}
+
+/// Regression: PeasantF1B (monlist index 121) and PeasantM1B (index 133) must resolve.
+/// These B-variants use sprite groups "pfbmsta"/"pmbnsta" which share sprites with the A-variants
+/// via DSFT indirection. If DSFT has no entry for them the fallback must find "pfemst"/"pmanst".
+#[test]
+fn resolve_entry_peasant_b_variants_resolve() {
+    let Some(assets) = test_lod() else {
+        return;
+    };
+    let gd = game_data(&assets);
+    // PeasantF1B = monlist index 121
+    let entry = resolve_entry(121, &gd, &assets);
+    assert!(
+        entry.is_some(),
+        "PeasantF1B (index 121) should resolve — no sprite → NPC invisible"
+    );
+    let entry = entry.unwrap();
+    assert!(entry.is_female, "PeasantF1B should be flagged female");
+    // B/C variants share sprites with A — should resolve to same root or a valid root
+    assert!(
+        !entry.standing_sprite.is_empty(),
+        "PeasantF1B standing_sprite must not be empty"
+    );
+    // PeasantM1B = monlist index 133
+    let entry_m = resolve_entry(133, &gd, &assets);
+    assert!(
+        entry_m.is_some(),
+        "PeasantM1B (index 133) should resolve — no sprite → NPC invisible"
+    );
 }
 
 #[test]

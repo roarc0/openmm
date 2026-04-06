@@ -7,10 +7,10 @@
 //! Unlike IFT/DSFT the PFT does not use string names — it indexes into
 //! other tables by group_id and frame_index numbers.
 
+use byteorder::{LittleEndian, ReadBytesExt};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::Cursor;
-use byteorder::{LittleEndian, ReadBytesExt};
-use serde::{Serialize, Deserialize};
 
 use crate::LodSerialise;
 use crate::{Assets, assets::lod_data::LodData};

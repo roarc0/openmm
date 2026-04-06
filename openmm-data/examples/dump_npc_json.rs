@@ -24,11 +24,11 @@ fn main() {
                 .unwrap_or_else(|| "none".into());
             (name, portrait, "quest")
         } else if is_peasant {
-            // Peasant NPC: identity from npcdata.txt peasant-profession entries
-            let (name, portrait_num, _prof_id) = npc_table.peasant_identity(is_female, i).unwrap_or(("Peasant", 1, 52));
+            // Peasant NPC: name from npcnames.txt (sex-appropriate), portrait from npcdata.txt pool
+            let (portrait_num, _prof_id) = npc_table.peasant_identity(is_female, i).unwrap_or((1, 52));
             let portrait = format!("NPC{:03}", portrait_num);
             let npc_type = if is_female { "peasant_female" } else { "peasant_male" };
-            (name.to_string(), portrait, npc_type)
+            ("Peasant".to_string(), portrait, npc_type)
         } else {
             // Monster
             (a.name.clone(), "none".into(), "monster")

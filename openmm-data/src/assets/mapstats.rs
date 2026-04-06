@@ -25,13 +25,13 @@
 //! - **EncounterChance%** and **Mon1-3Enc%** are used exclusively for camping interrupts
 //!   (not yet implemented).
 
+use csv::ReaderBuilder;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::Cursor;
-use csv::ReaderBuilder;
-use serde::{Serialize, Deserialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 
 /// Per-map info from mapstats.txt.
 /// From OpenEnroth MapInfo and MMExtension MapStatsItem.
@@ -189,7 +189,9 @@ impl LodSerialise for MapStats {
         // MM6 mapstats.txt header (3 lines)
         out.push_str("Map Stats\t\t[40: EncounterChance%, Mon1Enc%, Mon2Enc%, Mon3Enc%]\r\n");
         out.push_str("0: Index\t1: Name\t2: Filename\t3: ResetCount\t4: FirstVisitDay\t5: RefillDays\t6: Lock(0-10)\t7: Trap d20(0-10)\t8: Treasure(0-6)\t9: EncounterChance%\t10: Mon1Enc%\t11: Mon2Enc%\t12: Mon3Enc%\t13: Mon1Pic\t14: Mon1Name\t15: Mon1Dif(1-5)\t16: Mon1Count(e.g.\"2-4\")\t17: Mon2Pic\t18: Mon2Name\t19: Mon2Dif(1-5)\t20: Mon2Count\t21: Mon3Pic\t22: Mon3Name\t23: Mon3Dif(1-5)\t24: Mon3Count\t25: RedbookTrack\t26: Designer\r\n");
-        out.push_str("0\t1\t2\t3\t4\t5\t6\t7\t8\t9\t10\t11\t12\t13\t14\t15\t16\t17\t18\t19\t20\t21\t22\t23\t24\t25\t26\r\n");
+        out.push_str(
+            "0\t1\t2\t3\t4\t5\t6\t7\t8\t9\t10\t11\t12\t13\t14\t15\t16\t17\t18\t19\t20\t21\t22\t23\t24\t25\t26\r\n",
+        );
 
         for (i, m) in self.maps.iter().enumerate() {
             out.push_str(&format!(

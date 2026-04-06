@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::error::Error;
-use serde::{Serialize, Deserialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 
 /// Quest bit name table loaded from `icons/quests.txt`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,9 +77,9 @@ impl QuestBitNames {
             }
         }
 
-    result.push_str(rest);
-    result
-  }
+        result.push_str(rest);
+        result
+    }
 }
 
 impl TryFrom<&[u8]> for QuestBitNames {

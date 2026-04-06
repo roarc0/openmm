@@ -1,5 +1,5 @@
+use serde::{Deserialize, Serialize};
 use std::error::Error;
-use serde::{Serialize, Deserialize};
 
 use crate::LodSerialise;
 use crate::{Assets, assets::lod_data::LodData};
@@ -148,12 +148,7 @@ impl MonsterList {
 
     /// Find a monster whose sprite actually exists in the LOD.
     /// Uses get_bytes (cheap) instead of sprite() (expensive decode).
-    pub fn find_with_sprite(
-        &self,
-        name: &str,
-        difficulty: u8,
-        assets: &crate::Assets,
-    ) -> Option<&MonsterDesc> {
+    pub fn find_with_sprite(&self, name: &str, difficulty: u8, assets: &crate::Assets) -> Option<&MonsterDesc> {
         let preferred = match difficulty {
             1 => "A",
             2 => "B",

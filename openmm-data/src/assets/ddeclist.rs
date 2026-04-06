@@ -1,7 +1,7 @@
+use byteorder::{LittleEndian, ReadBytesExt};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::{Cursor, Read};
-use byteorder::{LittleEndian, ReadBytesExt};
-use serde::{Serialize, Deserialize};
 
 use crate::LodSerialise;
 use crate::{Assets, assets::enums::DecorationDescFlags, assets::lod_data::LodData, utils::try_read_name};

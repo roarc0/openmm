@@ -5,17 +5,18 @@ use std::{
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    Assets,
+    Assets, LodSerialise,
     assets::enums::{SoundAttributes, SoundType},
     assets::lod_data::LodData,
-    LodSerialise,
     utils::try_read_name,
 };
 
-fn default_dsounds_runtime() -> [u8; 68] { [0; 68] }
+fn default_dsounds_runtime() -> [u8; 68] {
+    [0; 68]
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DSounds {

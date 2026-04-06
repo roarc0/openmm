@@ -4,8 +4,8 @@
 //! Each `Actor` carries pre-resolved sprite roots and NPC identity so openmm needs
 //! no direct LOD queries during spawn.
 
-use crate::assets::GameData;
 use crate::Assets;
+use crate::assets::GameData;
 use crate::assets::ddm::{MonsterSchedule, SpellBuff};
 use std::error::Error;
 

@@ -1,6 +1,6 @@
+use flate2::Compression;
 use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use flate2::Compression;
 use std::{
     error::Error,
     io::{BufReader, Cursor, Read, Write},

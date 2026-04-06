@@ -4,13 +4,13 @@
 //! Column layout (0-indexed):
 //!   0: #, 1: Map (MapStats ID), 2: Topic, 3: News Text
 
+use csv::ReaderBuilder;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::Cursor;
-use csv::ReaderBuilder;
-use serde::{Serialize, Deserialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 
 /// One NPC news entry from `npcnews.txt`.
 #[derive(Debug, Clone, Serialize, Deserialize)]

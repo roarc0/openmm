@@ -1,7 +1,9 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::LodSerialise;
-use crate::{Assets, assets::enums::TileFlags, assets::image::get_atlas, assets::lod_data::LodData, utils::try_read_name};
+use crate::{
+    Assets, assets::enums::TileFlags, assets::image::get_atlas, assets::lod_data::LodData, utils::try_read_name,
+};
 
 /// Terrain tileset types from MM6 dtile.bin.
 /// Raw tile_set values: 0=grass, 1=snow, 2=sand, 3=volcanic, 4=dirt,

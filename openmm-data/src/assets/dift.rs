@@ -8,10 +8,10 @@
 //! A group ends on the last entry where total_time becomes zero or the next
 //! group starts.
 
+use byteorder::{LittleEndian, ReadBytesExt};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::{Cursor, Read};
-use byteorder::{LittleEndian, ReadBytesExt};
-use serde::{Serialize, Deserialize};
 
 use crate::LodSerialise;
 use crate::{Assets, assets::lod_data::LodData, utils::try_read_name};

@@ -1,5 +1,5 @@
-pub use openmm_archive::vid::*;
 use openmm_archive::Archive;
+pub use openmm_archive::vid::*;
 
 pub type Vid = VidArchive;
 
@@ -10,9 +10,9 @@ pub trait VidExt {
 
 impl VidExt for VidArchive {
     fn smk_bytes(&self, _index: usize) -> Option<&[u8]> {
-        // Warning: This implies full loads or slices against some struct. 
-        // We altered VidArchive to not provide a native `[u8]` slice trivially, 
-        // since `get_file_raw` returns `Vec<u8>`. For legacy `smk_bytes` usage, 
+        // Warning: This implies full loads or slices against some struct.
+        // We altered VidArchive to not provide a native `[u8]` slice trivially,
+        // since `get_file_raw` returns `Vec<u8>`. For legacy `smk_bytes` usage,
         // we probably shouldn't return `&[u8]` directly unless it's static or self-owned.
         // Returning `Vec<u8>` is safer, or we use `get_file_raw(&name.to_string())`.
         None

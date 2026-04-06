@@ -1,12 +1,12 @@
+use byteorder::{LittleEndian, ReadBytesExt};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::Cursor;
-use byteorder::{LittleEndian, ReadBytesExt};
-use serde::{Serialize, Deserialize};
 
 use crate::Assets;
+use crate::LodSerialise;
 use crate::assets::blv::{BlvDoor, DoorState};
 use crate::assets::ddm::{Ddm, DdmActor};
-use crate::LodSerialise;
 use crate::assets::lod_data::LodData;
 
 fn skip_slice(offset: &mut usize, count: usize) {
@@ -49,12 +49,7 @@ impl Dlv {
     ///
     /// Similarly, the faceAttributes and decorationFlags sections are presized
     /// (no count prefix) using the BLV's face count and decoration count.
-    pub fn new(
-        assets: &Assets,
-        map_name: &str,
-        door_count: u32,
-        doors_data_size: i32,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub fn new(assets: &Assets, map_name: &str, door_count: u32, doors_data_size: i32) -> Result<Self, Box<dyn Error>> {
         let dlv_name = map_name
             .rsplit_once('.')
             .map(|(base, _)| format!("{}.dlv", base))
@@ -438,14 +433,29 @@ mod tests {
     #[test]
     fn scan_all_dlv_actors() {
         let Some(assets) = test_lod() else { return };
-        for name in ["d01","d02","d03","d04","d05","cd1","cd2","cd3"] {
+        for name in ["d01", "d02", "d03", "d04", "d05", "cd1", "cd2", "cd3"] {
             let blv_name = format!("{}.blv", name);
-            let Ok(blv) = Blv::load(&assets, &blv_name) else { continue };
-            let Ok(dlv) = Dlv::new(&assets, &blv_name, blv.door_count, blv.doors_data_size) else { continue };
+            let Ok(blv) = Blv::load(&assets, &blv_name) else {
+                continue;
+            };
+            let Ok(dlv) = Dlv::new(&assets, &blv_name, blv.door_count, blv.doors_data_size) else {
+                continue;
+            };
             let monsters: Vec<_> = dlv.actors.iter().filter(|a| a.npc_id == 0).collect();
             let npcs: Vec<_> = dlv.actors.iter().filter(|a| a.npc_id != 0).collect();
-            println!("{}: {} actors ({} monsters, {} npcs)", name, dlv.actors.len(), monsters.len(), npcs.len());
-            for a in &monsters { println!("  monster: '{}' monlist_id={} pos={:?}", a.name, a.common_props.monlist_id, a.position); }
+            println!(
+                "{}: {} actors ({} monsters, {} npcs)",
+                name,
+                dlv.actors.len(),
+                monsters.len(),
+                npcs.len()
+            );
+            for a in &monsters {
+                println!(
+                    "  monster: '{}' monlist_id={} pos={:?}",
+                    a.name, a.common_props.monlist_id, a.position
+                );
+            }
         }
     }
 

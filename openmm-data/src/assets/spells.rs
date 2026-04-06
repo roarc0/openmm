@@ -6,13 +6,13 @@
 //!   5: SpCostA, 6: SpCostX, 7: SpCostM, 8: Description,
 //!   9: NormalEffect, 10: ExpertEffect, 11: MasterEffect
 
+use csv::ReaderBuilder;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::Cursor;
-use csv::ReaderBuilder;
-use serde::{Serialize, Deserialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 
 /// A single spell definition from `spells.txt`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,9 +136,18 @@ impl LodSerialise for SpellsTable {
         for s in &self.spells {
             out.push_str(&format!(
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\r\n",
-                s.index, s.spell_number, s.name, s.resistance, s.short_name,
-                s.sp_cost_normal, s.sp_cost_expert, s.sp_cost_master,
-                s.description, s.effect_normal, s.effect_expert, s.effect_master
+                s.index,
+                s.spell_number,
+                s.name,
+                s.resistance,
+                s.short_name,
+                s.sp_cost_normal,
+                s.sp_cost_expert,
+                s.sp_cost_master,
+                s.description,
+                s.effect_normal,
+                s.effect_expert,
+                s.effect_master
             ));
         }
         out.into_bytes()

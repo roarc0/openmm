@@ -6,13 +6,13 @@
 //!   6: Mod1, 7: Mod2, 8: Material, 9: ID/Rep/St, 10: NotIdentifiedName,
 //!   11: SpriteIndex, 12: Shape, 13: EquipX, 14: EquipY, 15: Notes/Description
 
+use csv::ReaderBuilder;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::Cursor;
-use csv::ReaderBuilder;
-use serde::{Serialize, Deserialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 
 /// A single item definition from `items.txt`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,9 +138,22 @@ impl LodSerialise for ItemsTable {
         for i in &self.items {
             out.push_str(&format!(
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\r\n",
-                i.id, i.pic_file, i.name, i.value, i.equip_stat, i.skill_group,
-                i.mod1, i.mod2, i.material, i.id_rep_st, i.not_identified_name,
-                i.sprite_index, i.shape, i.equip_x, i.equip_y, i.notes
+                i.id,
+                i.pic_file,
+                i.name,
+                i.value,
+                i.equip_stat,
+                i.skill_group,
+                i.mod1,
+                i.mod2,
+                i.material,
+                i.id_rep_st,
+                i.not_identified_name,
+                i.sprite_index,
+                i.shape,
+                i.equip_x,
+                i.equip_y,
+                i.notes
             ));
         }
         out.into_bytes()

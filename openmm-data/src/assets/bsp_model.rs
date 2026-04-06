@@ -5,7 +5,7 @@ use std::{
 };
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     assets::enums::{ModelFaceAttributes, PolygonType},

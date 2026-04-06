@@ -60,12 +60,7 @@ impl CoordConv {
 /// * `texture` — texture name to assign to every face (max 9 chars for MM6)
 /// * `conv`    — coordinate remapping from exporter space to MM6 space
 /// * `origin`  — world-space position offset applied to every vertex
-pub fn import_obj(
-    data: &[u8],
-    texture: &str,
-    conv: CoordConv,
-    origin: [i32; 3],
-) -> Result<BSPModel, Box<dyn Error>> {
+pub fn import_obj(data: &[u8], texture: &str, conv: CoordConv, origin: [i32; 3]) -> Result<BSPModel, Box<dyn Error>> {
     let text = std::str::from_utf8(data)?;
 
     let mut raw_verts: Vec<[f64; 3]> = Vec::new();
@@ -140,10 +135,7 @@ pub fn import_obj(
         (bb_min[1] + bb_max[1]) / 2,
         (bb_min[2] + bb_max[2]) / 2,
     ];
-    let radius = (0..3)
-        .map(|i| (bb_max[i] - bb_min[i]) / 2)
-        .max()
-        .unwrap_or(0);
+    let radius = (0..3).map(|i| (bb_max[i] - bb_min[i]) / 2).max().unwrap_or(0);
 
     let bounding_box = BoundingBox {
         min_x: bb_min[0],
@@ -190,10 +182,9 @@ pub fn import_obj(
                 (ny as f64 * scale) as i32,
                 (nz as f64 * scale) as i32,
             ];
-            let dist = (normal[0] as i64 * v0[0] as i64
-                + normal[1] as i64 * v0[1] as i64
-                + normal[2] as i64 * v0[2] as i64)
-                >> 16;
+            let dist =
+                (normal[0] as i64 * v0[0] as i64 + normal[1] as i64 * v0[1] as i64 + normal[2] as i64 * v0[2] as i64)
+                    >> 16;
             face.plane = Plane {
                 normal,
                 distance: dist as i32,

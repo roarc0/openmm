@@ -5,7 +5,11 @@ pub(crate) mod footsteps;
 pub(crate) mod music;
 
 use bevy::prelude::*;
-use openmm_data::{dsounds::DSounds, snd::{SndArchive, SndExt}, Archive};
+use openmm_data::{
+    Archive,
+    dsounds::DSounds,
+    snd::{SndArchive, SndExt},
+};
 use std::collections::HashMap;
 
 use crate::assets::GameAssets;
@@ -52,13 +56,14 @@ impl SoundManager {
             warn!("Sound '{}' (id={}) is not a valid WAV header", name, sound_id);
             return None;
         }
-        if let Some(fmt_pos) = wav_bytes.windows(4).position(|w| w == b"fmt ") {
-            if wav_bytes.len() > fmt_pos + 9 {
-                let audio_fmt = u16::from_le_bytes([wav_bytes[fmt_pos + 8], wav_bytes[fmt_pos + 9]]);
-                if audio_fmt != 1 && audio_fmt != 17 { // 1=PCM, 17=IMA ADPCM (handled by SndExt)
-                    warn!("Sound '{}' (id={}) unsupported format {}", name, sound_id, audio_fmt);
-                    return None;
-                }
+        if let Some(fmt_pos) = wav_bytes.windows(4).position(|w| w == b"fmt ")
+            && wav_bytes.len() > fmt_pos + 9
+        {
+            let audio_fmt = u16::from_le_bytes([wav_bytes[fmt_pos + 8], wav_bytes[fmt_pos + 9]]);
+            if audio_fmt != 1 && audio_fmt != 17 {
+                // 1=PCM, 17=IMA ADPCM (handled by SndExt)
+                warn!("Sound '{}' (id={}) unsupported format {}", name, sound_id, audio_fmt);
+                return None;
             }
         }
 
@@ -104,13 +109,16 @@ fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
     let data_path = openmm_data::get_data_path();
     let base = std::path::Path::new(&data_path);
     let parent = base.parent().unwrap_or(base);
-    
+
     // Use robust path resolution for Audio.snd
     let snd_path = openmm_data::find_path_case_insensitive(parent, "Sounds/Audio.snd")
         .or_else(|| openmm_data::find_path_case_insensitive(base, "Audio.snd"));
 
     let Some(snd_path) = snd_path else {
-        warn!("Audio.snd not found in {:?}/Sounds or {:?} — sound effects disabled", parent, base);
+        warn!(
+            "Audio.snd not found in {:?}/Sounds or {:?} — sound effects disabled",
+            parent, base
+        );
         // List directory to help debug
         if let Ok(entries) = std::fs::read_dir(parent) {
             let names: Vec<_> = entries.flatten().map(|e| e.file_name()).collect();

@@ -9,8 +9,8 @@
 //! On success: prints a summary table and exits 0.
 //! On failure: prints which entries differ and exits 1.
 
-use std::{ fs, path::PathBuf };
-use openmm_data::{get_data_path, Assets, LodWriter};
+use openmm_data::{Assets, LodWriter, get_data_path};
+use std::{fs, path::PathBuf};
 
 fn main() {
     let lod_path_str = get_data_path();
@@ -114,7 +114,9 @@ fn main() {
                 if original_bytes.len() != written_bytes.len() {
                     let msg = format!(
                         "{}: byte length mismatch {} vs {}",
-                        name, original_bytes.len(), written_bytes.len()
+                        name,
+                        original_bytes.len(),
+                        written_bytes.len()
                     );
                     eprintln!("  FAIL  {}", msg);
                     failures.push(msg);
@@ -147,7 +149,10 @@ fn main() {
                 (Some(od), Some(cd)) => {
                     let msg = format!(
                         "{}/{}: data mismatch ({} vs {} bytes)",
-                        archive_key, entry_name, od.len(), cd.len()
+                        archive_key,
+                        entry_name,
+                        od.len(),
+                        cd.len()
                     );
                     eprintln!("  FAIL  {}", msg);
                     failures.push(msg);
@@ -175,7 +180,9 @@ fn main() {
     println!();
     println!(
         "Round-trip: {} archives, {} entries total, {} failures",
-        total_archives, total_entries, failures.len()
+        total_archives,
+        total_entries,
+        failures.len()
     );
 
     if failures.is_empty() {

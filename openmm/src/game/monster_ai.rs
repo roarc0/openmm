@@ -65,12 +65,7 @@ impl Plugin for MonsterAiPlugin {
 ///
 /// Returns `(destination, facing_yaw)`.
 /// When `colliders` is `None` (outdoor, no buildings) the direct path is always used.
-fn steer_toward(
-    from: Vec3,
-    target_pos: Vec3,
-    speed: f32,
-    colliders: Option<&BuildingColliders>,
-) -> (Vec3, f32) {
+fn steer_toward(from: Vec3, target_pos: Vec3, speed: f32, colliders: Option<&BuildingColliders>) -> (Vec3, f32) {
     let flat = Vec3::new(target_pos.x - from.x, 0.0, target_pos.z - from.z);
     if flat.length_squared() < 1.0 {
         return (from, 0.0);
@@ -121,7 +116,12 @@ fn monster_ai_system(
     player: Query<&Transform, With<Player>>,
     mut query: Query<
         (&mut Transform, &mut Actor, &mut AnimationState, &mut MonsterAiMode),
-        (With<WorldEntity>, Without<DyingTimer>, Without<ActorDead>, Without<Player>),
+        (
+            With<WorldEntity>,
+            Without<DyingTimer>,
+            Without<ActorDead>,
+            Without<Player>,
+        ),
     >,
     mut sounds: MessageWriter<PlayOnceSoundEvent>,
 ) {
@@ -185,10 +185,10 @@ fn monster_ai_system(
             //   Suicidal → always aggros if in LOS (treat as very large range)
             //   Normal   → base range
             let effective_aggro = match actor.ai_type.as_str() {
-                "Aggress"  => actor.aggro_range * 1.5,
-                "Wimp"     => actor.aggro_range * 0.6,
+                "Aggress" => actor.aggro_range * 1.5,
+                "Wimp" => actor.aggro_range * 0.6,
                 "Suicidal" => actor.aggro_range * 3.0,
-                _          => actor.aggro_range,
+                _ => actor.aggro_range,
             };
             let aggro_sq = effective_aggro * effective_aggro;
             // Leash at 2× effective aggro radius so the monster doesn't instantly de-aggro.
@@ -240,8 +240,7 @@ fn monster_ai_system(
                 let jitter_phase = jitter_seed + time.elapsed_secs() * 0.3;
                 let jitter_angle = jitter_phase.sin() * 0.4; // ±0.4 rad ≈ ±23°
                 let flat_to_player =
-                    Vec3::new(player_pos.x - my_pos.x, 0.0, player_pos.z - my_pos.z)
-                        .normalize_or_zero();
+                    Vec3::new(player_pos.x - my_pos.x, 0.0, player_pos.z - my_pos.z).normalize_or_zero();
                 let perp = Vec3::new(-flat_to_player.z, 0.0, flat_to_player.x);
                 let jitter_offset = perp * (jitter_angle.sin() * actor.aggro_range * 0.15);
                 let chase_target = player_pos + jitter_offset;
@@ -268,8 +267,7 @@ fn monster_ai_system(
                 let seed = pos_seed * 1.618 + target_hash;
                 let angle = seed.sin() * std::f32::consts::TAU;
                 let dist = actor.tether_distance.max(300.0) * 0.4;
-                actor.wander_target =
-                    actor.guarding_position + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
+                actor.wander_target = actor.guarding_position + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
                 actor.wander_timer = 3.0 + (seed.cos().abs()) * 3.0;
                 *anim_state = AnimationState::Walking;
             } else {
@@ -296,4 +294,3 @@ fn monster_ai_system(
         }
     }
 }
-

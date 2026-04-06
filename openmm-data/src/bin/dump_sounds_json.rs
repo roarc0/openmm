@@ -1,8 +1,8 @@
+use openmm_data::snd::SndArchive;
+use openmm_data::{Archive, Assets, dsounds::DSounds, find_path_case_insensitive};
+use serde_json::json;
 use std::fs::File;
 use std::io::Write;
-use openmm_data::{Assets, dsounds::DSounds, find_path_case_insensitive, Archive};
-use openmm_data::snd::SndArchive;
-use serde_json::json;
 
 fn main() {
     let data_path = openmm_data::get_data_path();
@@ -33,12 +33,19 @@ fn main() {
     for item in &dsounds.items {
         let name = item.name().unwrap_or_default();
         let mut size = 0;
-        
+
         if name.is_empty() {
-            println!("Warning: Sound ID {} has an empty name entry in dsounds.bin", item.sound_id);
+            println!(
+                "Warning: Sound ID {} has an empty name entry in dsounds.bin",
+                item.sound_id
+            );
         } else if let Some(ref archive) = snd_archive {
             let lower_name = name.to_lowercase();
-            if let Some(entry) = archive.list_files().iter().find(|e| e.name.to_lowercase() == lower_name) {
+            if let Some(entry) = archive
+                .list_files()
+                .iter()
+                .find(|e| e.name.to_lowercase() == lower_name)
+            {
                 size = entry.size;
             }
         }

@@ -26,10 +26,7 @@ impl<'a> GameLod<'a> {
 
     /// Load a sprite image from the sprites archive.
     pub fn sprite(&self, name: &str) -> Option<DynamicImage> {
-        let sprite = self
-            .assets
-            .get_bytes(&format!("sprites/{}", name.to_lowercase()))
-            .ok()?;
+        let sprite = self.assets.get_bytes(format!("sprites/{}", name.to_lowercase())).ok()?;
         let palettes = self.assets.palettes().ok()?;
         let sprite = crate::assets::image::Image::try_from((sprite.as_slice(), &palettes)).ok()?;
         sprite.to_image_buffer().ok()
@@ -37,21 +34,16 @@ impl<'a> GameLod<'a> {
 
     /// Load a sprite using a specific palette ID (for monster variant palette swaps).
     pub fn sprite_with_palette(&self, name: &str, palette_id: u16) -> Option<DynamicImage> {
-        let sprite_data = self
-            .assets
-            .get_bytes(&format!("sprites/{}", name.to_lowercase()))
-            .ok()?;
+        let sprite_data = self.assets.get_bytes(format!("sprites/{}", name.to_lowercase())).ok()?;
         let palettes = self.assets.palettes().ok()?;
-        let sprite = crate::assets::image::Image::try_from_with_palette(sprite_data.as_slice(), &palettes, palette_id).ok()?;
+        let sprite =
+            crate::assets::image::Image::try_from_with_palette(sprite_data.as_slice(), &palettes, palette_id).ok()?;
         sprite.to_image_buffer().ok()
     }
 
     /// Load a bitmap image from the bitmaps archive.
     pub fn bitmap(&self, name: &str) -> Option<DynamicImage> {
-        let bitmap = self
-            .assets
-            .get_bytes(&format!("bitmaps/{}", name.to_lowercase()))
-            .ok()?;
+        let bitmap = self.assets.get_bytes(format!("bitmaps/{}", name.to_lowercase())).ok()?;
         let bitmap = crate::assets::image::Image::try_from(bitmap.as_slice()).ok()?;
         bitmap.to_image_buffer().ok()
     }
@@ -75,7 +67,7 @@ impl<'a> GameLod<'a> {
     pub fn font(&self, name: &str) -> Option<font::Font> {
         let data = self
             .assets
-            .get_decompressed(&format!("icons/{}", name.to_lowercase()))
+            .get_decompressed(format!("icons/{}", name.to_lowercase()))
             .ok()?;
         font::Font::parse(&data).ok()
     }
@@ -97,7 +89,6 @@ impl<'a> GameLod<'a> {
     }
 
     /// Load and parse the global NPC metadata table from `npcdata.txt`.
-    /// Cross-references with `npcnames.txt` to classify peasant NPCs by sex.
     pub fn npc_table(&self) -> Option<npc::StreetNpcs> {
         let data = self.assets.get_decompressed("icons/npcdata.txt").ok()?;
         let name_pool = self.npc_name_pool();

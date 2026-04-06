@@ -87,7 +87,7 @@ fn video_setup(
     let data_path = openmm_data::get_data_path();
     let base = std::path::Path::new(&data_path);
     let parent = base.parent().unwrap_or(base);
-    
+
     // Anims is a sibling of the 'data' directory (e.g. data/mm6/Anims)
     let anims_dir = openmm_data::utils::find_path_case_insensitive(parent, "Anims");
 
@@ -113,7 +113,10 @@ fn video_setup(
     });
 
     let Some(bytes) = smk_bytes else {
-        warn!("VideoPlugin: '{}' not found in Anims1.vid / Anims2.vid (searched in {:?})", request.name, anims_dir);
+        warn!(
+            "VideoPlugin: '{}' not found in Anims1.vid / Anims2.vid (searched in {:?})",
+            request.name, anims_dir
+        );
         commands.insert_resource(VideoPlayer {
             decoder: None,
             image_handle: Handle::default(),

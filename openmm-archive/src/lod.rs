@@ -121,7 +121,7 @@ impl LodArchive {
         let mut buf = [0u8; FILE_HEADER_SIZE];
         reader.read_exact(&mut buf)?;
         let sentinel = FileHeader::try_from(&buf)?;
-        
+
         let initial_offset = sentinel.offset;
         let num_files = sentinel.count as usize;
 
@@ -151,7 +151,7 @@ impl LodArchive {
             _offsets: offsets,
         })
     }
-    
+
     /// Optional explicitly case-insensitive lookup (e.g. for fallback).
     pub fn get_file_case_insensitive(&self, name: &str) -> Option<Vec<u8>> {
         let lower = name.to_lowercase();
@@ -164,7 +164,7 @@ impl LodArchive {
     fn read_bytes(&self, index: usize) -> Option<Vec<u8>> {
         let offset = self._offsets[index];
         let size = self.entries[index].size;
-        
+
         let path = &self.path;
         let mut file = File::open(path).ok().or_else(|| {
             log::error!("Failed to open LOD file for reading: {:?}", path);
@@ -174,7 +174,7 @@ impl LodArchive {
             log::error!("Failed to seek in LOD file: {:?} to offset {}", path, offset);
             None
         })?;
-        
+
         let mut buf = vec![0u8; size];
         file.read_exact(&mut buf).ok().or_else(|| {
             log::error!("Failed to read {} bytes from LOD file: {:?}", size, path);
@@ -191,7 +191,10 @@ impl Archive for LodArchive {
 
     fn get_file_raw(&self, name: &str) -> Option<Vec<u8>> {
         if name.is_empty() {
-            log::warn!("Attempted to fetch file with empty name from LOD archive: {:?}", self.path);
+            log::warn!(
+                "Attempted to fetch file with empty name from LOD archive: {:?}",
+                self.path
+            );
             return None;
         }
         let lower = name.to_lowercase();
@@ -270,7 +273,7 @@ impl LodWriter {
 
         Ok(())
     }
-    
+
     /// Open `src` LOD, override named entries, write result to `out`.
     /// Exact same functionality as the old `Lod::patch`.
     pub fn patch<P, Q>(src: P, out: Q, overrides: &[(&str, Vec<u8>)]) -> Result<(), Box<dyn Error>>
@@ -280,13 +283,13 @@ impl LodWriter {
     {
         let original = LodArchive::open(src)?;
         let mut writer = LodWriter::new(original.version.clone());
-        
+
         let override_map: HashMap<String, &Vec<u8>> = overrides
             .iter()
             .map(|(k, v)| (k.to_string(), v)) // Note: Case sensitive!
             .collect();
 
-        // If overrides didn't match case-sensitive, fallback loop allows matching logic 
+        // If overrides didn't match case-sensitive, fallback loop allows matching logic
         // to handle legacy pipelines if needed. But we stick strictly to the new case-sensitive constraints.
 
         for (i, entry) in original.entries.iter().enumerate() {
@@ -296,7 +299,7 @@ impl LodWriter {
                 writer.add_file(&entry.name, original.read_bytes(i).unwrap());
             }
         }
-        
+
         let original_keys: std::collections::HashSet<&String> = original.lookup.keys().collect();
 
         for (name, data) in overrides {

@@ -1,15 +1,21 @@
+use byteorder::{LittleEndian, ReadBytesExt};
+use log::info;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::error::Error;
 use std::io::{Cursor, Seek};
-use std::collections::HashMap;
-use log::info;
-use byteorder::{LittleEndian, ReadBytesExt};
-use serde::{Serialize, Deserialize};
 
-fn default_blv_unknown_mid() -> [u8; 40] { [0; 40] }
+fn default_blv_unknown_mid() -> [u8; 40] {
+    [0; 40]
+}
 
-use crate::LodSerialise;
 use crate::Assets;
-use crate::assets::{enums::{DoorAttributes, FaceAttributes, PolygonType}, lod_data::LodData, odm::mm6_to_bevy};
+use crate::LodSerialise;
+use crate::assets::{
+    enums::{DoorAttributes, FaceAttributes, PolygonType},
+    lod_data::LodData,
+    odm::mm6_to_bevy,
+};
 
 /// Read a fixed-size string block, using lossy UTF-8 conversion for non-ASCII bytes.
 fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, Box<dyn Error>> {

@@ -1,12 +1,12 @@
+use byteorder::{LittleEndian, ReadBytesExt};
 use std::error::Error;
 use std::io::{Cursor, Seek};
-use byteorder::{LittleEndian, ReadBytesExt};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::assets::enums::ActorAttributes;
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
+use crate::assets::enums::ActorAttributes;
 
 /// MM6 MapMonster struct size = 0x224 = 548 bytes.
 /// Layout from MMExtension: Scripts/Structs/01 common structs.lua (MapMonster).
@@ -167,7 +167,8 @@ pub struct DdmActor {
     /// Index into dmonlist.bin (MonsterList). Mirrors `common_props.monlist_id`.
     /// Convenience shortcut — both are 0-indexed (file stores 1-indexed, we subtract 1).
     pub monlist_id: u8,
-    /// NPC dialogue index (Game.StreetNPC + 1). Zero for monsters.
+    /// NPC dialogue index into npcdata.txt (1-based). Zero for monsters.
+    /// For peasant actors: 1 = female, 2 = male (sex flag, not a real npcdata index).
     /// Offset 0x20 (i16).
     pub npc_id: i16,
     /// Padding at offset 0x22.
@@ -249,6 +250,12 @@ impl DdmActor {
     pub fn actor_attributes(&self) -> ActorAttributes {
         ActorAttributes::from_bits_truncate(self.attributes)
     }
+
+    /// For peasant actors, `npc_id` encodes sex: 1 = female, 2 = male.
+    /// Returns true if this actor is flagged as a female peasant.
+    pub fn is_female_peasant(&self) -> bool {
+        self.npc_id == 1
+    }
 }
 
 /// Parsed DDM (outdoor) delta file.
@@ -296,7 +303,7 @@ impl TryFrom<&[u8]> for Ddm {
 impl Ddm {
     pub fn load(assets: &Assets, map_name: &str) -> Result<Self, Box<dyn Error>> {
         let ddm_name = map_name.replace(".odm", ".ddm");
-        let raw = assets.get_bytes(format!("games/{}", ddm_name))?;
+        let raw = assets.get_decompressed(format!("games/{}", ddm_name))?;
         Self::try_from(raw.as_slice())
     }
 
@@ -674,22 +681,34 @@ impl DdmActor {
         cursor.write_u16::<LittleEndian>(self.radius).unwrap();
         cursor.write_u16::<LittleEndian>(self.height).unwrap();
         cursor.write_u16::<LittleEndian>(self.move_speed).unwrap();
-        for &p in &self.position { cursor.write_i16::<LittleEndian>(p).unwrap(); }
-        for &v in &self.velocity { cursor.write_i16::<LittleEndian>(v).unwrap(); }
+        for &p in &self.position {
+            cursor.write_i16::<LittleEndian>(p).unwrap();
+        }
+        for &v in &self.velocity {
+            cursor.write_i16::<LittleEndian>(v).unwrap();
+        }
         cursor.write_u16::<LittleEndian>(self.yaw).unwrap();
         cursor.write_u16::<LittleEndian>(self.pitch).unwrap();
         cursor.write_i16::<LittleEndian>(self.room).unwrap();
         cursor.write_u16::<LittleEndian>(self.current_action_length).unwrap();
-        for &p in &self.initial_position { cursor.write_i16::<LittleEndian>(p).unwrap(); }
-        for &p in &self.guarding_position { cursor.write_i16::<LittleEndian>(p).unwrap(); }
+        for &p in &self.initial_position {
+            cursor.write_i16::<LittleEndian>(p).unwrap();
+        }
+        for &p in &self.guarding_position {
+            cursor.write_i16::<LittleEndian>(p).unwrap();
+        }
         cursor.write_u16::<LittleEndian>(self.tether_distance).unwrap();
         cursor.write_u16::<LittleEndian>(self.ai_state).unwrap();
         cursor.write_u16::<LittleEndian>(self.current_animation).unwrap();
         cursor.write_u16::<LittleEndian>(self.carried_item).unwrap();
         cursor.write_u16::<LittleEndian>(self._pad0xa6).unwrap();
         cursor.write_u32::<LittleEndian>(self.current_action_step).unwrap();
-        for &sid in &self.sprite_ids { cursor.write_u16::<LittleEndian>(sid).unwrap(); }
-        for &sid in &self.sound_ids { cursor.write_u16::<LittleEndian>(sid).unwrap(); }
+        for &sid in &self.sprite_ids {
+            cursor.write_u16::<LittleEndian>(sid).unwrap();
+        }
+        for &sid in &self.sound_ids {
+            cursor.write_u16::<LittleEndian>(sid).unwrap();
+        }
         for buff in &self.spell_buffs {
             cursor.write_i64::<LittleEndian>(buff.expire_time).unwrap();
             cursor.write_i16::<LittleEndian>(buff.power).unwrap();

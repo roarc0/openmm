@@ -488,7 +488,9 @@ fn spawn_indoor_world(
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
                 let msk = std::sync::Arc::new(sprites::AlphaMask::from_image(&rgba));
-                let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba)));
+                let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
+                    rgba,
+                )));
                 let mat = materials.add(StandardMaterial {
                     unlit: true,
                     base_color_texture: Some(tex),
@@ -544,7 +546,9 @@ fn spawn_indoor_world(
             let dsft_lr = bb_mgr.dsft_luminous_light_radius(dec.declist_id);
             if dsft_lr > 0 {
                 commands.spawn((
-                    crate::game::odm::decoration_point_light(dsft_lr.saturating_mul(crate::game::odm::DSFT_ANIMATED_LR_SCALE)),
+                    crate::game::odm::decoration_point_light(
+                        dsft_lr.saturating_mul(crate::game::odm::DSFT_ANIMATED_LR_SCALE),
+                    ),
                     Transform::from_translation(sprite_center),
                     InGame,
                 ));
@@ -561,7 +565,9 @@ fn spawn_indoor_world(
             }
             let rgba = sprite.image.to_rgba8();
             let mask = sprites::AlphaMask::from_image(&rgba);
-            let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba)));
+            let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
+                rgba,
+            )));
             let mat = materials.add(StandardMaterial {
                 unlit: true,
                 base_color_texture: Some(tex),
@@ -607,7 +613,9 @@ fn spawn_indoor_world(
             drop(ent);
             if dsft_lr > 0 {
                 commands.spawn((
-                    crate::game::odm::decoration_point_light(dsft_lr.saturating_mul(crate::game::odm::DSFT_STATIC_LR_SCALE)),
+                    crate::game::odm::decoration_point_light(
+                        dsft_lr.saturating_mul(crate::game::odm::DSFT_STATIC_LR_SCALE),
+                    ),
                     Transform::from_translation(sprite_center),
                     InGame,
                 ));
@@ -724,7 +732,9 @@ fn spawn_indoor_world(
                     crate::game::entities::EntityKind::Monster,
                     crate::game::entities::AnimationState::Idle,
                     sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
-                    crate::game::interaction::MonsterInteractable { name: actor.name.clone() },
+                    crate::game::interaction::MonsterInteractable {
+                        name: actor.name.clone(),
+                    },
                     actor_component,
                     ai_mode,
                     crate::game::entities::Billboard,

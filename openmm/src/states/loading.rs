@@ -1,7 +1,7 @@
 use bevy::{
     asset::RenderAssetUsages,
     mesh::{Indices, PrimitiveTopology},
-    prelude::{Assets as BevyAssets, *},
+    prelude::*,
 };
 
 use std::collections::HashMap;
@@ -13,7 +13,6 @@ use openmm_data::{
     blv::Blv,
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData, mm6_to_bevy},
-    Assets as DataAssets, GameData,
 };
 
 pub struct LoadingPlugin;
@@ -462,7 +461,8 @@ fn loading_step(
                                 let water_cells: Vec<bool> =
                                     odm.tile_map.iter().map(|&idx| dtile.is_deep_water_tile(idx)).collect();
                                 progress.water_cells = Some(water_cells);
-                                progress.terrain_lookup = Some(openmm_data::terrain::TerrainLookup::new(&dtile, odm.tile_data));
+                                progress.terrain_lookup =
+                                    Some(openmm_data::terrain::TerrainLookup::new(&dtile, odm.tile_data));
                             }
                             progress.tile_table = Some(tile_table);
                             progress.odm = Some(odm);
@@ -629,7 +629,9 @@ fn loading_step(
                                 .iter()
                                 .filter_map(|&vid| {
                                     let v = blv.vertices.get(vid as usize)?;
-                                    Some(Vec3::from(openmm_data::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                    Some(Vec3::from(openmm_data::odm::mm6_to_bevy(
+                                        v.x as i32, v.y as i32, v.z as i32,
+                                    )))
                                 })
                                 .collect();
                             if verts.len() < 3 {
@@ -673,7 +675,9 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(
+                                    v.x as i32, v.y as i32, v.z as i32,
+                                )))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -704,7 +708,9 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(
+                                    v.x as i32, v.y as i32, v.z as i32,
+                                )))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -738,7 +744,9 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(
+                                    v.x as i32, v.y as i32, v.z as i32,
+                                )))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -874,14 +882,12 @@ fn loading_step(
                     _ => load_request.map_name.to_string().replace(".blv", ""),
                 };
                 // Resolve BLV decorations (torches, chests, etc.)
-                let decorations = openmm_data::game::decorations::Decorations::from_blv(
-                    game_assets.lod_manager(),
-                    &blv.decorations,
-                )
-                .unwrap_or_else(|e| {
-                    warn!("Failed to resolve indoor decorations: {e}");
-                    openmm_data::game::decorations::Decorations::empty()
-                });
+                let decorations =
+                    openmm_data::game::decorations::Decorations::from_blv(game_assets.lod_manager(), &blv.decorations)
+                        .unwrap_or_else(|e| {
+                            warn!("Failed to resolve indoor decorations: {e}");
+                            openmm_data::game::decorations::Decorations::empty()
+                        });
 
                 // Per-sector ambient data for the lighting system.
                 // Sector 0 is always a sentinel "void" sector — skip it.
@@ -920,11 +926,12 @@ fn loading_step(
                 // Resolve DLV actors with dead-actor filtering applied.
                 let map_key = load_request.map_name.to_string();
                 let actor_snapshot = world_state.as_ref().and_then(|ws| {
-                    ws.game_vars.dead_actor_ids.get(&map_key).map(|ids| {
-                        openmm_data::game::actors::MapStateSnapshot {
+                    ws.game_vars
+                        .dead_actor_ids
+                        .get(&map_key)
+                        .map(|ids| openmm_data::game::actors::MapStateSnapshot {
                             dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
-                        }
-                    })
+                        })
                 });
                 let resolved_actors = openmm_data::game::actors::Actors::from_raw_actors(
                     game_assets.lod_manager(),
@@ -1013,8 +1020,11 @@ fn loading_step(
                                 }
                             })
                             .collect();
-                        let pos =
-                            openmm_data::odm::mm6_to_bevy(b.header.position[0], b.header.position[1], b.header.position[2]);
+                        let pos = openmm_data::odm::mm6_to_bevy(
+                            b.header.position[0],
+                            b.header.position[1],
+                            b.header.position[2],
+                        );
                         let mut event_ids: Vec<u16> = b
                             .faces
                             .iter()
@@ -1094,11 +1104,12 @@ fn loading_step(
                 // DDM actors (NPCs): resolve once, cache for spawn_world reuse
                 let map_key = load_request.map_name.to_string();
                 let snapshot = world_state.as_ref().and_then(|ws| {
-                    ws.game_vars.dead_actor_ids.get(&map_key).map(|ids| {
-                        openmm_data::game::actors::MapStateSnapshot {
+                    ws.game_vars
+                        .dead_actor_ids
+                        .get(&map_key)
+                        .map(|ids| openmm_data::game::actors::MapStateSnapshot {
                             dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
-                        }
-                    })
+                        })
                 });
                 let lod_actors = openmm_data::game::actors::Actors::new(
                     game_assets.lod_manager(),

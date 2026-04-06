@@ -17,14 +17,13 @@ impl SndExt for SndArchive {
         let wav = self.get_file(name)?;
 
         // Check if this is IMA-ADPCM (format 17) and decode to PCM
-        if wav.len() > 20 {
-            if let Some(fmt_offset) = find_chunk(&wav, b"fmt ") {
-                if fmt_offset + 9 < wav.len() {
-                    let audio_format = u16::from_le_bytes([wav[fmt_offset + 8], wav[fmt_offset + 9]]);
-                    if audio_format == 17 {
-                        return ima_adpcm_to_pcm(&wav);
-                    }
-                }
+        if wav.len() > 20
+            && let Some(fmt_offset) = find_chunk(&wav, b"fmt ")
+            && fmt_offset + 9 < wav.len()
+        {
+            let audio_format = u16::from_le_bytes([wav[fmt_offset + 8], wav[fmt_offset + 9]]);
+            if audio_format == 17 {
+                return ima_adpcm_to_pcm(&wav);
             }
         }
 
@@ -75,10 +74,18 @@ fn decode_nibble(nibble: u8, predictor: &mut i32, step_index: &mut i32) -> i16 {
     let step = STEP_TABLE[*step_index as usize];
     let nibble = nibble as i32;
     let mut diff = step >> 3;
-    if nibble & 1 != 0 { diff += step >> 2; }
-    if nibble & 2 != 0 { diff += step >> 1; }
-    if nibble & 4 != 0 { diff += step; }
-    if nibble & 8 != 0 { diff = -diff; }
+    if nibble & 1 != 0 {
+        diff += step >> 2;
+    }
+    if nibble & 2 != 0 {
+        diff += step >> 1;
+    }
+    if nibble & 4 != 0 {
+        diff += step;
+    }
+    if nibble & 8 != 0 {
+        diff = -diff;
+    }
     *predictor = (*predictor + diff).clamp(-32768, 32767);
     *step_index = (*step_index + INDEX_TABLE[nibble as usize]).clamp(0, 88);
     *predictor as i16
@@ -86,17 +93,31 @@ fn decode_nibble(nibble: u8, predictor: &mut i32, step_index: &mut i32) -> i16 {
 
 pub fn ima_adpcm_to_pcm(wav: &[u8]) -> Option<Vec<u8>> {
     let fmt_offset = find_chunk(wav, b"fmt ")?;
-    let fmt_size = u32::from_le_bytes([wav[fmt_offset + 4], wav[fmt_offset + 5], wav[fmt_offset + 6], wav[fmt_offset + 7]]) as usize;
+    let fmt_size = u32::from_le_bytes([
+        wav[fmt_offset + 4],
+        wav[fmt_offset + 5],
+        wav[fmt_offset + 6],
+        wav[fmt_offset + 7],
+    ]) as usize;
     let fmt = &wav[fmt_offset + 8..fmt_offset + 8 + fmt_size];
-    if fmt.len() < 20 { return None; }
+    if fmt.len() < 20 {
+        return None;
+    }
     let channels = u16::from_le_bytes([fmt[2], fmt[3]]) as usize;
     let sample_rate = u32::from_le_bytes([fmt[4], fmt[5], fmt[6], fmt[7]]);
     let block_align = u16::from_le_bytes([fmt[12], fmt[13]]) as usize;
     let samples_per_block = u16::from_le_bytes([fmt[18], fmt[19]]) as usize;
-    if channels == 0 || block_align == 0 || samples_per_block == 0 { return None; }
+    if channels == 0 || block_align == 0 || samples_per_block == 0 {
+        return None;
+    }
 
     let data_offset = find_chunk(wav, b"data")?;
-    let data_size = u32::from_le_bytes([wav[data_offset + 4], wav[data_offset + 5], wav[data_offset + 6], wav[data_offset + 7]]) as usize;
+    let data_size = u32::from_le_bytes([
+        wav[data_offset + 4],
+        wav[data_offset + 5],
+        wav[data_offset + 6],
+        wav[data_offset + 7],
+    ]) as usize;
     let adpcm_data = &wav[data_offset + 8..data_offset + 8 + data_size];
 
     let num_blocks = adpcm_data.len() / block_align;
@@ -109,7 +130,9 @@ pub fn ima_adpcm_to_pcm(wav: &[u8]) -> Option<Vec<u8>> {
         let mut step_indices = vec![0i32; channels];
         for ch in 0..channels {
             let hdr = ch * 4;
-            if hdr + 4 > block.len() { return None; }
+            if hdr + 4 > block.len() {
+                return None;
+            }
             predictors[ch] = i16::from_le_bytes([block[hdr], block[hdr + 1]]) as i32;
             step_indices[ch] = (block[hdr + 2] as i32).clamp(0, 88);
             pcm_samples.push(predictors[ch] as i16);
@@ -155,16 +178,46 @@ pub struct AudioEnhance {
 
 impl AudioEnhance {
     pub fn is_none(&self) -> bool {
-        self.low_pass.is_none() && self.denoise_threshold.is_none() && self.high_shelf_db.is_none() && self.declip_threshold.is_none() && self.deess_db.is_none()
+        self.low_pass.is_none()
+            && self.denoise_threshold.is_none()
+            && self.high_shelf_db.is_none()
+            && self.declip_threshold.is_none()
+            && self.deess_db.is_none()
     }
-    pub fn gentle() -> Self { Self { low_pass: Some(0.85), denoise_threshold: Some(300), high_shelf_db: Some(-3.0), declip_threshold: Some(0.95), deess_db: None } }
-    pub fn voice() -> Self { Self { low_pass: Some(0.9), denoise_threshold: Some(400), high_shelf_db: Some(-2.0), declip_threshold: Some(0.95), deess_db: Some(-6.0) } }
+    pub fn gentle() -> Self {
+        Self {
+            low_pass: Some(0.85),
+            denoise_threshold: Some(300),
+            high_shelf_db: Some(-3.0),
+            declip_threshold: Some(0.95),
+            deess_db: None,
+        }
+    }
+    pub fn voice() -> Self {
+        Self {
+            low_pass: Some(0.9),
+            denoise_threshold: Some(400),
+            high_shelf_db: Some(-2.0),
+            declip_threshold: Some(0.95),
+            deess_db: Some(-6.0),
+        }
+    }
     pub fn apply(&self, samples: &mut [i16], sample_rate: u32) {
-        if let Some(threshold) = self.declip_threshold { dsp_declip(samples, threshold); }
-        if let Some(threshold) = self.denoise_threshold { dsp_denoise(samples, threshold); }
-        if let Some(cutoff) = self.low_pass { dsp_low_pass(samples, cutoff); }
-        if let Some(db) = self.high_shelf_db { dsp_high_shelf(samples, sample_rate, db); }
-        if let Some(db) = self.deess_db { dsp_deess(samples, sample_rate, db); }
+        if let Some(threshold) = self.declip_threshold {
+            dsp_declip(samples, threshold);
+        }
+        if let Some(threshold) = self.denoise_threshold {
+            dsp_denoise(samples, threshold);
+        }
+        if let Some(cutoff) = self.low_pass {
+            dsp_low_pass(samples, cutoff);
+        }
+        if let Some(db) = self.high_shelf_db {
+            dsp_high_shelf(samples, sample_rate, db);
+        }
+        if let Some(db) = self.deess_db {
+            dsp_deess(samples, sample_rate, db);
+        }
     }
 }
 
@@ -174,9 +227,17 @@ fn pcm_samples_from_wav(wav: &[u8]) -> Option<(Vec<i16>, u16, u32)> {
     let channels = u16::from_le_bytes([fmt[2], fmt[3]]);
     let sample_rate = u32::from_le_bytes([fmt[4], fmt[5], fmt[6], fmt[7]]);
     let data_offset = find_chunk(wav, b"data")?;
-    let data_size = u32::from_le_bytes([wav[data_offset + 4], wav[data_offset + 5], wav[data_offset + 6], wav[data_offset + 7]]) as usize;
+    let data_size = u32::from_le_bytes([
+        wav[data_offset + 4],
+        wav[data_offset + 5],
+        wav[data_offset + 6],
+        wav[data_offset + 7],
+    ]) as usize;
     let pcm_data = &wav[data_offset + 8..data_offset + 8 + data_size];
-    let samples: Vec<i16> = pcm_data.chunks_exact(2).map(|c| i16::from_le_bytes([c[0], c[1]])).collect();
+    let samples: Vec<i16> = pcm_data
+        .chunks_exact(2)
+        .map(|c| i16::from_le_bytes([c[0], c[1]]))
+        .collect();
     Some((samples, channels, sample_rate))
 }
 
@@ -199,7 +260,9 @@ fn build_pcm_wav(samples: &[i16], channels: u16, sample_rate: u32) -> Vec<u8> {
     out.extend_from_slice(&16u16.to_le_bytes());
     out.extend_from_slice(b"data");
     out.extend_from_slice(&pcm_data_size.to_le_bytes());
-    for s in samples { out.extend_from_slice(&s.to_le_bytes()); }
+    for s in samples {
+        out.extend_from_slice(&s.to_le_bytes());
+    }
     out
 }
 
@@ -220,8 +283,9 @@ fn dsp_denoise(samples: &mut [i16], threshold: i16) {
     let knee_low = thresh * 0.5;
     for s in samples.iter_mut() {
         let abs = (*s as f32).abs();
-        if abs < knee_low { *s = 0; }
-        else if abs < thresh {
+        if abs < knee_low {
+            *s = 0;
+        } else if abs < thresh {
             let gain = (abs - knee_low) / (thresh - knee_low);
             *s = (*s as f32 * gain).round() as i16;
         }
@@ -250,13 +314,17 @@ fn dsp_high_shelf(samples: &mut [i16], sample_rate: u32, gain_db: f32) {
 fn dsp_declip(samples: &mut [i16], threshold: f32) {
     let clip_level = (32767.0 * threshold.clamp(0.5, 1.0)) as i16;
     let len = samples.len();
-    if len < 3 { return; }
+    if len < 3 {
+        return;
+    }
     let clipped: Vec<bool> = samples.iter().map(|&s| s.abs() >= clip_level).collect();
     let mut i = 0;
     while i < len {
         if clipped[i] {
             let start = i;
-            while i < len && clipped[i] { i += 1; }
+            while i < len && clipped[i] {
+                i += 1;
+            }
             let end = i;
             let left = if start > 0 { samples[start - 1] as f32 } else { 0.0 };
             let right = if end < len { samples[end] as f32 } else { 0.0 };
@@ -265,7 +333,9 @@ fn dsp_declip(samples: &mut [i16], threshold: f32) {
                 let t = (j + 1) as f32 / run_len;
                 *sample = (left + t * (right - left)).round().clamp(-32768.0, 32767.0) as i16;
             }
-        } else { i += 1; }
+        } else {
+            i += 1;
+        }
     }
 }
 
@@ -282,15 +352,20 @@ fn dsp_deess(samples: &mut [i16], sample_rate: u32, reduction_db: f32) {
     let a2 = (1.0 - alpha) / (1.0 + alpha);
     let attack = (-1.0 / (sample_rate as f32 * 0.001)).exp();
     let release = (-1.0 / (sample_rate as f32 * 0.050)).exp();
-    let mut x1 = 0.0_f32; let mut x2 = 0.0_f32;
-    let mut y1 = 0.0_f32; let mut y2 = 0.0_f32;
+    let mut x1 = 0.0_f32;
+    let mut x2 = 0.0_f32;
+    let mut y1 = 0.0_f32;
+    let mut y2 = 0.0_f32;
     let mut envelope = 0.0_f32;
     let rms: f32 = (samples.iter().map(|&s| (s as f32).powi(2)).sum::<f32>() / samples.len().max(1) as f32).sqrt();
     let threshold = rms * 1.5;
     for s in samples.iter_mut() {
         let x = *s as f32;
         let bp = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-        x2 = x1; x1 = x; y2 = y1; y1 = bp;
+        x2 = x1;
+        x1 = x;
+        y2 = y1;
+        y1 = bp;
         let abs_bp = bp.abs();
         let coeff = if abs_bp > envelope { attack } else { release };
         envelope = coeff * envelope + (1.0 - coeff) * abs_bp;

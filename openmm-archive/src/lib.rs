@@ -1,9 +1,7 @@
-pub mod zlib;
 pub mod lod;
 pub mod snd;
 pub mod vid;
-
-
+pub mod zlib;
 
 /// High-level classification of what an archive file might contain.
 /// This enum is for heuristic tagging and deliberately does not enforce rigid semantics.

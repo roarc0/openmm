@@ -1,14 +1,14 @@
 //! Parser for dchest.bin — chest visual descriptors.
 //! 36 bytes per record.
 
+use byteorder::{LittleEndian, ReadBytesExt};
 use std::error::Error;
 use std::io::{Cursor, Read};
-use byteorder::{LittleEndian, ReadBytesExt};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 use crate::assets::lod_data::LodData;
 
 /// A chest visual descriptor from dchest.bin. 36 bytes per record.

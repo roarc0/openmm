@@ -1,7 +1,7 @@
 //! Monster sprite resolution — maps DSFT group names to sprite file roots.
 
-use crate::assets::GameData;
 use crate::Assets;
+use crate::assets::GameData;
 use std::error::Error;
 
 /// A single resolved monster spawn entry for a map.
@@ -246,7 +246,11 @@ pub fn variant_from_internal_name(name: &str) -> u8 {
 
 /// Resolve a DSFT group name to a sprite file root and palette_id.
 /// `dsft` must be pre-loaded by the caller — this function never allocates it.
-pub fn resolve_sprite_group(group_name: &str, dsft: &crate::assets::dsft::DSFT, assets: &Assets) -> Option<(String, i16)> {
+pub fn resolve_sprite_group(
+    group_name: &str,
+    dsft: &crate::assets::dsft::DSFT,
+    assets: &Assets,
+) -> Option<(String, i16)> {
     if group_name.is_empty() {
         return None;
     }
@@ -319,8 +323,12 @@ pub fn resolve_entry(monlist_id: u8, game_data: &GameData, assets: &Assets) -> O
     let prefix = desc.internal_name.trim_end_matches(|c: char| c.is_ascii_uppercase());
     let v = variant_from_internal_name(&desc.internal_name);
     let stats = game_data.monsters.get(prefix, v);
-    let aggro_range = stats.map(|s: &crate::assets::monsters::MonsterStats| s.aggro_range()).unwrap_or(2560.0);
-    let recovery_secs = stats.map(|s: &crate::assets::monsters::MonsterStats| s.recovery_secs()).unwrap_or(2.0);
+    let aggro_range = stats
+        .map(|s: &crate::assets::monsters::MonsterStats| s.aggro_range())
+        .unwrap_or(2560.0);
+    let recovery_secs = stats
+        .map(|s: &crate::assets::monsters::MonsterStats| s.recovery_secs())
+        .unwrap_or(2.0);
     let can_fly = stats.map(|s| s.can_fly).unwrap_or(false);
     let ai_type = stats.map(|s| s.ai_type.clone()).unwrap_or_default();
     Some(MonsterEntry {

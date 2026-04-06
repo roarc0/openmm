@@ -1,7 +1,7 @@
+use byteorder::{LittleEndian, ReadBytesExt};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::{Cursor, Read};
-use byteorder::{LittleEndian, ReadBytesExt};
-use serde::{Serialize, Deserialize};
 
 use crate::LodSerialise;
 use crate::{Assets, assets::enums::SpriteFrameFlags, assets::lod_data::LodData, utils::try_read_name};
@@ -191,10 +191,7 @@ impl LodSerialise for DSFT {
         buf.write_u32::<LittleEndian>(self.groups.len() as u32).unwrap();
         for f in &self.frames {
             let bytes = unsafe {
-                std::slice::from_raw_parts(
-                    f as *const DSFTFrame as *const u8,
-                    std::mem::size_of::<DSFTFrame>(),
-                )
+                std::slice::from_raw_parts(f as *const DSFTFrame as *const u8, std::mem::size_of::<DSFTFrame>())
             };
             buf.extend_from_slice(bytes);
         }

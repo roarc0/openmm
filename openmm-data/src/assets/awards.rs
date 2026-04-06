@@ -4,13 +4,13 @@
 //! Column layout (0-indexed):
 //!   0: ID (1-based), 1: Award text, 2: Notes (optional)
 
+use csv::ReaderBuilder;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::Cursor;
-use csv::ReaderBuilder;
-use serde::{Serialize, Deserialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 
 /// One award entry from `awards.txt`.
 #[derive(Debug, Clone, Serialize, Deserialize)]

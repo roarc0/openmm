@@ -18,7 +18,11 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use openmm_archive::Archive;
 use openmm_archive::lod::LodArchive;
 use openmm_data::{LodWriter, Version, generator::terrain::TerrainGen};
-use std::{error::Error, io::Write, path::{Path, PathBuf}};
+use std::{
+    error::Error,
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let out_dir: PathBuf = std::env::args()
@@ -56,14 +60,18 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn dump_lod(lod_path: &Path, target_dir: &Path) -> Result<(), Box<dyn Error>> {
     let lod = LodArchive::open(lod_path)?;
     std::fs::create_dir_all(target_dir)?;
-    
+
     for entry in lod.list_files() {
         let data = lod.get_file(&entry.name).unwrap_or_default();
         let file_path = target_dir.join(entry.name.to_lowercase());
         std::fs::write(file_path, data)?;
     }
     let n = lod.list_files().len();
-    println!("  extracted {} — {} files", lod_path.file_name().unwrap().to_string_lossy(), n);
+    println!(
+        "  extracted {} — {} files",
+        lod_path.file_name().unwrap().to_string_lossy(),
+        n
+    );
     Ok(())
 }
 
@@ -76,8 +84,8 @@ fn build_bitmaps_lod(out: &PathBuf) -> Result<(), Box<dyn Error>> {
     let mut lod = LodWriter::new(Version::MM6);
 
     // Palette 001 — a simple grayscale ramp (used by the stub tile below)
-    lod.add_file("pal001", make_palette([128u8, 160, 96])   /* green tint */);
-    lod.add_file("pal002", make_palette([80, 80, 80])        /* gray */);
+    lod.add_file("pal001", make_palette([128u8, 160, 96]) /* green tint */);
+    lod.add_file("pal002", make_palette([80, 80, 80]) /* gray */);
 
     // One terrain tile "grastyl" — solid green, 128×128, palette-indexed
     lod.add_file("grastyl", make_bitmap_tile(128, 128, 4 /* green-ish palette index */)?);
@@ -115,24 +123,30 @@ fn make_bitmap_tile_rgb(w: u16, h: u16, rgb: [u8; 3]) -> Result<Vec<u8>, Box<dyn
     // All pixels use palette index 1; colour 1 in the palette = rgb
     let pixels = vec![1u8; w as usize * h as usize];
     let compressed = openmm_data::generator::zlib_compress(&pixels);
-    
+
     let mut palette = [0u8; 768];
     for i in 0..256 {
-        palette[i*3] = i as u8;
-        palette[i*3+1] = i as u8;
-        palette[i*3+2] = i as u8;
+        palette[i * 3] = i as u8;
+        palette[i * 3 + 1] = i as u8;
+        palette[i * 3 + 2] = i as u8;
     }
     palette[3] = rgb[0];
     palette[4] = rgb[1];
     palette[5] = rgb[2];
-    
+
     make_bitmap_bytes(w, h, &compressed, &pixels, Some(&palette))
 }
 
 /// Assemble a raw MM6 bitmap file blob.
 ///
 /// Layout:  [48 B header] [compressed pixels] [768 B palette]
-fn make_bitmap_bytes(w: u16, h: u16, compressed: &[u8], pixels: &[u8], palette: Option<&[u8; 768]>) -> Result<Vec<u8>, Box<dyn Error>> {
+fn make_bitmap_bytes(
+    w: u16,
+    h: u16,
+    compressed: &[u8],
+    pixels: &[u8],
+    palette: Option<&[u8; 768]>,
+) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut buf = Vec::new();
 
     // 48-byte bitmap header
@@ -176,10 +190,10 @@ fn build_icons_lod(out: &PathBuf) -> Result<(), Box<dyn Error>> {
     let mut lod = LodWriter::new(Version::MM6);
 
     lod.add_file("mapstats.txt", make_mapstats());
-    lod.add_file("items.txt",    make_items());
-    lod.add_file("dtile.bin",    make_dtile_bin());
-    lod.add_file("dpft.bin",     make_dpft_bin());
-    lod.add_file("dchest.bin",   make_dchest_bin());
+    lod.add_file("items.txt", make_items());
+    lod.add_file("dtile.bin", make_dtile_bin());
+    lod.add_file("dpft.bin", make_dpft_bin());
+    lod.add_file("dchest.bin", make_dchest_bin());
 
     lod.save(out.join("icons.lod"))?;
     println!("  icons.lod — 5 entries (mapstats, items, dtile, dpft, dchest)");
@@ -231,10 +245,10 @@ fn make_dtile_bin() -> Vec<u8> {
         name_buf[..b.len().min(15)].copy_from_slice(&b[..b.len().min(15)]);
         buf.extend_from_slice(&name_buf);
         buf.write_i16::<LittleEndian>(i as i16).unwrap(); // id
-        buf.write_i16::<LittleEndian>(0).unwrap();         // bitmap
-        buf.write_i16::<LittleEndian>(0).unwrap();         // tile_set = 0 (grass)
-        buf.write_i16::<LittleEndian>(0).unwrap();         // section
-        buf.write_u16::<LittleEndian>(0).unwrap();         // attributes
+        buf.write_i16::<LittleEndian>(0).unwrap(); // bitmap
+        buf.write_i16::<LittleEndian>(0).unwrap(); // tile_set = 0 (grass)
+        buf.write_i16::<LittleEndian>(0).unwrap(); // section
+        buf.write_u16::<LittleEndian>(0).unwrap(); // attributes
     }
     buf
 }
@@ -258,8 +272,8 @@ fn make_dchest_bin() -> Vec<u8> {
     let mut name_buf = [0u8; 32];
     b"chest01".iter().enumerate().for_each(|(i, &b)| name_buf[i] = b);
     buf.extend_from_slice(&name_buf);
-    buf.write_u8(9).unwrap();  // width
-    buf.write_u8(9).unwrap();  // height
+    buf.write_u8(9).unwrap(); // width
+    buf.write_u8(9).unwrap(); // height
     buf.write_i16::<LittleEndian>(0).unwrap(); // image_index
     buf
 }
@@ -295,7 +309,7 @@ fn make_odm() -> Result<Vec<u8>, Box<dyn Error>> {
     write_str32(&mut buf, "Test Plains");
     write_str32(&mut buf, "test.odm");
     write_str32(&mut buf, "MMVI");
-    write_str32(&mut buf, "sky01");   // sky texture
+    write_str32(&mut buf, "sky01"); // sky texture
     write_str32(&mut buf, "grastyl"); // ground texture
 
     // tile_data: 8 × u16
@@ -320,13 +334,13 @@ fn make_odm() -> Result<Vec<u8>, Box<dyn Error>> {
     // Spawn points: 1 (player start)
     buf.write_u32::<LittleEndian>(1)?;
     // SpawnPoint: x, y, z, radius, spawn_type, monster_index, attributes
-    buf.write_i32::<LittleEndian>(0)?;      // x
-    buf.write_i32::<LittleEndian>(0)?;      // y
-    buf.write_i32::<LittleEndian>(1024)?;   // z (above ground)
-    buf.write_u16::<LittleEndian>(256)?;    // radius
-    buf.write_u16::<LittleEndian>(0)?;      // spawn_type  = 0 (player start)
-    buf.write_u16::<LittleEndian>(0)?;      // monster_index
-    buf.write_u16::<LittleEndian>(0)?;      // attributes
+    buf.write_i32::<LittleEndian>(0)?; // x
+    buf.write_i32::<LittleEndian>(0)?; // y
+    buf.write_i32::<LittleEndian>(1024)?; // z (above ground)
+    buf.write_u16::<LittleEndian>(256)?; // radius
+    buf.write_u16::<LittleEndian>(0)?; // spawn_type  = 0 (player start)
+    buf.write_u16::<LittleEndian>(0)?; // monster_index
+    buf.write_u16::<LittleEndian>(0)?; // attributes
 
     Ok(buf)
 }

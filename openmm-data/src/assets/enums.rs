@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 // ── EVT Opcodes ──────────────────────────────────────────────────────────
 

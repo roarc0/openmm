@@ -5,13 +5,13 @@
 //!   0: #, 1: Name, 2: RandomChance, 3: JoinCostPerWeek,
 //!   4: Personality, 5: ActionText, 6: InPartyBenefit, 7: JoinText
 
+use csv::ReaderBuilder;
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::Cursor;
-use csv::ReaderBuilder;
-use serde::{Serialize, Deserialize};
 
-use crate::LodSerialise;
 use crate::Assets;
+use crate::LodSerialise;
 
 /// One NPC profession definition from `npcprof.txt`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,8 +115,14 @@ impl LodSerialise for NpcProfTable {
         for p in &self.professions {
             out.push_str(&format!(
                 "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\r\n",
-                p.id, p.name, p.random_chance, p.cost_per_week,
-                p.personality, p.action_text, p.in_party_benefit, p.join_text
+                p.id,
+                p.name,
+                p.random_chance,
+                p.cost_per_week,
+                p.personality,
+                p.action_text,
+                p.in_party_benefit,
+                p.join_text
             ));
         }
         out.into_bytes()

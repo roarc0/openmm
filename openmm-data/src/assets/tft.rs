@@ -1,8 +1,8 @@
+use bitflags::bitflags;
+use byteorder::{LittleEndian, ReadBytesExt};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::io::{Cursor, Read};
-use byteorder::{LittleEndian, ReadBytesExt};
-use bitflags::bitflags;
-use serde::{Serialize, Deserialize};
 
 use crate::LodSerialise;
 use crate::{Assets, assets::lod_data::LodData};

@@ -3,15 +3,15 @@ use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::assets::dsounds::DSounds;
+use crate::assets::image::Image;
 use crate::assets::lod_data::LodData;
 use crate::assets::palette::Palettes;
 use crate::assets::snd::{SndArchive, SndExt};
 use crate::assets::vid::{VidArchive, VidExt};
-use crate::assets::dsounds::DSounds;
-use crate::assets::image::Image;
 
 pub use openmm_archive::Archive;
-pub use openmm_archive::lod::{LodArchive, Version, LodWriter};
+pub use openmm_archive::lod::{LodArchive, LodWriter, Version};
 
 /// Global game data loaded once at startup — map-independent, shared across all maps.
 pub struct StaticGameData {
@@ -55,9 +55,7 @@ impl StaticGameData {
         let street_npcs = assets
             .get_decompressed("icons/npcdata.txt")
             .ok()
-            .and_then(|d| {
-                crate::assets::npc::StreetNpcs::parse(d.as_slice(), name_pool.as_ref()).ok()
-            });
+            .and_then(|d| crate::assets::npc::StreetNpcs::parse(d.as_slice(), name_pool.as_ref()).ok());
 
         let prof_table = crate::assets::npcprof::NpcProfTable::load(assets).ok();
         let news_table = crate::assets::npcnews::NpcNewsTable::load(assets).ok();
@@ -97,7 +95,7 @@ pub struct Assets {
 impl Assets {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
         let game_dir = path.as_ref().to_path_buf();
-        
+
         let mut assets = Self {
             lods: HashMap::new(),
             snds: HashMap::new(),
@@ -119,9 +117,8 @@ impl Assets {
             let entry = entry?;
             let path = entry.path();
             if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-                let stem = path.file_stem().and_then(|s| s.to_str())
-                    .unwrap_or("").to_lowercase();
-                
+                let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+
                 match ext.to_lowercase().as_str() {
                     "lod" => {
                         if let Ok(lod) = LodArchive::open(&path) {
@@ -157,9 +154,8 @@ impl Assets {
 
     /// Access high-level game tables (DSFT, Monsters, MapStats, etc.)
     pub fn data(&self) -> &StaticGameData {
-        self.static_data.get_or_init(|| {
-            StaticGameData::load(self).expect("failed to load static game data")
-        })
+        self.static_data
+            .get_or_init(|| StaticGameData::load(self).expect("failed to load static game data"))
     }
 
     /// Access the high-level game-engine API.
@@ -174,14 +170,12 @@ impl Assets {
         let name = path.file_name().and_then(|s| s.to_str()).ok_or("invalid path")?;
 
         // 1. If it's a specific path like "icons/dsounds.bin"
-        if let Some(parent) = path.parent() {
-            if let Some(archive_name) = parent.to_str().filter(|s| !s.is_empty()) {
-                if let Some(lod) = self.lods.get(&archive_name.to_lowercase()) {
-                    if let Some(data) = lod.get_file(name) {
-                        return Ok(data);
-                    }
-                }
-            }
+        if let Some(parent) = path.parent()
+            && let Some(archive_name) = parent.to_str().filter(|s| !s.is_empty())
+            && let Some(lod) = self.lods.get(&archive_name.to_lowercase())
+            && let Some(data) = lod.get_file(name)
+        {
+            return Ok(data);
         }
 
         // 2. Route by extension
@@ -213,7 +207,8 @@ impl Assets {
     /// Specialized sound retrieval using dsounds.bin routing.
     pub fn get_sound(&self, name_or_id: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         let sound_name = if let Ok(id) = name_or_id.parse::<u32>() {
-            self.dsounds.as_ref()
+            self.dsounds
+                .as_ref()
                 .ok_or("dsounds.bin not loaded")?
                 .get_by_id(id)
                 .ok_or(format!("sound id {} not found", id))?
@@ -242,7 +237,10 @@ impl Assets {
 
     /// Specialized video retrieval.
     pub fn get_video(&self, name: &str) -> Result<Vec<u8>, Box<dyn Error>> {
-        let name = name.strip_suffix(".smk").or_else(|| name.strip_suffix(".bik")).unwrap_or(name);
+        let name = name
+            .strip_suffix(".smk")
+            .or_else(|| name.strip_suffix(".bik"))
+            .unwrap_or(name);
         for vid in self.vids.values() {
             if let Some(data) = vid.smk_by_name(name) {
                 return Ok(data);
@@ -301,7 +299,7 @@ impl Assets {
         let lod = self.get_lod(archive).ok_or("archive not found")?;
         let palettes = self.palettes()?;
         fs::create_dir_all(out_path)?;
-        
+
         for entry in lod.list_files() {
             let file_name = &entry.name;
             if let Some(data) = lod.get_file_raw(file_name) {
@@ -313,10 +311,10 @@ impl Assets {
                     if let Err(e) = sprite.save(out_path.join(format!("{}.png", file_name))) {
                         eprintln!("Error saving sprite {} : {}", file_name, e)
                     }
-                } else if let Ok(lod_data) = LodData::try_from(data.as_slice()) {
-                    if let Err(e) = lod_data.dump(out_path.join(file_name)) {
-                        eprintln!("Error saving lod data {} : {}", file_name, e)
-                    }
+                } else if let Ok(lod_data) = LodData::try_from(data.as_slice())
+                    && let Err(e) = lod_data.dump(out_path.join(file_name))
+                {
+                    eprintln!("Error saving lod data {} : {}", file_name, e)
                 }
             }
         }

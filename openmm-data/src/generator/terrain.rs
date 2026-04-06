@@ -55,15 +55,7 @@ impl TerrainGen {
 
     /// Flatten a rectangular region to a fixed `height` value.
     /// Useful for creating flat building pads or spawn platforms.
-    pub fn flatten_rect(
-        &self,
-        map: &mut Vec<u8>,
-        x: usize,
-        y: usize,
-        w: usize,
-        h: usize,
-        value: u8,
-    ) {
+    pub fn flatten_rect(&self, map: &mut Vec<u8>, x: usize, y: usize, w: usize, h: usize, value: u8) {
         let map_w = self.width;
         let map_h = self.height;
         for row in y..((y + h).min(map_h)) {

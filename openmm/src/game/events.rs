@@ -2,8 +2,6 @@
 
 use bevy::prelude::{Assets as BevyAssets, *};
 
-use openmm_data::Assets as DataAssets;
-
 use crate::assets::GameAssets;
 
 /// Base value added to the actor spawn index to form a synthetic npc_id for generated street NPCs.
