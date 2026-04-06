@@ -10,7 +10,7 @@ use openmm_data::{
     dsounds::DSounds,
     snd::{SndArchive, SndExt},
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::assets::GameAssets;
 
@@ -20,11 +20,14 @@ pub struct SoundManager {
     pub dsounds: DSounds,
     pub snd_archive: SndArchive,
     cache: HashMap<u32, Handle<AudioSource>>,
+    /// Sound IDs that failed to load — never retry or re-warn.
+    failed: HashSet<u32>,
 }
 
 impl SoundManager {
     /// Load a sound by dsounds ID into Bevy assets, caching the handle.
     /// Returns None if the sound ID doesn't exist or the WAV can't be extracted.
+    /// Failed IDs are cached so we warn exactly once per bad ID.
     pub fn load_sound(
         &mut self,
         sound_id: u32,
@@ -33,27 +36,43 @@ impl SoundManager {
         if let Some(handle) = self.cache.get(&sound_id) {
             return Some(handle.clone());
         }
+        if self.failed.contains(&sound_id) {
+            return None;
+        }
 
         let info = self.dsounds.get_by_id(sound_id).or_else(|| {
             warn!("Sound ID {} not found in dsounds.bin", sound_id);
             None
-        })?;
+        });
+        let Some(info) = info else {
+            self.failed.insert(sound_id);
+            return None;
+        };
         let name = info.name().or_else(|| {
             warn!("Sound ID {} has no associated name", sound_id);
             None
-        })?;
+        });
+        let Some(name) = name else {
+            self.failed.insert(sound_id);
+            return None;
+        };
         if name.is_empty() {
             warn!("Sound ID {} has an empty name entry in dsounds.bin", sound_id);
+            self.failed.insert(sound_id);
             return None;
         }
-        let wav_bytes = self.snd_archive.get(&name).or_else(|| {
+        let Some(wav_bytes) = self.snd_archive.get(&name).or_else(|| {
             warn!("Sound '{}' (id={}) not found in Audio.snd", name, sound_id);
             None
-        })?;
+        }) else {
+            self.failed.insert(sound_id);
+            return None;
+        };
 
         // Validate WAV: RIFF header + PCM format
         if wav_bytes.len() < 44 || &wav_bytes[0..4] != b"RIFF" || &wav_bytes[8..12] != b"WAVE" {
             warn!("Sound '{}' (id={}) is not a valid WAV header", name, sound_id);
+            self.failed.insert(sound_id);
             return None;
         }
         if let Some(fmt_pos) = wav_bytes.windows(4).position(|w| w == b"fmt ")
@@ -63,6 +82,7 @@ impl SoundManager {
             if audio_fmt != 1 && audio_fmt != 17 {
                 // 1=PCM, 17=IMA ADPCM (handled by SndExt)
                 warn!("Sound '{}' (id={}) unsupported format {}", name, sound_id, audio_fmt);
+                self.failed.insert(sound_id);
                 return None;
             }
         }
@@ -145,5 +165,6 @@ fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
         dsounds,
         snd_archive,
         cache: HashMap::new(),
+        failed: HashSet::new(),
     });
 }
