@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::assets::provider::archive::{Archive, lod::LodArchive};
-use image::{DynamicImage, RgbImage};
+use image::DynamicImage;
 
 /// Metadata from `header.bin` (100 bytes) inside a save LOD.
 #[derive(Debug, Clone, Default)]
@@ -66,9 +66,7 @@ impl SaveFile {
     /// Decode the save screenshot (`image.pcx`) to a `DynamicImage`, or `None` if absent/corrupt.
     pub fn screenshot(&self) -> Option<DynamicImage> {
         let data = self.archive.get_file("image.pcx")?;
-        decode_pcx(&data)
-            .map_err(|e| log::warn!("Failed to decode screenshot in {}: {}", self.slot, e))
-            .ok()
+        crate::assets::pcx::decode(&data)
     }
 
     pub fn get_file(&self, name: &str) -> Option<Vec<u8>> {
@@ -121,73 +119,3 @@ fn save_slot_order(slot: &str) -> (u8, String) {
     }
 }
 
-/// Decode a 24-bit three-plane PCX image (as used by MM6 save screenshots).
-///
-/// Format: 128-byte header, RLE-compressed scanlines with 3 planes (R, G, B) each
-/// `bytes_per_line` wide.
-fn decode_pcx(data: &[u8]) -> Result<DynamicImage, Box<dyn Error>> {
-    if data.len() < 128 {
-        return Err("PCX data too short".into());
-    }
-    if data[0] != 0x0A {
-        return Err("Not a PCX file (missing 0x0A magic)".into());
-    }
-
-    let xmin = u16::from_le_bytes([data[4], data[5]]) as u32;
-    let ymin = u16::from_le_bytes([data[6], data[7]]) as u32;
-    let xmax = u16::from_le_bytes([data[8], data[9]]) as u32;
-    let ymax = u16::from_le_bytes([data[10], data[11]]) as u32;
-    let bpp = data[3];
-    let planes = data[65] as u32;
-    let bytes_per_line = u16::from_le_bytes([data[66], data[67]]) as u32;
-
-    let width = xmax - xmin + 1;
-    let height = ymax - ymin + 1;
-
-    if bpp != 8 || planes != 3 {
-        return Err(format!("Unsupported PCX format: {}bpp {} planes", bpp, planes).into());
-    }
-
-    let stride = (planes * bytes_per_line) as usize;
-    let mut pixels: Vec<u8> = Vec::with_capacity((width * height * 3) as usize);
-    let mut pos = 128usize;
-
-    for _row in 0..height {
-        // Decode one full row (all planes) via RLE
-        let mut row = vec![0u8; stride];
-        let mut out = 0usize;
-
-        while out < stride {
-            if pos >= data.len() {
-                break;
-            }
-            let byte = data[pos];
-            pos += 1;
-            if byte >= 0xC0 {
-                let count = (byte & 0x3F) as usize;
-                if pos >= data.len() {
-                    break;
-                }
-                let val = data[pos];
-                pos += 1;
-                let end = (out + count).min(stride);
-                row[out..end].fill(val);
-                out += count;
-            } else {
-                row[out] = byte;
-                out += 1;
-            }
-        }
-
-        // Interleave R/G/B planes into contiguous RGB pixels
-        let bpl = bytes_per_line as usize;
-        for x in 0..width as usize {
-            pixels.push(row[x]); // R
-            pixels.push(row[bpl + x]); // G
-            pixels.push(row[2 * bpl + x]); // B
-        }
-    }
-
-    let img = RgbImage::from_raw(width, height, pixels).ok_or("PCX pixel buffer size mismatch")?;
-    Ok(DynamicImage::ImageRgb8(img))
-}
