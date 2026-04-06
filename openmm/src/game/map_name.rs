@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::odm::OdmName;
+pub use openmm_data::OdmName;
 
 /// Unified map identifier for outdoor (ODM) and indoor (BLV) maps.
 #[derive(Clone, Debug)]

@@ -63,6 +63,9 @@ pub fn test_lod() -> Option<crate::Assets> {
     crate::Assets::new(crate::get_data_path()).ok()
 }
 
+pub mod odm_name;
+pub use odm_name::OdmName;
+
 #[cfg(test)]
 #[path = "utils_tests.rs"]
 mod tests;
