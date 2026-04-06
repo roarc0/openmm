@@ -155,18 +155,22 @@ fn monster_ai_system(
     let hm = terrain.as_deref();
     let wm = water_map.as_deref();
 
-    for (mut transform, mut actor, mut anim_state, mut ai_mode) in query.iter_mut() {
+    // Sound events must be collected to avoid capturing the non-clonable MessageWriter in par_iter
+    let pending_sounds = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+
+    query.par_iter_mut().for_each(|(mut transform, mut actor, mut anim_state, mut ai_mode)| {
+        let sounds = &pending_sounds;
         if actor.hp <= 0 {
-            continue;
+            return;
         }
 
         if actor.move_speed < 1.0 {
-            continue;
+            return;
         }
 
         // Let attack animation play out without interference.
         if matches!(*anim_state, AnimationState::Attacking) {
-            continue;
+            return;
         }
 
         // Fidget sound: play slot [3] periodically while wandering.
@@ -178,7 +182,7 @@ fn monster_ai_system(
                     .abs()
                     .fract();
                 actor.fidget_timer = 10.0 + seed * 15.0;
-                sounds.write(PlayOnceSoundEvent {
+                sounds.lock().unwrap().push(PlayOnceSoundEvent {
                     sound_id: actor.sound_ids[3] as u32,
                     position: transform.translation,
                 });
@@ -212,7 +216,7 @@ fn monster_ai_system(
                     debug!("Monster '{}' aggros player", actor.name);
                     // Battle-growl on aggro (got_hit slot reused as alert sound).
                     if actor.sound_ids[2] > 0 {
-                        sounds.write(PlayOnceSoundEvent {
+                        sounds.lock().unwrap().push(PlayOnceSoundEvent {
                             sound_id: actor.sound_ids[2] as u32,
                             position: my_pos,
                         });
@@ -265,7 +269,7 @@ fn monster_ai_system(
                     transform.translation.y = new_y;
                 }
             }
-            continue;
+            return;
         }
 
         // ── Wander: patrol near guard position ──────────────────────────────
@@ -315,5 +319,10 @@ fn monster_ai_system(
                 actor.wander_timer = 2.0;
             }
         }
+    });
+
+    // Write all queued sound events serially
+    for event in pending_sounds.lock().unwrap().drain(..) {
+        sounds.write(event);
     }
 }

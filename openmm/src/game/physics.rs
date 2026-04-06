@@ -36,8 +36,10 @@ fn setup_collision_data(
             walls: indoor.collision_walls.clone(),
             floors: indoor.collision_floors.clone(),
             ceilings: indoor.collision_ceilings.clone(),
+            ..default()
         };
         colliders.mark_step_walls();
+        colliders.build_grid();
         commands.insert_resource(colliders);
         return;
     }
@@ -116,8 +118,10 @@ fn setup_collision_data(
         walls,
         floors,
         ceilings,
+        ..default()
     };
     colliders.mark_step_walls();
+    colliders.build_grid();
     commands.insert_resource(colliders);
 
     // Water map (outdoor only)

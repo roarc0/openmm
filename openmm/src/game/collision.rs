@@ -155,12 +155,75 @@ impl CollisionWall {
     }
 }
 
+/// Spatial partitioning grid for fast collision pruning.
+#[derive(Clone, Default)]
+pub struct SpatialGrid {
+    /// Grid dimensions (cells) along X and Z.
+    pub size: usize,
+    /// Width of one grid cell in world units.
+    pub cell_width: f32,
+    /// Minimum X/Z coordinate (bottom-left corner of the grid).
+    pub min_corner: Vec2,
+    /// Indices of walls in each cell.
+    pub walls: Vec<Vec<u32>>,
+    /// Indices of floors in each cell.
+    pub floors: Vec<Vec<u32>>,
+    /// Indices of ceilings in each cell.
+    pub ceilings: Vec<Vec<u32>>,
+}
+
+impl SpatialGrid {
+    pub fn new(size: usize, cell_width: f32, min_corner: Vec2) -> Self {
+        Self {
+            size,
+            cell_width,
+            min_corner,
+            walls: vec![Vec::new(); size * size],
+            floors: vec![Vec::new(); size * size],
+            ceilings: vec![Vec::new(); size * size],
+        }
+    }
+
+    fn cell_idx(&self, x: f32, z: f32) -> Option<usize> {
+        let cx = ((x - self.min_corner.x) / self.cell_width).floor() as i32;
+        let cz = ((z - self.min_corner.y) / self.cell_width).floor() as i32;
+        if cx >= 0 && cx < self.size as i32 && cz >= 0 && cz < self.size as i32 {
+            Some(cz as usize * self.size + cx as usize)
+        } else {
+            None
+        }
+    }
+
+    /// Iterator over cell indices overlapping an AABB.
+    fn cells_overlapping(&self, min_x: f32, max_x: f32, min_z: f32, max_z: f32) -> Vec<usize> {
+        let mut result = Vec::new();
+        let ix0 = ((min_x - self.min_corner.x) / self.cell_width).floor() as i32;
+        let iz0 = ((min_z - self.min_corner.y) / self.cell_width).floor() as i32;
+        let ix1 = ((max_x - self.min_corner.x) / self.cell_width).floor() as i32;
+        let iz1 = ((max_z - self.min_corner.y) / self.cell_width).floor() as i32;
+
+        let x0 = ix0.clamp(0, self.size as i32 - 1) as usize;
+        let z0 = iz0.clamp(0, self.size as i32 - 1) as usize;
+        let x1 = ix1.clamp(0, self.size as i32 - 1) as usize;
+        let z1 = iz1.clamp(0, self.size as i32 - 1) as usize;
+
+        for z in z0..=z1 {
+            for x in x0..=x1 {
+                result.push(z * self.size + x);
+            }
+        }
+        result
+    }
+}
+
 /// Collection of BSP model collision geometry.
 #[derive(Resource, Default)]
 pub struct BuildingColliders {
     pub walls: Vec<CollisionWall>,
     pub floors: Vec<CollisionTriangle>,
     pub ceilings: Vec<CollisionTriangle>,
+    /// Optimization grid for pruning collision checks.
+    pub grid: SpatialGrid,
 }
 
 impl BuildingColliders {
@@ -168,14 +231,90 @@ impl BuildingColliders {
     /// Uses face planes with outward normals — if the player is within `radius`
     /// of a face plane on the front side, and within the face's XZ footprint,
     /// push them out along the face normal.
+    /// Build the spatial grid from current walls, floors, and ceilings.
+    pub fn build_grid(&mut self) {
+        if self.walls.is_empty() && self.floors.is_empty() && self.ceilings.is_empty() {
+            return;
+        }
+
+        let mut min = Vec3::splat(f32::MAX);
+        let mut max = Vec3::splat(f32::MIN);
+
+        for w in &self.walls {
+            min = min.min(Vec3::new(w.min_x, w.min_y, w.min_z));
+            max = max.max(Vec3::new(w.max_x, w.max_y, w.max_z));
+        }
+        for f in &self.floors {
+            min = min.min(f.v0.min(f.v1).min(f.v2));
+            max = max.max(f.v0.max(f.v1).max(f.v2));
+        }
+        for c in &self.ceilings {
+            min = min.min(c.v0.min(c.v1).min(c.v2));
+            max = max.max(c.v0.max(c.v1).max(c.v2));
+        }
+
+        // Pad slightly to avoid edge-of-grid issues
+        min -= Vec3::splat(10.0);
+        max += Vec3::splat(10.0);
+
+        let width = (max.x - min.x).max(max.z - min.z).max(1024.0);
+        let grid_size = 64;
+        let cell_width = width / grid_size as f32;
+
+        self.grid = SpatialGrid::new(grid_size, cell_width, Vec2::new(min.x, min.z));
+
+        for (i, w) in self.walls.iter().enumerate() {
+            for idx in self.grid.cells_overlapping(w.min_x, w.max_x, w.min_z, w.max_z) {
+                self.grid.walls[idx].push(i as u32);
+            }
+        }
+        for (i, f) in self.floors.iter().enumerate() {
+            for idx in self.grid.cells_overlapping(f.min_x, f.max_x, f.min_z, f.max_z) {
+                self.grid.floors[idx].push(i as u32);
+            }
+        }
+        for (i, c) in self.ceilings.iter().enumerate() {
+            for idx in self.grid.cells_overlapping(c.min_x, c.max_x, c.min_z, c.max_z) {
+                self.grid.ceilings[idx].push(i as u32);
+            }
+        }
+    }
+
     pub fn resolve_movement(&self, from: Vec3, to: Vec3, radius: f32, eye_height: f32) -> Vec3 {
         let mut result = to;
         let feet_y = from.y - eye_height;
 
+        // Determine relevant grid cells
+        let r_bound = radius + 1.0;
+        let min_x = from.x.min(to.x) - r_bound;
+        let max_x = from.x.max(to.x) + r_bound;
+        let min_z = from.z.min(to.z) - r_bound;
+        let max_z = from.z.max(to.z) + r_bound;
+        let cells = self.grid.cells_overlapping(min_x, max_x, min_z, max_z);
+
+        // Deduplicate walls in overlapping cells
+        let mut local_walls = Vec::new();
+        if cells.is_empty() {
+            // Fallback to all walls if outside grid or grid not initialized
+            for i in 0..self.walls.len() {
+                local_walls.push(i as u32);
+            }
+        } else {
+            let mut seen = std::collections::HashSet::new();
+            for &idx in &cells {
+                for &wall_idx in &self.grid.walls[idx] {
+                    if seen.insert(wall_idx) {
+                        local_walls.push(wall_idx);
+                    }
+                }
+            }
+        }
+
         for _ in 0..3 {
             let prev = result;
 
-            for wall in &self.walls {
+            for &wall_idx in &local_walls {
+                let wall = &self.walls[wall_idx as usize];
                 // Height check: skip walls entirely above head or at/below feet
                 if feet_y >= wall.max_y || from.y < wall.min_y {
                     continue;
@@ -252,7 +391,15 @@ impl BuildingColliders {
             let mut best: Option<f32> = None;
             let point = Vec2::new(x, z);
 
-            for floor in &self.floors {
+            let local_floors = if let Some(cell_idx) = self.grid.cell_idx(x, z) {
+                &self.grid.floors[cell_idx]
+            } else {
+                // Not in grid, can't be on a building floor
+                return None;
+            };
+
+            for &floor_idx in local_floors {
+                let floor = &self.floors[floor_idx as usize];
                 if !floor.near_xz(x, z, tolerance) {
                     continue;
                 }
@@ -303,7 +450,14 @@ impl BuildingColliders {
         let mut best: Option<f32> = None;
         let point = Vec2::new(x, z);
 
-        for ceil in &self.ceilings {
+        let local_ceilings = if let Some(cell_idx) = self.grid.cell_idx(x, z) {
+            &self.grid.ceilings[cell_idx]
+        } else {
+            return None;
+        };
+
+        for &ceil_idx in local_ceilings {
+            let ceil = &self.ceilings[ceil_idx as usize];
             if !ceil.near_xz(x, z, 0.0) {
                 continue;
             }
