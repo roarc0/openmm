@@ -10,14 +10,37 @@ dev = ["bevy/dynamic_linking"]
 
 [dependencies]
 openmm-data = { path = "../openmm-data" }
-bevy = { version = "0.18", features = ["mp3", "symphonia-wav"] }
+bevy = { version = "0.18", default-features = false, features = [
+    # App core
+    "async_executor", "bevy_asset", "bevy_input_focus", "bevy_log",
+    "bevy_state", "bevy_window", "custom_cursor", "reflect_auto_register",
+    # Platform (Linux — no Android, no WebGL2)
+    "std", "bevy_gilrs", "bevy_winit", "default_font", "multi_threaded",
+    "x11", "wayland", "sysinfo_plugin",
+    # Core types (common_api minus bevy_animation)
+    "bevy_camera", "bevy_color", "bevy_gizmos", "bevy_image", "bevy_mesh",
+    "bevy_shader", "bevy_text", "hdr", "png",
+    # 3D (3d_api minus morph_animation which requires bevy_animation)
+    "bevy_light", "bevy_mikktspace", "ktx2", "morph",
+    "smaa_luts", "tonemapping_luts", "zstd_rust",
+    # 3D render — no bevy_gltf, no gltf_animation
+    "bevy_render", "bevy_core_pipeline", "bevy_gizmos_render",
+    "bevy_anti_alias", "bevy_pbr", "bevy_post_process",
+    # 2D sprites
+    "bevy_sprite", "bevy_sprite_render",
+    # UI — no bevy_scene
+    "bevy_ui", "bevy_ui_render",
+    # Audio
+    "bevy_audio", "vorbis", "mp3", "symphonia-wav",
+    # Picking (Pickable::IGNORE on HUD root)
+    "bevy_picking",
+] }
 bevy-inspector-egui = "0.36"
 random_color = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
 clap = { version = "4", features = ["derive"] }
-bevy_kira_audio = "0.25"
 image = "0.25"
 
 [lints]

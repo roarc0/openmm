@@ -1,4 +1,4 @@
-.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci
+.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci profile-chrome profile-tracy
 
 # --- Build ---
 
@@ -17,6 +17,25 @@ endif
 
 run-release:
 	cargo run --release -p openmm
+
+# --- Profiling ---
+# Chrome tracing: opens a JSON file in https://ui.perfetto.dev
+profile-chrome:
+ifdef map
+	cargo run --profile profiling -p openmm --features bevy/trace_chrome -- --map $(map) --skip-intro true
+else
+	cargo run --profile profiling -p openmm --features bevy/trace_chrome -- --skip-intro true
+endif
+
+# Tracy: start Tracy UI first (connect mode), then run this.
+# Required Tracy GUI version: 0.11.x  (matches tracy-client v0.18.4)
+# Install: https://github.com/wolfpld/tracy/releases  or  pacman -S tracy
+profile-tracy:
+ifdef map
+	cargo run --profile profiling -p openmm --features bevy/trace_tracy -- --map $(map) --skip-intro true
+else
+	cargo run --profile profiling -p openmm --features bevy/trace_tracy -- --skip-intro true
+endif
 
 # --- Quality ---
 
@@ -85,3 +104,5 @@ help:
 	@echo "  dump_vid      - Extract SMK videos from Anims VID archives"
 	@echo "  check-data    - Run full data round-trip verification (generates ./data/mm6_serialized/)"
 	@echo "  clean         - Clean cargo target directory"
+	@echo "  profile-chrome - Run with Chrome/Perfetto tracing (open .json at ui.perfetto.dev)"
+	@echo "  profile-tracy  - Run with Tracy profiler (start Tracy UI first)"
