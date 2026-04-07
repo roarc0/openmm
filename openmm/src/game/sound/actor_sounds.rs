@@ -1,4 +1,5 @@
 use bevy::{ecs::message::MessageWriter, prelude::*};
+use openmm_data::ActorSoundSlot;
 
 use super::effects::PlayOnceSoundEvent;
 use crate::GameState;
@@ -68,7 +69,7 @@ fn actor_fidget_sounds(
             continue;
         }
 
-        let fidget_id = actor.sound_ids[3] as u32;
+        let fidget_id = actor.sound_ids[ActorSoundSlot::Fidget as usize] as u32;
 
         // Stagger re-arm using position so actors don't synchronize over time.
         let stagger = (transform.translation.x * 0.013 + transform.translation.z * 0.019)

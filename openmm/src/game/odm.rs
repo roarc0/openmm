@@ -1,6 +1,4 @@
-use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
-use bevy::render::render_resource::Face;
 
 use crate::GameState;
 use crate::assets::GameAssets;
@@ -9,7 +7,7 @@ use crate::game::entities::{actor, sprites};
 use crate::game::game_time::GameTime;
 use crate::game::lighting::sprite_tint_from_time;
 use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
-use crate::game::terrain_material::{TerrainMaterial, WaterExtension};
+use crate::game::terrain;
 pub use openmm_data::OdmName;
 
 /// Marker on each outdoor BSP model sub-mesh entity — tracks which model and faces it represents.
@@ -167,12 +165,12 @@ fn spawn_world(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    _sprite_materials: ResMut<Assets<SpriteMaterial>>,
-    mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
+    _sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
+    mut terrain_materials: Option<ResMut<Assets<terrain::TerrainMaterial>>>,
     mut prepared: Option<ResMut<PreparedWorld>>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
-    mut music_events: bevy::ecs::message::MessageWriter<crate::game::sound::music::PlayMusicEvent>,
+    music_events: Option<bevy::ecs::message::MessageWriter<crate::game::sound::music::PlayMusicEvent>>,
 ) {
     let Some(prepared) = prepared.as_mut() else {
         // No outdoor PreparedWorld — this is an indoor map, skip outdoor spawning
@@ -180,7 +178,6 @@ fn spawn_world(
     };
 
     let mut terrain_texture = prepared.terrain_texture.clone();
-    let terrain_mesh = prepared.terrain_mesh.clone();
 
     // Cyan markers have been replaced with neutral color by extract_water_mask(),
     // so the atlas can safely use linear filtering without cyan bleed.
@@ -206,30 +203,18 @@ fn spawn_world(
         images.add(Image::default())
     };
 
-    let terrain_mat = terrain_materials.add(TerrainMaterial {
-        base: StandardMaterial {
-            base_color_texture: Some(terrain_tex_handle),
-            perceptual_roughness: 1.0,
-            reflectance: 0.0,
-            metallic: 0.0,
-            cull_mode: Some(Face::Back),
-            ..default()
-        },
-        extension: WaterExtension {
-            water_texture: water_tex_handle,
-            water_mask: water_mask_handle,
-        },
-    });
+    let terrain_entity_id = terrain::spawn_terrain(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        &mut terrain_materials,
+        prepared.terrain_mesh.clone(),
+        terrain_tex_handle,
+        water_tex_handle,
+        water_mask_handle,
+    );
 
-    let terrain_entity = commands
-        .spawn((
-            Name::new("odm"),
-            Mesh3d(meshes.add(terrain_mesh)),
-            MeshMaterial3d(terrain_mat),
-            Transform::default(),
-            Visibility::default(),
-            InGame,
-        ))
+    commands.entity(terrain_entity_id)
         .with_children(|parent| {
             let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
             // BSP models (buildings, structures)
@@ -261,8 +246,66 @@ fn spawn_world(
                     }
                 });
             }
-        })
-        .id();
+        });
+
+    let player_spawn = Vec3::new(
+        save_data.player.position[0],
+        save_data.player.position[1],
+        save_data.player.position[2],
+    );
+
+    let bb_order = sort_by_distance_mm6(
+        prepared.decorations.entries(),
+        player_spawn,
+        |d| d.position[0] as f32,
+        |d| d.position[1] as f32,
+    );
+
+    let actor_order = if let Some(ref a) = prepared.resolved_actors {
+        sort_by_distance_mm6(
+            a.get_actors(),
+            player_spawn,
+            |actor| actor.position[0] as f32,
+            |actor| actor.position[1] as f32,
+        )
+    } else {
+        Vec::new()
+    };
+
+    let monster_order = if let Some(ref m) = prepared.resolved_monsters {
+        sort_by_distance_mm6(
+            m.entries(),
+            player_spawn,
+            |mon| mon.spawn_position[0] as f32,
+            |mon| mon.spawn_position[1] as f32,
+        )
+    } else {
+        Vec::new()
+    };
+
+    let total = bb_order.len() + actor_order.len() + monster_order.len();
+    // Play map music
+    if let Some(mut events) = music_events {
+        events.write(crate::game::sound::music::PlayMusicEvent {
+            track: prepared.music_track,
+            volume: cfg.music_volume,
+        });
+    }
+
+    commands.insert_resource(SpawnProgress { total, done: 0 });
+    commands.insert_resource(PendingSpawns {
+        billboard_order: bb_order,
+        actor_order,
+        idx: 0,
+        frames_elapsed: 0,
+        sprite_cache: prepared.sprite_cache.clone(),
+        dec_sprite_cache: prepared.dec_sprite_cache.clone(),
+        decorations: prepared.decorations.clone(),
+        actors: prepared.resolved_actors.take(),
+        monsters: prepared.resolved_monsters.take(),
+        monster_order,
+        terrain_entity: terrain_entity_id,
+    });
 
     // Build outdoor clickable and occluder faces from BSP model faces.
     {
@@ -317,67 +360,6 @@ fn spawn_world(
         }
     }
 
-    let decorations = prepared.decorations.clone();
-    let actors = prepared.resolved_actors.take();
-    let monsters = prepared.resolved_monsters.take();
-
-    // Sort spawn order by distance from player (closest first)
-    let player_spawn = Vec3::new(
-        save_data.player.position[0],
-        save_data.player.position[1],
-        save_data.player.position[2],
-    );
-
-    let bb_order = sort_by_distance_mm6(
-        decorations.entries(),
-        player_spawn,
-        |d| d.position[0] as f32,
-        |d| d.position[1] as f32,
-    );
-
-    let actor_order = if let Some(ref a) = actors {
-        sort_by_distance_mm6(
-            a.get_actors(),
-            player_spawn,
-            |actor| actor.position[0] as f32,
-            |actor| actor.position[1] as f32,
-        )
-    } else {
-        Vec::new()
-    };
-
-    let monster_order = if let Some(ref m) = monsters {
-        sort_by_distance_mm6(
-            m.entries(),
-            player_spawn,
-            |mon| mon.spawn_position[0] as f32,
-            |mon| mon.spawn_position[1] as f32,
-        )
-    } else {
-        Vec::new()
-    };
-
-    let total = bb_order.len() + actor_order.len() + monster_order.len();
-    // Play map music
-    music_events.write(crate::game::sound::music::PlayMusicEvent {
-        track: prepared.music_track,
-        volume: cfg.music_volume,
-    });
-
-    commands.insert_resource(SpawnProgress { total, done: 0 });
-    commands.insert_resource(PendingSpawns {
-        billboard_order: bb_order,
-        actor_order,
-        idx: 0,
-        frames_elapsed: 0,
-        sprite_cache: prepared.sprite_cache.clone(),
-        dec_sprite_cache: prepared.dec_sprite_cache.clone(),
-        decorations,
-        actors,
-        monsters,
-        monster_order,
-        terrain_entity,
-    });
 }
 
 /// Sort indices by distance from player using MM6 coords (works with i16 or i32).
@@ -407,9 +389,9 @@ fn lazy_spawn(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     _materials: ResMut<Assets<StandardMaterial>>,
-    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
+    mut sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
     mut progress: ResMut<SpawnProgress>,
-    mut sound_events: MessageWriter<crate::game::sound::effects::PlaySoundEvent>,
+    mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
     mut map_events: Option<ResMut<crate::game::events::MapEvents>>,
 ) {
     let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
@@ -455,7 +437,7 @@ fn lazy_spawn(
         &game_assets,
         &mut images,
         &mut meshes,
-        &mut sprite_materials,
+        sprite_materials.as_deref_mut(),
         spawn_tint,
         start,
         time_budget,
@@ -473,7 +455,7 @@ fn lazy_spawn(
         &game_assets,
         &mut images,
         &mut meshes,
-        &mut sprite_materials,
+        sprite_materials.as_deref_mut(),
         spawn_tint,
         start,
         time_budget,
@@ -491,7 +473,7 @@ fn lazy_spawn(
         &game_assets,
         &mut images,
         &mut meshes,
-        &mut sprite_materials,
+        sprite_materials.as_deref_mut(),
         spawn_tint,
         start,
         time_budget,
@@ -517,7 +499,7 @@ fn spawn_decorations(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
     meshes: &mut Assets<Mesh>,
-    sprite_materials: &mut Assets<SpriteMaterial>,
+    mut sprite_materials: Option<&mut Assets<SpriteMaterial>>,
     spawn_tint: Vec4,
     start: std::time::Instant,
     time_budget: f32,
@@ -525,7 +507,7 @@ fn spawn_decorations(
     spawned: &mut usize,
     terrain_entity: Entity,
     bb_idx: &mut usize,
-    sound_events: &mut MessageWriter<crate::game::sound::effects::PlaySoundEvent>,
+    sound_events: &mut Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
 ) {
     let lod = game_assets.lod();
     let bb_len = p.billboard_order.len();
@@ -541,16 +523,21 @@ fn spawn_decorations(
         ));
 
         if dec.is_directional {
+            let Some(materials) = sprite_materials.as_deref_mut() else {
+                continue;
+            };
             let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
                 &dec.sprite_name,
                 game_assets.assets(),
                 images,
-                sprite_materials,
+                materials,
                 &mut Some(&mut p.sprite_cache),
             );
             if px_w > 0.0 {
                 for dir in &dirs {
-                    if let Some(m) = sprite_materials.get_mut(dir.id()) {
+                    if let Some(materials) = sprite_materials.as_deref_mut()
+                        && let Some(m) = materials.get_mut(dir.id())
+                    {
                         m.extension.tint = spawn_tint;
                     }
                 }
@@ -606,6 +593,9 @@ fn spawn_decorations(
                 continue;
             }
         } else if dec.num_frames > 1 {
+            if sprite_materials.is_none() {
+                continue;
+            }
             let frame_sprites = lod.billboard_animation_frames(key, dec.declist_id);
             if frame_sprites.is_empty() {
                 continue;
@@ -623,7 +613,8 @@ fn spawn_decorations(
                 let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
                     rgba,
                 )));
-                let mat = sprite_materials.add(SpriteMaterial {
+                let Some(materials) = sprite_materials.as_deref_mut() else { continue; };
+                let mat = materials.add(SpriteMaterial {
                     base: StandardMaterial {
                         unlit: true,
                         base_color_texture: Some(tex),
@@ -709,7 +700,8 @@ fn spawn_decorations(
                 let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
                     rgba,
                 )));
-                let m = sprite_materials.add(SpriteMaterial {
+                let Some(materials) = sprite_materials.as_deref_mut() else { continue; };
+                let m = materials.add(SpriteMaterial {
                     base: StandardMaterial {
                         unlit: true,
                         base_color_texture: Some(tex),
@@ -727,7 +719,9 @@ fn spawn_decorations(
                     .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));
                 (m, q, w, h, msk)
             };
-            if let Some(m) = sprite_materials.get_mut(mat.id()) {
+            if let Some(materials) = sprite_materials.as_deref_mut()
+                && let Some(m) = materials.get_mut(mat.id())
+            {
                 m.extension.tint = spawn_tint;
             }
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
@@ -787,10 +781,12 @@ fn spawn_decorations(
             *spawned += 1;
         }
         if dec.sound_id > 0 {
-            sound_events.write(crate::game::sound::effects::PlaySoundEvent {
-                sound_id: dec.sound_id as u32,
-                position: dec_pos,
-            });
+            if let Some(events) = sound_events {
+                events.write(crate::game::sound::effects::PlaySoundEvent {
+                    sound_id: dec.sound_id as u32,
+                    position: dec_pos,
+                });
+            }
         }
     }
 }
@@ -803,7 +799,7 @@ fn spawn_npc_actors(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
     meshes: &mut Assets<Mesh>,
-    sprite_materials: &mut Assets<SpriteMaterial>,
+    mut sprite_materials: Option<&mut Assets<SpriteMaterial>>,
     spawn_tint: Vec4,
     start: std::time::Instant,
     time_budget: f32,
@@ -824,26 +820,32 @@ fn spawn_npc_actors(
         };
 
         if actor.is_monster() {
-            let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
-                &actor.standing_sprite,
-                &actor.walking_sprite,
-                &actor.attacking_sprite,
-                &actor.dying_sprite,
-                game_assets.assets(),
-                images,
-                sprite_materials,
-                &mut Some(&mut p.sprite_cache),
-                actor.variant,
-                actor.palette_id,
-            );
+            let (states, state_masks, raw_w, raw_h) = if let Some(materials) = sprite_materials.as_mut() {
+                sprites::load_entity_sprites(
+                    &actor.standing_sprite,
+                    &actor.walking_sprite,
+                    &actor.attacking_sprite,
+                    &actor.dying_sprite,
+                    game_assets.assets(),
+                    images,
+                    materials,
+                    &mut Some(&mut p.sprite_cache),
+                    actor.variant,
+                    actor.palette_id,
+                )
+            } else {
+                (Vec::new(), Vec::new(), 0.0, 0.0)
+            };
             if states.is_empty() {
                 continue;
             }
-            for state in &states {
-                for frame in state {
-                    for handle in frame {
-                        if let Some(m) = sprite_materials.get_mut(handle.id()) {
-                            m.extension.tint = spawn_tint;
+            if let Some(materials) = sprite_materials.as_mut() {
+                for state in &states {
+                    for frame in state {
+                        for handle in frame {
+                            if let Some(m) = materials.get_mut(handle.id()) {
+                                m.extension.tint = spawn_tint;
+                            }
                         }
                     }
                 }
@@ -915,26 +917,32 @@ fn spawn_npc_actors(
             continue;
         }
 
-        let (s2, m2, w2, h2) = sprites::load_entity_sprites(
-            &actor.standing_sprite,
-            &actor.walking_sprite,
-            &actor.attacking_sprite,
-            "",
-            game_assets.assets(),
-            images,
-            sprite_materials,
-            &mut Some(&mut p.sprite_cache),
-            actor.variant,
-            actor.palette_id,
-        );
+        let (s2, m2, w2, h2) = if let Some(materials) = sprite_materials.as_mut() {
+            sprites::load_entity_sprites(
+                &actor.standing_sprite,
+                &actor.walking_sprite,
+                &actor.attacking_sprite,
+                "",
+                game_assets.assets(),
+                images,
+                materials,
+                &mut Some(&mut p.sprite_cache),
+                actor.variant,
+                actor.palette_id,
+            )
+        } else {
+            (Vec::new(), Vec::new(), 0.0, 0.0)
+        };
         if s2.is_empty() {
             continue;
         }
-        for state in &s2 {
-            for frame in state {
-                for handle in frame {
-                    if let Some(m) = sprite_materials.get_mut(handle.id()) {
-                        m.extension.tint = spawn_tint;
+        if let Some(materials) = sprite_materials.as_mut() {
+            for state in &s2 {
+                for frame in state {
+                    for handle in frame {
+                        if let Some(m) = materials.get_mut(handle.id()) {
+                            m.extension.tint = spawn_tint;
+                        }
                     }
                 }
             }
@@ -965,7 +973,7 @@ fn spawn_npc_actors(
                 .and_then(|me| me.npc_table.as_ref())
                 .and_then(|t| t.peasant_identity(actor.is_female, i))
                 .unwrap_or((1, 52));
-            if let Some(me) = map_events {
+            if let Some(me) = map_events.as_mut() {
                 me.generated_npcs.insert(
                     gid,
                     openmm_data::GeneratedNpc {
@@ -1046,7 +1054,7 @@ fn spawn_odm_monsters(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
     meshes: &mut Assets<Mesh>,
-    sprite_materials: &mut Assets<SpriteMaterial>,
+    mut sprite_materials: Option<&mut Assets<SpriteMaterial>>,
     spawn_tint: Vec4,
     start: std::time::Instant,
     time_budget: f32,
@@ -1064,26 +1072,32 @@ fn spawn_odm_monsters(
             None => continue,
         };
 
-        let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
-            &mon.standing_sprite,
-            &mon.walking_sprite,
-            &mon.attacking_sprite,
-            &mon.dying_sprite,
-            game_assets.assets(),
-            images,
-            sprite_materials,
-            &mut Some(&mut p.sprite_cache),
-            mon.variant,
-            mon.palette_id,
-        );
+        let (states, state_masks, raw_w, raw_h) = if let Some(materials) = sprite_materials.as_mut() {
+            sprites::load_entity_sprites(
+                &mon.standing_sprite,
+                &mon.walking_sprite,
+                &mon.attacking_sprite,
+                &mon.dying_sprite,
+                game_assets.assets(),
+                images,
+                materials,
+                &mut Some(&mut p.sprite_cache),
+                mon.variant,
+                mon.palette_id,
+            )
+        } else {
+            (Vec::new(), Vec::new(), 0.0, 0.0)
+        };
         if states.is_empty() {
             continue;
         }
-        for state in &states {
-            for frame in state {
-                for handle in frame {
-                    if let Some(m) = sprite_materials.get_mut(handle.id()) {
-                        m.extension.tint = spawn_tint;
+        if let Some(materials) = sprite_materials.as_mut() {
+            for state in &states {
+                for frame in state {
+                    for handle in frame {
+                        if let Some(m) = materials.get_mut(handle.id()) {
+                            m.extension.tint = spawn_tint;
+                        }
                     }
                 }
             }

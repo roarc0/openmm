@@ -27,6 +27,7 @@ use crate::game::entities::{AnimationState, WorldEntity};
 use crate::game::hud::HudView;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
+use openmm_data::ActorSoundSlot;
 
 /// Heading offsets (degrees) probed when the direct path is blocked.
 /// Symmetric left/right pairs; wider angles last so narrower detours win ties.
@@ -143,7 +144,7 @@ fn monster_ai_system(
             Without<Player>,
         ),
     >,
-    mut sounds: MessageWriter<PlayOnceSoundEvent>,
+    sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
 ) {
     let Ok(player_tf) = player.single() else {
         return;
@@ -175,8 +176,9 @@ fn monster_ai_system(
                 return;
             }
 
-            // Fidget sound: play slot [3] periodically while wandering.
-            if *ai_mode == MonsterAiMode::Wander && actor.sound_ids[3] > 0 {
+            // Fidget sound: play slot [Fidget] periodically while wandering.
+            let fidget_sound = actor.sound_ids[ActorSoundSlot::Fidget as usize];
+            if *ai_mode == MonsterAiMode::Wander && fidget_sound > 0 {
                 actor.fidget_timer -= dt;
                 if actor.fidget_timer <= 0.0 {
                     // Randomise next fidget interval: 10–25s, position-seeded for variance.
@@ -185,7 +187,7 @@ fn monster_ai_system(
                         .fract();
                     actor.fidget_timer = 10.0 + seed * 15.0;
                     sounds.lock().unwrap().push(PlayOnceSoundEvent {
-                        sound_id: actor.sound_ids[3] as u32,
+                        sound_id: fidget_sound as u32,
                         position: transform.translation,
                     });
                 }
@@ -217,9 +219,10 @@ fn monster_ai_system(
                         *anim_state = AnimationState::Walking;
                         debug!("Monster '{}' aggros player", actor.name);
                         // Battle-growl on aggro (got_hit slot reused as alert sound).
-                        if actor.sound_ids[2] > 0 {
+                        let alert_sound = actor.sound_ids[ActorSoundSlot::GotHit as usize];
+                        if alert_sound > 0 {
                             sounds.lock().unwrap().push(PlayOnceSoundEvent {
-                                sound_id: actor.sound_ids[2] as u32,
+                                sound_id: alert_sound as u32,
                                 position: my_pos,
                             });
                         }
@@ -325,7 +328,9 @@ fn monster_ai_system(
         });
 
     // Write all queued sound events serially
-    for event in pending_sounds.lock().unwrap().drain(..) {
-        sounds.write(event);
+    if let Some(mut s) = sounds {
+        for event in pending_sounds.lock().unwrap().drain(..) {
+            s.write(event);
+        }
     }
 }

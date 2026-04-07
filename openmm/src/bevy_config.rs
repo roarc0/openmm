@@ -1,10 +1,10 @@
-use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use bevy::window::{PresentMode, Window, WindowMode, WindowResolution};
 
 use crate::APP_NAME;
 use crate::config::GameConfig;
+use crate::frame_limiter::FrameLimiterPlugin;
 
 pub struct BevyConfigPlugin;
 
@@ -12,14 +12,14 @@ impl Plugin for BevyConfigPlugin {
     fn build(&self, app: &mut App) {
         let cfg = app.world().resource::<GameConfig>().clone();
 
-        let present_mode = if cfg.fps_cap == 0 {
-            PresentMode::Immediate
-        } else {
-            match cfg.vsync.as_str() {
-                "fast" => PresentMode::Mailbox,
-                "off" => PresentMode::Immediate,
-                _ => PresentMode::AutoVsync,
-            }
+        // Present mode is purely controlled by the vsync setting. The
+        // `fps_cap` is enforced independently by `FrameLimiterPlugin` so it
+        // works regardless of vsync mode (otherwise vsync=off + fps_cap=60
+        // would silently spin the CPU at thousands of fps).
+        let present_mode = match cfg.vsync.as_str() {
+            "fast" => PresentMode::Mailbox,
+            "off" => PresentMode::Immediate,
+            _ => PresentMode::AutoVsync,
         };
 
         let window_mode = match cfg.window_mode.as_str() {
@@ -34,10 +34,10 @@ impl Plugin for BevyConfigPlugin {
 
         // Build tracing filter: set external crates to warn, our crate to configured level.
         // Format: "warn,openmm=info" or "warn,openmm=debug,lod=debug"
-        let log_level = cfg.log_level.to_lowercase();
-        let log_filter = format!("warn,openmm={log_level},lod={log_level}");
+        let log_level_str = cfg.log_level.to_lowercase();
+        let log_filter = format!("warn,openmm={log_level_str},lod={log_level_str}");
 
-        let default_plugins = DefaultPlugins
+        let plugins = DefaultPlugins
             .set(WindowPlugin {
                 primary_window: Some(Window {
                     title: APP_NAME.into(),
@@ -56,11 +56,23 @@ impl Plugin for BevyConfigPlugin {
             })
             .set(LogPlugin {
                 filter: log_filter,
-                level: bevy::log::Level::TRACE,
+                level: log_level(&cfg),
                 ..default()
             });
 
-        app.add_plugins((default_plugins, FrameTimeDiagnosticsPlugin::default()));
+        app.add_plugins(plugins).add_plugins(FrameLimiterPlugin);
+    }
+}
+
+/// Returns the bevy log level from config.
+pub fn log_level(cfg: &GameConfig) -> bevy::log::Level {
+    match cfg.log_level.to_lowercase().as_str() {
+        "trace" => bevy::log::Level::TRACE,
+        "debug" => bevy::log::Level::DEBUG,
+        "info" => bevy::log::Level::INFO,
+        "warn" => bevy::log::Level::WARN,
+        "error" => bevy::log::Level::ERROR,
+        _ => bevy::log::Level::INFO,
     }
 }
 
@@ -160,11 +172,19 @@ pub fn camera_motion_blur(cfg: &GameConfig) -> Option<bevy::post_process::motion
     }
 }
 
-/// Returns an optional DepthOfField component tuned for far visibility.
+/// Bevy's DoF is physically based: focal length is derived from `sensor_height`
+/// (Bevy default 18.66mm Super 35) and FOV. MM6's world units are far larger than
+/// real-world meters, so we override `sensor_height` to a value that produces
+/// visible blur at MM6 scale. Not user-tunable — this is a unit-system constant.
+const DOF_SENSOR_HEIGHT: f32 = 10.0;
+
+/// Returns an optional DepthOfField component tuned for MM6's world unit scale.
 pub fn camera_dof(cfg: &GameConfig) -> Option<bevy::post_process::dof::DepthOfField> {
     if cfg.depth_of_field {
         Some(bevy::post_process::dof::DepthOfField {
             focal_distance: cfg.depth_of_field_distance,
+            aperture_f_stops: cfg.depth_of_field_aperture,
+            sensor_height: DOF_SENSOR_HEIGHT,
             ..default()
         })
     } else {

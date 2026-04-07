@@ -307,6 +307,18 @@ pub enum ActorAnimation {
     Bored = 7,
 }
 
+// ── Actor Sound Slots ────────────────────────────────────────────────────
+
+/// Actor sound effect indices (recorded as u16[4] in MapMonster).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(usize)]
+pub enum ActorSoundSlot {
+    Attack = 0,
+    Die = 1,
+    GotHit = 2,
+    Fidget = 3,
+}
+
 // ── Actor Attributes (bitflags) ──────────────────────────────────────────
 
 bitflags! {

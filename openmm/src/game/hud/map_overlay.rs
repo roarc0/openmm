@@ -31,13 +31,13 @@ pub(super) fn map_input_system(
     keys: Res<ButtonInput<KeyCode>>,
     mut view: ResMut<HudView>,
     map_image: Option<Res<MapOverviewImage>>,
-    console: Res<crate::game::debug::console::ConsoleState>,
+    console: Option<Res<crate::game::debug::console::ConsoleState>>,
 ) {
     if !keys.just_pressed(KeyCode::KeyM) {
         return;
     }
     match *view {
-        HudView::World if !console.open => {
+        HudView::World if !console.as_ref().is_some_and(|c| c.open) => {
             if map_image.as_ref().and_then(|m| m.0.as_ref()).is_some() {
                 *view = HudView::Map;
             }

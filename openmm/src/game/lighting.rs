@@ -10,7 +10,7 @@ use crate::game::entities::{Billboard, SelfLit};
 use crate::game::game_time::GameTime;
 use crate::game::player::Player;
 use crate::game::sprite_material::SpriteMaterial;
-use crate::game::terrain_material::TerrainMaterial;
+use crate::game::terrain::TerrainMaterial;
 
 pub struct LightingPlugin;
 
@@ -146,7 +146,7 @@ fn animate_day_cycle(
     mut lighting_state: ResMut<LightingState>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
     mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
-    mut terrain_materials: ResMut<Assets<TerrainMaterial>>,
+    mut terrain_materials: Option<ResMut<Assets<TerrainMaterial>>>,
     mut current_tint: ResMut<CurrentSpriteTint>,
     indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
     // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
@@ -198,12 +198,14 @@ fn animate_day_cycle(
                 }
             }
 
-            for (_, mat) in terrain_materials.iter_mut() {
-                mat.base.unlit = unlit;
-                if unlit {
-                    mat.base.base_color = Color::srgb(0.69, 0.69, 0.69);
-                } else {
-                    mat.base.base_color = Color::srgb(1.2, 1.2, 1.2);
+            if let Some(tm) = terrain_materials.as_mut() {
+                for (_, mat) in tm.iter_mut() {
+                    mat.base.unlit = unlit;
+                    if unlit {
+                        mat.base.base_color = Color::srgb(0.69, 0.69, 0.69);
+                    } else {
+                        mat.base.base_color = Color::srgb(1.2, 1.2, 1.2);
+                    }
                 }
             }
         }

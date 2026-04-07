@@ -49,13 +49,13 @@ struct MapEntityParams<'w, 's> {
     actors: Query<'w, 's, (&'static mut Actor, &'static mut Visibility)>,
     player: Query<'w, 's, &'static mut Transform, With<crate::game::player::Player>>,
     player_settings: Res<'w, crate::game::player::PlayerSettings>,
-    sprite_tint: Res<'w, CurrentSpriteTint>,
+    sprite_tint: Option<Res<'w, CurrentSpriteTint>>,
 }
 
 /// Bundles audio + mesh assets + game_time to stay within Bevy's 16-param limit.
 #[derive(SystemParam)]
 struct AudioParams<'w> {
-    ui_sound: bevy::ecs::message::MessageWriter<'w, PlayUiSoundEvent>,
+    ui_sound: Option<bevy::ecs::message::MessageWriter<'w, PlayUiSoundEvent>>,
     texture_outdoors: bevy::ecs::message::MessageWriter<'w, ApplyTextureOutdoors>,
     sound_manager: Option<Res<'w, SoundManager>>,
     game_time: Option<Res<'w, crate::game::game_time::GameTime>>,
@@ -445,7 +445,7 @@ fn process_events(
     map_events: Option<Res<MapEvents>>,
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
-    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
+    mut sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
     mut commands: Commands,
     mut hud_view: ResMut<HudView>,
     mut footer: ResMut<FooterText>,
@@ -528,7 +528,9 @@ fn process_events(
                     if let Some(ref sm) = audio.sound_manager
                         && let Some(s) = sm.dsounds.get_by_name("openchest0101")
                     {
-                        audio.ui_sound.write(PlayUiSoundEvent { sound_id: s.sound_id });
+                        if let Some(events) = audio.ui_sound.as_mut() {
+                            events.write(PlayUiSoundEvent { sound_id: s.sound_id });
+                        }
                     }
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Chest;
@@ -550,7 +552,9 @@ fn process_events(
                     if let Some(ref sm) = audio.sound_manager
                         && let Some(s) = sm.dsounds.get_by_name("teleport")
                     {
-                        audio.ui_sound.write(PlayUiSoundEvent { sound_id: s.sound_id });
+                        if let Some(events) = audio.ui_sound.as_mut() {
+                            events.write(PlayUiSoundEvent { sound_id: s.sound_id });
+                        }
                     }
                     let base = Vec3::from(mm6_to_bevy(*x, *y, *z));
                     // Player Transform.y is at eye level (feet + eye_height), same as spawn.
@@ -617,7 +621,9 @@ fn process_events(
                 }
             }
             GameEvent::PlaySound { sound_id } => {
-                audio.ui_sound.write(PlayUiSoundEvent { sound_id: *sound_id });
+                if let Some(events) = audio.ui_sound.as_mut() {
+                    events.write(PlayUiSoundEvent { sound_id: *sound_id });
+                }
             }
             GameEvent::StatusText { text, .. } => {
                 footer.set_status(text, 2.0, time.elapsed_secs_f64());
@@ -756,12 +762,15 @@ fn process_events(
                     continue;
                 };
                 let _ = declist_id; // stored for future use (e.g. directional swap)
+                let Some(sprite_materials) = sprite_materials.as_deref_mut() else {
+                    continue;
+                };
                 let Some((new_mat, new_mesh, _new_w, new_h)) =
                     crate::game::entities::sprites::load_static_decoration_sprite(
                         sprite_name,
                         game_assets.assets(),
                         &mut images,
-                        &mut sprite_materials,
+                        sprite_materials,
                         &mut audio.meshes,
                     )
                 else {
@@ -775,8 +784,10 @@ fn process_events(
                         mat_handle.0 = new_mat.clone();
                         // Apply current tint immediately so the new sprite matches the
                         // scene lighting without waiting for the next lighting tick.
-                        if let Some(mat) = sprite_materials.get_mut(&new_mat) {
-                            mat.extension.tint = entities.sprite_tint.tint;
+                        if let Some(ref tint) = entities.sprite_tint
+                            && let Some(mat) = sprite_materials.get_mut(&new_mat)
+                        {
+                            mat.extension.tint = tint.tint;
                         }
                         break;
                     }

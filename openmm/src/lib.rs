@@ -12,6 +12,7 @@ pub(crate) mod assets;
 pub(crate) mod bevy_config;
 pub mod config;
 pub(crate) mod fonts;
+pub(crate) mod frame_limiter;
 pub(crate) mod game;
 pub(crate) mod save;
 pub(crate) mod states;

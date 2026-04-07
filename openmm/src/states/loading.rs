@@ -423,7 +423,7 @@ fn loading_step(
     mut text_query: Query<&mut Text, With<LoadingText>>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut sprite_materials: ResMut<Assets<crate::game::sprite_material::SpriteMaterial>>,
+    mut sprite_materials: Option<ResMut<Assets<crate::game::sprite_material::SpriteMaterial>>>,
     world_state: Option<Res<crate::game::world_state::WorldState>>,
 ) {
     // Update loading text
@@ -1177,7 +1177,7 @@ fn loading_step(
             }
 
             // Preload sprite textures in batches
-            {
+            if let Some(sprite_materials) = sprite_materials.as_deref_mut() {
                 let mut cache = progress.sprite_cache.take().unwrap_or_default();
                 let queue = progress.preload_queue.as_mut().unwrap();
                 while queue.sprite_idx < queue.sprite_roots.len() {
@@ -1189,15 +1189,25 @@ fn loading_step(
                         &[(root.as_str(), *variant, *palette_id)],
                         game_assets.assets(),
                         &mut images,
-                        &mut sprite_materials,
+                        sprite_materials,
                     );
                     queue.sprite_idx += 1;
                 }
                 progress.sprite_cache = Some(cache);
+            } else {
+                // Sprite materials plugin disabled — skip sprite preloading entirely.
+                let queue = progress.preload_queue.as_mut().unwrap();
+                queue.sprite_idx = queue.sprite_roots.len();
             }
 
             // Preload billboard/decoration sprites in batches
-            {
+            if sprite_materials.is_none() {
+                // Sprite materials plugin disabled — skip billboard preloading entirely.
+                let dec_len = progress.decorations.as_ref().map_or(0, |d| d.len());
+                let queue = progress.preload_queue.as_mut().unwrap();
+                queue.billboard_idx = dec_len;
+            }
+            if let Some(sprite_materials) = sprite_materials.as_deref_mut() {
                 let sprites_done = progress.preload_queue.as_ref().unwrap().sprite_idx
                     >= progress.preload_queue.as_ref().unwrap().sprite_roots.len();
                 if sprites_done {

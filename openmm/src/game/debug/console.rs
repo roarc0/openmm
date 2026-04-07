@@ -1035,11 +1035,8 @@ fn sync_config_to_scene(
     }
 
     for (entity, existing_dof) in camera_q.iter() {
-        if cfg.depth_of_field {
-            commands.entity(entity).insert(bevy::post_process::dof::DepthOfField {
-                focal_distance: cfg.depth_of_field_distance,
-                ..default()
-            });
+        if let Some(dof) = crate::bevy_config::camera_dof(&cfg) {
+            commands.entity(entity).insert(dof);
         } else if existing_dof.is_some() {
             commands
                 .entity(entity)

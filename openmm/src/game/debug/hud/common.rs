@@ -7,7 +7,7 @@ pub struct HudThrottle(pub Timer);
 
 impl Default for HudThrottle {
     fn default() -> Self {
-        Self(Timer::from_seconds(0.5, TimerMode::Repeating))
+        Self(Timer::from_seconds(0.1, TimerMode::Repeating))
     }
 }
 

@@ -27,8 +27,8 @@ use minimap::*;
 
 /// Run condition: game input is fully active — HudView is World and no console open.
 /// Use this on all player/world input systems instead of manual per-system checks.
-pub fn game_input_active(view: Res<HudView>, console: Res<ConsoleState>) -> bool {
-    matches!(*view, HudView::World) && !console.open
+pub fn game_input_active(view: Res<HudView>, console: Option<Res<ConsoleState>>) -> bool {
+    matches!(*view, HudView::World) && !console.as_ref().is_some_and(|c| c.open)
 }
 
 /// Set cursor grab mode and visibility. grab=true = locked/hidden (gameplay), false = free (UI).
@@ -75,8 +75,6 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(debug_hud::DebugHudCoordsPlugin)
-            .init_resource::<FooterText>()
-            .init_resource::<HudView>()
             .add_systems(OnEnter(GameState::Game), spawn_hud)
             .add_systems(Update, close_ui_system.run_if(in_state(GameState::Game)))
             .add_systems(
@@ -111,12 +109,15 @@ impl Plugin for HudPlugin {
 fn close_ui_system(
     keys: Res<ButtonInput<KeyCode>>,
     mut view: ResMut<HudView>,
-    console: Res<ConsoleState>,
+    console: Option<Res<ConsoleState>>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut commands: Commands,
     mut event_queue: ResMut<crate::game::event_dispatch::EventQueue>,
 ) {
-    if console.open || !keys.just_pressed(KeyCode::Escape) || matches!(*view, HudView::World) {
+    if console.as_ref().is_some_and(|c| c.open)
+        || !keys.just_pressed(KeyCode::Escape)
+        || matches!(*view, HudView::World)
+    {
         return;
     }
     event_queue.clear();

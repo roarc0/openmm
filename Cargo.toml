@@ -15,9 +15,12 @@ edition = "2024"
 opt-level = 3
 
 [profile.release]
-strip = true       # remove debug symbols (~40-60% size reduction)
-lto = "thin"       # link-time optimisation (removes dead code across crates)
-codegen-units = 1  # single codegen unit enables better inlining/DCE
+opt-level = 3
+strip = true
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+incremental = false
 
 # Profiling: release-speed but with symbols intact for Tracy/flamegraph
 [profile.profiling]

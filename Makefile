@@ -1,4 +1,4 @@
-.PHONY: build run release check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci profile-chrome profile-tracy
+.PHONY: build run release release-native run-release run-release-native check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci profile-chrome profile-tracy
 
 # --- Build ---
 
@@ -7,6 +7,9 @@ build:
 
 release:
 	cargo build --release -p openmm
+
+release-native:
+	RUSTFLAGS="-C target-cpu=native $$RUSTFLAGS" cargo build --release -p openmm
 
 run:
 ifdef map
@@ -17,6 +20,9 @@ endif
 
 run-release:
 	cargo run --release -p openmm
+
+run-release-native:
+	RUSTFLAGS="-C target-cpu=native $$RUSTFLAGS" cargo run --release -p openmm
 
 # --- Profiling ---
 # Chrome tracing: opens a JSON file in https://ui.perfetto.dev
@@ -89,10 +95,12 @@ check-data:
 
 help:
 	@echo "Available commands:"
-	@echo "  build         - Build the project (debug)"
-	@echo "  release       - Build the project (release)"
-	@echo "  run           - Run the game (use map=X to load specific map)"
-	@echo "  run-release   - Run the game in release mode"
+	@echo "  build               - Build the project (debug)"
+	@echo "  release             - Build the project (release, portable)"
+	@echo "  release-native      - Build release with -C target-cpu=native (local only, faster)"
+	@echo "  run                 - Run the game (use map=X to load specific map)"
+	@echo "  run-release         - Run the game in release mode"
+	@echo "  run-release-native  - Run release-native (local only, faster)"
 	@echo "  check         - Run cargo check"
 	@echo "  clippy        - Run clippy linting"
 	@echo "  fix           - Auto-fix clippy and run fmt"

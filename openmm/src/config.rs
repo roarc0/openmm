@@ -163,6 +163,14 @@ struct Cli {
     #[arg(long)]
     depth_of_field: Option<bool>,
 
+    /// Depth of field focal distance (world units)
+    #[arg(long)]
+    depth_of_field_distance: Option<f32>,
+
+    /// Depth of field aperture in f-stops (smaller = stronger blur, e.g. 1.4 for strong, 8.0 for subtle)
+    #[arg(long)]
+    depth_of_field_aperture: Option<f32>,
+
     /// Enable motion blur
     #[arg(long)]
     motion_blur: Option<bool>,
@@ -170,6 +178,11 @@ struct Cli {
     /// Exposure compensation (-2.0 to 2.0)
     #[arg(long)]
     exposure: Option<f32>,
+
+    /// Enable bevy_inspector_egui world inspector (also loads EguiPlugin).
+    /// Off by default — egui conflicts with Fxaa and is expensive on populated maps.
+    #[arg(long)]
+    world_inspector: Option<bool>,
 
     /// Path to config file
     /// Path to config file (default: ./openmm.toml, fallback: data/openmm.toml)
@@ -218,8 +231,11 @@ struct ConfigFile {
     tonemapping: Option<String>,
     shadows: Option<bool>,
     depth_of_field: Option<bool>,
+    depth_of_field_distance: Option<f32>,
+    depth_of_field_aperture: Option<f32>,
     motion_blur: Option<bool>,
     exposure: Option<f32>,
+    world_inspector: Option<bool>,
 }
 
 /// Resolved game configuration — available as a Bevy resource.
@@ -293,12 +309,18 @@ pub struct GameConfig {
     pub shadows: bool,
     /// Depth of field blur
     pub depth_of_field: bool,
-    /// Depth of field focal distance
+    /// Depth of field focal distance (world units)
     pub depth_of_field_distance: f32,
+    /// Depth of field aperture in f-stops — smaller = stronger blur
+    pub depth_of_field_aperture: f32,
     /// Motion blur
     pub motion_blur: bool,
     /// Exposure compensation
     pub exposure: f32,
+    /// Load `EguiPlugin` + `WorldInspectorPlugin` on startup. Off by default
+    /// because egui's render node interacts badly with `Fxaa` (blanks the
+    /// scene) and walking every entity each frame is expensive.
+    pub world_inspector: bool,
 }
 
 impl Default for GameConfig {
@@ -343,9 +365,11 @@ impl Default for GameConfig {
             tonemapping: "agx".into(),
             shadows: true,
             depth_of_field: false,
-            depth_of_field_distance: 30.0,
+            depth_of_field_distance: 1000.0,
+            depth_of_field_aperture: 2.8,
             motion_blur: false,
             exposure: 0.0,
+            world_inspector: false,
         }
     }
 }
@@ -449,9 +473,19 @@ impl GameConfig {
             tonemapping: resolve!(cli.tonemapping, file_cfg.tonemapping, d.tonemapping),
             shadows: resolve!(cli.shadows, file_cfg.shadows, d.shadows),
             depth_of_field: resolve!(cli.depth_of_field, file_cfg.depth_of_field, d.depth_of_field),
-            depth_of_field_distance: d.depth_of_field_distance,
+            depth_of_field_distance: resolve!(
+                cli.depth_of_field_distance,
+                file_cfg.depth_of_field_distance,
+                d.depth_of_field_distance
+            ),
+            depth_of_field_aperture: resolve!(
+                cli.depth_of_field_aperture,
+                file_cfg.depth_of_field_aperture,
+                d.depth_of_field_aperture
+            ),
             motion_blur: resolve!(cli.motion_blur, file_cfg.motion_blur, d.motion_blur),
             exposure: resolve!(cli.exposure, file_cfg.exposure, d.exposure),
+            world_inspector: resolve!(cli.world_inspector, file_cfg.world_inspector, d.world_inspector),
         };
         resolved.validate();
         resolved
@@ -471,6 +505,12 @@ impl GameConfig {
 impl GameConfig {
     fn validate(&self) {
         // Validate string enum fields
+        if !matches!(
+            self.log_level.to_lowercase().as_str(),
+            "trace" | "debug" | "info" | "warn" | "error"
+        ) {
+            warn!("Unknown log_level '{}' — using 'info'", self.log_level);
+        }
         if !matches!(self.window_mode.as_str(), "windowed" | "borderless" | "fullscreen") {
             warn!("Unknown window_mode '{}' — using 'windowed'", self.window_mode);
         }

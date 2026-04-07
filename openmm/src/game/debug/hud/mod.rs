@@ -1,10 +1,8 @@
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::{
-    input::common_conditions::input_toggle_active,
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
 };
-use bevy_inspector_egui::bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 pub mod chart;
 pub mod common;
@@ -30,11 +28,7 @@ impl Plugin for DebugHudPlugin {
             .init_resource::<FpsHistory>()
             .init_resource::<HudThrottle>()
             .init_resource::<super::cpu_usage::CpuStats>()
-            .add_plugins((
-                WireframePlugin::default(),
-                EguiPlugin::default(),
-                WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::Escape)),
-            ))
+            .add_plugins((WireframePlugin::default(), FrameTimeDiagnosticsPlugin::default()))
             .add_systems(
                 Update,
                 (

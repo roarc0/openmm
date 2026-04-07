@@ -9,6 +9,7 @@ use crate::game::entities::actor::Actor;
 use crate::game::hud::HudView;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
+use openmm_data::ActorSoundSlot;
 
 /// Per-attack animation duration in seconds (approx 5 frames at 0.15s).
 const ATTACK_ANIM_SECS: f32 = 0.75;
@@ -60,7 +61,7 @@ fn monster_attack_system(
     mut budget: ResMut<AttackBudget>,
     mut actors: Query<(&Transform, &mut Actor, &mut AnimationState), (Without<DyingTimer>, Without<ActorDead>)>,
     player: Query<&Transform, With<Player>>,
-    mut sounds: MessageWriter<PlayOnceSoundEvent>,
+    mut sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
 ) {
     let Ok(player_tf) = player.single() else {
         return;
@@ -119,11 +120,14 @@ fn monster_attack_system(
         *anim_state = AnimationState::Attacking;
         actor.attack_anim_remaining = ATTACK_ANIM_SECS;
 
-        if actor.sound_ids[0] > 0 {
-            sounds.write(PlayOnceSoundEvent {
-                sound_id: actor.sound_ids[0] as u32,
-                position: transform.translation,
-            });
+        let attack_sound = actor.sound_ids[ActorSoundSlot::Attack as usize];
+        if attack_sound > 0 {
+            if let Some(events) = sounds.as_mut() {
+                events.write(PlayOnceSoundEvent {
+                    sound_id: attack_sound as u32,
+                    position: transform.translation,
+                });
+            }
         }
     }
 }
@@ -133,7 +137,7 @@ fn monster_die_system(
     mut kill_events: bevy::ecs::message::MessageReader<KillActorEvent>,
     mut actors: Query<(&mut Actor, &Transform, &mut AnimationState), Without<DyingTimer>>,
     mut commands: Commands,
-    mut sounds: MessageWriter<PlayOnceSoundEvent>,
+    mut sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
     mut world_state: Option<ResMut<crate::game::world_state::WorldState>>,
 ) {
     for KillActorEvent(entity) in kill_events.read() {
@@ -150,17 +154,23 @@ fn monster_die_system(
         );
         *anim_state = AnimationState::Dying;
         // Play got_hit immediately (impact grunt), then die as the animation starts.
-        if actor.sound_ids[2] > 0 {
-            sounds.write(PlayOnceSoundEvent {
-                sound_id: actor.sound_ids[2] as u32,
-                position: transform.translation,
-            });
+        let hit_sound = actor.sound_ids[ActorSoundSlot::GotHit as usize];
+        if hit_sound > 0 {
+            if let Some(events) = sounds.as_mut() {
+                events.write(PlayOnceSoundEvent {
+                    sound_id: hit_sound as u32,
+                    position: transform.translation,
+                });
+            }
         }
-        if actor.sound_ids[1] > 0 {
-            sounds.write(PlayOnceSoundEvent {
-                sound_id: actor.sound_ids[1] as u32,
-                position: transform.translation,
-            });
+        let die_sound = actor.sound_ids[ActorSoundSlot::Die as usize];
+        if die_sound > 0 {
+            if let Some(events) = sounds.as_mut() {
+                events.write(PlayOnceSoundEvent {
+                    sound_id: die_sound as u32,
+                    position: transform.translation,
+                });
+            }
         }
         // Persist death: DDM-placed actors (ddm_id >= 0) are recorded so they don't
         // respawn when the map is reloaded. ODM spawn groups (ddm_id == -1) are skipped.

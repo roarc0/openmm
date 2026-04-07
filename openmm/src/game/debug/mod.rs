@@ -1,9 +1,12 @@
 use bevy::{input::ButtonInput, pbr::wireframe::WireframeConfig, prelude::*};
+use bevy_inspector_egui::bevy_egui::EguiPlugin;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 pub mod console;
 pub mod cpu_usage;
 pub mod hud;
 
+use crate::config::GameConfig;
 use crate::game::player::Player;
 use crate::save::GameSave;
 use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
@@ -13,6 +16,11 @@ pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugKeyBindings>().add_plugins(hud::DebugHudPlugin);
+
+        if app.world().resource::<GameConfig>().world_inspector {
+            app.add_plugins(EguiPlugin::default())
+                .add_plugins(WorldInspectorPlugin::default());
+        }
     }
 }
 
