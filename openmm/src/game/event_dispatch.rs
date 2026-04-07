@@ -6,7 +6,8 @@ use bevy::window::{CursorOptions, PrimaryWindow};
 
 use openmm_data::enums::EvtVariable;
 use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
-use openmm_data::odm::{mm6_bin_angle_to_radians, mm6_to_bevy};
+
+use crate::mm6_coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy};
 
 use crate::GameState;
 use crate::assets::GameAssets;
@@ -553,10 +554,10 @@ fn process_events(
                     {
                         audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
                     }
-                    let base = Vec3::from(mm6_to_bevy(*x, *y, *z));
+                    let base = Vec3::from(mm6_position_to_bevy(*x, *y, *z));
                     // Player Transform.y is at eye level (feet + eye_height), same as spawn.
                     let pos = Vec3::new(base.x, base.y + entities.player_settings.eye_height, base.z);
-                    let yaw = mm6_bin_angle_to_radians(*direction);
+                    let yaw = mm6_binary_angle_to_radians(*direction);
                     if let Ok(mut tf) = entities.player.single_mut() {
                         tf.translation = pos;
                         tf.rotation = Quat::from_rotation_y(yaw);
@@ -574,8 +575,8 @@ fn process_events(
                     return;
                 };
 
-                let pos = mm6_to_bevy(*x, *y, *z);
-                let yaw = mm6_bin_angle_to_radians(*direction);
+                let pos = mm6_position_to_bevy(*x, *y, *z);
+                let yaw = mm6_binary_angle_to_radians(*direction);
 
                 debug!(
                     "MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg",

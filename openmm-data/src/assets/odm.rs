@@ -24,32 +24,6 @@ pub const ODM_AREA: usize = ODM_SIZE * ODM_SIZE;
 pub const ODM_TILE_SCALE: f32 = 512.;
 pub const ODM_HEIGHT_SCALE: f32 = 32.;
 
-/// Convert MM6 coordinates (X right, Y forward, Z up) to Bevy (X right, Y up, Z = -Y_mm6).
-/// No height scaling -- raw coordinate swap only.
-pub fn mm6_to_bevy(x: i32, y: i32, z: i32) -> [f32; 3] {
-    [x as f32, z as f32, -(y as f32)]
-}
-
-/// Convert an MM6 fixed-point 16.16 plane normal `[nx, ny, nz]` (raw `i32`s
-/// from BSP/BLV face data) into a Bevy-axis float normal. Same axis swap as
-/// [`mm6_to_bevy`] plus the `/65536` fixed-point unscale.
-pub fn mm6_normal_to_bevy(normal: [i32; 3]) -> [f32; 3] {
-    [
-        normal[0] as f32 / 65536.0,
-        normal[2] as f32 / 65536.0,
-        -(normal[1] as f32) / 65536.0,
-    ]
-}
-
-/// Convert an MM6 "binary radian" angle (`0..65535` → `0..2π`) to f32 radians.
-///
-/// Accepts `i32` because MM6 EVT data stores angles in 4-byte fields even
-/// though only the low 16 bits are meaningful. Used for billboard facing yaws,
-/// `MoveToMap` directions, decoration orientations.
-pub fn mm6_bin_angle_to_radians(angle: i32) -> f32 {
-    (angle as f32) * std::f32::consts::TAU / 65536.0
-}
-
 const HEIGHT_MAP_OFFSET: u64 = 176;
 const HEIGHT_MAP_SIZE: usize = ODM_AREA;
 

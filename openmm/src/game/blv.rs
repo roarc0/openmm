@@ -9,7 +9,8 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use openmm_data::blv::DoorState;
-use openmm_data::odm::mm6_to_bevy;
+
+use crate::mm6_coords::mm6_position_to_bevy;
 
 use crate::GameState;
 use crate::game::InGame;
@@ -425,7 +426,7 @@ fn spawn_indoor_world(
     let lod = game_assets.lod();
     let mut sprite_cache = sprites::SpriteCache::default();
     for dec in prepared.decorations.entries() {
-        let dec_pos = Vec3::from(mm6_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
+        let dec_pos = Vec3::from(mm6_position_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
         let key = &dec.sprite_name;
         // sprite_center is set in each branch to the entity's world position (dec_pos + half-height).
         // Used afterwards to place the point light at the sprite centre, not the floor.
@@ -676,7 +677,7 @@ fn spawn_indoor_world(
             // Spread group members using golden angle (same as ODM, no terrain probe for indoor).
             let angle = mon.group_index as f32 * 2.399_f32;
             let r = mon.spawn_radius as f32;
-            let [bx, by, bz] = mm6_to_bevy(
+            let [bx, by, bz] = mm6_position_to_bevy(
                 mon.spawn_position[0] + (r * angle.cos()) as i32,
                 mon.spawn_position[1] + (r * angle.sin()) as i32,
                 mon.spawn_position[2],

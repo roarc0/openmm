@@ -12,6 +12,21 @@ use crate::{
     utils::try_read_string_block,
 };
 
+/// Convert an MM6 16.16 fixed-point face normal `[nx, ny, nz]` into a
+/// right-handed Y-up float vector for the renderer (axis swap + /65536 unscale).
+///
+/// `openmm-data` deliberately stays free of engine types, but the BSP mesh
+/// builders below pre-bake render-ready face normals, so this purely
+/// numerical helper lives here as a private utility.
+fn fixed_normal_to_yup(normal: [i32; 3]) -> [f32; 3] {
+    const FIXED_ONE: f32 = 65536.0;
+    [
+        normal[0] as f32 / FIXED_ONE,
+        normal[2] as f32 / FIXED_ONE,
+        -(normal[1] as f32) / FIXED_ONE,
+    ]
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BSPModel {
     pub header: BSPModelHeader,
@@ -258,7 +273,7 @@ impl BSPModel {
             let tex_w_f = tex_w as f32;
             let tex_h_f = tex_h as f32;
 
-            let normal = crate::assets::odm::mm6_normal_to_bevy(face.plane.normal);
+            let normal = fixed_normal_to_yup(face.plane.normal);
 
             let mesh = meshes_by_texture
                 .entry(tex_name.clone())

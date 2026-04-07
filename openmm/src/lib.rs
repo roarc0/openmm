@@ -14,6 +14,7 @@ pub mod config;
 pub(crate) mod fonts;
 pub(crate) mod frame_limiter;
 pub(crate) mod game;
+pub(crate) mod mm6_coords;
 pub(crate) mod save;
 pub(crate) mod states;
 pub(crate) mod ui_assets;

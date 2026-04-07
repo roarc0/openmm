@@ -14,8 +14,17 @@ use crate::LodSerialise;
 use crate::assets::{
     enums::{DoorAttributes, FaceAttributes, PolygonType},
     lod_data::LodData,
-    odm::mm6_to_bevy,
 };
+
+/// Swap MM6 vertex coordinates (X right, Y forward, Z up) into the
+/// right-handed Y-up convention used by the renderer (X right, Y up, -Z forward).
+///
+/// `openmm-data` deliberately stays free of engine types, but the BLV mesh
+/// builders below pre-bake render-ready vertex positions, so this purely
+/// numerical helper lives here as a private utility.
+fn vertex_to_yup(x: i32, y: i32, z: i32) -> [f32; 3] {
+    [x as f32, z as f32, -(y as f32)]
+}
 
 /// Read a fixed-size string block, using lossy UTF-8 conversion for non-ASCII bytes.
 fn read_string_lossy(cursor: &mut Cursor<&[u8]>, size: usize) -> Result<String, Box<dyn Error>> {
@@ -1271,7 +1280,7 @@ impl Blv {
                     };
                     if vert_idx < self.vertices.len() {
                         let v = &self.vertices[vert_idx];
-                        mesh.positions.push(mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32));
+                        mesh.positions.push(vertex_to_yup(v.x as i32, v.y as i32, v.z as i32));
                     } else {
                         mesh.positions.push([0.0, 0.0, 0.0]);
                     }
@@ -1368,7 +1377,7 @@ impl Blv {
                         let vert_idx = face.vertex_ids[vi] as usize;
                         if vert_idx < self.vertices.len() {
                             let v = &self.vertices[vert_idx];
-                            mesh.positions.push(mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32));
+                            mesh.positions.push(vertex_to_yup(v.x as i32, v.y as i32, v.z as i32));
                         } else {
                             mesh.positions.push([0.0, 0.0, 0.0]);
                         }

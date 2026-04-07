@@ -7,6 +7,7 @@ use crate::game::InGame;
 use crate::game::entities::sprites;
 use crate::game::optional::OptionalWrite;
 use crate::game::sprite_material::unlit_billboard_material;
+use crate::mm6_coords::mm6_position_to_bevy;
 
 use crate::game::lighting::{DSFT_ANIMATED_LR_SCALE, DSFT_STATIC_LR_SCALE, decoration_point_light};
 
@@ -27,11 +28,7 @@ pub(super) fn spawn_decorations(
         *bb_idx += 1;
         let dec = &p.decorations.entries()[dec_idx];
         let key = &dec.sprite_name;
-        let dec_pos = Vec3::from(openmm_data::odm::mm6_to_bevy(
-            dec.position[0],
-            dec.position[1],
-            dec.position[2],
-        ));
+        let dec_pos = Vec3::from(mm6_position_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
 
         if dec.is_directional {
             let Some(materials) = ctx.sprite_materials.as_deref_mut() else {

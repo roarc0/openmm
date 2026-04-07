@@ -7,12 +7,18 @@ use bevy::{
 use std::collections::HashMap;
 
 use crate::{
-    GameState, assets::GameAssets, config::GameConfig, despawn_all, game::map_name::MapName, game::odm::OdmName,
+    GameState,
+    assets::GameAssets,
+    config::GameConfig,
+    despawn_all,
+    game::map_name::MapName,
+    game::odm::OdmName,
+    mm6_coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy},
 };
 use openmm_data::{
     blv::Blv,
     dtile::{Dtile, TileTable},
-    odm::{Odm, OdmData, mm6_to_bevy},
+    odm::{Odm, OdmData},
 };
 
 pub struct LoadingPlugin;
@@ -626,9 +632,7 @@ fn loading_step(
                                 .iter()
                                 .filter_map(|&vid| {
                                     let v = blv.vertices.get(vid as usize)?;
-                                    Some(Vec3::from(openmm_data::odm::mm6_to_bevy(
-                                        v.x as i32, v.y as i32, v.z as i32,
-                                    )))
+                                    Some(Vec3::from(mm6_position_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                                 })
                                 .collect();
                             if verts.len() < 3 {
@@ -672,9 +676,7 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(
-                                    v.x as i32, v.y as i32, v.z as i32,
-                                )))
+                                Some(Vec3::from(mm6_position_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -705,9 +707,7 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(
-                                    v.x as i32, v.y as i32, v.z as i32,
-                                )))
+                                Some(Vec3::from(mm6_position_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -741,9 +741,7 @@ fn loading_step(
                             .iter()
                             .filter_map(|&vid| {
                                 let v = blv.vertices.get(vid as usize)?;
-                                Some(Vec3::from(openmm_data::odm::mm6_to_bevy(
-                                    v.x as i32, v.y as i32, v.z as i32,
-                                )))
+                                Some(Vec3::from(mm6_position_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
                             })
                             .collect();
                         if verts.len() < 3 {
@@ -843,8 +841,8 @@ fn loading_step(
                             })
                     });
                     if let Some((x, y, z, dir)) = evt_entry {
-                        let pos = Vec3::from(openmm_data::odm::mm6_to_bevy(x, y, z));
-                        let yaw = openmm_data::odm::mm6_bin_angle_to_radians(dir);
+                        let pos = Vec3::from(mm6_position_to_bevy(x, y, z));
+                        let yaw = mm6_binary_angle_to_radians(dir);
                         info!(
                             "Indoor spawn from EVT self-MoveToMap: mm6=({},{},{}) dir={}",
                             x, y, z, dir
@@ -858,7 +856,7 @@ fn loading_step(
                             let cy = (sector.bbox_min[1] as i32 + sector.bbox_max[1] as i32) / 2;
                             let floor_z = sector.bbox_min[2].min(sector.bbox_max[2]) as i32;
                             info!("Indoor spawn from sector center: floors={}", sector.floor_count);
-                            Vec3::from(openmm_data::odm::mm6_to_bevy(cx, cy, floor_z))
+                            Vec3::from(mm6_position_to_bevy(cx, cy, floor_z))
                         } else {
                             Vec3::ZERO
                         };
@@ -895,9 +893,9 @@ fn loading_step(
                     .map(|s| {
                         let [x0, y0, z0] = s.bbox_min.map(|v| v as i32);
                         let [x1, y1, z1] = s.bbox_max.map(|v| v as i32);
-                        let bmin = Vec3::from(mm6_to_bevy(x0, y0, z0));
-                        let bmax = Vec3::from(mm6_to_bevy(x1, y1, z1));
-                        // mm6_to_bevy flips Y/Z, so ensure min ≤ max on all axes.
+                        let bmin = Vec3::from(mm6_position_to_bevy(x0, y0, z0));
+                        let bmax = Vec3::from(mm6_position_to_bevy(x1, y1, z1));
+                        // mm6_position_to_bevy flips Y/Z, so ensure min ≤ max on all axes.
                         SectorAmbient {
                             bbox_min: bmin.min(bmax),
                             bbox_max: bmin.max(bmax),
@@ -914,7 +912,7 @@ fn loading_step(
                     .filter(|l| l.brightness > 0)
                     .map(|l| {
                         let [x, y, z] = l.position;
-                        let pos = Vec3::from(mm6_to_bevy(x as i32, y as i32, z as i32));
+                        let pos = Vec3::from(mm6_position_to_bevy(x as i32, y as i32, z as i32));
                         (pos, l.brightness)
                     })
                     .collect();
@@ -1007,11 +1005,8 @@ fn loading_step(
                                 }
                             })
                             .collect();
-                        let pos = openmm_data::odm::mm6_to_bevy(
-                            b.header.position[0],
-                            b.header.position[1],
-                            b.header.position[2],
-                        );
+                        let pos =
+                            mm6_position_to_bevy(b.header.position[0], b.header.position[1], b.header.position[2]);
                         let mut event_ids: Vec<u16> = b
                             .faces
                             .iter()
@@ -1056,7 +1051,7 @@ fn loading_step(
                             .unwrap_or(false);
                         let name_lower = bb.declist_name.to_lowercase();
                         if name_lower.contains("start") || is_marker {
-                            let pos = Vec3::from(openmm_data::odm::mm6_to_bevy(
+                            let pos = Vec3::from(mm6_position_to_bevy(
                                 bb.data.position[0],
                                 bb.data.position[1],
                                 bb.data.position[2],
@@ -1317,7 +1312,6 @@ fn extract_blv_collision(
 ) {
     use crate::game::collision::{CollisionTriangle, CollisionWall};
     use openmm_data::enums::PolygonType;
-    use openmm_data::odm::mm6_to_bevy;
 
     let mut walls = Vec::new();
     let mut floors = Vec::new();
@@ -1359,7 +1353,7 @@ fn extract_blv_collision(
             .iter()
             .filter_map(|&vid| {
                 let v = blv.vertices.get(vid as usize)?;
-                Some(Vec3::from(mm6_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
+                Some(Vec3::from(mm6_position_to_bevy(v.x as i32, v.y as i32, v.z as i32)))
             })
             .collect();
         if verts.len() < 3 {

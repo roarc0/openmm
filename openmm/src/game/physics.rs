@@ -8,6 +8,7 @@ use crate::game::collision::{
     sample_terrain_height,
 };
 use crate::game::player::{Player, PlayerPhysics, PlayerSettings};
+use crate::mm6_coords::mm6_fixed_normal_to_bevy;
 use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
 pub struct PhysicsPlugin;
@@ -61,7 +62,7 @@ fn setup_collision_data(
             if face.vertices_count < 3 || face.is_invisible() {
                 continue;
             }
-            let normal = Vec3::from(openmm_data::odm::mm6_normal_to_bevy(face.plane.normal));
+            let normal = Vec3::from(mm6_fixed_normal_to_bevy(face.plane.normal));
 
             // Use the authoritative polygon_type from game data to classify faces.
             // InBetweenFloorAndWall (stairs/ramps) is treated as walkable floor so
