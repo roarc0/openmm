@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
-pub(crate) mod actor_combat;
-pub(crate) mod actor_physics;
+pub(crate) mod actors;
 pub(crate) mod blv;
 pub(crate) mod collision;
 pub(crate) mod debug;
@@ -13,13 +12,11 @@ pub(crate) mod hud;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
 pub(crate) mod map_name;
-pub(crate) mod monster_ai;
 pub(crate) mod odm;
 pub(crate) mod optional;
 pub(crate) mod party;
 pub(crate) mod physics;
 pub(crate) mod player;
-pub(crate) mod raycast;
 pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod sprite_material;
@@ -98,13 +95,7 @@ impl Plugin for WorldPlugin {
 struct GameplayPlugin;
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((
-            player::PlayerPlugin,
-            actor_combat::ActorCombatPlugin,
-            actor_physics::ActorPhysicsPlugin,
-            monster_ai::MonsterAiPlugin,
-            party::PartyPlugin,
-        ));
+        app.add_plugins((player::PlayerPlugin, actors::ActorsPlugin, party::PartyPlugin));
     }
 }
 

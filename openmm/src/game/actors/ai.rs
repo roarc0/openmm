@@ -18,8 +18,8 @@
 use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
-use crate::game::actor_combat::{ActorDead, DyingTimer};
-use crate::game::actor_physics::{is_passable, snap_actor_y};
+use crate::game::actors::combat::{ActorDead, DyingTimer};
+use crate::game::actors::physics::{is_passable, snap_actor_y};
 use crate::game::blv::DoorColliders;
 use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
 use crate::game::entities::actor::Actor;

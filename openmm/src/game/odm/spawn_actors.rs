@@ -97,7 +97,7 @@ pub(super) fn spawn_npc_actors(
                 .insert(crate::game::interaction::MonsterInteractable {
                     name: actor.name.clone(),
                 })
-                .insert(crate::game::monster_ai::MonsterAiMode::Wander)
+                .insert(crate::game::actors::MonsterAiMode::Wander)
                 .insert(actor::Actor {
                     name: actor.name.clone(),
                     hp: actor.hp,
@@ -226,7 +226,7 @@ pub(super) fn spawn_npc_actors(
                 name: hover_name,
                 npc_id: effective_npc_id as i16,
             })
-            .insert(crate::game::monster_ai::MonsterAiMode::Wander)
+            .insert(crate::game::actors::MonsterAiMode::Wander)
             .insert(actor::Actor {
                 name: actor.name.clone(),
                 hp: actor.hp,
@@ -341,7 +341,7 @@ pub(super) fn spawn_odm_monsters(
                 state_masks,
             ))
             .insert(crate::game::interaction::MonsterInteractable { name: mon.name.clone() })
-            .insert(crate::game::monster_ai::MonsterAiMode::Wander)
+            .insert(crate::game::actors::MonsterAiMode::Wander)
             .insert(actor::Actor {
                 name: mon.name.clone(),
                 hp: mon.hp,

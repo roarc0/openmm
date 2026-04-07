@@ -17,8 +17,8 @@ use crate::game::entities::{SelfLit, actor, sprites};
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::HudView;
+use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
 use crate::game::player::PlayerCamera;
-use crate::game::raycast::{point_in_polygon, ray_plane_intersect};
 use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
 use crate::states::loading::PreparedIndoorWorld;
 
@@ -197,7 +197,7 @@ impl OccluderFaces {
     /// Returns the smallest `t` along `(origin, dir)` that hits any solid face,
     /// or `f32::MAX` if the ray misses all faces.
     pub fn min_hit_t(&self, origin: Vec3, dir: Vec3) -> f32 {
-        use crate::game::raycast::{point_in_polygon, ray_plane_intersect};
+        use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
         let mut min_t = f32::MAX;
         for face in &self.faces {
             if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist)
@@ -721,7 +721,7 @@ fn spawn_indoor_world(
                 crate::game::entities::AnimationState::Idle,
                 sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
                 crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
-                crate::game::monster_ai::MonsterAiMode::Wander,
+                crate::game::actors::MonsterAiMode::Wander,
                 actor::Actor {
                     name: mon.name.clone(),
                     hp: mon.hp,

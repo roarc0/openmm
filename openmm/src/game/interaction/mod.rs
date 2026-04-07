@@ -4,15 +4,17 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
-use crate::game::actor_combat::KillActorEvent;
+use crate::game::actors::KillActorEvent;
 use crate::game::blv::{ClickableFaces, OccluderFaces};
 use crate::game::entities::sprites::{AlphaMask, SpriteSheet};
 use crate::game::event_dispatch::EventQueue;
 use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::player::{Player, PlayerCamera};
-use crate::game::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 use crate::game::world_state::WorldState;
+
+pub mod raycast;
+use raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 
 /// Max ray distance for all outdoor interaction (billboards, decorations, BSP faces).
 /// One tile = 512 units — arm's reach, consistent with MM6 feel.
