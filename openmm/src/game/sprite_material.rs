@@ -31,3 +31,23 @@ impl MaterialExtension for SpriteExtension {
         "shaders/sprite_tint.wgsl".into()
     }
 }
+
+/// Build the standard unlit billboard sprite material used by every decoration,
+/// NPC and monster billboard. All billboards share the same PBR settings
+/// (unlit, alpha-masked, two-sided, no roughness/reflectance) — only the
+/// texture and per-sprite tint vary.
+pub fn unlit_billboard_material(texture: Handle<Image>, tint: Vec4) -> SpriteMaterial {
+    SpriteMaterial {
+        base: StandardMaterial {
+            unlit: true,
+            base_color_texture: Some(texture),
+            alpha_mode: AlphaMode::Mask(0.5),
+            cull_mode: None,
+            double_sided: true,
+            perceptual_roughness: 1.0,
+            reflectance: 0.0,
+            ..default()
+        },
+        extension: SpriteExtension { tint },
+    }
+}

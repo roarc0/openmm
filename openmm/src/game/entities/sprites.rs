@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use image::DynamicImage;
 
-use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
+use crate::game::sprite_material::{SpriteMaterial, unlit_billboard_material};
 
 use openmm_data::Assets as DataAssets;
 
@@ -457,21 +457,8 @@ fn decode_sprite_frames(
                     rgba
                 };
                 dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
-                let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
-                let tex = images.add(bevy_img);
-                dir_materials[dir] = materials.add(SpriteMaterial {
-                    base: StandardMaterial {
-                        unlit: true,
-                        base_color_texture: Some(tex),
-                        alpha_mode: AlphaMode::Mask(0.5),
-                        double_sided: true,
-                        cull_mode: None,
-                        perceptual_roughness: 1.0,
-                        reflectance: 0.0,
-                        ..default()
-                    },
-                    extension: SpriteExtension::default(),
-                });
+                let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
+                dir_materials[dir] = materials.add(unlit_billboard_material(tex, Vec4::ONE));
             } else if dir > 0 {
                 dir_materials[dir] = dir_materials[0].clone();
                 dir_masks[dir] = dir_masks[0].clone();
@@ -746,21 +733,8 @@ pub fn load_decoration_directions(
                 rgba
             };
             dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
-            let bevy_img = crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
-            let tex = images.add(bevy_img);
-            dirs[dir] = materials.add(SpriteMaterial {
-                base: StandardMaterial {
-                    unlit: true,
-                    base_color_texture: Some(tex),
-                    alpha_mode: AlphaMode::Mask(0.5),
-                    double_sided: true,
-                    cull_mode: None,
-                    perceptual_roughness: 1.0,
-                    reflectance: 0.0,
-                    ..default()
-                },
-                extension: SpriteExtension::default(),
-            });
+            let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
+            dirs[dir] = materials.add(unlit_billboard_material(tex, Vec4::ONE));
         } else if dir > 0 {
             dirs[dir] = dirs[0].clone();
             dir_masks[dir] = dir_masks[0].clone();
@@ -799,19 +773,7 @@ pub fn load_static_decoration_sprite(
     let h = img.height() as f32 * dsft_scale;
     let bevy_img = crate::assets::dynamic_to_bevy_image(img);
     let tex = images.add(bevy_img);
-    let mat = materials.add(SpriteMaterial {
-        base: StandardMaterial {
-            unlit: true,
-            base_color_texture: Some(tex),
-            alpha_mode: AlphaMode::Mask(0.5),
-            cull_mode: None,
-            double_sided: true,
-            perceptual_roughness: 1.0,
-            reflectance: 0.0,
-            ..default()
-        },
-        extension: SpriteExtension::default(),
-    });
+    let mat = materials.add(unlit_billboard_material(tex, Vec4::ONE));
     let mesh = meshes.add(Rectangle::new(w, h));
     Some((mat, mesh, w, h))
 }

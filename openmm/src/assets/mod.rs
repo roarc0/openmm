@@ -85,6 +85,13 @@ pub fn dynamic_to_bevy_image(img: image::DynamicImage) -> Image {
     Image::from_dynamic(img, true, bevy::asset::RenderAssetUsages::RENDER_WORLD)
 }
 
+/// Convert a raw RGBA8 buffer into a Bevy `Image`. Shortcut for the
+/// `dynamic_to_bevy_image(DynamicImage::ImageRgba8(rgba))` pattern used at
+/// every billboard / sprite spawn site.
+pub fn rgba8_to_bevy_image(rgba: image::RgbaImage) -> Image {
+    dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba))
+}
+
 /// Image sampler that repeats in both axes with linear filtering.
 pub fn repeat_linear_sampler() -> bevy::image::ImageSampler {
     bevy::image::ImageSampler::Descriptor(bevy::image::ImageSamplerDescriptor {

@@ -258,11 +258,7 @@ impl BSPModel {
             let tex_w_f = tex_w as f32;
             let tex_h_f = tex_h as f32;
 
-            // Face normal from the plane (MM6: x,y,z → Bevy: x,z,-y)
-            let nx = face.plane.normal[0] as f32 / 65536.0;
-            let ny = face.plane.normal[2] as f32 / 65536.0;
-            let nz = -face.plane.normal[1] as f32 / 65536.0;
-            let normal = [nx, ny, nz];
+            let normal = crate::assets::odm::mm6_normal_to_bevy(face.plane.normal);
 
             let mesh = meshes_by_texture
                 .entry(tex_name.clone())

@@ -844,7 +844,7 @@ fn loading_step(
                     });
                     if let Some((x, y, z, dir)) = evt_entry {
                         let pos = Vec3::from(openmm_data::odm::mm6_to_bevy(x, y, z));
-                        let yaw = (dir as f32) * std::f32::consts::TAU / 65536.0;
+                        let yaw = openmm_data::odm::mm6_bin_angle_to_radians(dir);
                         info!(
                             "Indoor spawn from EVT self-MoveToMap: mm6=({},{},{}) dir={}",
                             x, y, z, dir
@@ -1236,22 +1236,9 @@ fn loading_step(
                                     let mask = std::sync::Arc::new(
                                         crate::game::entities::sprites::AlphaMask::from_image(&rgba),
                                     );
-                                    let bevy_img =
-                                        crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(rgba));
-                                    let tex = images.add(bevy_img);
-                                    let m = sprite_materials.add(crate::game::sprite_material::SpriteMaterial {
-                                        base: StandardMaterial {
-                                            base_color_texture: Some(tex),
-                                            alpha_mode: AlphaMode::Mask(0.5),
-                                            unlit: true,
-                                            cull_mode: None,
-                                            double_sided: true,
-                                            perceptual_roughness: 1.0,
-                                            reflectance: 0.0,
-                                            ..default()
-                                        },
-                                        extension: crate::game::sprite_material::SpriteExtension::default(),
-                                    });
+                                    let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
+                                    let m = sprite_materials
+                                        .add(crate::game::sprite_material::unlit_billboard_material(tex, Vec4::ONE));
                                     let q = meshes.add(Rectangle::new(w, h));
                                     bb_cache.insert(dec.sprite_name.clone(), (m, q, w, h, mask));
                                 }

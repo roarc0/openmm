@@ -231,10 +231,7 @@ fn spawn_outdoor_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
             if verts.len() < 3 {
                 continue;
             }
-            let nx = face.plane.normal[0] as f32 / 65536.0;
-            let ny = face.plane.normal[2] as f32 / 65536.0;
-            let nz = -face.plane.normal[1] as f32 / 65536.0;
-            let normal = Vec3::new(nx, ny, nz);
+            let normal = Vec3::from(openmm_data::odm::mm6_normal_to_bevy(face.plane.normal));
             let plane_dist = normal.dot(verts[0]);
             if face.cog_trigger_id != 0 {
                 outdoor_clickable.push(crate::game::blv::ClickableFaceInfo {

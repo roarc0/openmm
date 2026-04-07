@@ -6,10 +6,11 @@ use bevy::prelude::*;
 use crate::game::InGame;
 use crate::game::entities::sprites;
 use crate::game::optional::OptionalWrite;
-use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
+use crate::game::sprite_material::unlit_billboard_material;
+
+use crate::game::lighting::{DSFT_ANIMATED_LR_SCALE, DSFT_STATIC_LR_SCALE, decoration_point_light};
 
 use super::lazy_spawn::{PendingSpawns, SpawnCtx};
-use super::{DSFT_ANIMATED_LR_SCALE, DSFT_STATIC_LR_SCALE, decoration_point_light};
 
 pub(super) fn spawn_decorations(
     commands: &mut Commands,
@@ -120,27 +121,11 @@ pub(super) fn spawn_decorations(
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
                 let msk = std::sync::Arc::new(crate::game::entities::sprites::AlphaMask::from_image(&rgba));
-                let tex = ctx
-                    .images
-                    .add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
-                        rgba,
-                    )));
+                let tex = ctx.images.add(crate::assets::rgba8_to_bevy_image(rgba));
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
                 };
-                let mat = materials.add(SpriteMaterial {
-                    base: StandardMaterial {
-                        unlit: true,
-                        base_color_texture: Some(tex),
-                        alpha_mode: AlphaMode::Mask(0.5),
-                        cull_mode: None,
-                        double_sided: true,
-                        perceptual_roughness: 1.0,
-                        reflectance: 0.0,
-                        ..default()
-                    },
-                    extension: SpriteExtension { tint: ctx.spawn_tint },
-                });
+                let mat = materials.add(unlit_billboard_material(tex, ctx.spawn_tint));
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
             }
@@ -211,27 +196,11 @@ pub(super) fn spawn_decorations(
                 let (w, h) = sprite.dimensions();
                 let rgba = sprite.image.to_rgba8();
                 let msk = std::sync::Arc::new(crate::game::entities::sprites::AlphaMask::from_image(&rgba));
-                let tex = ctx
-                    .images
-                    .add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
-                        rgba,
-                    )));
+                let tex = ctx.images.add(crate::assets::rgba8_to_bevy_image(rgba));
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
                 };
-                let m = materials.add(SpriteMaterial {
-                    base: StandardMaterial {
-                        unlit: true,
-                        base_color_texture: Some(tex),
-                        alpha_mode: AlphaMode::Mask(0.5),
-                        cull_mode: None,
-                        double_sided: true,
-                        perceptual_roughness: 1.0,
-                        reflectance: 0.0,
-                        ..default()
-                    },
-                    extension: SpriteExtension { tint: ctx.spawn_tint },
-                });
+                let m = materials.add(unlit_billboard_material(tex, ctx.spawn_tint));
                 let q = ctx.meshes.add(Rectangle::new(w, h));
                 p.dec_sprite_cache
                     .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));

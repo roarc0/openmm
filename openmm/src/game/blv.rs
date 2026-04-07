@@ -19,7 +19,7 @@ use crate::game::events::MapEvents;
 use crate::game::hud::HudView;
 use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
 use crate::game::player::PlayerCamera;
-use crate::game::sprite_material::{SpriteExtension, SpriteMaterial};
+use crate::game::sprite_material::{SpriteMaterial, unlit_billboard_material};
 use crate::states::loading::PreparedIndoorWorld;
 
 // --- Components ---
@@ -496,22 +496,8 @@ fn spawn_indoor_world(
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
                 let msk = std::sync::Arc::new(sprites::AlphaMask::from_image(&rgba));
-                let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
-                    rgba,
-                )));
-                let mat = sprite_materials.add(SpriteMaterial {
-                    base: StandardMaterial {
-                        unlit: true,
-                        base_color_texture: Some(tex),
-                        alpha_mode: AlphaMode::Mask(0.5),
-                        cull_mode: None,
-                        double_sided: true,
-                        perceptual_roughness: 1.0,
-                        reflectance: 0.0,
-                        ..default()
-                    },
-                    extension: SpriteExtension::default(),
-                });
+                let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
+                let mat = sprite_materials.add(unlit_billboard_material(tex, Vec4::ONE));
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
             }
@@ -557,8 +543,8 @@ fn spawn_indoor_world(
             let dsft_lr = lod.billboard_luminous_light_radius(dec.declist_id);
             if dsft_lr > 0 {
                 commands.spawn((
-                    crate::game::odm::decoration_point_light(
-                        dsft_lr.saturating_mul(crate::game::odm::DSFT_ANIMATED_LR_SCALE),
+                    crate::game::lighting::decoration_point_light(
+                        dsft_lr.saturating_mul(crate::game::lighting::DSFT_ANIMATED_LR_SCALE),
                     ),
                     Transform::from_translation(sprite_center),
                     InGame,
@@ -576,22 +562,8 @@ fn spawn_indoor_world(
             }
             let rgba = sprite.image.to_rgba8();
             let mask = sprites::AlphaMask::from_image(&rgba);
-            let tex = images.add(crate::assets::dynamic_to_bevy_image(image::DynamicImage::ImageRgba8(
-                rgba,
-            )));
-            let mat = sprite_materials.add(SpriteMaterial {
-                base: StandardMaterial {
-                    unlit: true,
-                    base_color_texture: Some(tex),
-                    alpha_mode: AlphaMode::Mask(0.5),
-                    cull_mode: None,
-                    double_sided: true,
-                    perceptual_roughness: 1.0,
-                    reflectance: 0.0,
-                    ..default()
-                },
-                extension: SpriteExtension::default(),
-            });
+            let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
+            let mat = sprite_materials.add(unlit_billboard_material(tex, Vec4::ONE));
             let quad = meshes.add(Rectangle::new(w, h));
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
             sprite_center = pos;
@@ -627,8 +599,8 @@ fn spawn_indoor_world(
             drop(ent);
             if dsft_lr > 0 {
                 commands.spawn((
-                    crate::game::odm::decoration_point_light(
-                        dsft_lr.saturating_mul(crate::game::odm::DSFT_STATIC_LR_SCALE),
+                    crate::game::lighting::decoration_point_light(
+                        dsft_lr.saturating_mul(crate::game::lighting::DSFT_STATIC_LR_SCALE),
                     ),
                     Transform::from_translation(sprite_center),
                     InGame,
@@ -637,7 +609,7 @@ fn spawn_indoor_world(
         }
         if dec.light_radius > 0 {
             commands.spawn((
-                crate::game::odm::decoration_point_light(dec.light_radius),
+                crate::game::lighting::decoration_point_light(dec.light_radius),
                 Transform::from_translation(sprite_center),
                 InGame,
             ));
