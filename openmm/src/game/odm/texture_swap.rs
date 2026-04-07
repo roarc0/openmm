@@ -60,9 +60,11 @@ pub(super) fn apply_texture_outdoors(
             alpha_mode: AlphaMode::Opaque,
             cull_mode: None,
             double_sided: true,
-            perceptual_roughness: 1.0,
-            reflectance: 0.0,
+            perceptual_roughness: 0.85,
+            reflectance: 0.2,
+            specular_tint: Color::srgb(1.0, 0.95, 0.85),
             metallic: 0.0,
+            emissive: crate::states::loading::texture_emissive(&ev.texture_name),
             ..default()
         };
         mat_handle.0 = materials.add(new_mat);

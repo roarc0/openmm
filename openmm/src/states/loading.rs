@@ -21,6 +21,24 @@ use openmm_data::{
     odm::{Odm, OdmData},
 };
 
+/// Detect self-illuminated MM6 textures by well-known name patterns so they
+/// visibly glow in the dark (lava pools, torch flames, magic runes, etc.).
+/// Returned values are in linear HDR space — values > 1.0 produce bloom.
+pub fn texture_emissive(name: &str) -> LinearRgba {
+    let n = name.to_ascii_lowercase();
+    if n.contains("lava") {
+        LinearRgba::rgb(3.0, 0.9, 0.15)
+    } else if n.contains("fire") || n.contains("flam") {
+        LinearRgba::rgb(2.5, 1.2, 0.3)
+    } else if n.contains("magic") {
+        LinearRgba::rgb(0.3, 0.5, 1.6)
+    } else if n.contains("lite") {
+        LinearRgba::rgb(1.2, 1.15, 0.9)
+    } else {
+        LinearRgba::BLACK
+    }
+}
+
 pub struct LoadingPlugin;
 
 impl Plugin for LoadingPlugin {
@@ -587,9 +605,10 @@ fn loading_step(
                                 alpha_mode: AlphaMode::Opaque,
                                 cull_mode: None,
                                 double_sided: false,
-                                perceptual_roughness: 1.0,
-                                reflectance: 0.0,
+                                perceptual_roughness: 0.85,
+                                reflectance: 0.2,
                                 metallic: 0.0,
+                                emissive: texture_emissive(&dfm.texture_name),
                                 ..default()
                             },
                             texture,
@@ -784,9 +803,10 @@ fn loading_step(
                                     // which is correct for PBR lighting from interior lights.
                                     cull_mode: None,
                                     double_sided: false,
-                                    perceptual_roughness: 1.0,
-                                    reflectance: 0.0,
+                                    perceptual_roughness: 0.85,
+                                    reflectance: 0.2,
                                     metallic: 0.0,
+                                    emissive: texture_emissive(&tm.texture_name),
                                     ..default()
                                 },
                                 texture,
@@ -985,14 +1005,23 @@ fn loading_step(
                                     image
                                 });
 
+                                // PBR tweaks for ODM buildings: not fully matte so the
+                                // sun catches stone/wood walls with a subtle highlight.
+                                // Keep base_color > 1.0 to compensate for the dim
+                                // outdoor ambient — matches the terrain look.
+                                // Warm specular_tint simulates sunlight through
+                                // atmosphere. Emissive auto-detects glowing textures
+                                // (lava, fire, runes) so torches glow in the dark.
                                 let material = StandardMaterial {
                                     base_color: Color::srgb(1.8, 1.8, 1.8),
                                     alpha_mode: AlphaMode::Opaque,
                                     cull_mode: None,
                                     double_sided: false,
-                                    perceptual_roughness: 1.0,
-                                    reflectance: 0.0,
+                                    perceptual_roughness: 0.85,
+                                    reflectance: 0.2,
+                                    specular_tint: Color::srgb(1.0, 0.95, 0.85),
                                     metallic: 0.0,
+                                    emissive: texture_emissive(&tm.texture_name),
                                     ..default()
                                 };
 
