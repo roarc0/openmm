@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use super::common::{CpuText, HudThrottle};
+use bevy::prelude::*;
 
 pub fn update_cpu_text(
     throttle: Res<HudThrottle>,

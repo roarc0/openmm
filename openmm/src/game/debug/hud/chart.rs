@@ -1,6 +1,6 @@
-use bevy::prelude::*;
 use super::common::*;
 use super::fps::FpsHistory;
+use bevy::prelude::*;
 
 pub const FPS_CHART_WIDTH: usize = 60;
 pub const FPS_CHART_HEIGHT: f32 = 50.0;

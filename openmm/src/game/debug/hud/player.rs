@@ -1,8 +1,8 @@
-use bevy::prelude::*;
+use super::common::*;
 use crate::config::GameConfig;
 use crate::game::player::Player;
 use crate::states::loading::PreparedWorld;
-use super::common::*;
+use bevy::prelude::*;
 
 pub fn update_map_info_text(
     throttle: Res<HudThrottle>,
@@ -95,12 +95,10 @@ pub fn update_tile_text(
         return;
     }
 
-    let tileset = player_query
-        .iter().next()
-        .and_then(|tf| {
-            let p = prepared.as_ref()?;
-            p.terrain_at(tf.translation.x, tf.translation.z)
-        });
+    let tileset = player_query.iter().next().and_then(|tf| {
+        let p = prepared.as_ref()?;
+        p.terrain_at(tf.translation.x, tf.translation.z)
+    });
 
     let tileset_str = if let Some(ts) = tileset {
         format!("  {ts}")

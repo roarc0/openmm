@@ -25,6 +25,7 @@ use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
 use crate::game::entities::actor::Actor;
 use crate::game::entities::{AnimationState, WorldEntity};
 use crate::game::hud::HudView;
+use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
 use openmm_data::ActorSoundSlot;
@@ -144,7 +145,7 @@ fn monster_ai_system(
             Without<Player>,
         ),
     >,
-    sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
+    mut sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
 ) {
     let Ok(player_tf) = player.single() else {
         return;
@@ -328,9 +329,7 @@ fn monster_ai_system(
         });
 
     // Write all queued sound events serially
-    if let Some(mut s) = sounds {
-        for event in pending_sounds.lock().unwrap().drain(..) {
-            s.write(event);
-        }
+    for event in pending_sounds.lock().unwrap().drain(..) {
+        sounds.try_write(event);
     }
 }

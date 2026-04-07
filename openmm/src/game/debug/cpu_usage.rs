@@ -9,10 +9,10 @@ pub struct CpuStats {
     pub process_usage: f32,
     /// Percentage of the total system consumed across all cores.
     pub system_usage: f32,
-    
+
     /// Smoothing factor for exponential moving average (0.0 to 1.0, lower is smoother)
     pub smoothing: f32,
-    
+
     // Internal state for delta calculation
     last_update: Duration,
     prev_proc_ticks: u64,
@@ -41,22 +41,24 @@ pub fn update_cpu_stats_system(time: Res<Time>, mut stats: ResMut<CpuStats>) {
     if now.as_millis() - stats.last_update.as_millis() < 500 {
         return;
     }
-    
+
     #[cfg(target_os = "linux")]
     {
-        if let (Some(proc_ticks), Some((total_ticks, idle_ticks))) = (get_linux_process_ticks(), get_linux_system_ticks()) {
+        if let (Some(proc_ticks), Some((total_ticks, idle_ticks))) =
+            (get_linux_process_ticks(), get_linux_system_ticks())
+        {
             if stats.prev_sys_ticks > 0 {
                 let proc_delta = proc_ticks.saturating_sub(stats.prev_proc_ticks);
                 let sys_delta = total_ticks.saturating_sub(stats.prev_sys_ticks);
                 let idle_delta = idle_ticks.saturating_sub(stats.prev_idle_ticks);
-                
+
                 if sys_delta > 0 {
                     // Process usage: (proc_ticks / total_system_ticks_on_one_core)
-                    // Since /proc/stat's 'cpu' line is aggregate across all cores, 
-                    // and /proc/self/stat's 'utime+stime' is per-process, 
+                    // Since /proc/stat's 'cpu' line is aggregate across all cores,
+                    // and /proc/self/stat's 'utime+stime' is per-process,
                     // we need to be careful with the scaling.
                     // A simpler way for 'per-core' process usage is using the time delta.
-                    
+
                     let elapsed = (now - stats.last_update).as_secs_f32();
                     let alpha = stats.smoothing;
                     if elapsed > 0.0 {
@@ -65,14 +67,14 @@ pub fn update_cpu_stats_system(time: Res<Time>, mut stats: ResMut<CpuStats>) {
                         let raw_proc = (proc_delta as f32 / 100.0) / elapsed * 100.0;
                         stats.process_usage = stats.process_usage * (1.0 - alpha) + raw_proc * alpha;
                     }
-                    
+
                     // System usage: (total - idle) / total
                     let busy_delta = sys_delta.saturating_sub(idle_delta);
                     let raw_sys = (busy_delta as f32 / sys_delta as f32) * 100.0;
                     stats.system_usage = stats.system_usage * (1.0 - alpha) + raw_sys * alpha;
                 }
             }
-            
+
             stats.prev_proc_ticks = proc_ticks;
             stats.prev_sys_ticks = total_ticks;
             stats.prev_idle_ticks = idle_ticks;
@@ -87,8 +89,8 @@ fn get_linux_process_ticks() -> Option<u64> {
     // The process name is in parentheses and may contain spaces.
     // Find the last ')' to skip it safely.
     let start_idx = data.rfind(')')?;
-    let fields: Vec<&str> = data[start_idx+1..].split_whitespace().collect();
-    
+    let fields: Vec<&str> = data[start_idx + 1..].split_whitespace().collect();
+
     // Indices relative to the field after the ')'
     // utime is field 14, stime is 15 in the full file.
     // field[0] is state, field[1] is ppid, etc.
@@ -106,7 +108,7 @@ fn get_linux_system_ticks() -> Option<(u64, u64)> {
     let data = fs::read_to_string("/proc/stat").ok()?;
     let line = data.lines().next()?;
     let fields: Vec<&str> = line.split_whitespace().skip(1).collect();
-    
+
     // /proc/stat 'cpu' line: user nice system idle iowait irq softirq steal guest guest_nice
     // idle is the 4th field (index 3)
     let mut total: u64 = 0;

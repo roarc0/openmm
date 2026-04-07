@@ -169,10 +169,7 @@ pub fn quicksave(
     }
 }
 
-pub fn debug_screenshot(
-    mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
-) {
+pub fn debug_screenshot(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
     if keys.just_pressed(KeyCode::F12) {
         let path = format!(
             "./data/screenshots/screenshot_{}.png",

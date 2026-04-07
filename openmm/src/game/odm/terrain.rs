@@ -30,13 +30,15 @@ impl MaterialExtension for WaterExtension {
     }
 }
 
-/// Spawns the terrain entity. If `terrain_materials` assets are provided,
-/// uses the specialized `TerrainMaterial`. Otherwise, falls back to `StandardMaterial`.
+/// Spawns the terrain entity. If `terrain_materials` is provided, uses the
+/// specialized `TerrainMaterial` (water shader). Otherwise falls back to a
+/// plain `StandardMaterial` so terrain still renders when the
+/// `TerrainMaterial` plugin is disabled.
 pub fn spawn_terrain(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    terrain_materials: &mut Option<ResMut<Assets<TerrainMaterial>>>,
+    terrain_materials: Option<&mut Assets<TerrainMaterial>>,
     terrain_mesh: Mesh,
     terrain_tex_handle: Handle<Image>,
     water_tex_handle: Handle<Image>,
@@ -50,7 +52,7 @@ pub fn spawn_terrain(
         InGame,
     ));
 
-    if let Some(tm) = terrain_materials.as_mut() {
+    if let Some(tm) = terrain_materials {
         let terrain_mat_handle = tm.add(TerrainMaterial {
             base: StandardMaterial {
                 base_color_texture: Some(terrain_tex_handle),

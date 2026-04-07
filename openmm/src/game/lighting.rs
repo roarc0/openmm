@@ -8,9 +8,9 @@ use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::entities::{Billboard, SelfLit};
 use crate::game::game_time::GameTime;
+use crate::game::odm::TerrainMaterial;
 use crate::game::player::Player;
 use crate::game::sprite_material::SpriteMaterial;
-use crate::game::terrain::TerrainMaterial;
 
 pub struct LightingPlugin;
 

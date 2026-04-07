@@ -32,10 +32,11 @@ impl Plugin for BevyConfigPlugin {
 
         let resolution = WindowResolution::new(cfg.width, cfg.height);
 
-        // Build tracing filter: set external crates to warn, our crate to configured level.
-        // Format: "warn,openmm=info" or "warn,openmm=debug,lod=debug"
-        let log_level_str = cfg.log_level.to_lowercase();
-        let log_filter = format!("warn,openmm={log_level_str},lod={log_level_str}");
+        // Build tracing filter: external crates → warn, our crates → configured level.
+        // Format: "warn,openmm=info,lod=info"
+        let level = log_level(&cfg);
+        let level_str = level_name(level);
+        let log_filter = format!("warn,openmm={level_str},lod={level_str}");
 
         let plugins = DefaultPlugins
             .set(WindowPlugin {
@@ -56,7 +57,7 @@ impl Plugin for BevyConfigPlugin {
             })
             .set(LogPlugin {
                 filter: log_filter,
-                level: log_level(&cfg),
+                level,
                 ..default()
             });
 
@@ -73,6 +74,17 @@ pub fn log_level(cfg: &GameConfig) -> bevy::log::Level {
         "warn" => bevy::log::Level::WARN,
         "error" => bevy::log::Level::ERROR,
         _ => bevy::log::Level::INFO,
+    }
+}
+
+/// Lowercase string form of a log level — for tracing filter directives.
+fn level_name(level: bevy::log::Level) -> &'static str {
+    match level {
+        bevy::log::Level::TRACE => "trace",
+        bevy::log::Level::DEBUG => "debug",
+        bevy::log::Level::INFO => "info",
+        bevy::log::Level::WARN => "warn",
+        bevy::log::Level::ERROR => "error",
     }
 }
 

@@ -26,6 +26,7 @@ use crate::game::interaction::DecorationInfo;
 use crate::game::lighting::CurrentSpriteTint;
 use crate::game::map_name::MapName;
 use crate::game::odm::ApplyTextureOutdoors;
+use crate::game::optional::OptionalWrite;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::world_state::GameVariables;
@@ -528,9 +529,7 @@ fn process_events(
                     if let Some(ref sm) = audio.sound_manager
                         && let Some(s) = sm.dsounds.get_by_name("openchest0101")
                     {
-                        if let Some(events) = audio.ui_sound.as_mut() {
-                            events.write(PlayUiSoundEvent { sound_id: s.sound_id });
-                        }
+                        audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
                     }
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Chest;
@@ -552,9 +551,7 @@ fn process_events(
                     if let Some(ref sm) = audio.sound_manager
                         && let Some(s) = sm.dsounds.get_by_name("teleport")
                     {
-                        if let Some(events) = audio.ui_sound.as_mut() {
-                            events.write(PlayUiSoundEvent { sound_id: s.sound_id });
-                        }
+                        audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
                     }
                     let base = Vec3::from(mm6_to_bevy(*x, *y, *z));
                     // Player Transform.y is at eye level (feet + eye_height), same as spawn.
@@ -621,9 +618,7 @@ fn process_events(
                 }
             }
             GameEvent::PlaySound { sound_id } => {
-                if let Some(events) = audio.ui_sound.as_mut() {
-                    events.write(PlayUiSoundEvent { sound_id: *sound_id });
-                }
+                audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: *sound_id });
             }
             GameEvent::StatusText { text, .. } => {
                 footer.set_status(text, 2.0, time.elapsed_secs_f64());
