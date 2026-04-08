@@ -50,3 +50,33 @@ Grouping the flat `src/game/` directory into logical subdirectories.
 - [ ] **NPC time-of-day schedules** — Implement AI schedule-following system.
 - [ ] **Faction and diplomacy** — Diplomacy table and aggression logic.
 - [ ] **Random encounters** — Camping interrupt monster spawns.
+
+## Bevy Best Practices & Technical Debt (Audit)
+These items are architectural improvements identified to align the project with Bevy best practices and improve performance/maintainability. **(Note: Note these, do not implement yet)**
+
+### 1. System Granularity & Deconstruction
+- [ ] **Deconstruct `process_events` (scripting.rs)** — currently a ~600 line monolithic system.
+    - [ ] Move specific event handlers (e.g., `SetSprite`, `MoveToMap`) into dedicated helper systems or functions.
+    - [ ] Use Bevy `Events` to trigger complex side-effects (like map transitions) rather than direct mutation inside the loop.
+- [ ] **Deconstruct `player.rs` systems** — `player_movement` and `player_look` are oversized.
+    - [ ] Split into "Input Capture" (mapping keys to Intent/Actions) and "Kinematics/Physics" (applying Actions to Transform).
+
+### 2. Scheduling & Fixed Time Steps
+- [ ] **Migrate Physics to `FixedUpdate`** — `gravity_system` (physics.rs) and `player_movement` (player.rs) currently run in `Update`.
+    - [ ] Use `Time<Fixed>` for delta calculations in these systems to ensure deterministic behavior across varying frame rates.
+    - [ ] Move `resolve_movement` (collision.rs) calls into the fixed step.
+
+### 3. Input Handling Modernization
+- [ ] **Action-Based Input** — Replace direct `ButtonInput<KeyCode>` polling with an action-based abstraction.
+    - [ ] Define a `PlayerAction` enum (MoveForward, Jump, ToggleFly, etc.).
+    - [ ] Implement a system that maps physical inputs (Keyboard/Gamepad) to these actions once per frame, and other systems read the actions.
+
+### 4. Component & Resource Organization
+- [ ] **Group Player State** — Consolidate individual player-related resources (`PlayerSettings`, `PlayerKeyBindings`, `MouseLookEnabled`, `MouseSensitivity`) into a single `PlayerConfig` resource or attach them as components to the `Player` entity.
+- [ ] **Decouple Spawning** — `spawn_player` is currently a "God Function" for everything player-related (physics, camera, fog, lighting, tonemapping). 
+    - [ ] Split into modular setup systems (e.g. `setup_player_camera`, `setup_player_torch`) and use standard Bevy `OnEnter(GameState::Game)` ordering.
+
+### 5. Performance Optimizations
+- [ ] **Allocation Audit** — `resolve_movement` in `collision.rs` uses a `HashSet` for deduplicating walls in the hot path. 
+    - [ ] Consider using a pre-allocated `BitSet` or a reused `Vec` to avoid per-frame allocations during movement.
+- [ ] **Change Detection** — Increase usage of `Changed<T>` and `Added<T>` filters in queries to skip processing for entities that haven't moved or updated.
