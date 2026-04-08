@@ -1,3 +1,4 @@
+mod assets;
 mod borders;
 mod crosshair;
 mod debug_hud;
@@ -6,6 +7,8 @@ mod map_overlay;
 mod minimap;
 pub mod overlay;
 mod stats_bar;
+
+pub use assets::*;
 
 pub use borders::{parse_aspect_ratio, viewport_rect};
 pub use footer::FooterText;
@@ -19,7 +22,6 @@ use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::debug::console::ConsoleState;
-use crate::ui_assets::{UiAssets, make_black_transparent};
 
 use borders::*;
 use footer::*;
@@ -648,7 +650,7 @@ fn update_hud_layout(
     let (_, _, lpw, lph) = letterbox_rect(window, &cfg);
     let lw = lpw as f32 / sf;
     let lh = lph as f32 / sf;
-    let d = hud_dimensions(lw, lh, &ui_assets);
+    let d = hud_dimensions(lw, lh, &*ui_assets);
 
     // Position HUD root within the letterboxed area
     let bar_x = (window.width() - lw) / 2.0;

@@ -2,7 +2,7 @@ use bevy::{app::AppExit, ecs::message::MessageWriter, prelude::*};
 
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use crate::ui_assets::{UiAssets, make_black_transparent};
+use crate::game::hud::{UiAssets, make_black_transparent};
 use crate::{GameState, despawn_all};
 
 pub struct MenuPlugin;

@@ -4,7 +4,7 @@ use bevy::window::PrimaryWindow;
 use crate::assets::{self, GameAssets};
 use crate::config::GameConfig;
 use crate::game::player::Player;
-use crate::ui_assets::UiAssets;
+use super::UiAssets;
 
 use super::borders::{hud_dimensions, logical_size};
 
@@ -37,13 +37,13 @@ pub(super) fn load_map_overview(
 ) -> Option<Handle<Image>> {
     let img = game_assets.lod().icon(map_name)?;
     let mut bevy_img = assets::dynamic_to_bevy_image(img);
-    bevy_img.sampler = crate::ui_assets::hud_sampler(cfg);
+    bevy_img.sampler = super::hud_sampler(cfg);
     Some(images.add(bevy_img))
 }
 
 /// Make green or red color-keyed pixels transparent for tap frame overlays.
 pub(super) fn make_tap_key_transparent(img: &mut image::DynamicImage) {
-    crate::ui_assets::make_transparent_where(img, |r, g, b| {
+    super::make_transparent_where(img, |r, g, b| {
         let is_green = g > r && g > b && g >= 128 && r < 100 && b < 100;
         let is_red = r > g && r > b && r >= 128 && g < 100 && b < 100;
         is_green || is_red

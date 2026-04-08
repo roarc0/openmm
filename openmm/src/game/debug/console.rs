@@ -20,7 +20,7 @@ use crate::game::outdoor::{OdmName, PLAY_WIDTH};
 use crate::game::world::WorldState;
 use crate::save::GameSave;
 use crate::states::loading::LoadRequest;
-use crate::ui_assets::UiAssets;
+use crate::game::hud::UiAssets;
 
 const FONT_SIZE: f32 = 16.0;
 const MAX_OUTPUT_LINES: usize = 50;

@@ -332,7 +332,7 @@ fn loading_setup(
     save_data: Res<crate::save::GameSave>,
     cfg: Res<GameConfig>,
     game_assets: Res<GameAssets>,
-    mut ui_assets: ResMut<crate::ui_assets::UiAssets>,
+    mut ui_assets: ResMut<crate::game::hud::UiAssets>,
     mut images: ResMut<Assets<Image>>,
     mut world_state: ResMut<crate::game::world::WorldState>,
 ) {

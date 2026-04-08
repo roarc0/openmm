@@ -5,7 +5,7 @@ use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::fonts::{GameFonts, WHITE, YELLOW};
 use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
-use crate::ui_assets::UiAssets;
+use super::UiAssets;
 
 use super::HudView;
 use super::borders::{FOOTER_EXPOSED_H, hud_dimensions, letterbox_rect};

@@ -4,7 +4,7 @@ use bevy::window::PrimaryWindow;
 
 use crate::config::GameConfig;
 use crate::game::player::PlayerCamera;
-use crate::ui_assets::UiAssets;
+use crate::game::hud::UiAssets;
 
 // MM6 reference dimensions — all HUD dimensions scale relative to these
 pub(super) const REF_H: f32 = 480.0;
@@ -126,7 +126,7 @@ pub(super) fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimen
 /// Full HUD canvas reference dimensions: (width, height) in original image pixels.
 ///   width  = border1.w + border2.w - 1   (1-pixel overlap between right sidebar and bottom panel)
 ///   height = border1.h
-pub fn hud_canvas_dims(ui: &crate::ui_assets::UiAssets) -> (f32, f32) {
+pub fn hud_canvas_dims(ui: &UiAssets) -> (f32, f32) {
     let (b1w, b1h) = ui.dimensions("border1.pcx").unwrap_or((640, 480));
     let (b2w, _) = ui.dimensions("border2.pcx").unwrap_or((0, 0));
     ((b1w + b2w).saturating_sub(1) as f32, b1h as f32)

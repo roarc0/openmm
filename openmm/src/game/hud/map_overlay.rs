@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
 use crate::config::GameConfig;
-use crate::ui_assets::UiAssets;
+use super::UiAssets;
 
 use super::overlay::viewport_inner_rect;
 use super::{HudUI, HudView, MapOverviewImage};

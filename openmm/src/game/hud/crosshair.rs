@@ -3,7 +3,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::ui_assets::UiAssets;
+use super::UiAssets;
 
 use super::HudUI;
 use super::borders::viewport_rect;

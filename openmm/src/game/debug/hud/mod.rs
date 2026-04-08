@@ -66,7 +66,7 @@ fn debug_setup(
     mut wireframe_config: ResMut<WireframeConfig>,
     mut world_state: ResMut<crate::game::world::WorldState>,
     cfg: Res<GameConfig>,
-    ui_assets: Res<crate::ui_assets::UiAssets>,
+    ui_assets: Res<crate::game::hud::UiAssets>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
     wireframe_config.global = cfg.wireframe;

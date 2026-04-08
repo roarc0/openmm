@@ -16,7 +16,7 @@ pub(crate) mod frame_limiter;
 pub(crate) mod game;
 pub(crate) mod save;
 pub(crate) mod states;
-pub(crate) mod ui_assets;
+
 
 const APP_NAME: &str = "openmm";
 
@@ -51,7 +51,7 @@ impl Plugin for GamePlugin {
             .insert_resource(game_assets)
             .insert_resource(game_fonts)
             .insert_resource(save_data)
-            .init_resource::<ui_assets::UiAssets>()
+            .init_resource::<game::hud::UiAssets>()
             .insert_resource(VideoRequest {
                 name: "3dologo".into(),
                 skippable: false,

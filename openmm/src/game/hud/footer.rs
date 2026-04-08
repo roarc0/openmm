@@ -3,7 +3,7 @@ use bevy::window::PrimaryWindow;
 
 use crate::config::GameConfig;
 use crate::fonts::GameFonts;
-use crate::ui_assets::UiAssets;
+use super::UiAssets;
 
 use super::borders::viewport_rect;
 

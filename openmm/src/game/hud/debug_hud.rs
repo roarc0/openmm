@@ -11,7 +11,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::ui_assets::UiAssets;
+use super::UiAssets;
 
 use super::borders::letterbox_rect;
 

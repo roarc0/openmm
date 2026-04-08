@@ -9,7 +9,7 @@ use bevy::window::PrimaryWindow;
 use crate::config::GameConfig;
 use crate::fonts::{GameFonts, YELLOW};
 use crate::game::world::WorldState;
-use crate::ui_assets::UiAssets;
+use super::UiAssets;
 
 use super::borders::*;
 
