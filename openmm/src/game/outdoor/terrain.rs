@@ -56,8 +56,8 @@ pub fn spawn_terrain(
         let terrain_mat_handle = tm.add(TerrainMaterial {
             base: StandardMaterial {
                 base_color_texture: Some(terrain_tex_handle),
-                perceptual_roughness: 1.0,
-                reflectance: 0.0,
+                perceptual_roughness: 0.85,
+                reflectance: 0.2,
                 metallic: 0.0,
                 cull_mode: Some(Face::Back),
                 ..default()
