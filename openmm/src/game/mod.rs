@@ -5,9 +5,6 @@ pub mod coords;
 pub(crate) mod indoor;
 pub(crate) mod collision;
 pub(crate) mod debug;
-pub(crate) mod scripting;
-pub(crate) mod events;
-pub(crate) mod game_time;
 pub(crate) mod hud;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
@@ -19,7 +16,7 @@ pub(crate) mod player;
 pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod sprites;
-pub(crate) mod world_state;
+pub(crate) mod world;
 
 /// Marker component for all entities spawned during the Game state.
 /// Despawned automatically on OnExit(Game).
@@ -42,21 +39,13 @@ impl Plugin for InGamePlugin {
         app.init_resource::<hud::HudView>()
             .init_resource::<hud::FooterText>()
             .add_plugins((
-                CorePlugin,
                 RenderingPlugin,
-                WorldPlugin,
+                MapPlugin,
+                world::WorldPlugin,
                 GameplayPlugin,
                 UiPlugin,
                 AudioPlugin,
             ));
-    }
-}
-
-/// Core simulation: time and persistent world state.
-struct CorePlugin;
-impl Plugin for CorePlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins((game_time::GameTimePlugin, world_state::WorldStatePlugin));
     }
 }
 
@@ -78,8 +67,8 @@ impl Plugin for RenderingPlugin {
 }
 
 /// World: outdoor (ODM) maps, indoor (BLV) maps, physics, and entity scaffolding.
-struct WorldPlugin;
-impl Plugin for WorldPlugin {
+struct MapPlugin;
+impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
             outdoor::OdmPlugin,
@@ -107,7 +96,6 @@ impl Plugin for UiPlugin {
             debug::DebugPlugin,
             debug::console::ConsolePlugin,
             interaction::InteractionPlugin,
-            scripting::EventDispatchPlugin,
         ));
     }
 }

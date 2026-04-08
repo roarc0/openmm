@@ -67,6 +67,7 @@ pub mod odm_name;
 pub use odm_name::OdmName;
 pub mod map_name;
 pub use map_name::MapName;
+pub mod time;
 
 #[cfg(test)]
 #[path = "utils_tests.rs"]

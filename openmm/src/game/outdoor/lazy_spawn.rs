@@ -8,7 +8,7 @@ use bevy::prelude::*;
 
 use crate::assets::GameAssets;
 use crate::game::sprites::loading as sprites;
-use crate::game::game_time::GameTime;
+use crate::game::world::GameTime;
 use crate::game::lighting::sprite_tint_from_time;
 use crate::game::sprites::material::SpriteMaterial;
 use crate::states::loading::PreparedWorld;
@@ -105,7 +105,7 @@ pub(super) fn lazy_spawn(
     mut sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
-    mut map_events: Option<ResMut<crate::game::events::MapEvents>>,
+    mut map_events: Option<ResMut<crate::game::world::MapEvents>>,
 ) {
     let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
         return;

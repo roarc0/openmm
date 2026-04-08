@@ -7,11 +7,11 @@ use crate::GameState;
 use crate::game::actors::KillActorEvent;
 use crate::game::indoor::{ClickableFaces, OccluderFaces};
 use crate::game::sprites::loading::{AlphaMask, SpriteSheet};
-use crate::game::scripting::EventQueue;
-use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
+use crate::game::world::EventQueue;
+use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::player::{Player, PlayerCamera};
-use crate::game::world_state::WorldState;
+use crate::game::world::WorldState;
 
 pub mod raycast;
 use raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};

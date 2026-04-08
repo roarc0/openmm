@@ -19,7 +19,7 @@ pub(super) fn spawn_npc_actors(
     prepared: &PreparedWorld,
     actor_idx: &mut usize,
     spawned: &mut usize,
-    map_events: &mut Option<ResMut<crate::game::events::MapEvents>>,
+    map_events: &mut Option<ResMut<crate::game::world::MapEvents>>,
 ) {
     let lod = ctx.game_assets.lod();
     let actor_len = p.actor_order.len();
@@ -177,7 +177,7 @@ pub(super) fn spawn_npc_actors(
             -(actor.position[1] as f32),
         );
         let (display_name, effective_npc_id) = if actor.is_peasant {
-            let gid = crate::game::events::GENERATED_NPC_ID_BASE + i as i32;
+            let gid = crate::game::world::GENERATED_NPC_ID_BASE + i as i32;
             let name = map_events
                 .as_deref()
                 .and_then(|me| me.name_pool.as_ref())

@@ -11,7 +11,7 @@ pub const PLAY_WIDTH: f32 = openmm_data::odm::ODM_TILE_SCALE * openmm_data::odm:
 
 pub(super) fn check_map_boundary(
     mut commands: Commands,
-    mut world_state: ResMut<crate::game::world_state::WorldState>,
+    mut world_state: ResMut<crate::game::world::WorldState>,
     mut save_data: ResMut<crate::save::GameSave>,
     mut game_state: ResMut<NextState<GameState>>,
     player_query: Query<&Transform, With<crate::game::player::Player>>,

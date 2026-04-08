@@ -6,7 +6,7 @@ use bevy::prelude::*;
 
 pub fn update_map_info_text(
     throttle: Res<HudThrottle>,
-    world_state: Res<crate::game::world_state::WorldState>,
+    world_state: Res<crate::game::world::WorldState>,
     mut query: Query<&mut Text, With<MapNameSpan>>,
 ) {
     if !throttle.0.just_finished() {
@@ -25,7 +25,7 @@ pub fn update_map_info_text(
 
 pub fn update_player_mode_text(
     throttle: Res<HudThrottle>,
-    world_state: Res<crate::game::world_state::WorldState>,
+    world_state: Res<crate::game::world::WorldState>,
     mut query: Query<&mut Text, With<ModeSpan>>,
 ) {
     if !throttle.0.just_finished() {
@@ -50,7 +50,7 @@ pub fn update_player_mode_text(
 pub fn update_position_text(
     throttle: Res<HudThrottle>,
     cfg: Res<GameConfig>,
-    _world_state: Res<crate::game::world_state::WorldState>,
+    _world_state: Res<crate::game::world::WorldState>,
     spawn_progress: Res<crate::game::outdoor::SpawnProgress>,
     player_query: Query<&Transform, With<Player>>,
     mut query: Query<&mut Text, With<PosSpan>>,

@@ -410,7 +410,7 @@ fn right_stick_with_fallback(gp: &Gamepad) -> Vec2 {
 fn toggle_run_mode(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<PlayerKeyBindings>,
-    mut world_state: ResMut<crate::game::world_state::WorldState>,
+    mut world_state: ResMut<crate::game::world::WorldState>,
 ) {
     if keys.just_pressed(key_bindings.toggle_run) {
         world_state.player.is_running = !world_state.player.is_running;
@@ -423,7 +423,7 @@ fn toggle_fly_mode(
     key_bindings: Res<PlayerKeyBindings>,
     gamepads: Query<&Gamepad>,
     physics_query: Query<&PlayerPhysics, With<Player>>,
-    mut world_state: ResMut<crate::game::world_state::WorldState>,
+    mut world_state: ResMut<crate::game::world::WorldState>,
 ) {
     let gamepad_toggle = gamepads.iter().any(|gp| gp.just_pressed(GamepadButton::Select));
     if keys.just_pressed(key_bindings.toggle_fly) || gamepad_toggle {
@@ -495,7 +495,7 @@ fn player_movement(
     settings: Res<PlayerSettings>,
     cfg: Res<GameConfig>,
     key_bindings: Res<PlayerKeyBindings>,
-    world_state: Res<crate::game::world_state::WorldState>,
+    world_state: Res<crate::game::world::WorldState>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
     door_colliders: Option<Res<crate::game::indoor::DoorColliders>>,
@@ -828,7 +828,7 @@ const TORCH_FILL_INTENSITY: f32 = 80_000_000.0;
 
 fn party_torch_system(
     indoor: Option<Res<PreparedIndoorWorld>>,
-    game_time: Option<Res<crate::game::game_time::GameTime>>,
+    game_time: Option<Res<crate::game::world::GameTime>>,
     mut torch_query: Query<&mut PointLight, With<PartyTorch>>,
     mut fill_query: Query<&mut PointLight, (With<PartyTorchFill>, Without<PartyTorch>)>,
 ) {

@@ -112,7 +112,7 @@ fn close_ui_system(
     console: Option<Res<ConsoleState>>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut commands: Commands,
-    mut event_queue: ResMut<crate::game::scripting::EventQueue>,
+    mut event_queue: ResMut<crate::game::world::EventQueue>,
 ) {
     if console.as_ref().is_some_and(|c| c.open)
         || !keys.just_pressed(KeyCode::Escape)
@@ -148,7 +148,7 @@ fn spawn_hud(
     mut footer_text: ResMut<FooterText>,
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
-    world_state: Res<crate::game::world_state::WorldState>,
+    world_state: Res<crate::game::world::WorldState>,
 ) {
     // HUD camera -- covers the full window, clears to black (letterbox bar color).
     // Order 1 ensures it renders after the 3D camera (order 0), which overwrites

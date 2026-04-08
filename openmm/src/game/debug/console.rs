@@ -17,7 +17,7 @@ use crate::game::debug::hud::DebugHud;
 use crate::game::hud::viewport_inner_rect;
 use openmm_data::utils::MapName;
 use crate::game::outdoor::{OdmName, PLAY_WIDTH};
-use crate::game::world_state::WorldState;
+use crate::game::world::WorldState;
 use crate::save::GameSave;
 use crate::states::loading::LoadRequest;
 use crate::ui_assets::UiAssets;
@@ -177,7 +177,7 @@ fn console_input(
     mut cfg: ResMut<GameConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
     game_assets: Res<crate::GameAssets>,
-    mut game_time: ResMut<crate::game::game_time::GameTime>,
+    mut game_time: ResMut<crate::game::world::GameTime>,
 ) {
     if !state.open {
         return;
@@ -306,7 +306,7 @@ fn execute_command(
     ctx_cfg: &mut GameConfig,
     ctx_wireframe_config: &mut WireframeConfig,
     ctx_game_assets: &crate::GameAssets,
-    ctx_game_time: &mut crate::game::game_time::GameTime,
+    ctx_game_time: &mut crate::game::world::GameTime,
 ) {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some(&command) = parts.first() else { return };

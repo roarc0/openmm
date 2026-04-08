@@ -141,7 +141,7 @@ fn gravity_system(
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
     settings: Res<PlayerSettings>,
-    world_state: Res<crate::game::world_state::WorldState>,
+    world_state: Res<crate::game::world::WorldState>,
     mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
 ) {
     // Need at least one ground source

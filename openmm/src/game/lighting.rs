@@ -7,7 +7,7 @@ use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::sprites::{Billboard, SelfLit};
-use crate::game::game_time::GameTime;
+use crate::game::world::GameTime;
 use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
 use crate::game::sprites::material::SpriteMaterial;

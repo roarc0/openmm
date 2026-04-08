@@ -10,7 +10,7 @@ use crate::save::GameSave;
 /// The single source of truth for player state and current map.
 /// Save/load copies between this and GameSave.
 ///
-/// In-game time is owned by [`crate::game::game_time::GameTime`], not here.
+/// In-game time is owned by [`super::time::GameTime`], not here.
 #[derive(Resource, Default)]
 pub struct WorldState {
     pub player: PlayerRuntimeState,

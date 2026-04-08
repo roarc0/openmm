@@ -64,7 +64,7 @@ impl Plugin for DebugHudPlugin {
 fn debug_setup(
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
-    mut world_state: ResMut<crate::game::world_state::WorldState>,
+    mut world_state: ResMut<crate::game::world::WorldState>,
     cfg: Res<GameConfig>,
     ui_assets: Res<crate::ui_assets::UiAssets>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,

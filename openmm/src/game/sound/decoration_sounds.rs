@@ -7,7 +7,7 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::game_time::GameTime;
+use crate::game::world::GameTime;
 use crate::game::hud::HudView;
 use crate::game::coords::mm6_position_to_bevy;
 use crate::states::loading::PreparedWorld;

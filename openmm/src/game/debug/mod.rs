@@ -42,7 +42,7 @@ impl Default for DebugKeyBindings {
 pub fn debug_input(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<DebugKeyBindings>,
-    mut world_state: ResMut<crate::game::world_state::WorldState>,
+    mut world_state: ResMut<crate::game::world::WorldState>,
     mut wireframe_config: ResMut<WireframeConfig>,
 ) {
     if keys.just_pressed(key_bindings.toggle_wireframe) {
@@ -52,7 +52,7 @@ pub fn debug_input(
     }
 }
 
-pub fn draw_play_area(world_state: Res<crate::game::world_state::WorldState>, mut gizmos: Gizmos) {
+pub fn draw_play_area(world_state: Res<crate::game::world::WorldState>, mut gizmos: Gizmos) {
     if !world_state.debug.show_play_area {
         return;
     }
@@ -82,7 +82,7 @@ pub fn draw_play_area(world_state: Res<crate::game::world_state::WorldState>, mu
 }
 
 pub fn draw_events(
-    world_state: Res<crate::game::world_state::WorldState>,
+    world_state: Res<crate::game::world::WorldState>,
     mut gizmos: Gizmos,
     clickable_faces: Option<Res<crate::game::indoor::ClickableFaces>>,
     decorations: Query<&crate::game::interaction::DecorationInfo>,
@@ -157,7 +157,7 @@ pub fn debug_log(
 
 pub fn quicksave(
     keys: Res<ButtonInput<KeyCode>>,
-    world_state: Res<crate::game::world_state::WorldState>,
+    world_state: Res<crate::game::world::WorldState>,
     mut save_data: ResMut<GameSave>,
 ) {
     if keys.just_pressed(KeyCode::F3) {

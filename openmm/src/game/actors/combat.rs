@@ -137,7 +137,7 @@ fn monster_die_system(
     mut actors: Query<(&mut Actor, &Transform, &mut AnimationState), Without<DyingTimer>>,
     mut commands: Commands,
     mut sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
-    mut world_state: Option<ResMut<crate::game::world_state::WorldState>>,
+    mut world_state: Option<ResMut<crate::game::world::WorldState>>,
 ) {
     for KillActorEvent(entity) in kill_events.read() {
         let Ok((mut actor, transform, mut anim_state)) = actors.get_mut(*entity) else {

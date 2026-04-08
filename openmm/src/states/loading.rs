@@ -334,7 +334,7 @@ fn loading_setup(
     game_assets: Res<GameAssets>,
     mut ui_assets: ResMut<crate::ui_assets::UiAssets>,
     mut images: ResMut<Assets<Image>>,
-    mut world_state: ResMut<crate::game::world_state::WorldState>,
+    mut world_state: ResMut<crate::game::world::WorldState>,
 ) {
     // Clean up resources from previous map (indoor or outdoor)
     commands.remove_resource::<PreparedWorld>();
@@ -447,7 +447,7 @@ fn loading_step(
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut sprite_materials: Option<ResMut<Assets<crate::game::sprites::material::SpriteMaterial>>>,
-    world_state: Option<Res<crate::game::world_state::WorldState>>,
+    world_state: Option<Res<crate::game::world::WorldState>>,
 ) {
     // Update loading text
     for mut text in &mut text_query {
@@ -946,7 +946,7 @@ fn loading_step(
                 )
                 .ok();
 
-                crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, true);
+                crate::game::world::load_map_events(&mut commands, &game_assets, &map_base, true);
                 commands.insert_resource(PreparedIndoorWorld {
                     models,
                     start_points,
@@ -1295,7 +1295,7 @@ fn loading_step(
                     openmm_data::utils::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
                     other => other.to_string(),
                 };
-                crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, false);
+                crate::game::world::load_map_events(&mut commands, &game_assets, &map_base, false);
                 commands.insert_resource(PreparedWorld {
                     map,
                     terrain_mesh: mesh,

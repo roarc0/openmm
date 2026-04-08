@@ -161,7 +161,7 @@ fn follow_camera(
 /// Skipped indoors — black is set once in spawn_sky and must not be overwritten.
 fn update_sky_color(
     mut clear_color: ResMut<ClearColor>,
-    game_time: Res<crate::game::game_time::GameTime>,
+    game_time: Res<crate::game::world::GameTime>,
     indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
 ) {
     if indoor.is_some() {

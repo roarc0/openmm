@@ -43,7 +43,7 @@ fn footstep_system(
     prepared: Option<Res<PreparedWorld>>,
     player_query: Query<&Transform, With<Player>>,
     cfg: Res<crate::config::GameConfig>,
-    world_state: Res<crate::game::world_state::WorldState>,
+    world_state: Res<crate::game::world::WorldState>,
     mut state: Local<FootstepState>,
 ) {
     let Some(ref mut sound_manager) = sound_manager else {
