@@ -499,7 +499,8 @@ fn process_events(
 
         match event {
             // ── Already implemented (side-effects) ───────────────────
-            GameEvent::Hint { text, .. } => {
+            GameEvent::Hint { str_id, text } => {
+                debug!("Hint(id={}): {}", str_id, text);
                 footer.set(text);
             }
             GameEvent::SpeakInHouse { house_id } => {
@@ -524,7 +525,8 @@ fn process_events(
                     crate::game::hud::grab_cursor(&mut cursor_query, false);
                 }
             }
-            GameEvent::OpenChest { .. } => {
+            GameEvent::OpenChest { id } => {
+                debug!("OpenChest(id={})", id);
                 if let Some(image) = game_assets.load_icon("chest01", &mut images) {
                     // Play chest-open sound if available
                     if let Some(ref sm) = audio.sound_manager
@@ -621,13 +623,16 @@ fn process_events(
             GameEvent::PlaySound { sound_id } => {
                 audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: *sound_id });
             }
-            GameEvent::StatusText { text, .. } => {
+            GameEvent::StatusText { str_id, text } => {
+                debug!("StatusText(id={}): {}", str_id, text);
                 footer.set_status(text, 2.0, time.elapsed_secs_f64());
             }
-            GameEvent::LocationName { text, .. } => {
+            GameEvent::LocationName { str_id, text } => {
+                debug!("LocationName(id={}): {}", str_id, text);
                 footer.set_status(text, 2.0, time.elapsed_secs_f64());
             }
-            GameEvent::ShowMessage { text, .. } => {
+            GameEvent::ShowMessage { str_id, text } => {
+                debug!("ShowMessage(id={}): {}", str_id, text);
                 footer.set_status(text, 4.0, time.elapsed_secs_f64());
             }
             GameEvent::PlayVideo { name, skippable } => {
@@ -800,7 +805,6 @@ fn process_events(
                 x,
                 y,
                 z,
-                ..
             } => {
                 warn!(
                     "STUB SummonMonsters: id={} count={} at ({},{},{})",
@@ -811,11 +815,24 @@ fn process_events(
                 spell_id,
                 skill_level,
                 skill_mastery,
-                ..
+                from_x,
+                from_y,
+                from_z,
+                to_x,
+                to_y,
+                to_z,
             } => {
                 warn!(
-                    "STUB CastSpell: spell={} level={} mastery={}",
-                    spell_id, skill_level, skill_mastery
+                    "STUB CastSpell: spell={} level={} mastery={} from=({},{},{}) to=({},{},{})",
+                    spell_id,
+                    skill_level,
+                    skill_mastery,
+                    from_x,
+                    from_y,
+                    from_z,
+                    to_x,
+                    to_y,
+                    to_z
                 );
             }
             GameEvent::ReceiveDamage { damage_type, amount } => {
@@ -895,22 +912,32 @@ fn process_events(
                 debug!("Marker: OnMapLeave");
                 // Marker step.
             }
-            GameEvent::OnTimer { .. } => {
-                warn!("STUB OnTimer trigger");
+            GameEvent::OnTimer {
+                year,
+                month,
+                week,
+                day,
+                hour,
+                minute,
+            } => {
+                warn!(
+                    "STUB OnTimer trigger: {:04}-{:02}-{:02} (week {}) {:02}:{:02}",
+                    year, month, day, week, hour, minute
+                );
             }
-            GameEvent::OnLongTimer { .. } => {
-                warn!("STUB OnLongTimer trigger");
+            GameEvent::OnLongTimer { timer_data } => {
+                warn!("STUB OnLongTimer trigger: data={:02x?}", timer_data);
             }
-            GameEvent::OnCanShowDialogItemCmp { .. } => {
-                debug!("Marker: OnCanShowDialogItemCmp");
+            GameEvent::OnCanShowDialogItemCmp { var, value } => {
+                debug!("Marker: OnCanShowDialogItemCmp({:?} == {})", var, value);
                 // Logic marker for dialogue system.
             }
             GameEvent::EndCanShowDialogItem => {
                 debug!("Marker: EndCanShowDialogItem");
                 // Logic marker.
             }
-            GameEvent::SetCanShowDialogItem { .. } => {
-                debug!("Marker: SetCanShowDialogItem");
+            GameEvent::SetCanShowDialogItem { on } => {
+                debug!("Marker: SetCanShowDialogItem({})", on);
                 // State marker.
             }
             GameEvent::IsActorKilled {
@@ -1004,11 +1031,14 @@ fn process_events(
                 info!("RemoveItems: id={} cnt={}", item_id, count);
                 world_state.game_vars.remove_item(*item_id, *count);
             }
-            GameEvent::InputString { .. } => {
-                warn!("STUB InputString");
+            GameEvent::InputString { params } => {
+                warn!("STUB InputString: params={:02x?}", params);
             }
-            GameEvent::SetNPCGroupNews { news_id, .. } => {
-                warn!("STUB SetNPCGroupNews: news={}", news_id);
+            GameEvent::SetNPCGroupNews {
+                npc_group,
+                news_id,
+            } => {
+                warn!("STUB SetNPCGroupNews: group={} news={}", npc_group, news_id);
             }
             GameEvent::SetActorGroup { actor_id, group_id } => {
                 info!("SetActorGroup: actor={} group={}", actor_id, group_id);
@@ -1020,8 +1050,8 @@ fn process_events(
             GameEvent::NPCSetItem { npc_id, item_id, on } => {
                 warn!("STUB NPCSetItem: npc={} item={} on={}", npc_id, item_id, on);
             }
-            GameEvent::CanShowTopicIsActorKilled { .. } => {
-                debug!("Marker: CanShowTopicIsActorKilled");
+            GameEvent::CanShowTopicIsActorKilled { actor_group, count } => {
+                debug!("Marker: CanShowTopicIsActorKilled(group={} count={})", actor_group, count);
                 // Marker.
             }
             GameEvent::ChangeGroup { old_group, new_group } => {
@@ -1088,8 +1118,8 @@ fn process_events(
             GameEvent::SetActorItem { actor_id, item_id, on } => {
                 warn!("STUB SetActorItem: actor={} item={} on={}", actor_id, item_id, on);
             }
-            GameEvent::OnDateTimer { .. } => {
-                warn!("STUB OnDateTimer");
+            GameEvent::OnDateTimer { timer_data } => {
+                warn!("STUB OnDateTimer: data={:02x?}", timer_data);
             }
             GameEvent::EnableDateTimer { timer_id, on } => {
                 warn!("STUB EnableDateTimer: id={} on={}", timer_id, on);
