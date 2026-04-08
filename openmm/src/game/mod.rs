@@ -11,7 +11,6 @@ pub(crate) mod game_time;
 pub(crate) mod hud;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
-pub(crate) mod map_name;
 pub(crate) mod outdoor;
 pub(crate) mod optional;
 pub(crate) mod party;

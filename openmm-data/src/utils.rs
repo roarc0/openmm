@@ -65,6 +65,8 @@ pub fn test_lod() -> Option<crate::Assets> {
 
 pub mod odm_name;
 pub use odm_name::OdmName;
+pub mod map_name;
+pub use map_name::MapName;
 
 #[cfg(test)]
 #[path = "utils_tests.rs"]

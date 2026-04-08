@@ -11,7 +11,7 @@ pub use assets::*;
 
 pub mod generator;
 pub mod utils;
-pub use utils::{OdmName, find_path_case_insensitive};
+pub use utils::find_path_case_insensitive;
 
 pub const ENV_OPENMM_6_PATH: &str = "OPENMM_6_PATH";
 

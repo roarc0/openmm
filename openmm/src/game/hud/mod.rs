@@ -204,8 +204,8 @@ fn spawn_hud(
     // Outdoor maps have an icon matching their name (e.g. "oute3").
     // Indoor maps don't have overview icons, so this returns None.
     let map_overview_name = match &world_state.map.name {
-        crate::game::map_name::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
-        crate::game::map_name::MapName::Indoor(_) => String::new(),
+        openmm_data::utils::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
+        openmm_data::utils::MapName::Indoor(_) => String::new(),
     };
     let map_overview = load_map_overview(&map_overview_name, &game_assets, &mut images, &cfg);
     commands.insert_resource(MapOverviewImage(map_overview.clone()));

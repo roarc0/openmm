@@ -25,7 +25,7 @@ use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
 use crate::game::lighting::CurrentSpriteTint;
-use crate::game::map_name::MapName;
+use openmm_data::utils::MapName;
 use crate::game::outdoor::ApplyTextureOutdoors;
 use crate::game::optional::OptionalWrite;
 use crate::game::sound::SoundManager;

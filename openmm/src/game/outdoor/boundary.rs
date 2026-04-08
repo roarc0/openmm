@@ -23,7 +23,7 @@ pub(super) fn check_map_boundary(
         return;
     }
     let Ok(transform) = player_query.single() else { return };
-    let crate::game::map_name::MapName::Outdoor(ref odm) = world_state.map.name else {
+    let openmm_data::utils::MapName::Outdoor(ref odm) = world_state.map.name else {
         debug!(
             "check_map_boundary: skipped (not outdoor map: {:?})",
             world_state.map.name
@@ -57,7 +57,7 @@ pub(super) fn check_map_boundary(
     info!("Map transition: {} → {}", world_state.map.name, new_odm);
 
     // Update world state and save data for the new map
-    world_state.map.name = crate::game::map_name::MapName::Outdoor(new_odm.clone());
+    world_state.map.name = openmm_data::utils::MapName::Outdoor(new_odm.clone());
     world_state.map.map_x = new_odm.x;
     world_state.map.map_y = new_odm.y;
     world_state.player.position = Vec3::new(new_x, pos.y, new_z);

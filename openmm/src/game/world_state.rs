@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::map_name::MapName;
+use openmm_data::utils::MapName;
 use crate::game::outdoor::OdmName;
 use crate::game::player::Player;
 use crate::save::GameSave;

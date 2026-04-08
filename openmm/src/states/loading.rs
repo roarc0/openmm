@@ -11,14 +11,13 @@ use crate::{
     assets::GameAssets,
     config::GameConfig,
     despawn_all,
-    game::map_name::MapName,
-    game::outdoor::OdmName,
     game::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy},
 };
 use openmm_data::{
     blv::Blv,
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData},
+    utils::{MapName, OdmName},
 };
 
 /// Detect self-illuminated MM6 textures by well-known name patterns so they
@@ -829,7 +828,7 @@ fn loading_step(
                     // Search outdoor EVT files for a MoveToMap targeting this BLV.
                     // In MM6, indoor entry coordinates are in the outdoor map's EVT.
                     let blv_name = match &load_request.map_name {
-                        crate::game::map_name::MapName::Indoor(name) => format!("{}.blv", name),
+                        openmm_data::utils::MapName::Indoor(name) => format!("{}.blv", name),
                         _ => String::new(),
                     };
                     // MM6 outdoor maps: outa3..oute3, outb1..oute1, etc.
@@ -893,7 +892,7 @@ fn loading_step(
                 // the player even after a door opens.
                 let (collision_walls, collision_floors, collision_ceilings) = extract_blv_collision(blv, &door_faces);
                 let map_base = match &load_request.map_name {
-                    crate::game::map_name::MapName::Indoor(name) => name.clone(),
+                    openmm_data::utils::MapName::Indoor(name) => name.clone(),
                     _ => load_request.map_name.to_string().replace(".blv", ""),
                 };
                 // Resolve BLV decorations (torches, chests, etc.)
@@ -1293,7 +1292,7 @@ fn loading_step(
                 let water_cells = progress.water_cells.take().unwrap_or_default();
                 let water_texture = progress.water_texture.take();
                 let map_base = match &load_request.map_name {
-                    crate::game::map_name::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
+                    openmm_data::utils::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
                     other => other.to_string(),
                 };
                 crate::game::events::load_map_events(&mut commands, &game_assets, &map_base, false);

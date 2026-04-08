@@ -1,9 +1,9 @@
+use crate::utils::OdmName;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
-pub use openmm_data::OdmName;
-
 /// Unified map identifier for outdoor (ODM) and indoor (BLV) maps.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum MapName {
     Outdoor(OdmName),
     Indoor(String), // e.g. "d01", "sewer"

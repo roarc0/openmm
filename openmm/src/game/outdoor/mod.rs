@@ -22,7 +22,7 @@ mod texture_swap;
 
 pub use boundary::PLAY_WIDTH;
 pub use lazy_spawn::SpawnProgress;
-pub use openmm_data::OdmName;
+pub use openmm_data::utils::OdmName;
 pub use terrain::TerrainMaterial;
 pub use texture_swap::ApplyTextureOutdoors;
 

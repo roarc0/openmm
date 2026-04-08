@@ -15,7 +15,7 @@ use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::debug::hud::DebugHud;
 use crate::game::hud::viewport_inner_rect;
-use crate::game::map_name::MapName;
+use openmm_data::utils::MapName;
 use crate::game::outdoor::{OdmName, PLAY_WIDTH};
 use crate::game::world_state::WorldState;
 use crate::save::GameSave;
