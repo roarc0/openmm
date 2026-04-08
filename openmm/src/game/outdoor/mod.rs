@@ -18,13 +18,13 @@ mod lazy_spawn;
 mod spawn;
 mod spawn_actors;
 mod spawn_decorations;
-pub mod terrain;
+pub mod spawn_terrain;
 mod texture_swap;
 
 pub use boundary::PLAY_WIDTH;
 pub use lazy_spawn::SpawnProgress;
 pub use openmm_data::utils::OdmName;
-pub use terrain::TerrainMaterial;
+pub use spawn_terrain::TerrainMaterial;
 pub use texture_swap::ApplyTextureOutdoors;
 
 pub struct OdmPlugin;

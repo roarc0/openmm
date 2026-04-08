@@ -10,8 +10,8 @@ use crate::game::optional::OptionalWrite;
 use crate::game::sprites::material::SpriteMaterial;
 use crate::states::loading::PreparedWorld;
 
-use super::terrain;
 use super::bsp;
+use super::spawn_terrain;
 
 use super::lazy_spawn::{PendingSpawns, SpawnProgress, sort_by_distance_mm6};
 
@@ -21,7 +21,7 @@ pub(super) fn spawn_world(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     _sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
-    mut terrain_materials: Option<ResMut<Assets<terrain::TerrainMaterial>>>,
+    mut terrain_materials: Option<ResMut<Assets<spawn_terrain::TerrainMaterial>>>,
     mut prepared: Option<ResMut<PreparedWorld>>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
@@ -33,9 +33,9 @@ pub(super) fn spawn_world(
     };
 
     let (terrain_tex_handle, water_tex_handle, water_mask_handle) =
-        terrain::prepare_terrain_textures(prepared, &mut images, &cfg);
+        spawn_terrain::prepare_terrain_textures(prepared, &mut images, &cfg);
 
-    let terrain_entity_id = terrain::spawn_terrain(
+    let terrain_entity_id = spawn_terrain::spawn_terrain(
         &mut commands,
         &mut meshes,
         &mut materials,
