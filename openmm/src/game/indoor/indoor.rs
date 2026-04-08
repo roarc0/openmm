@@ -14,15 +14,15 @@ use crate::game::coords::mm6_position_to_bevy;
 
 use crate::GameState;
 use crate::game::InGame;
-use crate::game::sprites::SelfLit;
 use crate::game::actors::actor;
-use crate::game::sprites::loading as sprites;
-use crate::game::world::EventQueue;
-use crate::game::world::MapEvents;
 use crate::game::hud::HudView;
 use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
 use crate::game::player::PlayerCamera;
+use crate::game::sprites::SelfLit;
+use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::{SpriteMaterial, unlit_billboard_material};
+use crate::game::world::EventQueue;
+use crate::game::world::MapEvents;
 use crate::states::loading::PreparedIndoorWorld;
 
 // --- Components ---
@@ -231,29 +231,9 @@ pub struct TouchTriggerFaces {
     pub fired: std::collections::HashSet<u16>,
 }
 
-// --- Plugin ---
-
-pub struct BlvPlugin;
-
-impl Plugin for BlvPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), spawn_indoor_world)
-            .add_systems(
-                Update,
-                (
-                    indoor_interact_system,
-                    indoor_touch_trigger_system,
-                    door_animation_system,
-                )
-                    .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(HudView::World)),
-            );
-    }
-}
-
 // --- Spawn ---
 
-fn spawn_indoor_world(
+pub(crate) fn spawn_indoor_world(
     prepared: Option<Res<PreparedIndoorWorld>>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
@@ -737,7 +717,7 @@ fn spawn_indoor_world(
 pub(crate) const INDOOR_INTERACT_RANGE: f32 = 5120.0;
 
 /// Detect indoor face interaction (Enter/click) and dispatch EVT events.
-fn indoor_interact_system(
+pub(crate) fn indoor_interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
@@ -822,7 +802,7 @@ fn indoor_interact_system(
 // --- Touch trigger (EVENT_BY_TOUCH proximity) ---
 
 /// Check player proximity to touch-triggered faces and dispatch events.
-fn indoor_touch_trigger_system(
+pub(crate) fn indoor_touch_trigger_system(
     player_query: Query<&Transform, With<crate::game::player::Player>>,
     mut touch_triggers: Option<ResMut<TouchTriggerFaces>>,
     map_events: Option<Res<MapEvents>>,
@@ -983,7 +963,7 @@ fn door_slide_distance(door: &DoorRuntime) -> f32 {
 }
 
 /// Advance door animations, update mesh vertex positions, and rebuild door collision.
-fn door_animation_system(
+pub(crate) fn door_animation_system(
     time: Res<Time>,
     mut blv_doors: Option<ResMut<BlvDoors>>,
     door_faces: Query<(&DoorFace, &Mesh3d)>,

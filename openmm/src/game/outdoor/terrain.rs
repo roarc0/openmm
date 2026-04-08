@@ -5,7 +5,7 @@ use bevy::{
     shader::ShaderRef,
 };
 
-use crate::game::InGame;
+use crate::{game::InGame, states::loading::PreparedWorld};
 
 /// Type alias for the full terrain material (StandardMaterial + water extension).
 pub type TerrainMaterial = ExtendedMaterial<StandardMaterial, WaterExtension>;
@@ -81,4 +81,38 @@ pub fn spawn_terrain(
     }
 
     terrain_entity.id()
+}
+
+/// Builds clone'd terrain/water/water-mask images with the right samplers and uploads them.
+pub(super) fn prepare_terrain_textures(
+    prepared: &PreparedWorld,
+    images: &mut Assets<Image>,
+    cfg: &crate::config::GameConfig,
+) -> (Handle<Image>, Handle<Image>, Handle<Image>) {
+    let mut terrain_texture = prepared.terrain_texture.clone();
+    // Cyan markers have been replaced with neutral color by extract_water_mask(),
+    // so the atlas can safely use linear filtering without cyan bleed.
+    terrain_texture.sampler = crate::assets::sampler_for_filtering(&cfg.terrain_filtering);
+    let terrain_tex_handle = images.add(terrain_texture);
+
+    // Water mask: R8 texture with nearest filtering for sharp water boundaries
+    let water_mask_handle = if let Some(ref mask) = prepared.water_mask {
+        let mut m = mask.clone();
+        m.sampler = crate::assets::nearest_sampler();
+        images.add(m)
+    } else {
+        images.add(Image::default())
+    };
+
+    // Water texture uses same filtering as terrain for visual consistency
+    let water_sampler = crate::assets::sampler_for_filtering(&cfg.terrain_filtering);
+    let water_tex_handle = if let Some(ref water_tex) = prepared.water_texture {
+        let mut water = water_tex.clone();
+        water.sampler = water_sampler;
+        images.add(water)
+    } else {
+        images.add(Image::default())
+    };
+
+    (terrain_tex_handle, water_tex_handle, water_mask_handle)
 }

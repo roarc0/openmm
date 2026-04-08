@@ -13,6 +13,7 @@ use bevy::prelude::*;
 use crate::GameState;
 
 mod boundary;
+mod bsp;
 mod lazy_spawn;
 mod spawn;
 mod spawn_actors;
