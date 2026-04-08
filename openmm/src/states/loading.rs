@@ -339,9 +339,9 @@ fn loading_setup(
     // Clean up resources from previous map (indoor or outdoor)
     commands.remove_resource::<PreparedWorld>();
     commands.remove_resource::<PreparedIndoorWorld>();
+    commands.remove_resource::<crate::game::interaction::clickable::Faces>();
     commands.remove_resource::<crate::game::indoor::BlvDoors>();
     commands.remove_resource::<crate::game::indoor::DoorColliders>();
-    commands.remove_resource::<crate::game::indoor::ClickableFaces>();
     commands.remove_resource::<crate::game::indoor::TouchTriggerFaces>();
     commands.remove_resource::<crate::game::indoor::OccluderFaces>();
     commands.remove_resource::<crate::game::hud::MapOverviewImage>();

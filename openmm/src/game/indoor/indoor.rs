@@ -162,23 +162,6 @@ impl DoorColliders {
     }
 }
 
-/// Info about a single clickable indoor face.
-pub struct ClickableFaceInfo {
-    pub face_index: usize,
-    pub event_id: u16,
-    pub normal: Vec3,
-    pub plane_dist: f32,
-    pub vertices: Vec<Vec3>,
-}
-
-/// Resource holding all clickable face data for the current map.
-#[derive(Resource)]
-pub struct ClickableFaces {
-    pub faces: Vec<ClickableFaceInfo>,
-    /// True when loaded from a BLV (indoor) map; false for ODM outdoor BSP buildings.
-    pub is_indoor: bool,
-}
-
 /// Info about a single solid face used for ray occlusion.
 pub struct OccluderFaceInfo {
     pub normal: Vec3,
@@ -350,10 +333,10 @@ pub(crate) fn spawn_indoor_world(
     });
 
     // Build ClickableFaces resource
-    let faces: Vec<ClickableFaceInfo> = prepared
+    let faces: Vec<crate::game::interaction::clickable::FaceInfo> = prepared
         .clickable_faces
         .iter()
-        .map(|cf| ClickableFaceInfo {
+        .map(|cf| crate::game::interaction::clickable::FaceInfo {
             face_index: cf.face_index,
             event_id: cf.event_id,
             normal: cf.normal,
@@ -361,7 +344,7 @@ pub(crate) fn spawn_indoor_world(
             vertices: cf.vertices.clone(),
         })
         .collect();
-    commands.insert_resource(ClickableFaces { faces, is_indoor: true });
+    commands.insert_resource(crate::game::interaction::clickable::Faces { faces, is_indoor: true });
 
     // Build OccluderFaces resource — all solid indoor geometry for ray occlusion.
     let occ_faces: Vec<OccluderFaceInfo> = prepared
@@ -722,7 +705,7 @@ pub(crate) fn indoor_interact_system(
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    clickable: Option<Res<ClickableFaces>>,
+    clickable: Option<Res<crate::game::interaction::clickable::Faces>>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,

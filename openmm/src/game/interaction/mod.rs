@@ -5,15 +5,17 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::game::actors::KillActorEvent;
-use crate::game::indoor::{ClickableFaces, OccluderFaces};
+use crate::game::hud::{FooterText, HudView, OverlayImage};
+use crate::game::indoor::OccluderFaces;
+use crate::game::player::{Player, PlayerCamera};
 use crate::game::sprites::loading::{AlphaMask, SpriteSheet};
 use crate::game::world::EventQueue;
-use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
-use crate::game::hud::{FooterText, HudView, OverlayImage};
-use crate::game::player::{Player, PlayerCamera};
 use crate::game::world::WorldState;
+use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
 
+pub mod clickable;
 pub mod raycast;
+
 use raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 
 /// Max ray distance for all outdoor interaction (billboards, decorations, BSP faces).
@@ -178,7 +180,7 @@ fn world_interact_system(
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
     monsters: Query<(Entity, &MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
-    clickable_faces: Option<Res<ClickableFaces>>,
+    clickable_faces: Option<Res<clickable::Faces>>,
     occluder_faces: Option<Res<OccluderFaces>>,
     map_events: Option<Res<MapEvents>>,
     mut event_queue: ResMut<EventQueue>,
@@ -401,7 +403,7 @@ fn decoration_proximity_system(
 /// Show the nearest interactive object's name in the footer — pixel-accurate for all types.
 fn hover_hint_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    clickable_faces: Option<Res<ClickableFaces>>,
+    clickable_faces: Option<Res<clickable::Faces>>,
     occluder_faces: Option<Res<OccluderFaces>>,
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,

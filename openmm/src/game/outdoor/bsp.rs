@@ -70,7 +70,7 @@ pub fn spawn_bsp_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
             let normal = Vec3::from(mm6_fixed_normal_to_bevy(face.plane.normal));
             let plane_dist = normal.dot(verts[0]);
             if face.cog_trigger_id != 0 {
-                outdoor_clickable.push(crate::game::indoor::ClickableFaceInfo {
+                outdoor_clickable.push(crate::game::interaction::clickable::FaceInfo {
                     face_index: 0,
                     event_id: face.cog_trigger_id,
                     normal,
@@ -86,7 +86,7 @@ pub fn spawn_bsp_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
         }
     }
     if !outdoor_clickable.is_empty() {
-        commands.insert_resource(crate::game::indoor::ClickableFaces {
+        commands.insert_resource(crate::game::interaction::clickable::Faces {
             faces: outdoor_clickable,
             is_indoor: false,
         });

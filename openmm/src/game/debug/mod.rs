@@ -84,7 +84,7 @@ pub fn draw_play_area(world_state: Res<crate::game::world::WorldState>, mut gizm
 pub fn draw_events(
     world_state: Res<crate::game::world::WorldState>,
     mut gizmos: Gizmos,
-    clickable_faces: Option<Res<crate::game::indoor::ClickableFaces>>,
+    clickable_faces: Option<Res<crate::game::interaction::clickable::Faces>>,
     decorations: Query<&crate::game::interaction::DecorationInfo>,
 ) {
     if !world_state.debug.show_events {
