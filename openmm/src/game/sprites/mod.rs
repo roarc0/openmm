@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::hud::HudView;
 
-pub mod actor;
-pub mod sprites;
+pub mod loading;
+pub mod material;
 
 // Future modules:
 // pub mod loot;
@@ -87,16 +87,16 @@ impl DecorFlicker {
 
 // --- Plugin ---
 
-pub struct EntitiesPlugin;
+pub struct SpritesPlugin;
 
-impl Plugin for EntitiesPlugin {
+impl Plugin for SpritesPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
             (
                 distance_culling,
                 flicker_system,
-                sprites::update_sprite_sheets,
+                loading::update_sprite_sheets,
                 billboard_face_camera,
             )
                 .chain()
@@ -157,7 +157,7 @@ fn billboard_face_camera(
     camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
     mut billboard_query: Query<
         (&mut Transform, &GlobalTransform, &Visibility),
-        (With<Billboard>, Without<sprites::SpriteSheet>),
+        (With<Billboard>, Without<loading::SpriteSheet>),
     >,
 ) {
     let Ok(camera_gt) = camera_query.single() else {

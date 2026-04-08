@@ -10,17 +10,19 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use openmm_data::blv::DoorState;
 
-use crate::mm6_coords::mm6_position_to_bevy;
+use crate::game::coords::mm6_position_to_bevy;
 
 use crate::GameState;
 use crate::game::InGame;
-use crate::game::entities::{SelfLit, actor, sprites};
-use crate::game::event_dispatch::EventQueue;
+use crate::game::sprites::SelfLit;
+use crate::game::actors::actor;
+use crate::game::sprites::loading as sprites;
+use crate::game::scripting::EventQueue;
 use crate::game::events::MapEvents;
 use crate::game::hud::HudView;
 use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
 use crate::game::player::PlayerCamera;
-use crate::game::sprite_material::{SpriteMaterial, unlit_billboard_material};
+use crate::game::sprites::material::{SpriteMaterial, unlit_billboard_material};
 use crate::states::loading::PreparedIndoorWorld;
 
 // --- Components ---
@@ -458,12 +460,12 @@ fn spawn_indoor_world(
                 Mesh3d(quad),
                 MeshMaterial3d(initial_mat),
                 Transform::from_translation(pos),
-                crate::game::entities::WorldEntity,
-                crate::game::entities::EntityKind::Decoration,
-                crate::game::entities::Billboard,
-                crate::game::entities::AnimationState::Idle,
+                crate::game::sprites::WorldEntity,
+                crate::game::sprites::EntityKind::Decoration,
+                crate::game::sprites::Billboard,
+                crate::game::sprites::AnimationState::Idle,
                 sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
-                crate::game::entities::FacingYaw(dec.facing_yaw),
+                crate::game::sprites::FacingYaw(dec.facing_yaw),
                 InGame,
             ));
             if dec.event_id > 0 {
@@ -510,10 +512,10 @@ fn spawn_indoor_world(
                 Mesh3d(quad),
                 MeshMaterial3d(initial_mat),
                 Transform::from_translation(pos),
-                crate::game::entities::WorldEntity,
-                crate::game::entities::EntityKind::Decoration,
-                crate::game::entities::Billboard,
-                crate::game::entities::AnimationState::Idle,
+                crate::game::sprites::WorldEntity,
+                crate::game::sprites::EntityKind::Decoration,
+                crate::game::sprites::Billboard,
+                crate::game::sprites::AnimationState::Idle,
                 sheet,
                 InGame,
             ));
@@ -573,10 +575,10 @@ fn spawn_indoor_world(
                 Mesh3d(quad),
                 MeshMaterial3d(mat),
                 Transform::from_translation(pos),
-                crate::game::entities::WorldEntity,
-                crate::game::entities::EntityKind::Decoration,
-                crate::game::entities::Billboard,
-                crate::game::entities::AnimationState::Idle,
+                crate::game::sprites::WorldEntity,
+                crate::game::sprites::EntityKind::Decoration,
+                crate::game::sprites::Billboard,
+                crate::game::sprites::AnimationState::Idle,
                 InGame,
             ));
             if dec.event_id > 0 {
@@ -689,9 +691,9 @@ fn spawn_indoor_world(
                 Mesh3d(quad),
                 MeshMaterial3d(initial_mat),
                 Transform::from_translation(pos),
-                crate::game::entities::WorldEntity,
-                crate::game::entities::EntityKind::Monster,
-                crate::game::entities::AnimationState::Idle,
+                crate::game::sprites::WorldEntity,
+                crate::game::sprites::EntityKind::Monster,
+                crate::game::sprites::AnimationState::Idle,
                 sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
                 crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
                 crate::game::actors::MonsterAiMode::Wander,
@@ -722,7 +724,7 @@ fn spawn_indoor_world(
                     vertical_velocity: 0.0,
                     ai_type: mon.ai_type.clone(),
                 },
-                crate::game::entities::Billboard,
+                crate::game::sprites::Billboard,
                 InGame,
             ));
             info!("Spawned indoor monster '{}' at {:?}", mon.name, pos);

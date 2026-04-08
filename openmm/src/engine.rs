@@ -6,9 +6,9 @@ use crate::APP_NAME;
 use crate::config::GameConfig;
 use crate::frame_limiter::FrameLimiterPlugin;
 
-pub struct BevyConfigPlugin;
+pub struct EngineConfigPlugin;
 
-impl Plugin for BevyConfigPlugin {
+impl Plugin for EngineConfigPlugin {
     fn build(&self, app: &mut App) {
         let cfg = app.world().resource::<GameConfig>().clone();
 

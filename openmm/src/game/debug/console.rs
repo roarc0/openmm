@@ -16,7 +16,7 @@ use crate::game::InGame;
 use crate::game::debug::hud::DebugHud;
 use crate::game::hud::viewport_inner_rect;
 use crate::game::map_name::MapName;
-use crate::game::odm::{OdmName, PLAY_WIDTH};
+use crate::game::outdoor::{OdmName, PLAY_WIDTH};
 use crate::game::world_state::WorldState;
 use crate::save::GameSave;
 use crate::states::loading::LoadRequest;
@@ -1035,7 +1035,7 @@ fn sync_config_to_scene(
     }
 
     for (entity, existing_dof) in camera_q.iter() {
-        if let Some(dof) = crate::bevy_config::camera_dof(&cfg) {
+        if let Some(dof) = crate::engine::camera_dof(&cfg) {
             commands.entity(entity).insert(dof);
         } else if existing_dof.is_some() {
             commands

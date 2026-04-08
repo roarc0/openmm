@@ -1,6 +1,6 @@
 //! Actor systems: AI, combat, and per-actor physics.
 //!
-//! These run on every entity carrying an [`crate::game::entities::actor::Actor`]
+//! These run on every entity carrying an [`crate::game::actors::Actor`]
 //! component, regardless of whether it spawned from an outdoor (ODM) or
 //! indoor (BLV) map. Submodules are kept thin so each one owns one concern:
 //!
@@ -10,10 +10,12 @@
 
 use bevy::prelude::*;
 
+pub mod actor;
 pub mod ai;
 pub mod combat;
 pub mod physics;
 
+pub use actor::Actor;
 pub use ai::MonsterAiMode;
 pub use combat::KillActorEvent;
 

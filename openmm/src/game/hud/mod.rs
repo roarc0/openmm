@@ -112,7 +112,7 @@ fn close_ui_system(
     console: Option<Res<ConsoleState>>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut commands: Commands,
-    mut event_queue: ResMut<crate::game::event_dispatch::EventQueue>,
+    mut event_queue: ResMut<crate::game::scripting::EventQueue>,
 ) {
     if console.as_ref().is_some_and(|c| c.open)
         || !keys.just_pressed(KeyCode::Escape)

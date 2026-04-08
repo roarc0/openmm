@@ -5,9 +5,9 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::game::actors::KillActorEvent;
-use crate::game::blv::{ClickableFaces, OccluderFaces};
-use crate::game::entities::sprites::{AlphaMask, SpriteSheet};
-use crate::game::event_dispatch::EventQueue;
+use crate::game::indoor::{ClickableFaces, OccluderFaces};
+use crate::game::sprites::loading::{AlphaMask, SpriteSheet};
+use crate::game::scripting::EventQueue;
 use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::player::{Player, PlayerCamera};

@@ -4,10 +4,10 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::game::InGame;
-use crate::game::entities::sprites;
+use crate::game::sprites::loading as sprites;
 use crate::game::optional::OptionalWrite;
-use crate::game::sprite_material::unlit_billboard_material;
-use crate::mm6_coords::mm6_position_to_bevy;
+use crate::game::sprites::material::unlit_billboard_material;
+use crate::game::coords::mm6_position_to_bevy;
 
 use crate::game::lighting::{DSFT_ANIMATED_LR_SCALE, DSFT_STATIC_LR_SCALE, decoration_point_light};
 
@@ -58,12 +58,12 @@ pub(super) fn spawn_decorations(
                         Mesh3d(ctx.meshes.add(Rectangle::new(sw, sh))),
                         MeshMaterial3d(dirs[0].clone()),
                         Transform::from_translation(pos),
-                        crate::game::entities::WorldEntity,
-                        crate::game::entities::EntityKind::Decoration,
-                        crate::game::entities::Billboard,
-                        crate::game::entities::AnimationState::Idle,
+                        crate::game::sprites::WorldEntity,
+                        crate::game::sprites::EntityKind::Decoration,
+                        crate::game::sprites::Billboard,
+                        crate::game::sprites::AnimationState::Idle,
                         sprites::SpriteSheet::new(vec![vec![dirs]], vec![(sw, sh)], vec![vec![dir_masks]]),
-                        crate::game::entities::FacingYaw(dec.facing_yaw),
+                        crate::game::sprites::FacingYaw(dec.facing_yaw),
                     ))
                     .id();
                 commands.entity(ctx.terrain_entity).add_child(child_id);
@@ -94,7 +94,7 @@ pub(super) fn spawn_decorations(
                     commands
                         .entity(child_id)
                         .add_child(light_id)
-                        .insert(crate::game::entities::SelfLit);
+                        .insert(crate::game::sprites::SelfLit);
                 }
                 *spawned += 1;
             } else {
@@ -117,7 +117,7 @@ pub(super) fn spawn_decorations(
             let mut frame_masks = vec![];
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
-                let msk = std::sync::Arc::new(crate::game::entities::sprites::AlphaMask::from_image(&rgba));
+                let msk = std::sync::Arc::new(crate::game::sprites::loading::AlphaMask::from_image(&rgba));
                 let tex = ctx.images.add(crate::assets::rgba8_to_bevy_image(rgba));
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
@@ -134,10 +134,10 @@ pub(super) fn spawn_decorations(
                     Mesh3d(ctx.meshes.add(Rectangle::new(w, h))),
                     MeshMaterial3d(sheet.states[0][0][0].clone()),
                     Transform::from_translation(pos),
-                    crate::game::entities::WorldEntity,
-                    crate::game::entities::EntityKind::Decoration,
-                    crate::game::entities::Billboard,
-                    crate::game::entities::AnimationState::Idle,
+                    crate::game::sprites::WorldEntity,
+                    crate::game::sprites::EntityKind::Decoration,
+                    crate::game::sprites::Billboard,
+                    crate::game::sprites::AnimationState::Idle,
                     sheet,
                 ))
                 .id();
@@ -179,7 +179,7 @@ pub(super) fn spawn_decorations(
                 commands
                     .entity(child_id)
                     .add_child(light_id)
-                    .insert(crate::game::entities::SelfLit);
+                    .insert(crate::game::sprites::SelfLit);
             }
             *spawned += 1;
         } else {
@@ -192,7 +192,7 @@ pub(super) fn spawn_decorations(
                 };
                 let (w, h) = sprite.dimensions();
                 let rgba = sprite.image.to_rgba8();
-                let msk = std::sync::Arc::new(crate::game::entities::sprites::AlphaMask::from_image(&rgba));
+                let msk = std::sync::Arc::new(crate::game::sprites::loading::AlphaMask::from_image(&rgba));
                 let tex = ctx.images.add(crate::assets::rgba8_to_bevy_image(rgba));
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
@@ -216,9 +216,9 @@ pub(super) fn spawn_decorations(
                 .insert(Mesh3d(quad))
                 .insert(MeshMaterial3d(mat))
                 .insert(Transform::from_translation(pos))
-                .insert(crate::game::entities::WorldEntity)
-                .insert(crate::game::entities::EntityKind::Decoration)
-                .insert(crate::game::entities::Billboard)
+                .insert(crate::game::sprites::WorldEntity)
+                .insert(crate::game::sprites::EntityKind::Decoration)
+                .insert(crate::game::sprites::Billboard)
                 .insert(InGame);
             commands.entity(ctx.terrain_entity).add_child(child_id);
             if dec.event_id > 0 {
@@ -247,7 +247,7 @@ pub(super) fn spawn_decorations(
                 let phase = (pos.x * 0.137 + pos.z * 0.031).abs().fract();
                 commands
                     .entity(child_id)
-                    .insert(crate::game::entities::DecorFlicker::new(dec.flicker_rate, phase));
+                    .insert(crate::game::sprites::DecorFlicker::new(dec.flicker_rate, phase));
             }
             let effective_lr = if dec.light_radius > 0 {
                 dec.light_radius
@@ -260,7 +260,7 @@ pub(super) fn spawn_decorations(
                 commands
                     .entity(child_id)
                     .add_child(light_id)
-                    .insert(crate::game::entities::SelfLit);
+                    .insert(crate::game::sprites::SelfLit);
             }
             *spawned += 1;
         }

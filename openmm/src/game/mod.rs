@@ -1,25 +1,25 @@
 use bevy::prelude::*;
 
 pub(crate) mod actors;
-pub(crate) mod blv;
+pub mod coords;
+pub(crate) mod indoor;
 pub(crate) mod collision;
 pub(crate) mod debug;
-pub(crate) mod entities;
-pub(crate) mod event_dispatch;
+pub(crate) mod scripting;
 pub(crate) mod events;
 pub(crate) mod game_time;
 pub(crate) mod hud;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
 pub(crate) mod map_name;
-pub(crate) mod odm;
+pub(crate) mod outdoor;
 pub(crate) mod optional;
 pub(crate) mod party;
 pub(crate) mod physics;
 pub(crate) mod player;
 pub(crate) mod sky;
 pub(crate) mod sound;
-pub(crate) mod sprite_material;
+pub(crate) mod sprites;
 pub(crate) mod world_state;
 
 /// Marker component for all entities spawned during the Game state.
@@ -72,8 +72,8 @@ impl Plugin for RenderingPlugin {
         app.add_plugins((
             lighting::LightingPlugin,
             sky::SkyPlugin,
-            MaterialPlugin::<odm::TerrainMaterial>::default(),
-            MaterialPlugin::<sprite_material::SpriteMaterial>::default(),
+            MaterialPlugin::<outdoor::TerrainMaterial>::default(),
+            MaterialPlugin::<sprites::material::SpriteMaterial>::default(),
         ));
     }
 }
@@ -83,10 +83,10 @@ struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            odm::OdmPlugin,
-            blv::BlvPlugin,
+            outdoor::OdmPlugin,
+            indoor::BlvPlugin,
             physics::PhysicsPlugin,
-            entities::EntitiesPlugin,
+            sprites::SpritesPlugin,
         ));
     }
 }
@@ -108,7 +108,7 @@ impl Plugin for UiPlugin {
             debug::DebugPlugin,
             debug::console::ConsolePlugin,
             interaction::InteractionPlugin,
-            event_dispatch::EventDispatchPlugin,
+            scripting::EventDispatchPlugin,
         ));
     }
 }

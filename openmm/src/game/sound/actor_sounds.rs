@@ -3,7 +3,7 @@ use openmm_data::ActorSoundSlot;
 
 use super::effects::PlayOnceSoundEvent;
 use crate::GameState;
-use crate::game::entities::actor::Actor;
+use crate::game::actors::Actor;
 use crate::game::hud::HudView;
 use crate::game::player::Player;
 

@@ -267,7 +267,7 @@ fn spawn_player(
             PlayerCamera,
             Camera3d::default(),
             SpatialListener::new(4.0),
-            crate::bevy_config::camera_msaa(&cfg),
+            crate::engine::camera_msaa(&cfg),
             Transform::from_rotation(Quat::from_rotation_x(10.0_f32.to_radians())),
             Projection::Perspective(PerspectiveProjection {
                 // MM6 FOV: 75 degrees outdoor, 60 degrees indoor (from OpenEnroth)
@@ -281,16 +281,16 @@ fn spawn_player(
                 ..Default::default()
             }),
         ));
-        if let Some(fxaa) = crate::bevy_config::camera_fxaa(&cfg) {
+        if let Some(fxaa) = crate::engine::camera_fxaa(&cfg) {
             cam.insert(fxaa);
         }
-        if let Some(smaa) = crate::bevy_config::camera_smaa(&cfg) {
+        if let Some(smaa) = crate::engine::camera_smaa(&cfg) {
             cam.insert(smaa);
         }
-        if let Some(taa) = crate::bevy_config::camera_taa(&cfg) {
+        if let Some(taa) = crate::engine::camera_taa(&cfg) {
             cam.insert(taa);
         }
-        if let Some(bloom) = crate::bevy_config::camera_bloom(&cfg) {
+        if let Some(bloom) = crate::engine::camera_bloom(&cfg) {
             cam.insert(bloom);
         }
         // Depth prepass is required by SSAO and DoF (both sample the depth buffer).
@@ -301,13 +301,13 @@ fn spawn_player(
         if cfg.ssao {
             cam.insert(bevy::core_pipeline::prepass::NormalPrepass);
         }
-        if let Some(ssao) = crate::bevy_config::camera_ssao(&cfg) {
+        if let Some(ssao) = crate::engine::camera_ssao(&cfg) {
             cam.insert(ssao);
         }
-        if let Some(motion_blur) = crate::bevy_config::camera_motion_blur(&cfg) {
+        if let Some(motion_blur) = crate::engine::camera_motion_blur(&cfg) {
             cam.insert(motion_blur);
         }
-        if let Some(dof) = crate::bevy_config::camera_dof(&cfg) {
+        if let Some(dof) = crate::engine::camera_dof(&cfg) {
             cam.insert(dof);
         }
         // Always apply tonemapping + exposure for consistent physically-based rendering.
@@ -315,10 +315,10 @@ fn spawn_player(
         let tonemapping = if cfg.bloom && cfg.tonemapping == "none" {
             bevy::core_pipeline::tonemapping::Tonemapping::AgX
         } else {
-            crate::bevy_config::camera_tonemapping(&cfg)
+            crate::engine::camera_tonemapping(&cfg)
         };
         cam.insert(tonemapping);
-        cam.insert(crate::bevy_config::camera_exposure(&cfg));
+        cam.insert(crate::engine::camera_exposure(&cfg));
         if !is_indoor {
             // Outdoor: horizon haze blending into sky colour.
             cam.insert(DistanceFog {
@@ -455,7 +455,7 @@ fn move_with_substeps(
     radius: f32,
     eye_height: f32,
     colliders: Option<&BuildingColliders>,
-    door_colliders: Option<&crate::game::blv::DoorColliders>,
+    door_colliders: Option<&crate::game::indoor::DoorColliders>,
 ) -> Vec3 {
     let movement = dest - from;
     let dist = movement.length();
@@ -498,7 +498,7 @@ fn player_movement(
     world_state: Res<crate::game::world_state::WorldState>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
-    door_colliders: Option<Res<crate::game::blv::DoorColliders>>,
+    door_colliders: Option<Res<crate::game::indoor::DoorColliders>>,
     water_map: Option<Res<WaterMap>>,
     water_walking: Option<Res<WaterWalking>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,

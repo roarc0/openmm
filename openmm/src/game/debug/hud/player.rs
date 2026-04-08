@@ -51,7 +51,7 @@ pub fn update_position_text(
     throttle: Res<HudThrottle>,
     cfg: Res<GameConfig>,
     _world_state: Res<crate::game::world_state::WorldState>,
-    spawn_progress: Res<crate::game::odm::SpawnProgress>,
+    spawn_progress: Res<crate::game::outdoor::SpawnProgress>,
     player_query: Query<&Transform, With<Player>>,
     mut query: Query<&mut Text, With<PosSpan>>,
 ) {

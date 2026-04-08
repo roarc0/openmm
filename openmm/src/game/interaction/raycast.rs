@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::game::entities::sprites::AlphaMask;
+use crate::game::sprites::loading::AlphaMask;
 use crate::game::events::MapEvents;
 
 /// Resolve a human-readable label for an event ID from its EVT steps.
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn billboard_hit_transparent_pixel_misses() {
-        use crate::game::entities::sprites::AlphaMask;
+        use crate::game::sprites::loading::AlphaMask;
         // 2x2 mask — only bottom-left pixel is opaque
         let mask = AlphaMask::new(2, 2, vec![true, false, false, false]);
         // Ray hits top-right corner: u~0.75, v~0.25 → transparent
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn billboard_hit_opaque_pixel_hits() {
-        use crate::game::entities::sprites::AlphaMask;
+        use crate::game::sprites::loading::AlphaMask;
         // 2x2 mask — only top-left pixel is opaque (index 0: u<0.5, v<0.5)
         let mask = AlphaMask::new(2, 2, vec![true, false, false, false]);
         // Ray hits top-left: local_x = -25, local_y = 25 → u=0.25, v=0.25

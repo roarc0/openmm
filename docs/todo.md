@@ -1,28 +1,52 @@
-# Upcoming Work / TODOs
+# OpenMM Roadmap & TODOs
 
-Ordered roughly by impact and readiness.
+## Recently Completed Reorganization
+- [x] **Relocate Actor component** — Moved from `game/entities/actor.rs` to `game/actors/actor.rs`.
+- [x] **Rename entities to sprites** — Renamed `game/entities` to `game/sprites`.
+- [x] **Relocate loading logic** — Moved `game/entities/sprites.rs` to `game/sprites/loading.rs`.
+- [x] **Consolidate sprite materials** — Moved `game/sprite_material.rs` to `game/sprites/material.rs`.
+- [x] **Rename engine_config** — Renamed `game/engine_config.rs` to `game/engine.rs`.
+- [x] **Extract lazy_spawn() dispatcher** — Split `odm.rs` into localized submodules (spawn_decorations, spawn_actors, etc.).
 
-- **Monster aggro range verification** — All 173 MM6 monsters have `hostile_type=4` in `monsters.txt` col 12. `hostile_type_to_aggro_range()` maps 0-3 explicitly and catches 4 with `_ => 6656.0`, so every hostile monster gets 6656 world units range. Unclear if 6656 is the correct value for type 4 or if the mapping is wrong. Cross-check against MMExtension docs or original engine behaviour; the value may be too large or just right. Only 9 monsters have `hostile_type=0` (passive).
-- **HUD GameTime integration** — `GameTime` is not wired to the HUD. Two things missing: (1) tap frame switching — `TapFrames` resource holds 4 images (tap1=morning, tap2=day, tap3=evening, tap4=night) but `update_minimap` never swaps them based on `time_of_day()`; (2) date/time text display — no text node exists on the right sidebar for the formatted date/time string (`format_datetime()`). The tap frame switch is trivial; the text needs MM6 reference coordinates verified against the sidebar.
-- **Texture animation (TFT)** — `tft.rs` parses the tile frame table but animated tile cycling is not yet implemented in the terrain shader; some water and lava tiles should cycle frames.
-- **NPC dialogue text rendering** — `SpeakInHouse` events open a `HudView::NpcDialogue` placeholder; actual text rendering (font from LOD, scrolling lines) is not yet wired up.
-- **Monster combat stats** — `MonList` entries have attack, HP, speed, resistances; combat is not yet implemented; needed for a playable state.
-- **Ground items / pickable objects** — Static items on the ground (herbs, gold piles, etc.) are stored in the DDM file's `MapObject` section (100 bytes per record), which currently isn't parsed — `ddm.rs` only heuristically scans for actors. Steps: (1) parse the DDM `MapObject` section in `openmm-data/src/ddm.rs` (need to determine exact header layout to locate the objects blob); (2) resolve each object's sprite via `DObjList`/`DSFT`; (3) spawn `GroundItem` entities in `openmm` — similar to decorations but with a `pickable: bool` flag. Dead actor drops (inventory items + gold) are a separate concern that also needs a `GroundItem` entity spawned on death.
-- **Chest / item system** — `DChest` and `DObjList` parsers exist; spawning items inside chests and allowing the player to pick them up is the next inventory step.
-- **Save / load** — `GameSave` JSON skeleton exists; full round-trip persistence (party stats, map state, quest bits) is not yet implemented.
-- **Street NPC identity randomization** — `peasant_identity()` currently uses spawn index as a deterministic seed; in MM6 each map load assigns fresh random names/professions. Should seed from a per-load RNG. Once save/load exists, identities should be persisted so NPCs don't re-roll on every visit.
-- **Sky texture day/night variation** — ODM has a single `sky_texture` field; no format-level time-of-day variants. Need to investigate: does the original MM6 engine swap sky textures based on time (e.g. `plansky1` at day vs a darker variant at night), or does it rely purely on color tinting? Check what sky bitmap names exist in the LOD (`bitmaps` archive), look for naming patterns like `plansky1`/`plansky2` or morning/night variants, and check MMExtension docs. Currently the sky texture is static — only `ClearColor` changes with time of day.
-- **NPC time-of-day schedules** — `Actor.schedules: [MonsterSchedule; 8]` carries time-based position/action schedules from the DDM file (8 slots: position, action, time-of-day). These are fully parsed and stored on `openmm_data::game::actors::Actor` and the openmm `Actor` component. Implementing them requires a schedule-following AI system that moves NPCs between waypoints based on `GameTime.hour()` and the schedule's time range. Not yet implemented.
-- **Faction and diplomacy** — `Actor.group: i32` (faction group) and `Actor.ally: i32` (ally faction) are parsed and stored. In MM6 these control whether monsters attack each other and the player. Needs a diplomacy table and aggression logic in the AI system. Not yet implemented.
-- **Random encounters (camping interrupts)** — When the party rests/camps, MM6 has a chance to interrupt sleep with a random encounter spawning monsters from the map's encounter table (`mapstats.txt` columns `EncounterChance%`, `Mon1Enc%–Mon3Enc%`, and count ranges). These are the **only** random spawns in the game. All monsters visible on the map are predetermined: ODM spawn points encode exact variant (A/B/C) and location. Random encounter logic is not yet implemented.
-- **MM7/MM8 support** — requires better isolation of MM6-specific formats and game logic.
-- **Post-process AA broken (fxaa/smaa/taa) + Msaa::Off breaks terrain** — Selecting `fxaa`, `smaa`, or `taa` in config forces `Msaa::Off` (`bevy_config.rs:101`), which triggers an underlying terrain rendering bug: either nothing renders, or only terrain or only buildings render. Same bug is hit when `ssao`/`bloom` are enabled (they also force `Msaa::Off` at `bevy_config.rs:83`). AA config plumbing in `bevy_config.rs:80-131` and camera setup in `player.rs:264-292` look logically correct, so the bug is downstream — likely in the terrain `ExtendedMaterial<StandardMaterial, WaterExtension>` pipeline being specialized with a fixed MSAA sample count that mismatches when MSAA is off. Water shader (`assets/shaders/water.wgsl`) is a standard PBR extension and looks fine. Steps to investigate: (1) confirm by toggling `ssao`/`bloom` off in `data/config.json` and retrying MSAA 4x to isolate terrain-vs-post-process; (2) check whether terrain mesh/material pipeline pins a sample count; (3) verify `ExtendedMaterial::specialize()` respects camera `Msaa` component; (4) check BSP model material path for the same issue (explains the "only terrain or only buildings renders" symptom). Until fixed, MSAA 4x is the only working AA option.
+## Logical Module Grouping (In Progress)
+Grouping the flat `src/game/` directory into logical subdirectories.
+- [ ] **World Submodule (`game/world/`)**
+    - [ ] Move and rename `blv.rs` -> `world/indoor.rs`
+    - [ ] Move and rename `odm/` folder -> `world/outdoor/`
+    - [ ] Move `sky.rs`, `lighting.rs`, `collision.rs`, `map_name.rs` to `world/`
+- [ ] **Systems Submodule (`game/systems/`)**
+    - [ ] Move `events.rs`, `game_time.rs`, `world_state.rs`, `optional.rs` to `systems/`
+    - [ ] Move and rename `event_dispatch.rs` -> `systems/scripting.rs`
+- [ ] **Player Consolidation**
+    - [ ] Move `party/` into `player/`
+    - [ ] Move `mm6_coords.rs` to `utils/coords.rs`
+- [ ] **Global Integration**
+    - [ ] Update all project imports to reflect regrouping.
 
-## Refactoring / Code Organisation
+## Architectural Splitting
+- [ ] **Centralize Input** — Create `game/systems/input/` to handle KeyCode/MouseButton checks and high-level Action mapping.
+- [ ] **Deconstruct `player.rs`** — Split into `player/settings.rs`, `player/systems/motion.rs`, and `player/systems/init.rs`.
+- [ ] **Deconstruct `hud/mod.rs`** — Split into `hud/layout.rs`, `hud/builder.rs`, and `hud/constants.rs`.
+- [ ] **Refactoring Helpers** — Extract generic actor (`build_actor_component`) and decoration (`apply_decoration_components`) construction.
 
-- **Extract `lazy_spawn()` in odm.rs** — 582-line function mixes decoration, NPC, and monster spawning. Split into `spawn_decoration_batch()`, `spawn_actor_batch()` in `game/entities/` submodules. `lazy_spawn()` becomes a ~100-line dispatcher.
-- **Consolidate actor component construction** — `odm.rs` and `blv.rs` both build `actor::Actor` structs with identical field assignment blocks (position, hp, timers, etc). Extract a `build_actor_component(actor, pos, hostile)` helper in `game/entities/actor.rs`. Same for the magic-number timer seeding (`wander_timer`, `fidget_timer` computed from position).
-- **Decoration post-processing repetition in odm.rs** — three spawn paths (directional, animated, static) each repeat the same block: add `DecorationInfo` if event_id > 0, `DecorationTrigger` if trigger_radius > 0, `DecorFlicker` if flicker_rate > 0, point-light child if light_radius > 0. Extract to `apply_decoration_components()`.
-- **Unify outdoor/indoor NPC spawning** — outdoor `lazy_spawn()` is time-budgeted and batched; `spawn_indoor_world()` spawns all indoor NPCs synchronously. Either add the same lazy pattern to BLV, or extract a shared `spawn_npc_batch()` both paths call.
-- **Move variable read/write helpers out of event_dispatch.rs** — `get_variable`, `set_variable`, `add_variable`, `subtract_variable`, `evaluate_compare` are game-state logic, not dispatch logic. Move to `game/world_state/variable_ops.rs` and call from the dispatcher.
-- **BSP collision setup in spawn_world()** — lines that build outdoor `ClickableFaces` from BSP models are geometry/collision logic inside the entity spawner. Move to a `build_outdoor_bsp_collision()` helper in `game/collision.rs`.
+## Feature Parity & Modernization
+- [ ] **Indoor Minimap** — Implement minimap logic for indoor BLV maps; currently only handled for outdoor ODM maps.
+- [ ] **HUD GameTime integration** — Tap frame switching (morning/day/evening/night) and date/time text display.
+- [ ] **World Variable Ops** — Move read/write helpers out of dispatcher to `game/systems/variable_ops.rs`.
+- [ ] **BSP Collision** — Move outdoor BSP collision setup to `game/world/collision.rs`.
+- [ ] **Post-process AA fix** — Resolve the bug where FXAA/SMAA/TAA break terrain rendering.
+- [ ] **Cleanup** — Resolve remaining dead code and unused field warnings (24+ items).
+
+## New Feature Implementation
+- [ ] **Monster aggro range verification** — Cross-check hostile_type 4 range (6656.0).
+- [ ] **Texture animation (TFT)** — Terrain shader animated tile cycling.
+- [ ] **NPC dialogue text rendering** — Wired up font from LOD and scrolling lines.
+- [ ] **Monster combat stats** — Implement HP, speed, and attack logic.
+- [ ] **Ground items / pickable objects** — Parse DDM `MapObject` section and spawn `GroundItem` entities.
+- [ ] **Chest / item system** — Spawning items inside chests and inventory logic.
+- [ ] **Save / load** — Full round-trip persistence for party and map state.
+- [ ] **Street NPC randomization** — Seed identity from per-load RNG.
+- [ ] **Sky texture variation** — Day/night sky texture swapping.
+- [ ] **NPC time-of-day schedules** — Implement AI schedule-following system.
+- [ ] **Faction and diplomacy** — Diplomacy table and aggression logic.
+- [ ] **Random encounters** — Camping interrupt monster spawns.

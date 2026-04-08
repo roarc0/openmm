@@ -4,8 +4,8 @@
 use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
-use crate::game::entities::AnimationState;
-use crate::game::entities::actor::Actor;
+use crate::game::sprites::AnimationState;
+use crate::game::actors::Actor;
 use crate::game::hud::HudView;
 use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;

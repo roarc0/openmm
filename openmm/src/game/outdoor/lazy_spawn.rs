@@ -7,10 +7,10 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
-use crate::game::entities::sprites;
+use crate::game::sprites::loading as sprites;
 use crate::game::game_time::GameTime;
 use crate::game::lighting::sprite_tint_from_time;
-use crate::game::sprite_material::SpriteMaterial;
+use crate::game::sprites::material::SpriteMaterial;
 use crate::states::loading::PreparedWorld;
 
 use super::spawn_actors::{spawn_npc_actors, spawn_odm_monsters};
@@ -39,7 +39,7 @@ pub(super) struct PendingSpawns {
             Handle<Mesh>,
             f32,
             f32,
-            std::sync::Arc<crate::game::entities::sprites::AlphaMask>,
+            std::sync::Arc<crate::game::sprites::loading::AlphaMask>,
         ),
     >,
     /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).

@@ -3,7 +3,8 @@
 use bevy::prelude::*;
 
 use crate::game::InGame;
-use crate::game::entities::{actor, sprites};
+use crate::game::actors::actor;
+use crate::game::sprites::loading as sprites;
 use crate::states::loading::PreparedWorld;
 
 use super::lazy_spawn::{PendingSpawns, SpawnCtx};
@@ -86,9 +87,9 @@ pub(super) fn spawn_npc_actors(
                 .insert(Mesh3d(ctx.meshes.add(Rectangle::new(sw, sh))))
                 .insert(MeshMaterial3d(states[0][0][0].clone()))
                 .insert(Transform::from_translation(pos))
-                .insert(crate::game::entities::WorldEntity)
-                .insert(crate::game::entities::EntityKind::Monster)
-                .insert(crate::game::entities::AnimationState::Idle)
+                .insert(crate::game::sprites::WorldEntity)
+                .insert(crate::game::sprites::EntityKind::Monster)
+                .insert(crate::game::sprites::AnimationState::Idle)
                 .insert(sprites::SpriteSheet::new(
                     states,
                     vec![(sw, sh); state_count],
@@ -218,9 +219,9 @@ pub(super) fn spawn_npc_actors(
             .insert(Mesh3d(ctx.meshes.add(Rectangle::new(sw, sh))))
             .insert(MeshMaterial3d(s2[0][0][0].clone()))
             .insert(Transform::from_translation(pos))
-            .insert(crate::game::entities::WorldEntity)
-            .insert(crate::game::entities::EntityKind::Npc)
-            .insert(crate::game::entities::AnimationState::Idle)
+            .insert(crate::game::sprites::WorldEntity)
+            .insert(crate::game::sprites::EntityKind::Npc)
+            .insert(crate::game::sprites::AnimationState::Idle)
             .insert(sprites::SpriteSheet::new(s2, vec![(sw, sh); state_count], m2))
             .insert(crate::game::interaction::NpcInteractable {
                 name: hover_name,
@@ -332,9 +333,9 @@ pub(super) fn spawn_odm_monsters(
             .insert(Mesh3d(ctx.meshes.add(Rectangle::new(sw, sh))))
             .insert(MeshMaterial3d(states[0][0][0].clone()))
             .insert(Transform::from_translation(pos))
-            .insert(crate::game::entities::WorldEntity)
-            .insert(crate::game::entities::EntityKind::Monster)
-            .insert(crate::game::entities::AnimationState::Idle)
+            .insert(crate::game::sprites::WorldEntity)
+            .insert(crate::game::sprites::EntityKind::Monster)
+            .insert(crate::game::sprites::AnimationState::Idle)
             .insert(sprites::SpriteSheet::new(
                 states,
                 vec![(sw, sh); state_count],

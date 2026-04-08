@@ -7,12 +7,12 @@ use bevy::window::{CursorOptions, PrimaryWindow};
 use openmm_data::enums::EvtVariable;
 use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
 
-use crate::mm6_coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy};
+use crate::game::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy};
 
 use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::party::Party;
-use crate::game::sprite_material::SpriteMaterial;
+use crate::game::sprites::material::SpriteMaterial;
 
 /// Bundles save + state transition to stay within Bevy's 16-param system limit.
 #[derive(SystemParam)]
@@ -20,13 +20,13 @@ struct TransitionParams<'w> {
     save_data: ResMut<'w, crate::save::GameSave>,
     game_state: ResMut<'w, NextState<GameState>>,
 }
-use crate::game::entities::actor::Actor;
+use crate::game::actors::Actor;
 use crate::game::events::MapEvents;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
 use crate::game::lighting::CurrentSpriteTint;
 use crate::game::map_name::MapName;
-use crate::game::odm::ApplyTextureOutdoors;
+use crate::game::outdoor::ApplyTextureOutdoors;
 use crate::game::optional::OptionalWrite;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
@@ -453,7 +453,7 @@ fn process_events(
     mut footer: ResMut<FooterText>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut transition: TransitionParams,
-    mut blv_doors: Option<ResMut<crate::game::blv::BlvDoors>>,
+    mut blv_doors: Option<ResMut<crate::game::indoor::BlvDoors>>,
     mut audio: AudioParams,
     mut world_state: ResMut<crate::game::world_state::WorldState>,
     mut party: ResMut<Party>,
@@ -615,7 +615,7 @@ fn process_events(
             GameEvent::ChangeDoorState { door_id, action } => {
                 debug!("ChangeDoorState door_id={} action={}", door_id, action);
                 if let Some(ref mut doors) = blv_doors {
-                    crate::game::blv::trigger_door(doors, *door_id as u32, action.as_u8());
+                    crate::game::indoor::trigger_door(doors, *door_id as u32, action.as_u8());
                 }
             }
             GameEvent::PlaySound { sound_id } => {
@@ -762,7 +762,7 @@ fn process_events(
                     continue;
                 };
                 let Some((new_mat, new_mesh, _new_w, new_h)) =
-                    crate::game::entities::sprites::load_static_decoration_sprite(
+                    crate::game::sprites::loading::load_static_decoration_sprite(
                         sprite_name,
                         game_assets.assets(),
                         &mut images,

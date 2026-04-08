@@ -7,8 +7,8 @@
 use bevy::prelude::*;
 
 use crate::game::optional::OptionalWrite;
-use crate::game::sprite_material::SpriteMaterial;
-use crate::mm6_coords::mm6_fixed_normal_to_bevy;
+use crate::game::sprites::material::SpriteMaterial;
+use crate::game::coords::mm6_fixed_normal_to_bevy;
 use crate::states::loading::PreparedWorld;
 
 use super::terrain;
@@ -235,7 +235,7 @@ fn spawn_outdoor_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
             let normal = Vec3::from(mm6_fixed_normal_to_bevy(face.plane.normal));
             let plane_dist = normal.dot(verts[0]);
             if face.cog_trigger_id != 0 {
-                outdoor_clickable.push(crate::game::blv::ClickableFaceInfo {
+                outdoor_clickable.push(crate::game::indoor::ClickableFaceInfo {
                     face_index: 0,
                     event_id: face.cog_trigger_id,
                     normal,
@@ -243,7 +243,7 @@ fn spawn_outdoor_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
                     vertices: verts.clone(),
                 });
             }
-            outdoor_occluders.push(crate::game::blv::OccluderFaceInfo {
+            outdoor_occluders.push(crate::game::indoor::OccluderFaceInfo {
                 normal,
                 plane_dist,
                 vertices: verts,
@@ -251,13 +251,13 @@ fn spawn_outdoor_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
         }
     }
     if !outdoor_clickable.is_empty() {
-        commands.insert_resource(crate::game::blv::ClickableFaces {
+        commands.insert_resource(crate::game::indoor::ClickableFaces {
             faces: outdoor_clickable,
             is_indoor: false,
         });
     }
     if !outdoor_occluders.is_empty() {
-        commands.insert_resource(crate::game::blv::OccluderFaces {
+        commands.insert_resource(crate::game::indoor::OccluderFaces {
             faces: outdoor_occluders,
         });
     }

@@ -12,8 +12,8 @@ use crate::{
     config::GameConfig,
     despawn_all,
     game::map_name::MapName,
-    game::odm::OdmName,
-    mm6_coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy},
+    game::outdoor::OdmName,
+    game::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy},
 };
 use openmm_data::{
     blv::Blv,
@@ -82,16 +82,16 @@ struct LoadingProgress {
     resolved_actors: Option<openmm_data::assets::Actors>,
     resolved_monsters: Option<openmm_data::assets::Monsters>,
     start_points: Option<Vec<StartPoint>>,
-    sprite_cache: Option<crate::game::entities::sprites::SpriteCache>,
+    sprite_cache: Option<crate::game::sprites::loading::SpriteCache>,
     dec_sprite_cache: Option<
         std::collections::HashMap<
             String,
             (
-                Handle<crate::game::sprite_material::SpriteMaterial>,
+                Handle<crate::game::sprites::material::SpriteMaterial>,
                 Handle<Mesh>,
                 f32,
                 f32,
-                std::sync::Arc<crate::game::entities::sprites::AlphaMask>,
+                std::sync::Arc<crate::game::sprites::loading::AlphaMask>,
             ),
         >,
     >,
@@ -300,15 +300,15 @@ pub struct PreparedWorld {
     pub resolved_actors: Option<openmm_data::assets::Actors>,
     pub resolved_monsters: Option<openmm_data::assets::Monsters>,
     pub start_points: Vec<StartPoint>,
-    pub sprite_cache: crate::game::entities::sprites::SpriteCache,
+    pub sprite_cache: crate::game::sprites::loading::SpriteCache,
     pub dec_sprite_cache: std::collections::HashMap<
         String,
         (
-            Handle<crate::game::sprite_material::SpriteMaterial>,
+            Handle<crate::game::sprites::material::SpriteMaterial>,
             Handle<Mesh>,
             f32,
             f32,
-            std::sync::Arc<crate::game::entities::sprites::AlphaMask>,
+            std::sync::Arc<crate::game::sprites::loading::AlphaMask>,
         ),
     >,
     pub water_cells: Vec<bool>,
@@ -340,11 +340,11 @@ fn loading_setup(
     // Clean up resources from previous map (indoor or outdoor)
     commands.remove_resource::<PreparedWorld>();
     commands.remove_resource::<PreparedIndoorWorld>();
-    commands.remove_resource::<crate::game::blv::BlvDoors>();
-    commands.remove_resource::<crate::game::blv::DoorColliders>();
-    commands.remove_resource::<crate::game::blv::ClickableFaces>();
-    commands.remove_resource::<crate::game::blv::TouchTriggerFaces>();
-    commands.remove_resource::<crate::game::blv::OccluderFaces>();
+    commands.remove_resource::<crate::game::indoor::BlvDoors>();
+    commands.remove_resource::<crate::game::indoor::DoorColliders>();
+    commands.remove_resource::<crate::game::indoor::ClickableFaces>();
+    commands.remove_resource::<crate::game::indoor::TouchTriggerFaces>();
+    commands.remove_resource::<crate::game::indoor::OccluderFaces>();
     commands.remove_resource::<crate::game::hud::MapOverviewImage>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.
@@ -447,7 +447,7 @@ fn loading_step(
     mut text_query: Query<&mut Text, With<LoadingText>>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut sprite_materials: Option<ResMut<Assets<crate::game::sprite_material::SpriteMaterial>>>,
+    mut sprite_materials: Option<ResMut<Assets<crate::game::sprites::material::SpriteMaterial>>>,
     world_state: Option<Res<crate::game::world_state::WorldState>>,
 ) {
     // Update loading text
@@ -1258,11 +1258,11 @@ fn loading_step(
                                     let (w, h) = sprite.dimensions();
                                     let rgba = sprite.image.to_rgba8();
                                     let mask = std::sync::Arc::new(
-                                        crate::game::entities::sprites::AlphaMask::from_image(&rgba),
+                                        crate::game::sprites::loading::AlphaMask::from_image(&rgba),
                                     );
                                     let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
                                     let m = sprite_materials
-                                        .add(crate::game::sprite_material::unlit_billboard_material(tex, Vec4::ONE));
+                                        .add(crate::game::sprites::material::unlit_billboard_material(tex, Vec4::ONE));
                                     let q = meshes.add(Rectangle::new(w, h));
                                     bb_cache.insert(dec.sprite_name.clone(), (m, q, w, h, mask));
                                 }

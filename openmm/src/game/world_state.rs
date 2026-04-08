@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::GameState;
 use crate::game::map_name::MapName;
-use crate::game::odm::OdmName;
+use crate::game::outdoor::OdmName;
 use crate::game::player::Player;
 use crate::save::GameSave;
 

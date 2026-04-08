@@ -10,12 +10,10 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use image::DynamicImage;
 
-use crate::game::sprite_material::{SpriteMaterial, unlit_billboard_material};
-
+use crate::game::actors::Actor;
 use openmm_data::Assets as DataAssets;
-
-use crate::game::entities::actor::Actor;
-use crate::game::entities::{AnimationState, FacingYaw};
+use crate::game::sprites::material::{SpriteMaterial, unlit_billboard_material};
+use crate::game::sprites::{AnimationState, FacingYaw};
 use crate::game::player::PlayerCamera;
 
 /// CPU-side 1-bit alpha mask for a sprite image. Used for pixel-accurate ray hit testing.

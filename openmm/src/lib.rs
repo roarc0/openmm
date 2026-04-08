@@ -1,5 +1,5 @@
 use bevy::prelude::{App, AppExtStates, ClearColor, Color, Commands, Component, Entity, Plugin, Query, States, With};
-use bevy_config::BevyConfigPlugin;
+use engine::EngineConfigPlugin;
 
 use assets::GameAssets;
 use config::GameConfig;
@@ -9,12 +9,11 @@ use states::video::VideoRequest;
 use states::{loading::LoadingPlugin, menu::MenuPlugin, video::VideoPlugin};
 
 pub(crate) mod assets;
-pub(crate) mod bevy_config;
 pub mod config;
+pub(crate) mod engine;
 pub(crate) mod fonts;
 pub(crate) mod frame_limiter;
 pub(crate) mod game;
-pub(crate) mod mm6_coords;
 pub(crate) mod save;
 pub(crate) mod states;
 pub(crate) mod ui_assets;
@@ -58,7 +57,7 @@ impl Plugin for GamePlugin {
                 skippable: false,
                 next: GameState::Menu,
             })
-            .add_plugins((BevyConfigPlugin, VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
+            .add_plugins((EngineConfigPlugin, VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
             .insert_state(initial_state);
     }
 }

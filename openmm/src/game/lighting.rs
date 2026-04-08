@@ -6,11 +6,11 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::entities::{Billboard, SelfLit};
+use crate::game::sprites::{Billboard, SelfLit};
 use crate::game::game_time::GameTime;
-use crate::game::odm::TerrainMaterial;
+use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
-use crate::game::sprite_material::SpriteMaterial;
+use crate::game::sprites::material::SpriteMaterial;
 
 // ── Decoration point lights ─────────────────────────────────────────────────
 
@@ -189,16 +189,16 @@ fn animate_day_cycle(
     billboard_query: Query<&MeshMaterial3d<SpriteMaterial>, (With<Billboard>, Without<SelfLit>)>,
     // All SpriteSheet actors (NPCs/monsters): tint ALL frames/directions, not just the active one.
     // Querying only the active MeshMaterial3d misses other frames → they flash when animation advances.
-    actor_sheets: Query<&crate::game::entities::sprites::SpriteSheet, Without<SelfLit>>,
+    actor_sheets: Query<&crate::game::sprites::loading::SpriteSheet, Without<SelfLit>>,
     // SelfLit sprites (campfires, torches, braziers): get a very subtle tint so they don't
     // feel disconnected from the scene, but remain mostly full-bright as light sources.
-    selflit_sheets: Query<&crate::game::entities::sprites::SpriteSheet, With<SelfLit>>,
+    selflit_sheets: Query<&crate::game::sprites::loading::SpriteSheet, With<SelfLit>>,
     selflit_billboard_query: Query<
         &MeshMaterial3d<SpriteMaterial>,
         (
             With<SelfLit>,
             With<Billboard>,
-            Without<crate::game::entities::sprites::SpriteSheet>,
+            Without<crate::game::sprites::loading::SpriteSheet>,
         ),
     >,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
