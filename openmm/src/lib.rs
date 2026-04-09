@@ -12,11 +12,9 @@ pub(crate) mod assets;
 pub mod config;
 pub(crate) mod engine;
 pub(crate) mod fonts;
-pub(crate) mod frame_limiter;
 pub(crate) mod game;
 pub(crate) mod save;
 pub(crate) mod states;
-
 
 const APP_NAME: &str = "openmm";
 

@@ -1,10 +1,29 @@
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use bevy::window::{PresentMode, Window, WindowMode, WindowResolution};
+use bevy_framepace::{FramepacePlugin, FramepaceSettings, Limiter};
+use std::time::Duration;
 
 use crate::APP_NAME;
 use crate::config::GameConfig;
-use crate::frame_limiter::FrameLimiterPlugin;
+
+/// Converts an `fps_cap` config value into the framepace limiter strategy.
+/// 0 disables limiting entirely.
+fn limiter_from_cap(fps_cap: u32) -> Limiter {
+    if fps_cap == 0 {
+        Limiter::Off
+    } else {
+        Limiter::Manual(Duration::from_secs_f64(1.0 / fps_cap as f64))
+    }
+}
+
+/// Syncs `FramepaceSettings` when `GameConfig::fps_cap` is mutated at runtime
+/// (e.g. from the developer console).
+fn sync_framepace_settings(cfg: Res<GameConfig>, mut settings: ResMut<FramepaceSettings>) {
+    if cfg.is_changed() {
+        settings.limiter = limiter_from_cap(cfg.fps_cap);
+    }
+}
 
 pub struct EngineConfigPlugin;
 
@@ -13,9 +32,9 @@ impl Plugin for EngineConfigPlugin {
         let cfg = app.world().resource::<GameConfig>().clone();
 
         // Present mode is purely controlled by the vsync setting. The
-        // `fps_cap` is enforced independently by `FrameLimiterPlugin` so it
-        // works regardless of vsync mode (otherwise vsync=off + fps_cap=60
-        // would silently spin the CPU at thousands of fps).
+        // `fps_cap` is enforced independently by `bevy_framepace` so it works
+        // regardless of vsync mode (otherwise vsync=off + fps_cap=60 would
+        // silently spin the CPU at thousands of fps).
         let present_mode = match cfg.vsync.as_str() {
             "fast" => PresentMode::Mailbox,
             "off" => PresentMode::Immediate,
@@ -61,7 +80,14 @@ impl Plugin for EngineConfigPlugin {
                 ..default()
             });
 
-        app.add_plugins(plugins).add_plugins(FrameLimiterPlugin);
+        let initial_framepace = FramepaceSettings {
+            limiter: limiter_from_cap(cfg.fps_cap),
+        };
+
+        app.add_plugins(plugins)
+            .add_plugins(FramepacePlugin)
+            .insert_resource(initial_framepace)
+            .add_systems(Update, sync_framepace_settings);
     }
 }
 
