@@ -304,6 +304,28 @@ fn set_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, v
     }
 }
 
+/// Queue a non-positional UI sound by its `dsounds.bin` name (e.g. `"Quest"`,
+/// `"EventSFX01"`). Silent no-op if the sound manager isn't available
+/// (headless build) or the name isn't in the table.
+///
+/// Kept generic so any event handler that needs a named jingle — pickups,
+/// quest completions, UI feedback — can reach for one call instead of
+/// reimplementing the `dsounds → sound_id → PlayUiSoundEvent` chain.
+fn play_ui_sound_named(
+    name: &str,
+    sound_manager: Option<&SoundManager>,
+    ui_sound: &mut Option<bevy::ecs::message::MessageWriter<PlayUiSoundEvent>>,
+) {
+    let Some(sm) = sound_manager else {
+        return;
+    };
+    let Some(sound_id) = sm.dsounds.get_by_name(name).map(|s| s.sound_id) else {
+        warn!("ui sound '{}' not found in dsounds", name);
+        return;
+    };
+    ui_sound.try_write(PlayUiSoundEvent { sound_id });
+}
+
 /// Add to a game variable.
 fn add_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
     if var.is_map_var() {
@@ -696,7 +718,14 @@ fn process_events(
             GameEvent::Add { var, value } => {
                 let show_note =
                     *var == EvtVariable::AUTONOTES_BITS && *value != 0 && !world_state.game_vars.has_autonote(*value);
+                // Positive gold/food deltas are pickups (apple tree, gold
+                // pile, etc.) — play the stock MM6 quest/pickup jingle so
+                // acquiring objects feels the same as it did in the original.
+                let is_pickup = *value > 0 && matches!(*var, EvtVariable::GOLD | EvtVariable::FOOD);
                 add_variable(&mut world_state.game_vars, &mut party, *var, *value);
+                if is_pickup {
+                    play_ui_sound_named("Quest", audio.sound_manager.as_deref(), &mut audio.ui_sound);
+                }
                 if show_note {
                     show_autonote_text(*value, &game_assets, &mut footer, time.elapsed_secs_f64());
                 }
@@ -835,6 +864,7 @@ fn process_events(
             } => {
                 // strength and item_type control enchantment/quality — not tracked yet.
                 world_state.game_vars.give_item(*item_id as i32, 1);
+                play_ui_sound_named("Quest", audio.sound_manager.as_deref(), &mut audio.ui_sound);
                 info!("GiveItem: id={} str={} type={}", item_id, strength, item_type);
             }
             GameEvent::SetNPCTopic {
