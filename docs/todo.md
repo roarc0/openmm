@@ -104,7 +104,7 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 
 - [ ] **B1. `WorldState` is a bag-of-state** — `game/world/state.rs`. Combines player runtime, map runtime, quest bits, inventory, NPC overrides, actor flags, chest flags, decoration state. Split into focused resources (`GameFlags`, `PartyInventory`, `NpcOverrides`, `ActorOverrides`, `ChestFlags`, `MapRuntimeState`). Every system mutating one field currently takes a `ResMut<WorldState>` on the whole thing.
 - [ ] **B2. `process_events` monolith** — `game/world/scripting.rs:445-1124`, ~600 line match, uses 3 custom `SystemParam` bundles to dodge Bevy's 16-arg limit. Already listed above, but worth re-flagging: convert side-effects (door state, map transition, overlay, sound) to events consumed by specialized handlers. The custom SystemParam bundles are the clearest symptom that this needs splitting.
-- [ ] **B3. `execute_command` in console.rs is a 567-line match** — `game/debug/console.rs:300-867`. 40+ command handlers in one function. Extract each to `debug/console/commands/<name>.rs` and register via a small command table. Biggest win: adding a new command stops touching a 1091-line file.
+- [x] **B3. `execute_command` in console.rs is a 567-line match** — DONE. Split `console.rs` into `console/mod.rs` (UI + thin dispatcher) and `console/commands.rs` (one `cmd_*` function per command). The dispatcher match is now ~50 lines; each handler takes only the state it needs. Adding a new command means writing one function and adding one match arm.
 - [ ] **B4. `loading_step` is ~880 lines with 7 phases** — `states/loading.rs:440-1328`. Frame-budgeted sprite preloading is tangled with map geometry building. Split phases into individual systems driven by a `LoadingPhase` state enum; move sprite preloading into its own system in `Update` gated by phase.
 - [ ] **B5. Split `states/loading.rs` (1410 lines)** — Data types (`PreparedWorld`, `PreparedIndoorWorld`, door geometry, clickable/touch/occluder face data) belong in sibling modules. Keep only the pipeline driver in `loading.rs`.
 - [ ] **B6. Split `game/indoor/indoor.rs` (1166 lines)** — Door animation, clickable/trigger raycasts, and indoor world spawning are separate concerns currently chained under one plugin.
@@ -133,6 +133,7 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 - `0676f4f` — **A1** shared sprite tint storage buffer (big perf fix)
 - `6753596` — **C1/C2/C3/C5** HudView gating + footstep ordering + ActorAttributes constants
 - `563a730` — **B7** parallelism in HUD and player plugins
+- (next commit) — **B3** split `execute_command` into `console/mod.rs` + `console/commands.rs`
 
 ### Known bug — **tint mismatch between standing and walking animations** (NEW, regression from A1)
 
