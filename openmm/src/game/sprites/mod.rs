@@ -5,6 +5,7 @@ use crate::game::hud::HudView;
 
 pub mod loading;
 pub mod material;
+pub mod tint_buffer;
 
 // Future modules:
 // pub mod loot;

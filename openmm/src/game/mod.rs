@@ -60,6 +60,7 @@ impl Plugin for RenderingPlugin {
         app.add_plugins((
             lighting::LightingPlugin,
             sky::SkyPlugin,
+            sprites::tint_buffer::SpriteTintBufferPlugin,
             MaterialPlugin::<outdoor::TerrainMaterial>::default(),
             MaterialPlugin::<sprites::material::SpriteMaterial>::default(),
         ));

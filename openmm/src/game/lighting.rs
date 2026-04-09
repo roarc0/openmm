@@ -1,16 +1,14 @@
-use std::collections::HashSet;
-
-use bevy::asset::AssetId;
 use bevy::light::CascadeShadowConfigBuilder;
 use bevy::prelude::*;
+use bevy::render::storage::ShaderStorageBuffer;
 
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
-use crate::game::sprites::material::SpriteMaterial;
-use crate::game::sprites::{Billboard, SelfLit};
+use crate::game::sprites::Billboard;
+use crate::game::sprites::tint_buffer::SpriteTintBuffers;
 use crate::game::world::GameTime;
 
 // ── Decoration point lights ─────────────────────────────────────────────────
@@ -71,7 +69,6 @@ pub struct LightingPlugin;
 impl Plugin for LightingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LightingState>()
-            .init_resource::<CurrentSpriteTint>()
             .add_systems(
                 OnEnter(GameState::Game),
                 (
@@ -80,24 +77,6 @@ impl Plugin for LightingPlugin {
                 ),
             )
             .add_systems(Update, animate_day_cycle.run_if(in_state(GameState::Game)));
-    }
-}
-
-/// The tint currently applied to all billboard/actor materials (linear RGBA).
-/// Exposed so other systems (e.g. event dispatch) can immediately apply the correct
-/// tint to any newly created or swapped material without waiting for the next lighting tick.
-#[derive(Resource)]
-pub struct CurrentSpriteTint {
-    pub tint: Vec4,
-    pub selflit_tint: Vec4,
-}
-
-impl Default for CurrentSpriteTint {
-    fn default() -> Self {
-        Self {
-            tint: Vec4::ONE,
-            selflit_tint: Vec4::ONE,
-        }
     }
 }
 
@@ -225,93 +204,120 @@ fn animate_day_cycle(
     cfg: Res<GameConfig>,
     mut lighting_state: ResMut<LightingState>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
-    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     mut terrain_materials: Option<ResMut<Assets<TerrainMaterial>>>,
-    mut current_tint: ResMut<CurrentSpriteTint>,
+    mut storage_buffers: ResMut<Assets<ShaderStorageBuffer>>,
+    tint_buffers: Res<SpriteTintBuffers>,
     indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
     // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
     model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
-    // Billboard decorations — tinted per-frame (except SelfLit ones like torches/campfires).
-    billboard_query: Query<&MeshMaterial3d<SpriteMaterial>, (With<Billboard>, Without<SelfLit>)>,
-    // All SpriteSheet actors (NPCs/monsters): tint ALL frames/directions, not just the active one.
-    // Querying only the active MeshMaterial3d misses other frames → they flash when animation advances.
-    actor_sheets: Query<&crate::game::sprites::loading::SpriteSheet, Without<SelfLit>>,
-    // SelfLit sprites (campfires, torches, braziers): get a very subtle tint so they don't
-    // feel disconnected from the scene, but remain mostly full-bright as light sources.
-    selflit_sheets: Query<&crate::game::sprites::loading::SpriteSheet, With<SelfLit>>,
-    selflit_billboard_query: Query<
-        &MeshMaterial3d<SpriteMaterial>,
-        (
-            With<SelfLit>,
-            With<Billboard>,
-            Without<crate::game::sprites::loading::SpriteSheet>,
-        ),
-    >,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
     player_query: Query<&Transform, With<Player>>,
 ) {
     let is_indoor = indoor.is_some();
-    // ── Lighting mode switch ───────────────────────────────────────────────────
-    // Sync lit/unlit toggle for model materials when the mode changes.
-    // Billboards are always unlit — their day/night effect comes from base_color tinting.
-    if cfg.lighting != lighting_state.last_mode {
-        lighting_state.last_mode = cfg.lighting.clone();
-        // Force sprite tint re-apply after mode change.
-        lighting_state.last_tint = None;
-        let unlit = cfg.lighting != "enhanced";
-
-        // Indoor walls must stay PBR regardless of mode — they need to respond
-        // to the party torch and decoration point lights.
-        if !is_indoor {
-            let mut toggled = std::collections::HashSet::new();
-            for mat_handle in model_query.iter() {
-                if toggled.insert(mat_handle.id())
-                    && let Some(mat) = std_materials.get_mut(mat_handle.id())
-                {
-                    mat.unlit = unlit;
-                    if unlit {
-                        mat.base_color = Color::srgb(0.69, 0.69, 0.69);
-                    } else {
-                        mat.base_color = Color::srgb(1.4, 1.4, 1.4);
-                    }
-                }
-            }
-
-            if let Some(tm) = terrain_materials.as_mut() {
-                for (_, mat) in tm.iter_mut() {
-                    mat.base.unlit = unlit;
-                    if unlit {
-                        mat.base.base_color = Color::srgb(0.69, 0.69, 0.69);
-                    } else {
-                        mat.base.base_color = Color::srgb(1.2, 1.2, 1.2);
-                    }
-                }
-            }
-        }
-
-        info!("Lighting mode: {}", cfg.lighting);
-    }
-
     let tod = game_time.time_of_day();
 
-    // ── Sun / ambient / tint throttle ──────────────────────────────────────────
-    // Sprite tint and DirectionalLight writes trigger GPU re-uploads. When sun
-    // shadows are on we update every frame so the shadows sweep smoothly;
-    // otherwise we throttle aggressively since there's nothing that benefits
-    // from high-frequency updates.
+    apply_lighting_mode_switch(
+        &cfg,
+        &mut lighting_state,
+        &mut std_materials,
+        terrain_materials.as_deref_mut(),
+        &model_query,
+        is_indoor,
+    );
+
+    update_sun_and_ambient(
+        tod,
+        &cfg,
+        is_indoor,
+        indoor.as_deref(),
+        &mut lighting_state,
+        &mut sun_query,
+        &mut ambient_query,
+        &player_query,
+    );
+
+    update_sprite_tint_buffers(
+        tod,
+        &cfg,
+        is_indoor,
+        &mut lighting_state,
+        &tint_buffers,
+        &mut storage_buffers,
+    );
+}
+
+/// Toggle model/terrain materials between lit (enhanced) and unlit (flat) on mode change.
+/// Runs only on the frame where the lighting mode actually flips. Indoor walls stay
+/// PBR in every mode because they rely on the party torch + decoration point lights.
+fn apply_lighting_mode_switch(
+    cfg: &GameConfig,
+    lighting_state: &mut LightingState,
+    std_materials: &mut Assets<StandardMaterial>,
+    terrain_materials: Option<&mut Assets<TerrainMaterial>>,
+    model_query: &Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
+    is_indoor: bool,
+) {
+    if cfg.lighting == lighting_state.last_mode {
+        return;
+    }
+    lighting_state.last_mode = cfg.lighting.clone();
+    // Force the next sprite-tint write so materials pick up the new base color.
+    lighting_state.last_tint = None;
+    let unlit = cfg.lighting != "enhanced";
+
+    if !is_indoor {
+        let mut toggled = std::collections::HashSet::new();
+        for mat_handle in model_query.iter() {
+            if toggled.insert(mat_handle.id())
+                && let Some(mat) = std_materials.get_mut(mat_handle.id())
+            {
+                mat.unlit = unlit;
+                mat.base_color = if unlit {
+                    Color::srgb(0.69, 0.69, 0.69)
+                } else {
+                    Color::srgb(1.4, 1.4, 1.4)
+                };
+            }
+        }
+        if let Some(tm) = terrain_materials {
+            for (_, mat) in tm.iter_mut() {
+                mat.base.unlit = unlit;
+                mat.base.base_color = if unlit {
+                    Color::srgb(0.69, 0.69, 0.69)
+                } else {
+                    Color::srgb(1.2, 1.2, 1.2)
+                };
+            }
+        }
+    }
+    info!("Lighting mode: {}", cfg.lighting);
+}
+
+/// Update the sun direction/colour and ambient light based on time of day and
+/// (indoor) current sector. Throttles sun updates — per-frame writes only when
+/// shadows are on so cascades sweep smoothly.
+fn update_sun_and_ambient(
+    tod: f32,
+    cfg: &GameConfig,
+    is_indoor: bool,
+    indoor: Option<&crate::states::loading::PreparedIndoorWorld>,
+    lighting_state: &mut LightingState,
+    sun_query: &mut Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
+    ambient_query: &mut Query<&mut AmbientLight, With<AmbientMarker>>,
+    player_query: &Query<&Transform, With<Player>>,
+) {
     let sun_tod_threshold: f32 = if cfg.shadows { 0.00007 } else { 0.0014 };
     let sun_needs_update =
         (tod - lighting_state.last_sun_tod).abs() > sun_tod_threshold || lighting_state.last_sun_tod == 0.0;
 
-    // ── Sun transform ──────────────────────────────────────────────────────────
     if sun_needs_update {
         let (new_transform, sun_color, sun_illuminance) = sun_from_time(tod);
         for (mut transform, mut light) in sun_query.iter_mut() {
             *transform = new_transform;
             light.color = sun_color;
-            // Disable the directional sun indoors — dungeon lighting comes entirely
-            // from the party torch (PointLight) and decoration lights.
+            // Indoors: the directional sun is fully off — dungeon lighting comes
+            // from the party torch and decoration point lights.
             light.illuminance = if is_indoor {
                 0.0
             } else if cfg.lighting == "enhanced" {
@@ -324,29 +330,7 @@ fn animate_day_cycle(
     }
 
     if is_indoor {
-        // Set ambient based on the sector the player is currently in.
-        // min_ambient_light (0–255) is the original MM6 floor for that room.
-        // Scale: 0 → 0 lux, 255 → ~200 lux. Typical dark dungeon rooms have ~19,
-        // giving ~15 lux — just enough to prevent absolute black in far corners.
-        let indoor_data = indoor.as_ref().unwrap();
-        let ambient_brightness = if let Ok(player_tf) = player_query.single() {
-            let pos = player_tf.translation;
-            let sector = indoor_data
-                .sector_ambients
-                .iter()
-                .find(|s| {
-                    pos.x >= s.bbox_min.x
-                        && pos.x <= s.bbox_max.x
-                        && pos.y >= s.bbox_min.y
-                        && pos.y <= s.bbox_max.y
-                        && pos.z >= s.bbox_min.z
-                        && pos.z <= s.bbox_max.z
-                })
-                .or_else(|| indoor_data.sector_ambients.first());
-            sector.map_or(25.0, |s| s.min_ambient as f32 * 0.8 + 25.0)
-        } else {
-            0.0
-        };
+        let ambient_brightness = indoor_sector_ambient_brightness(indoor, player_query);
         for mut ambient in ambient_query.iter_mut() {
             ambient.color = Color::srgb(0.85, 0.80, 0.70); // warm stone
             ambient.brightness = ambient_brightness;
@@ -365,15 +349,53 @@ fn animate_day_cycle(
             ambient.brightness = 3000.0;
         }
     }
+}
 
-    // ── Sprite tint ───────────────────────────────────────────────────────────
-    // Sprites are unlit to avoid directional-light flicker.
-    // Outdoors: tint follows time of day. Indoors: fixed dim torch-warm tint so
-    // sprites look naturally lit by the surrounding dungeon ambiance.
-    //
-    // Performance: `get_mut` on a material marks it as changed → GPU re-upload.
-    // We cache the last applied tint and skip all material writes if the tint
-    // hasn't changed by a perceptible amount (threshold ≈ 1/512 ≈ ~3 real seconds).
+/// Look up the sector containing the player and return an ambient brightness based
+/// on its `min_ambient_light` value. Indoor-only; falls back to the first sector
+/// or a small default if the player is outside every bbox.
+fn indoor_sector_ambient_brightness(
+    indoor: Option<&crate::states::loading::PreparedIndoorWorld>,
+    player_query: &Query<&Transform, With<Player>>,
+) -> f32 {
+    let Some(indoor_data) = indoor else {
+        return 0.0;
+    };
+    let Ok(player_tf) = player_query.single() else {
+        return 0.0;
+    };
+    let pos = player_tf.translation;
+    let sector = indoor_data
+        .sector_ambients
+        .iter()
+        .find(|s| {
+            pos.x >= s.bbox_min.x
+                && pos.x <= s.bbox_max.x
+                && pos.y >= s.bbox_min.y
+                && pos.y <= s.bbox_max.y
+                && pos.z >= s.bbox_min.z
+                && pos.z <= s.bbox_max.z
+        })
+        .or_else(|| indoor_data.sector_ambients.first());
+    sector.map_or(25.0, |s| s.min_ambient as f32 * 0.8 + 25.0)
+}
+
+/// Write new day/night tint values into the two shared sprite-tint storage
+/// buffers. All `SpriteMaterial` instances reference one of these two handles,
+/// so a single `set_data` call propagates the new tint to every sprite in the
+/// world without any per-material mutation or ECS iteration.
+///
+/// Uses the same threshold-based change detection as before (~1/512 on the
+/// tint value, tighter under shadows) so the buffer is only rewritten a
+/// handful of times per in-game day.
+fn update_sprite_tint_buffers(
+    tod: f32,
+    cfg: &GameConfig,
+    is_indoor: bool,
+    lighting_state: &mut LightingState,
+    tint_buffers: &SpriteTintBuffers,
+    storage_buffers: &mut Assets<ShaderStorageBuffer>,
+) {
     let tint = if is_indoor {
         Color::srgb(0.35, 0.30, 0.22)
     } else {
@@ -388,74 +410,27 @@ fn animate_day_cycle(
             || (last[1] - tint_rgb[1]).abs() > tint_threshold
             || (last[2] - tint_rgb[2]).abs() > tint_threshold
     });
-
-    if tint_changed {
-        lighting_state.last_tint = Some(tint_rgb);
-        lighting_state.tinted.clear();
-
-        // Convert sRGB tint to linear for the shader uniform.
-        let tl = tint.to_linear();
-        let tint_vec4 = Vec4::new(tl.red, tl.green, tl.blue, 1.0);
-        current_tint.tint = tint_vec4;
-
-        // Static billboard decorations (single material per entity).
-        for mat_handle in billboard_query.iter() {
-            if lighting_state.tinted.insert(mat_handle.id())
-                && let Some(mat) = sprite_materials.get_mut(mat_handle.id())
-            {
-                mat.extension.tint = tint_vec4;
-            }
-        }
-
-        // Actor/NPC SpriteSheets: tint ALL frames × directions, not just the active handle.
-        // Updating only the active MeshMaterial3d causes the other frames to flash full-bright
-        // when the animation advances to an un-tinted frame.
-        for sheet in actor_sheets.iter() {
-            for state in &sheet.states {
-                for frame in state {
-                    for handle in frame {
-                        if lighting_state.tinted.insert(handle.id())
-                            && let Some(mat) = sprite_materials.get_mut(handle.id())
-                        {
-                            mat.extension.tint = tint_vec4;
-                        }
-                    }
-                }
-            }
-        }
-
-        // SelfLit sprites (campfires, torches) blend a small fraction of the ambient tint
-        // so they feel grounded in the scene rather than floating at pure full-bright.
-        const SELFLIT_TINT_BLEND: f32 = 0.12;
-        let selflit_tint = Color::srgb(
-            1.0 - (1.0 - t.red) * SELFLIT_TINT_BLEND,
-            1.0 - (1.0 - t.green) * SELFLIT_TINT_BLEND,
-            1.0 - (1.0 - t.blue) * SELFLIT_TINT_BLEND,
-        );
-        let stl = selflit_tint.to_linear();
-        let selflit_vec4 = Vec4::new(stl.red, stl.green, stl.blue, 1.0);
-        current_tint.selflit_tint = selflit_vec4;
-        for mat_handle in selflit_billboard_query.iter() {
-            if lighting_state.tinted.insert(mat_handle.id())
-                && let Some(mat) = sprite_materials.get_mut(mat_handle.id())
-            {
-                mat.extension.tint = selflit_vec4;
-            }
-        }
-        for sheet in selflit_sheets.iter() {
-            for state in &sheet.states {
-                for frame in state {
-                    for handle in frame {
-                        if lighting_state.tinted.insert(handle.id())
-                            && let Some(mat) = sprite_materials.get_mut(handle.id())
-                        {
-                            mat.extension.tint = selflit_vec4;
-                        }
-                    }
-                }
-            }
-        }
+    if !tint_changed {
+        return;
     }
+    lighting_state.last_tint = Some(tint_rgb);
+
+    let tl = tint.to_linear();
+    let regular = Vec4::new(tl.red, tl.green, tl.blue, 1.0);
+
+    // SelfLit sprites (campfires, torches) blend a small fraction of the ambient
+    // tint so they feel grounded in the scene rather than floating at pure
+    // full-bright. Same constant and formula as the old per-material code.
+    const SELFLIT_TINT_BLEND: f32 = 0.12;
+    let selflit_srgb = Color::srgb(
+        1.0 - (1.0 - t.red) * SELFLIT_TINT_BLEND,
+        1.0 - (1.0 - t.green) * SELFLIT_TINT_BLEND,
+        1.0 - (1.0 - t.blue) * SELFLIT_TINT_BLEND,
+    );
+    let stl = selflit_srgb.to_linear();
+    let selflit = Vec4::new(stl.red, stl.green, stl.blue, 1.0);
+
+    tint_buffers.write(storage_buffers, regular, selflit);
 }
 
 /// Tracks applied lighting state to detect changes.
@@ -464,8 +439,7 @@ struct LightingState {
     last_mode: String,
     /// Last tod at which sun/ambient were updated. Skip update below this threshold.
     last_sun_tod: f32,
-    /// Last tint applied to billboard/actor materials (rgb). `None` = never applied → force update.
+    /// Last tint applied to the shared sprite tint buffers (rgb). `None` = never
+    /// applied → force an update on the next frame.
     last_tint: Option<[f32; 3]>,
-    /// Reused every frame to deduplicate material updates (avoids per-frame allocation).
-    tinted: HashSet<AssetId<SpriteMaterial>>,
 }

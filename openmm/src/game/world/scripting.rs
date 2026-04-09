@@ -25,7 +25,6 @@ use super::state::GameVariables;
 use crate::game::actors::Actor;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
-use crate::game::lighting::CurrentSpriteTint;
 use crate::game::optional::OptionalWrite;
 use crate::game::outdoor::ApplyTextureOutdoors;
 use crate::game::sound::SoundManager;
@@ -51,7 +50,7 @@ struct MapEntityParams<'w, 's> {
     actors: Query<'w, 's, (&'static mut Actor, &'static mut Visibility)>,
     player: Query<'w, 's, &'static mut Transform, With<crate::game::player::Player>>,
     player_settings: Res<'w, crate::game::player::PlayerSettings>,
-    sprite_tint: Option<Res<'w, CurrentSpriteTint>>,
+    tint_buffers: Res<'w, crate::game::sprites::tint_buffer::SpriteTintBuffers>,
 }
 
 /// Bundles audio + mesh assets + game_time to stay within Bevy's 16-param limit.
@@ -764,6 +763,10 @@ fn process_events(
                 let Some(sprite_materials) = sprite_materials.as_deref_mut() else {
                     continue;
                 };
+                // New materials reference the shared tint storage buffer, so
+                // they pick up the current day/night tint automatically without
+                // any per-material write here. Default to regular; selflit sprite
+                // swaps aren't handled by the current SetSprite opcode.
                 let Some((new_mat, new_mesh, _new_w, new_h)) =
                     crate::game::sprites::loading::load_static_decoration_sprite(
                         sprite_name,
@@ -771,6 +774,7 @@ fn process_events(
                         &mut images,
                         sprite_materials,
                         &mut audio.meshes,
+                        &entities.tint_buffers.regular,
                     )
                 else {
                     warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
@@ -781,13 +785,6 @@ fn process_events(
                         transform.translation.y = ground_y + new_h / 2.0;
                         mesh_handle.0 = new_mesh.clone();
                         mat_handle.0 = new_mat.clone();
-                        // Apply current tint immediately so the new sprite matches the
-                        // scene lighting without waiting for the next lighting tick.
-                        if let Some(ref tint) = entities.sprite_tint
-                            && let Some(mat) = sprite_materials.get_mut(&new_mat)
-                        {
-                            mat.extension.tint = tint.tint;
-                        }
                         break;
                     }
                 }

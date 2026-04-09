@@ -36,6 +36,7 @@ pub(super) fn spawn_npc_actors(
         };
 
         if actor.is_monster() {
+            let tint_buffer = ctx.tint_buffers.regular.clone();
             let (states, state_masks, raw_w, raw_h) = if let Some(materials) = ctx.sprite_materials.as_deref_mut() {
                 sprites::load_entity_sprites(
                     &actor.standing_sprite,
@@ -48,23 +49,13 @@ pub(super) fn spawn_npc_actors(
                     &mut Some(&mut p.sprite_cache),
                     actor.variant,
                     actor.palette_id,
+                    &tint_buffer,
                 )
             } else {
                 (Vec::new(), Vec::new(), 0.0, 0.0)
             };
             if states.is_empty() {
                 continue;
-            }
-            if let Some(materials) = ctx.sprite_materials.as_deref_mut() {
-                for state in &states {
-                    for frame in state {
-                        for handle in frame {
-                            if let Some(m) = materials.get_mut(handle.id()) {
-                                m.extension.tint = ctx.spawn_tint;
-                            }
-                        }
-                    }
-                }
             }
             let dsft_scale = lod.dsft_scale_for_group(&actor.standing_sprite);
             let (sw, sh) = (raw_w * dsft_scale, raw_h * dsft_scale);
@@ -136,6 +127,7 @@ pub(super) fn spawn_npc_actors(
             continue;
         }
 
+        let tint_buffer = ctx.tint_buffers.regular.clone();
         let (s2, m2, w2, h2) = if let Some(materials) = ctx.sprite_materials.as_deref_mut() {
             sprites::load_entity_sprites(
                 &actor.standing_sprite,
@@ -148,23 +140,13 @@ pub(super) fn spawn_npc_actors(
                 &mut Some(&mut p.sprite_cache),
                 actor.variant,
                 actor.palette_id,
+                &tint_buffer,
             )
         } else {
             (Vec::new(), Vec::new(), 0.0, 0.0)
         };
         if s2.is_empty() {
             continue;
-        }
-        if let Some(materials) = ctx.sprite_materials.as_deref_mut() {
-            for state in &s2 {
-                for frame in state {
-                    for handle in frame {
-                        if let Some(m) = materials.get_mut(handle.id()) {
-                            m.extension.tint = ctx.spawn_tint;
-                        }
-                    }
-                }
-            }
         }
         let dsft_scale = lod.dsft_scale_for_group(&actor.standing_sprite);
         let (sw, sh) = (w2 * dsft_scale, h2 * dsft_scale);
@@ -290,6 +272,7 @@ pub(super) fn spawn_odm_monsters(
             None => continue,
         };
 
+        let tint_buffer = ctx.tint_buffers.regular.clone();
         let (states, state_masks, raw_w, raw_h) = if let Some(materials) = ctx.sprite_materials.as_deref_mut() {
             sprites::load_entity_sprites(
                 &mon.standing_sprite,
@@ -302,23 +285,13 @@ pub(super) fn spawn_odm_monsters(
                 &mut Some(&mut p.sprite_cache),
                 mon.variant,
                 mon.palette_id,
+                &tint_buffer,
             )
         } else {
             (Vec::new(), Vec::new(), 0.0, 0.0)
         };
         if states.is_empty() {
             continue;
-        }
-        if let Some(materials) = ctx.sprite_materials.as_deref_mut() {
-            for state in &states {
-                for frame in state {
-                    for handle in frame {
-                        if let Some(m) = materials.get_mut(handle.id()) {
-                            m.extension.tint = ctx.spawn_tint;
-                        }
-                    }
-                }
-            }
         }
         let dsft_scale = ctx.game_assets.lod().dsft_scale_for_group(&mon.standing_sprite);
         let (sw, sh) = (raw_w * dsft_scale, raw_h * dsft_scale);

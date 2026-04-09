@@ -32,6 +32,14 @@ pub(super) fn spawn_decorations(
         let dec_pos = Vec3::from(mm6_position_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
 
         if dec.is_directional {
+            // Directional decorations with a light_radius (ships' lanterns, etc.)
+            // become SelfLit — pick the selflit tint buffer so they don't get
+            // dimmed at night. Non-lit directionals use the regular buffer.
+            let tint_handle = if dec.light_radius > 0 {
+                ctx.tint_buffers.selflit.clone()
+            } else {
+                ctx.tint_buffers.regular.clone()
+            };
             let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                 continue;
             };
@@ -41,15 +49,9 @@ pub(super) fn spawn_decorations(
                 ctx.images,
                 materials,
                 &mut Some(&mut p.sprite_cache),
+                &tint_handle,
             );
             if px_w > 0.0 {
-                for dir in &dirs {
-                    if let Some(materials) = ctx.sprite_materials.as_deref_mut()
-                        && let Some(m) = materials.get_mut(dir.id())
-                    {
-                        m.extension.tint = ctx.spawn_tint;
-                    }
-                }
                 let dsft_scale = lod.dsft_scale_for_group(&dec.sprite_name);
                 let (sw, sh) = (px_w * dsft_scale, px_h * dsft_scale);
                 let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
@@ -121,6 +123,17 @@ pub(super) fn spawn_decorations(
             if w == 0.0 || h == 0.0 {
                 continue;
             }
+            // Animated decorations become SelfLit if they have a ddeclist light
+            // or a luminous DSFT frame (campfires, braziers). Decide up front so
+            // we pick the matching tint buffer at material creation time.
+            let first = &frame_sprites[0];
+            let is_selflit =
+                dec.light_radius > 0 || (first.d_sft_frame.is_luminous() && first.d_sft_frame.light_radius > 0);
+            let tint_handle = if is_selflit {
+                ctx.tint_buffers.selflit.clone()
+            } else {
+                ctx.tint_buffers.regular.clone()
+            };
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
             let mut frame_mats = vec![];
             let mut frame_masks = vec![];
@@ -131,7 +144,7 @@ pub(super) fn spawn_decorations(
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
                 };
-                let mat = materials.add(unlit_billboard_material(tex, ctx.spawn_tint));
+                let mat = materials.add(unlit_billboard_material(tex, tint_handle.clone()));
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
             }
@@ -195,6 +208,13 @@ pub(super) fn spawn_decorations(
             }
             *spawned += 1;
         } else {
+            // Decide selflit up front so the cached material references the right buffer.
+            let is_selflit = dec.light_radius > 0 || lod.billboard_luminous_light_radius(dec.declist_id) > 0;
+            let tint_handle = if is_selflit {
+                ctx.tint_buffers.selflit.clone()
+            } else {
+                ctx.tint_buffers.regular.clone()
+            };
             let (mat, quad, w, h, mask) = if let Some((m, q, w, h, msk)) = p.dec_sprite_cache.get(key) {
                 (m.clone(), q.clone(), *w, *h, msk.clone())
             } else {
@@ -209,17 +229,12 @@ pub(super) fn spawn_decorations(
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
                 };
-                let m = materials.add(unlit_billboard_material(tex, ctx.spawn_tint));
+                let m = materials.add(unlit_billboard_material(tex, tint_handle));
                 let q = ctx.meshes.add(Rectangle::new(w, h));
                 p.dec_sprite_cache
                     .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));
                 (m, q, w, h, msk)
             };
-            if let Some(materials) = ctx.sprite_materials.as_deref_mut()
-                && let Some(m) = materials.get_mut(mat.id())
-            {
-                m.extension.tint = ctx.spawn_tint;
-            }
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
             let mut child = commands.spawn_empty();
             let child_id = child.id();

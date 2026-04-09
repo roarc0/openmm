@@ -7,10 +7,9 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
-use crate::game::lighting::sprite_tint_from_time;
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
-use crate::game::world::GameTime;
+use crate::game::sprites::tint_buffer::SpriteTintBuffers;
 use crate::states::loading::PreparedWorld;
 
 use super::spawn_actors::{spawn_npc_actors, spawn_odm_monsters};
@@ -68,7 +67,7 @@ pub(super) struct SpawnCtx<'a> {
     pub images: &'a mut Assets<Image>,
     pub meshes: &'a mut Assets<Mesh>,
     pub sprite_materials: Option<&'a mut Assets<SpriteMaterial>>,
-    pub spawn_tint: Vec4,
+    pub tint_buffers: &'a SpriteTintBuffers,
     pub start: std::time::Instant,
     pub time_budget: f32,
     pub batch_max: usize,
@@ -101,7 +100,6 @@ pub(super) fn lazy_spawn(
     pending: Option<ResMut<PendingSpawns>>,
     prepared: Res<PreparedWorld>,
     game_assets: Res<GameAssets>,
-    game_time: Res<GameTime>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     _materials: ResMut<Assets<StandardMaterial>>,
@@ -110,17 +108,15 @@ pub(super) fn lazy_spawn(
     mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
     mut map_events: Option<ResMut<crate::game::world::MapEvents>>,
     cfg: Res<crate::config::GameConfig>,
+    tint_buffers: Res<SpriteTintBuffers>,
 ) {
     let Some(mut pending) = pending else {
         return;
     };
 
-    // Compute the correct day/night tint for this frame so new materials are pre-tinted.
-    // animate_day_cycle uses a change-threshold and won't re-tint materials that weren't in
-    // the ECS when it ran — baking the tint at creation time avoids the brief bright flash.
-    let tint_color = sprite_tint_from_time(game_time.time_of_day());
-    let tl = tint_color.to_linear();
-    let spawn_tint = Vec4::new(tl.red, tl.green, tl.blue, 1.0);
+    // New sprite materials reference one of the shared tint storage buffers, so
+    // they automatically pick up the current day/night tint at creation time —
+    // no per-material tint write needed at spawn.
 
     let p = &mut *pending;
     let terrain_entity = p.terrain_entity;
@@ -152,7 +148,7 @@ pub(super) fn lazy_spawn(
         images: &mut images,
         meshes: &mut meshes,
         sprite_materials: sprite_materials.as_deref_mut(),
-        spawn_tint,
+        tint_buffers: &tint_buffers,
         start,
         time_budget,
         batch_max,

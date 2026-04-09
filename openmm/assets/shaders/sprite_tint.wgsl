@@ -6,13 +6,18 @@
 }
 #import bevy_pbr::pbr_functions::main_pass_post_lighting_processing
 
-// Day/night tint uniform (linear sRGB). Vec4::ONE = no change.
-// Updated each lighting tick by the lighting system.
+// Day/night tint for this sprite (linear sRGB). Vec4(1.0) = no change.
+//
+// Backed by a globally shared `ShaderStorageBuffer` asset (see
+// `SpriteTintBuffers` in game/sprites/tint_buffer.rs). Every sprite material
+// references one of two handles — regular or selflit — and the lighting
+// system updates the buffer data in place once per threshold crossing.
+// The shader reads a single `vec4<f32>` from the start of the buffer.
 //
 // TODO: add point-light contribution from nearby torches/campfires in dungeons
 //       so sprites respond to indoor lighting rather than only the global ambient tint.
 @group(#{MATERIAL_BIND_GROUP}) @binding(100)
-var<uniform> tint: vec4<f32>;
+var<storage, read> tint: vec4<f32>;
 
 @fragment
 fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {

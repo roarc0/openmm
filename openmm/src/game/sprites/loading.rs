@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use bevy::prelude::*;
+use bevy::render::storage::ShaderStorageBuffer;
 use image::DynamicImage;
 
 use crate::game::actors::Actor;
@@ -70,6 +71,7 @@ impl SpriteCache {
         assets: &DataAssets,
         images: &mut Assets<Image>,
         materials: &mut Assets<SpriteMaterial>,
+        tint_buffer: &Handle<ShaderStorageBuffer>,
     ) {
         for &(root, variant, palette_id) in roots {
             load_sprite_frames(
@@ -82,6 +84,7 @@ impl SpriteCache {
                 0,
                 0,
                 palette_id,
+                tint_buffer,
             );
         }
     }
@@ -162,6 +165,7 @@ pub fn load_entity_sprites(
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
     palette_id: u16,
+    tint_buffer: &Handle<ShaderStorageBuffer>,
 ) -> (
     Vec<Vec<[Handle<SpriteMaterial>; 5]>>,
     Vec<Vec<[Arc<AlphaMask>; 5]>>,
@@ -179,6 +183,7 @@ pub fn load_entity_sprites(
         0,
         0,
         palette_id,
+        tint_buffer,
     );
 
     // Load standing, padded to at least walking dimensions
@@ -192,6 +197,7 @@ pub fn load_entity_sprites(
         ww as u32,
         wh as u32,
         palette_id,
+        tint_buffer,
     );
     if standing.is_empty() {
         return (Vec::new(), Vec::new(), 0.0, 0.0);
@@ -212,6 +218,7 @@ pub fn load_entity_sprites(
             qw as u32,
             qh as u32,
             palette_id,
+            tint_buffer,
         );
         (padded, padded_masks)
     } else {
@@ -229,11 +236,21 @@ pub fn load_entity_sprites(
         qw as u32,
         qh as u32,
         palette_id,
+        tint_buffer,
     );
 
     // Load dying animation (state 3), padded to the unified quad size.
     let (dying, dying_masks, _, _) = load_sprite_frames(
-        dying_root, assets, images, materials, cache, variant, qw as u32, qh as u32, palette_id,
+        dying_root,
+        assets,
+        images,
+        materials,
+        cache,
+        variant,
+        qw as u32,
+        qh as u32,
+        palette_id,
+        tint_buffer,
     );
 
     let mut states = vec![standing];
@@ -270,6 +287,7 @@ pub fn load_sprite_frames(
     min_w: u32,
     min_h: u32,
     palette_id: u16,
+    tint_buffer: &Handle<ShaderStorageBuffer>,
 ) -> (Vec<[Handle<SpriteMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
     let key = cache_key(root, variant, min_w, min_h, palette_id);
@@ -286,8 +304,17 @@ pub fn load_sprite_frames(
     // Try progressively shorter root names (e.g. "gobla" -> "gobl" -> "gob")
     let mut try_root = root;
     while try_root.len() >= 3 {
-        let (frames, frame_masks, w, h) =
-            decode_sprite_frames(try_root, assets, images, materials, variant, min_w, min_h, palette_id);
+        let (frames, frame_masks, w, h) = decode_sprite_frames(
+            try_root,
+            assets,
+            images,
+            materials,
+            variant,
+            min_w,
+            min_h,
+            palette_id,
+            tint_buffer,
+        );
         if !frames.is_empty() {
             store_in_cache(&key, &frames, &frame_masks, w, h, cache);
             return (frames, frame_masks, w, h);
@@ -359,6 +386,7 @@ fn decode_sprite_frames(
     min_w: u32,
     min_h: u32,
     palette_id: u16,
+    tint_buffer: &Handle<ShaderStorageBuffer>,
 ) -> (Vec<[Handle<SpriteMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
     // First pass: collect all raw sprites and find max dimensions.
     let mut raw_sprites: Vec<Vec<Option<DynamicImage>>> = Vec::new();
@@ -456,7 +484,7 @@ fn decode_sprite_frames(
                 };
                 dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
                 let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-                dir_materials[dir] = materials.add(unlit_billboard_material(tex, Vec4::ONE));
+                dir_materials[dir] = materials.add(unlit_billboard_material(tex, tint_buffer.clone()));
             } else if dir > 0 {
                 dir_materials[dir] = dir_materials[0].clone();
                 dir_masks[dir] = dir_masks[0].clone();
@@ -650,6 +678,7 @@ pub fn load_decoration_directions(
     images: &mut Assets<Image>,
     materials: &mut Assets<SpriteMaterial>,
     cache: &mut Option<&mut SpriteCache>,
+    tint_buffer: &Handle<ShaderStorageBuffer>,
 ) -> ([Handle<SpriteMaterial>; 5], [Arc<AlphaMask>; 5], f32, f32) {
     let key = format!("dec:{}", root);
     if let Some(c) = cache.as_ref()
@@ -732,7 +761,7 @@ pub fn load_decoration_directions(
             };
             dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
             let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-            dirs[dir] = materials.add(unlit_billboard_material(tex, Vec4::ONE));
+            dirs[dir] = materials.add(unlit_billboard_material(tex, tint_buffer.clone()));
         } else if dir > 0 {
             dirs[dir] = dirs[0].clone();
             dir_masks[dir] = dir_masks[0].clone();
@@ -763,6 +792,7 @@ pub fn load_static_decoration_sprite(
     images: &mut Assets<Image>,
     materials: &mut Assets<SpriteMaterial>,
     meshes: &mut Assets<Mesh>,
+    tint_buffer: &Handle<ShaderStorageBuffer>,
 ) -> Option<(Handle<SpriteMaterial>, Handle<Mesh>, f32, f32)> {
     let name_lower = sprite_name.to_lowercase();
     let img = assets.lod().sprite(&name_lower)?;
@@ -771,7 +801,7 @@ pub fn load_static_decoration_sprite(
     let h = img.height() as f32 * dsft_scale;
     let bevy_img = crate::assets::dynamic_to_bevy_image(img);
     let tex = images.add(bevy_img);
-    let mat = materials.add(unlit_billboard_material(tex, Vec4::ONE));
+    let mat = materials.add(unlit_billboard_material(tex, tint_buffer.clone()));
     let mesh = meshes.add(Rectangle::new(w, h));
     Some((mat, mesh, w, h))
 }
