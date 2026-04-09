@@ -22,6 +22,7 @@ pub(super) fn spawn_world(
     mut materials: ResMut<Assets<StandardMaterial>>,
     _sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
     mut terrain_materials: Option<ResMut<Assets<spawn_terrain::TerrainMaterial>>>,
+    mut bsp_water_materials: Option<ResMut<Assets<super::bsp_water::BspWaterMaterial>>>,
     mut prepared: ResMut<PreparedWorld>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
@@ -49,6 +50,7 @@ pub(super) fn spawn_world(
         prepared,
         &mut meshes,
         &mut materials,
+        bsp_water_materials.as_deref_mut(),
         &mut images,
         &cfg,
     );

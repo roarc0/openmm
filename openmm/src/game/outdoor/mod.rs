@@ -14,6 +14,7 @@ use crate::GameState;
 
 mod boundary;
 mod bsp;
+pub mod bsp_water;
 mod lazy_spawn;
 mod spawn;
 mod spawn_actors;
@@ -22,6 +23,7 @@ pub mod spawn_terrain;
 mod texture_swap;
 
 pub use boundary::PLAY_WIDTH;
+pub use bsp_water::BspWaterMaterial;
 pub use lazy_spawn::SpawnProgress;
 pub use openmm_data::utils::OdmName;
 pub use spawn_terrain::TerrainMaterial;

@@ -63,6 +63,7 @@ impl Plugin for RenderingPlugin {
             sky::SkyPlugin,
             sprites::tint_buffer::SpriteTintBufferPlugin,
             MaterialPlugin::<outdoor::TerrainMaterial>::default(),
+            MaterialPlugin::<outdoor::BspWaterMaterial>::default(),
             MaterialPlugin::<sprites::material::SpriteMaterial>::default(),
         ));
     }

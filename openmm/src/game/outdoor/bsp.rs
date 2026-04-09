@@ -3,15 +3,25 @@ use bevy::prelude::*;
 use crate::game::coords::mm6_fixed_normal_to_bevy;
 use crate::states::loading::PreparedWorld;
 
+use super::bsp_water::{BspWaterExtension, BspWaterMaterial, is_bsp_water_texture};
 use super::texture_swap::BspSubMesh;
 
 /// Spawn BSP buildings as children of the terrain entity.
+///
+/// Sub-meshes whose texture name matches [`is_bsp_water_texture`] (currently
+/// `WtrTyl`) are spawned with [`BspWaterMaterial`] so they get the same
+/// scroll+wave animation as terrain water; every other sub-mesh stays on
+/// plain `StandardMaterial`. `bsp_water_materials` is optional so the
+/// outdoor plugin still works when the water-material plugin is disabled —
+/// those faces just render as static in that case.
+#[allow(clippy::too_many_arguments)]
 pub fn spawn_bsp_models(
     commands: &mut Commands,
     terrain_entity_id: Entity,
     prepared: &PreparedWorld,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    mut bsp_water_materials: Option<&mut Assets<BspWaterMaterial>>,
     images: &mut Assets<Image>,
     cfg: &crate::config::GameConfig,
 ) {
@@ -33,15 +43,23 @@ pub fn spawn_bsp_models(
                         let tex_handle = images.add(img);
                         mat.base_color_texture = Some(tex_handle);
                     }
-                    model_parent.spawn((
-                        Mesh3d(meshes.add(sub.mesh.clone())),
-                        MeshMaterial3d(materials.add(mat)),
-                        BspSubMesh {
-                            model_index: model_index as u32,
-                            face_indices: sub.face_indices.clone(),
-                            texture_name: sub.texture_name.clone(),
-                        },
-                    ));
+                    let mesh_handle = meshes.add(sub.mesh.clone());
+                    let sub_marker = BspSubMesh {
+                        model_index: model_index as u32,
+                        face_indices: sub.face_indices.clone(),
+                        texture_name: sub.texture_name.clone(),
+                    };
+                    if is_bsp_water_texture(&sub.texture_name)
+                        && let Some(water_mats) = bsp_water_materials.as_deref_mut()
+                    {
+                        let water_mat = water_mats.add(BspWaterMaterial {
+                            base: mat,
+                            extension: BspWaterExtension::default(),
+                        });
+                        model_parent.spawn((Mesh3d(mesh_handle), MeshMaterial3d(water_mat), sub_marker));
+                    } else {
+                        model_parent.spawn((Mesh3d(mesh_handle), MeshMaterial3d(materials.add(mat)), sub_marker));
+                    }
                 }
             });
         }
