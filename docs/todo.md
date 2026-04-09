@@ -82,8 +82,7 @@ Several systems still use inline `Option<Res<PreparedWorld>>` / `Option<Res<Prep
 - [ ] **`debug::hud::player::update_tile_text`** — gate on `resource_exists::<PreparedWorld>` (tile debug info is outdoor-only; indoor shows nothing meaningful).
 
 ### 5. Performance Optimizations
-- [ ] **Allocation Audit** — `resolve_movement` in `collision.rs` uses a `HashSet` for deduplicating walls in the hot path. 
-    - [ ] Consider using a pre-allocated `BitSet` or a reused `Vec` to avoid per-frame allocations during movement.
+- [x] **Allocation Audit** — DONE. `resolve_movement` no longer allocates: `SpatialGrid::cells_overlapping` returns `impl Iterator<Item = usize>` instead of `Vec<usize>`, and the explicit `HashSet` wall dedupe was dropped — a wall spanning multiple cells is processed once per cell, but the second visit is a guaranteed no-op (signed distance already ≥ radius after the first push), so correctness is preserved at zero allocation cost. Two regression tests cover the push-through-wall and free-movement paths.
 - [ ] **Change Detection** — Increase usage of `Changed<T>` and `Added<T>` filters in queries to skip processing for entities that haven't moved or updated.
 
 ## 2026-04-09 Audit — Plugin size & Performance

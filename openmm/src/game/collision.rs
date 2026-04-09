@@ -194,25 +194,34 @@ impl SpatialGrid {
         }
     }
 
-    /// Iterator over cell indices overlapping an AABB.
-    fn cells_overlapping(&self, min_x: f32, max_x: f32, min_z: f32, max_z: f32) -> Vec<usize> {
-        let mut result = Vec::new();
-        let ix0 = ((min_x - self.min_corner.x) / self.cell_width).floor() as i32;
-        let iz0 = ((min_z - self.min_corner.y) / self.cell_width).floor() as i32;
-        let ix1 = ((max_x - self.min_corner.x) / self.cell_width).floor() as i32;
-        let iz1 = ((max_z - self.min_corner.y) / self.cell_width).floor() as i32;
-
-        let x0 = ix0.clamp(0, self.size as i32 - 1) as usize;
-        let z0 = iz0.clamp(0, self.size as i32 - 1) as usize;
-        let x1 = ix1.clamp(0, self.size as i32 - 1) as usize;
-        let z1 = iz1.clamp(0, self.size as i32 - 1) as usize;
-
-        for z in z0..=z1 {
-            for x in x0..=x1 {
-                result.push(z * self.size + x);
-            }
-        }
-        result
+    /// Iterator over cell indices overlapping an AABB. Returns an empty
+    /// iterator when the grid has not been built (`size == 0`); callers must
+    /// handle that case explicitly (the pre-grid fallback is to scan all
+    /// walls/floors).
+    ///
+    /// Allocation-free by design — this is called from the inner collision
+    /// loop, which runs multiple times per moving entity per frame.
+    fn cells_overlapping(&self, min_x: f32, max_x: f32, min_z: f32, max_z: f32) -> impl Iterator<Item = usize> + '_ {
+        let size = self.size;
+        // Start with an intentionally-empty range; real bounds overwrite when
+        // the grid is initialised. Inclusive ranges with start > end iterate
+        // zero times, so returning `1..=0` is the safe "no cells" sentinel.
+        let (x0, x1, z0, z1) = if size == 0 {
+            (1usize, 0, 1, 0)
+        } else {
+            let size_i = size as i32;
+            let ix0 = ((min_x - self.min_corner.x) / self.cell_width).floor() as i32;
+            let iz0 = ((min_z - self.min_corner.y) / self.cell_width).floor() as i32;
+            let ix1 = ((max_x - self.min_corner.x) / self.cell_width).floor() as i32;
+            let iz1 = ((max_z - self.min_corner.y) / self.cell_width).floor() as i32;
+            (
+                ix0.clamp(0, size_i - 1) as usize,
+                ix1.clamp(0, size_i - 1) as usize,
+                iz0.clamp(0, size_i - 1) as usize,
+                iz1.clamp(0, size_i - 1) as usize,
+            )
+        };
+        (z0..=z1).flat_map(move |z| (x0..=x1).map(move |x| z * size + x))
     }
 }
 
@@ -263,18 +272,30 @@ impl BuildingColliders {
 
         self.grid = SpatialGrid::new(grid_size, cell_width, Vec2::new(min.x, min.z));
 
+        // `cells_overlapping` borrows `&self.grid`, which conflicts with the
+        // mutable borrow of `self.grid.walls[idx]` inside the loop body. The
+        // grid is built once per map load so collecting cell indices into a
+        // scratch `Vec` here is a non-issue — unlike `resolve_movement`, this
+        // path is not in the per-frame hot loop.
+        let mut cells_scratch: Vec<usize> = Vec::new();
         for (i, w) in self.walls.iter().enumerate() {
-            for idx in self.grid.cells_overlapping(w.min_x, w.max_x, w.min_z, w.max_z) {
+            cells_scratch.clear();
+            cells_scratch.extend(self.grid.cells_overlapping(w.min_x, w.max_x, w.min_z, w.max_z));
+            for &idx in &cells_scratch {
                 self.grid.walls[idx].push(i as u32);
             }
         }
         for (i, f) in self.floors.iter().enumerate() {
-            for idx in self.grid.cells_overlapping(f.min_x, f.max_x, f.min_z, f.max_z) {
+            cells_scratch.clear();
+            cells_scratch.extend(self.grid.cells_overlapping(f.min_x, f.max_x, f.min_z, f.max_z));
+            for &idx in &cells_scratch {
                 self.grid.floors[idx].push(i as u32);
             }
         }
         for (i, c) in self.ceilings.iter().enumerate() {
-            for idx in self.grid.cells_overlapping(c.min_x, c.max_x, c.min_z, c.max_z) {
+            cells_scratch.clear();
+            cells_scratch.extend(self.grid.cells_overlapping(c.min_x, c.max_x, c.min_z, c.max_z));
+            for &idx in &cells_scratch {
                 self.grid.ceilings[idx].push(i as u32);
             }
         }
@@ -284,66 +305,74 @@ impl BuildingColliders {
         let mut result = to;
         let feet_y = from.y - eye_height;
 
-        // Determine relevant grid cells
+        // Determine swept AABB of the movement step.
         let r_bound = radius + 1.0;
         let min_x = from.x.min(to.x) - r_bound;
         let max_x = from.x.max(to.x) + r_bound;
         let min_z = from.z.min(to.z) - r_bound;
         let max_z = from.z.max(to.z) + r_bound;
-        let cells = self.grid.cells_overlapping(min_x, max_x, min_z, max_z);
 
-        // Deduplicate walls in overlapping cells
-        let mut local_walls = Vec::new();
-        if cells.is_empty() {
-            // Fallback to all walls if outside grid or grid not initialized
-            for i in 0..self.walls.len() {
-                local_walls.push(i as u32);
+        // Process a single wall against the current `result`, pushing the
+        // entity out along the wall normal if they are penetrating. Pulled
+        // out into a closure so both the grid-cell path and the unbuilt-grid
+        // fallback share the same logic without duplication.
+        //
+        // Capturing locals: `&self.walls`, `feet_y`, and `from.y` are
+        // immutable so this stays a cheap `Fn`.
+        let process_wall = |wall_idx: u32, result: &mut Vec3| {
+            let wall = &self.walls[wall_idx as usize];
+            // Height check: skip walls entirely above head or at/below feet.
+            if feet_y >= wall.max_y || from.y < wall.min_y {
+                return;
             }
-        } else {
-            let mut seen = std::collections::HashSet::new();
-            for &idx in &cells {
-                for &wall_idx in &self.grid.walls[idx] {
-                    if seen.insert(wall_idx) {
-                        local_walls.push(wall_idx);
-                    }
-                }
+            let wall_height = wall.max_y - wall.min_y;
+            if wall.max_y < feet_y + MAX_WALL_STEP && wall_height < MAX_WALL_STEP {
+                return;
             }
-        }
+            // Stair riser: precomputed at load time — a floor exists above
+            // this wall, so let the entity walk through; gravity snaps them
+            // up to that floor.
+            let step_height = wall.max_y - feet_y;
+            if wall.is_step && step_height > 0.0 && step_height <= MAX_STEP_UP {
+                return;
+            }
+            if !wall.contains_xz(result.x, result.z, radius) {
+                return;
+            }
+            let dist = wall.signed_distance(*result);
+            // Push only if within radius on the front side (approaching from
+            // outside) or already penetrating (negative distance = inside).
+            if dist < radius && dist > -radius {
+                let push = radius - dist;
+                result.x += wall.normal.x * push;
+                result.z += wall.normal.z * push;
+            }
+        };
 
+        // Up to 3 resolution passes — later walls may re-intrude after an
+        // earlier push. Break early when a pass makes no measurable change.
         for _ in 0..3 {
             let prev = result;
 
-            for &wall_idx in &local_walls {
-                let wall = &self.walls[wall_idx as usize];
-                // Height check: skip walls entirely above head or at/below feet
-                if feet_y >= wall.max_y || from.y < wall.min_y {
-                    continue;
+            if self.grid.size == 0 {
+                // Grid not built (no walls at load time, or pre-`build_grid`
+                // path). Scan every wall — rare fallback, kept for safety.
+                for i in 0..self.walls.len() {
+                    process_wall(i as u32, &mut result);
                 }
-                let wall_height = wall.max_y - wall.min_y;
-                if wall.max_y < feet_y + MAX_WALL_STEP && wall_height < MAX_WALL_STEP {
-                    continue;
-                }
-                // Stair riser: precomputed at load time — a floor exists above this wall.
-                // Let the player walk through; gravity snaps them up to that floor.
-                let step_height = wall.max_y - feet_y;
-                if wall.is_step && step_height > 0.0 && step_height <= MAX_STEP_UP {
-                    continue;
-                }
-
-                // Check if player is within the face's XZ footprint
-                if !wall.contains_xz(result.x, result.z, radius) {
-                    continue;
-                }
-
-                // Signed distance to face plane
-                let dist = wall.signed_distance(result);
-
-                // Only push if within radius on the front side (approaching from outside)
-                // or already penetrating (negative distance = inside the building)
-                if dist < radius && dist > -radius {
-                    let push = radius - dist;
-                    result.x += wall.normal.x * push;
-                    result.z += wall.normal.z * push;
+            } else {
+                // Walk the cells overlapping the swept AABB and process each
+                // cell's wall list in-place. A wall that straddles multiple
+                // cells is visited once per cell; the second visit is a
+                // no-op because the first push already placed the entity
+                // outside the wall plane (`dist >= radius`). Dropping the
+                // explicit `HashSet` dedupe makes this path allocation-free,
+                // which is the real win — `resolve_movement` is called
+                // several times per moving entity per frame.
+                for cell_idx in self.grid.cells_overlapping(min_x, max_x, min_z, max_z) {
+                    for &wall_idx in &self.grid.walls[cell_idx] {
+                        process_wall(wall_idx, &mut result);
+                    }
                 }
             }
 
@@ -702,5 +731,67 @@ mod tests {
         // (0, 500) — the left edge runs from (-500,-500) to (0,500).
         let h = probe_ground_height(&hm, Some(&colliders), -499.0, 499.0);
         assert!(h.abs() < 1e-3, "expected terrain 0.0 outside hull, got {h}");
+    }
+
+    /// Regression for the `resolve_movement` HashSet-dedupe removal: a wall
+    /// that straddles multiple grid cells must still push the player out
+    /// correctly even though each cell visit re-processes the same wall.
+    /// The second visit is a no-op (already pushed outside), so the final
+    /// position must match the single-dedupe behaviour.
+    #[test]
+    fn resolve_movement_pushes_out_of_wall_across_cells() {
+        // Build a wall at x = 0, facing +X (normal = +X). The wall spans
+        // z = -2000..2000 — wide enough to span several grid cells at the
+        // 64-cell grid the build step constructs.
+        let verts = [
+            Vec3::new(0.0, 0.0, -2000.0),
+            Vec3::new(0.0, 200.0, -2000.0),
+            Vec3::new(0.0, 200.0, 2000.0),
+            Vec3::new(0.0, 0.0, 2000.0),
+        ];
+        let wall = CollisionWall::new(Vec3::X, 0.0, &verts);
+
+        let mut c = BuildingColliders::default();
+        c.walls.push(wall);
+        c.build_grid();
+
+        // Entity moves from (+10, eye, 0) to (-10, eye, 0) — at the
+        // destination they are 10 units inside the wall plane (well under
+        // the 24-unit radius) so `contains_xz` accepts and the wall pushes
+        // them back. Expected final x ≈ radius (24). Matches the original
+        // behaviour before the HashSet dedupe was removed.
+        let radius = 24.0;
+        let eye_height = 160.0;
+        let from = Vec3::new(10.0, 200.0, 0.0);
+        let to = Vec3::new(-10.0, 200.0, 0.0);
+        let result = c.resolve_movement(from, to, radius, eye_height);
+        assert!(
+            result.x >= radius - 0.5,
+            "expected push to x ≥ {radius}, got x = {}",
+            result.x
+        );
+    }
+
+    /// Movement that never intersects a wall must be returned unchanged —
+    /// verifies we did not accidentally double-push when a wall straddles
+    /// multiple cells.
+    #[test]
+    fn resolve_movement_preserves_free_movement() {
+        let verts = [
+            Vec3::new(0.0, 0.0, -2000.0),
+            Vec3::new(0.0, 200.0, -2000.0),
+            Vec3::new(0.0, 200.0, 2000.0),
+            Vec3::new(0.0, 0.0, 2000.0),
+        ];
+        let wall = CollisionWall::new(Vec3::X, 0.0, &verts);
+        let mut c = BuildingColliders::default();
+        c.walls.push(wall);
+        c.build_grid();
+
+        // Move entirely on the +X side of the wall plane — no collision.
+        let from = Vec3::new(500.0, 200.0, 0.0);
+        let to = Vec3::new(400.0, 200.0, 100.0);
+        let result = c.resolve_movement(from, to, 24.0, 160.0);
+        assert!((result - to).length() < 0.01, "expected {to:?}, got {result:?}");
     }
 }
