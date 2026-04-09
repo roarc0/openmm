@@ -32,6 +32,7 @@ pub struct OdmPlugin;
 impl Plugin for OdmPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SpawnProgress>()
+            .init_resource::<texture_swap::SwapMaterialCache>()
             .add_message::<ApplyTextureOutdoors>()
             .add_systems(
                 OnEnter(GameState::Game),

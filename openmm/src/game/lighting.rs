@@ -339,7 +339,7 @@ fn update_sun_and_ambient(
     }
 
     if is_indoor {
-        let ambient_brightness = indoor_sector_ambient_brightness(indoor, player_query);
+        let ambient_brightness = indoor_sector_ambient_brightness(indoor, player_query, lighting_state);
         for mut ambient in ambient_query.iter_mut() {
             ambient.color = Color::srgb(0.85, 0.80, 0.70); // warm stone
             ambient.brightness = ambient_brightness;
@@ -363,30 +363,63 @@ fn update_sun_and_ambient(
 /// Look up the sector containing the player and return an ambient brightness based
 /// on its `min_ambient_light` value. Indoor-only; falls back to the first sector
 /// or a small default if the player is outside every bbox.
+///
+/// Uses `LightingState::last_sector_index` to short-circuit the common case
+/// where the player is still inside the previously-found sector.
 fn indoor_sector_ambient_brightness(
     indoor: Option<&crate::states::loading::PreparedIndoorWorld>,
     player_query: &Query<&Transform, With<Player>>,
+    lighting_state: &mut LightingState,
 ) -> f32 {
     let Some(indoor_data) = indoor else {
+        lighting_state.last_sector_index = None;
         return 0.0;
     };
     let Ok(player_tf) = player_query.single() else {
         return 0.0;
     };
     let pos = player_tf.translation;
-    let sector = indoor_data
+
+    let contains = |s: &crate::states::loading::SectorAmbient| {
+        pos.x >= s.bbox_min.x
+            && pos.x <= s.bbox_max.x
+            && pos.y >= s.bbox_min.y
+            && pos.y <= s.bbox_max.y
+            && pos.z >= s.bbox_min.z
+            && pos.z <= s.bbox_max.z
+    };
+
+    // Fast path: player is still inside the cached sector's bbox.
+    if let Some(idx) = lighting_state.last_sector_index
+        && let Some(sector) = indoor_data.sector_ambients.get(idx)
+        && contains(sector)
+    {
+        return sector.min_ambient as f32 * 0.8 + 25.0;
+    }
+
+    // Slow path: linear scan. Fall back to the first sector if the player is
+    // outside every bbox (can happen near geometry seams).
+    let found = indoor_data
         .sector_ambients
         .iter()
-        .find(|s| {
-            pos.x >= s.bbox_min.x
-                && pos.x <= s.bbox_max.x
-                && pos.y >= s.bbox_min.y
-                && pos.y <= s.bbox_max.y
-                && pos.z >= s.bbox_min.z
-                && pos.z <= s.bbox_max.z
-        })
-        .or_else(|| indoor_data.sector_ambients.first());
-    sector.map_or(25.0, |s| s.min_ambient as f32 * 0.8 + 25.0)
+        .enumerate()
+        .find(|(_, s)| contains(s));
+
+    match found {
+        Some((idx, s)) => {
+            lighting_state.last_sector_index = Some(idx);
+            s.min_ambient as f32 * 0.8 + 25.0
+        }
+        None => {
+            // Don't cache fallbacks — keep re-scanning until the player is
+            // inside a real sector again.
+            lighting_state.last_sector_index = None;
+            indoor_data
+                .sector_ambients
+                .first()
+                .map_or(25.0, |s| s.min_ambient as f32 * 0.8 + 25.0)
+        }
+    }
 }
 
 /// Write new day/night tint values into the two shared sprite-tint storage
@@ -451,4 +484,9 @@ struct LightingState {
     /// Last tint applied to the shared sprite tint buffers (rgb). `None` = never
     /// applied → force an update on the next frame.
     last_tint: Option<[f32; 3]>,
+    /// Index into `PreparedIndoorWorld::sector_ambients` of the sector the
+    /// player was last known to be inside. Used to short-circuit the linear
+    /// scan in `indoor_sector_ambient_brightness` — the cached sector is
+    /// rechecked first and the scan only runs when the player leaves its bbox.
+    last_sector_index: Option<usize>,
 }

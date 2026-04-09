@@ -66,23 +66,35 @@ pub struct SelfLit;
 /// Visibility flicker for torches, candles, and similar decorations.
 /// Toggles Visibility at a fixed rate; runs after distance_culling so out-of-range
 /// entities stay hidden even when "lit".
+///
+/// Stateless: lit/unlit is computed from `Time::elapsed_secs()` + a per-entity
+/// phase, so `flicker_system` never writes the component. Only `Visibility` is
+/// mutated, and only when a torch is currently unlit.
 #[derive(Component)]
 pub struct DecorFlicker {
     /// Toggles per second.
     pub rate: f32,
-    timer: f32,
-    lit: bool,
+    /// Phase offset (in toggle units, not seconds) so nearby torches don't
+    /// flicker in sync. Kept in 0..1.
+    phase: f32,
 }
 
 impl DecorFlicker {
     pub fn new(rate: f32, phase_offset: f32) -> Self {
-        // Start with a random phase so nearby torches don't flicker in sync.
-        let period = if rate > 0.0 { 1.0 / rate } else { 1.0 };
         Self {
             rate,
-            timer: phase_offset * period,
-            lit: true,
+            phase: phase_offset.rem_euclid(1.0),
         }
+    }
+
+    /// Deterministic lit state at a given elapsed time.
+    fn lit(&self, elapsed: f32) -> bool {
+        if self.rate <= 0.0 {
+            return true;
+        }
+        // Toggle count since t=0, offset by the per-entity phase. Even → lit.
+        let toggles = (elapsed * self.rate + self.phase).floor() as i64;
+        toggles & 1 == 0
     }
 }
 
@@ -135,17 +147,13 @@ fn distance_culling(
 /// Toggle visibility for flickering decorations (torches, candles, etc.).
 /// Runs after distance_culling: when unlit it forces Hidden; when lit it leaves
 /// whatever distance_culling set, so out-of-range entities stay hidden.
-fn flicker_system(time: Res<Time>, mut query: Query<(&mut DecorFlicker, &mut Visibility)>) {
-    let dt = time.delta_secs();
-    for (mut flicker, mut vis) in query.iter_mut() {
-        flicker.timer += dt;
-        let period = 1.0 / flicker.rate;
-        while flicker.timer >= period {
-            flicker.timer -= period;
-            flicker.lit = !flicker.lit;
-        }
-        if !flicker.lit {
-            *vis = Visibility::Hidden;
+fn flicker_system(time: Res<Time>, mut query: Query<(&DecorFlicker, &mut Visibility)>) {
+    let elapsed = time.elapsed_secs();
+    for (flicker, mut vis) in query.iter_mut() {
+        if !flicker.lit(elapsed) {
+            // Skip the write when Visibility is already Hidden (set by
+            // distance_culling for far entities).
+            vis.set_if_neq(Visibility::Hidden);
         }
         // When lit, distance_culling result stands — no change needed.
     }
@@ -178,6 +186,80 @@ fn billboard_face_camera(
             if transform.rotation != new_rot {
                 transform.rotation = new_rot;
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flicker_starts_lit_with_zero_phase() {
+        let f = DecorFlicker::new(2.0, 0.0);
+        assert!(f.lit(0.0));
+    }
+
+    #[test]
+    fn flicker_toggles_at_rate() {
+        // rate=2 ⇒ toggle every 0.5s. Starting lit at t=0.
+        let f = DecorFlicker::new(2.0, 0.0);
+        assert!(f.lit(0.0));
+        assert!(f.lit(0.25));
+        assert!(!f.lit(0.5));
+        assert!(!f.lit(0.75));
+        assert!(f.lit(1.0));
+        assert!(f.lit(1.25));
+        assert!(!f.lit(1.5));
+    }
+
+    #[test]
+    fn flicker_phase_offsets_toggle_timing() {
+        // rate=2, phase=0.5 ⇒ first toggle happens 0.25s earlier than with
+        // phase=0 (since 0.25*2 + 0.5 == 1.0). Ensures neighbouring torches
+        // with different phases don't flicker in lock-step.
+        let zero = DecorFlicker::new(2.0, 0.0);
+        let half = DecorFlicker::new(2.0, 0.5);
+        assert!(zero.lit(0.0));
+        assert!(half.lit(0.0));
+        // t=0.25 — zero is still lit, half has just toggled off.
+        assert!(zero.lit(0.25));
+        assert!(!half.lit(0.25));
+        // t=0.5 — zero just toggled off, half still off (2nd half of its dark period).
+        assert!(!zero.lit(0.5));
+        assert!(!half.lit(0.5));
+        // t=0.75 — zero still off, half toggled back on.
+        assert!(!zero.lit(0.75));
+        assert!(half.lit(0.75));
+    }
+
+    #[test]
+    fn flicker_phase_is_wrapped_to_unit_interval() {
+        // phase_offset > 1.0 should wrap.
+        let a = DecorFlicker::new(2.0, 0.25);
+        let b = DecorFlicker::new(2.0, 1.25);
+        let c = DecorFlicker::new(2.0, -0.75);
+        for t in [0.0, 0.1, 0.3, 1.7] {
+            assert_eq!(a.lit(t), b.lit(t));
+            assert_eq!(a.lit(t), c.lit(t));
+        }
+    }
+
+    #[test]
+    fn flicker_rate_zero_is_always_lit() {
+        let f = DecorFlicker::new(0.0, 0.123);
+        assert!(f.lit(0.0));
+        assert!(f.lit(1.0));
+        assert!(f.lit(1e6));
+    }
+
+    #[test]
+    fn flicker_is_stateless_pure() {
+        // Same inputs must always return the same output — no timer drift.
+        let f = DecorFlicker::new(3.5, 0.2);
+        for _ in 0..100 {
+            assert_eq!(f.lit(0.7), f.lit(0.7));
+            assert_eq!(f.lit(42.123), f.lit(42.123));
         }
     }
 }

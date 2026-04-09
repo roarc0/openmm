@@ -1,9 +1,19 @@
 //! Runtime texture replacement for outdoor BSP faces, driven by EVT events.
 
 use bevy::ecs::message::{Message, MessageReader};
+use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
+
+/// Cache of `StandardMaterial` handles keyed by texture name so a repeated
+/// `SetTextureOutdoors` event doesn't build a fresh material (and new GPU
+/// image + bind group) every time. Survives for the session — grows bounded
+/// by the number of distinct swap textures the player ever triggers.
+#[derive(Resource, Default)]
+pub(super) struct SwapMaterialCache {
+    by_texture: HashMap<String, Handle<StandardMaterial>>,
+}
 
 /// Marker on each outdoor BSP model sub-mesh entity — tracks which model and faces it represents.
 #[derive(Component)]
@@ -30,6 +40,7 @@ pub(super) fn apply_texture_outdoors(
     mut query: Query<(&mut BspSubMesh, &mut MeshMaterial3d<StandardMaterial>)>,
     mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut cache: ResMut<SwapMaterialCache>,
     game_assets: Res<GameAssets>,
     cfg: Res<crate::config::GameConfig>,
 ) {
@@ -45,29 +56,38 @@ pub(super) fn apply_texture_outdoors(
             continue;
         };
 
-        let Some(img) = game_assets.lod().bitmap(&ev.texture_name) else {
-            warn!("SetTextureOutdoors: texture '{}' not found in LOD", ev.texture_name);
-            continue;
+        // Reuse an existing cached material if this texture has been swapped
+        // in before; otherwise build one, cache it, and reuse next time.
+        let handle = if let Some(h) = cache.by_texture.get(&ev.texture_name) {
+            h.clone()
+        } else {
+            let Some(img) = game_assets.lod().bitmap(&ev.texture_name) else {
+                warn!("SetTextureOutdoors: texture '{}' not found in LOD", ev.texture_name);
+                continue;
+            };
+            let mut image = crate::assets::dynamic_to_bevy_image(img);
+            image.sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
+            let tex_handle = images.add(image);
+
+            let new_mat = StandardMaterial {
+                base_color: Color::srgb(1.8, 1.8, 1.8),
+                base_color_texture: Some(tex_handle),
+                alpha_mode: AlphaMode::Opaque,
+                cull_mode: None,
+                double_sided: true,
+                perceptual_roughness: 0.85,
+                reflectance: 0.2,
+                specular_tint: Color::srgb(1.0, 0.95, 0.85),
+                metallic: 0.0,
+                emissive: crate::states::loading::texture_emissive(&ev.texture_name),
+                ..default()
+            };
+            let h = materials.add(new_mat);
+            cache.by_texture.insert(ev.texture_name.clone(), h.clone());
+            h
         };
 
-        let mut image = crate::assets::dynamic_to_bevy_image(img);
-        image.sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
-        let tex_handle = images.add(image);
-
-        let new_mat = StandardMaterial {
-            base_color: Color::srgb(1.8, 1.8, 1.8),
-            base_color_texture: Some(tex_handle),
-            alpha_mode: AlphaMode::Opaque,
-            cull_mode: None,
-            double_sided: true,
-            perceptual_roughness: 0.85,
-            reflectance: 0.2,
-            specular_tint: Color::srgb(1.0, 0.95, 0.85),
-            metallic: 0.0,
-            emissive: crate::states::loading::texture_emissive(&ev.texture_name),
-            ..default()
-        };
-        mat_handle.0 = materials.add(new_mat);
+        mat_handle.0 = handle;
         sub.texture_name = ev.texture_name.clone();
 
         info!(

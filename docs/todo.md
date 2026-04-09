@@ -97,8 +97,8 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 - [ ] **A3. `probe_ground_height` ignores the spatial grid** — `collision.rs:532-554` iterates every floor triangle. The grid is already built at load time; use it. Called on every actor spawn + physics query.
 - [ ] **A4. Interaction ray-tests every entity every frame** — `interaction/mod.rs:175-371` (`world_interact_system`, `hover_hint_system`) raycasts all decorations/NPCs/monsters with no spatial cull and no input-gating. Gate on input-changed frames; use the spatial grid to pre-cull.
 - [ ] **A5. Sprite distance culling writes `Visibility` for all `WorldEntity` every frame** — `sprites/mod.rs:110-132`. Same iteration cost even when nothing changes. Use the spatial grid for near-entity checks and skip the rest.
-- [ ] **A6. Material churn on texture swap** — `outdoor/texture_swap.rs:27-78` builds a fresh `StandardMaterial` on every swap call. Cache a material pool keyed by texture handle.
-- [ ] **A7. Indoor sector lookup is linear each frame** — `lighting.rs:331-346` linearly scans `sector_ambients`. Cache `last_sector_index`, recheck only when player bbox exits.
+- [x] **A6. Material churn on texture swap** — DONE. `SwapMaterialCache` resource keyed by texture name now owns the pooled `Handle<StandardMaterial>`. Second swap to the same texture reuses the cached handle (no image decode, no material alloc, no bind-group churn).
+- [x] **A7. Indoor sector lookup is linear each frame** — DONE. `LightingState::last_sector_index` caches the sector the player was last inside; the linear scan only runs when the player leaves that bbox.
 
 ### B. Plugin structure — god-resources and god-systems
 
@@ -122,7 +122,7 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 
 - [ ] **D1. `update_hud_layout` uses an 8-way `ParamSet` with cascading `Without` filters** — `game/hud/mod.rs:531-768`. Replace with a single tag enum/component; gate on `Changed<Window>` so it doesn't run every frame.
 - [ ] **D2. HUD overlays are spawned/despawned instead of toggled** — `game/hud/overlay.rs:211-261`. Spawn once, flip `Visibility`.
-- [ ] **D3. `Flicker` writes its timer every frame** — `sprites/mod.rs:137-151`. Compute flicker as a deterministic function of `elapsed` + per-entity phase; zero writes.
+- [x] **D3. `Flicker` writes its timer every frame** — DONE. `DecorFlicker` dropped its `timer`/`lit` fields; lit state is now a pure function of `Time::elapsed_secs()` + a per-entity phase. `flicker_system` takes `&DecorFlicker` (no writes to the component) and uses `set_if_neq` on `Visibility` to skip redundant writes. 6 new unit tests cover the computation.
 - [ ] **D4. Sprite sheet `(w,h)` dimension lookup repeated on every interaction query** — cache as a component updated on state change.
 - [ ] **D5. Introduce `CurrentEnvironment { Outdoor, Indoor }` resource** — replaces scattered `resource_exists::<PreparedWorld>` / `resource_exists::<PreparedIndoorWorld>` checks in lighting, sky, HUD, debug.
 - [ ] **D6. NPC dialogue strings clone eagerly** — `hud/overlay.rs:141-166`. Use `&str`/`Cow` from the parsed tables.
