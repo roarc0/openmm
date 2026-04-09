@@ -76,6 +76,11 @@ These items are architectural improvements identified to align the project with 
 - [ ] **Decouple Spawning** — `spawn_player` is currently a "God Function" for everything player-related (physics, camera, fog, lighting, tonemapping). 
     - [ ] Split into modular setup systems (e.g. `setup_player_camera`, `setup_player_torch`) and use standard Bevy `OnEnter(GameState::Game)` ordering.
 
+### 4b. Finish `run_if` refactor for indoor/outdoor gating
+Several systems still use inline `Option<Res<PreparedWorld>>` / `Option<Res<PreparedIndoorWorld>>` checks with early returns instead of declarative `run_if(resource_exists::<...>)` gates. Most were converted in the indoor-shadow-hang fix; these remain:
+- [ ] **`indoor::spawn_indoor_world`** — gate the `OnEnter(Game)` system on `resource_exists::<PreparedIndoorWorld>`; drop the `Option<Res<PreparedIndoorWorld>>` parameter and its early return.
+- [ ] **`debug::hud::player::update_tile_text`** — gate on `resource_exists::<PreparedWorld>` (tile debug info is outdoor-only; indoor shows nothing meaningful).
+
 ### 5. Performance Optimizations
 - [ ] **Allocation Audit** — `resolve_movement` in `collision.rs` uses a `HashSet` for deduplicating walls in the hot path. 
     - [ ] Consider using a pre-allocated `BitSet` or a reused `Vec` to avoid per-frame allocations during movement.
