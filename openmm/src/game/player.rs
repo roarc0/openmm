@@ -163,18 +163,23 @@ impl Plugin for PlayerPlugin {
                 y: cfg.mouse_sensitivity_y,
             })
             .add_systems(OnEnter(GameState::Game), (spawn_player, grab_cursor_on_enter))
+            // `PlayerInputSet` bundles every per-frame input/movement system
+            // so other systems can order themselves with `.after(PlayerInputSet)`.
+            // Within the set, toggles (run/fly/mouse-look) must run before the
+            // movement/look systems that read them — other members are
+            // independent and allowed to run in parallel.
             .add_systems(
                 Update,
-                (
-                    toggle_run_mode,
-                    toggle_fly_mode,
-                    toggle_mouse_look,
-                    player_movement,
-                    player_look,
-                    cursor_grab,
-                    log_gamepads,
-                )
-                    .chain()
+                (toggle_run_mode, toggle_fly_mode, toggle_mouse_look)
+                    .before(player_movement)
+                    .before(player_look)
+                    .in_set(PlayerInputSet)
+                    .run_if(in_state(GameState::Game))
+                    .run_if(crate::game::hud::game_input_active),
+            )
+            .add_systems(
+                Update,
+                (player_movement, player_look, cursor_grab, log_gamepads)
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
                     .run_if(crate::game::hud::game_input_active),

@@ -79,14 +79,22 @@ impl Plugin for HudPlugin {
         app.add_plugins(debug_hud::DebugHudCoordsPlugin)
             .add_systems(OnEnter(GameState::Game), spawn_hud)
             .add_systems(Update, close_ui_system.run_if(in_state(GameState::Game)))
+            // These HUD systems are either independent (minimap, footer,
+            // stats, close_ui, freeze) or touch disjoint UI trees (overlay vs
+            // map_overlay). Bevy's `.chain()` only orders code execution — it
+            // does not flush commands — so the former blanket chain was
+            // serialising unrelated work without any data-visibility benefit.
+            //
+            // The one real dependency is `update_hud_layout` before
+            // `update_viewport`: viewport sizing reads the node values written
+            // by the layout pass. Everything else runs in parallel.
             .add_systems(
                 Update,
                 (
-                    update_hud_layout,
+                    (update_hud_layout, update_viewport).chain(),
                     update_minimap,
                     update_footer_text,
                     stats_bar::update_stats_bar,
-                    update_viewport,
                     crosshair::update_crosshair,
                     overlay::spawn_overlay,
                     overlay::despawn_overlay,
@@ -99,7 +107,6 @@ impl Plugin for HudPlugin {
                     map_overlay::update_map_overlay_layout,
                     freeze_system,
                 )
-                    .chain()
                     .run_if(in_state(GameState::Game)),
             );
     }
