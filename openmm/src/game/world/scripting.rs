@@ -4,7 +4,7 @@ use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 
-use openmm_data::enums::EvtVariable;
+use openmm_data::enums::{ActorAttributes, EvtVariable};
 use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
 
 use crate::game::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy};
@@ -394,14 +394,14 @@ fn subtract_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariab
 }
 
 /// Apply a single ActorAttributes flag change to a live actor entity.
-/// Handles VISIBLE (0x8) → Bevy Visibility and HOSTILE (0x01000000) → actor.hostile.
+/// Handles VISIBLE → Bevy Visibility and HOSTILE → actor.hostile. Other bits
+/// in the MM6 `ActorAttributes` bitflag are not yet modelled in the runtime.
 fn apply_actor_flags(actor: &mut Actor, vis: &mut Visibility, flag: u32, on: bool) {
-    const VISIBLE: u32 = 0x00000008;
-    const HOSTILE: u32 = 0x01000000;
-    if flag & VISIBLE != 0 {
+    let flags = ActorAttributes::from_bits_truncate(flag);
+    if flags.contains(ActorAttributes::VISIBLE) {
         *vis = if on { Visibility::Visible } else { Visibility::Hidden };
     }
-    if flag & HOSTILE != 0 {
+    if flags.contains(ActorAttributes::HOSTILE) {
         actor.hostile = on;
     }
 }

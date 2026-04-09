@@ -5,6 +5,7 @@ use bevy::render::storage::ShaderStorageBuffer;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
+use crate::game::hud::HudView;
 use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
 use crate::game::sprites::Billboard;
@@ -76,7 +77,15 @@ impl Plugin for LightingPlugin {
                     sun_setup.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
                 ),
             )
-            .add_systems(Update, animate_day_cycle.run_if(in_state(GameState::Game)));
+            // Gate on HudView::World so day/night/ambient advance freezes in
+            // dialogues, inventory, and overlays — otherwise GameTime pauses
+            // but this system would still tick sun/ambient from stale values.
+            .add_systems(
+                Update,
+                animate_day_cycle
+                    .run_if(in_state(GameState::Game))
+                    .run_if(resource_equals(HudView::World)),
+            );
     }
 }
 

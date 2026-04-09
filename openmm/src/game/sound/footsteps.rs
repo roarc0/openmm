@@ -35,6 +35,9 @@ impl Plugin for FootstepsPlugin {
         app.add_systems(
             Update,
             footstep_system
+                // Read the player transform *after* movement/look have written
+                // it — otherwise footsteps lag one frame behind input.
+                .after(crate::game::player::PlayerInputSet)
                 .run_if(resource_exists::<SoundManager>)
                 .run_if(resource_exists::<PreparedWorld>),
         );
