@@ -260,30 +260,34 @@ fn animate_day_cycle(
 
     let tod = game_time.time_of_day();
 
-    // ── Sun and ambient ────────────────────────────────────────────────────────
-    // 1 real second = 1 game minute. Update sun/ambient at most once per ~2 game seconds
-    // (threshold 0.00007 ≈ Every ~6 game seconds / ~0.1 real seconds)
+    // ── Sun transform ──────────────────────────────────────────────────────────
+    // Update the sun's rotation every frame so shadows move smoothly.
+    // This is cheap: just a Transform write. Directional shadow maps re-render
+    // every frame regardless, so there's no extra GPU cost vs. throttling.
+    let (new_transform, sun_color, sun_illuminance) = sun_from_time(tod);
+    for (mut transform, mut light) in sun_query.iter_mut() {
+        *transform = new_transform;
+        light.color = sun_color;
+        // Disable the directional sun indoors — dungeon lighting comes entirely
+        // from the party torch (PointLight) and decoration lights.
+        light.illuminance = if is_indoor {
+            0.0
+        } else if cfg.lighting == "enhanced" {
+            sun_illuminance * 1.06
+        } else {
+            0.0
+        };
+    }
+
+    // ── Ambient / sprite tint throttle ─────────────────────────────────────────
+    // Sprite tint writes re-upload materials to the GPU, so we throttle them.
+    // 1 real second = 1 game minute. Threshold 0.00007 ≈ every ~0.1 real seconds.
     const SUN_TOD_THRESHOLD: f32 = 0.00007;
     let sun_needs_update =
         (tod - lighting_state.last_sun_tod).abs() > SUN_TOD_THRESHOLD || lighting_state.last_sun_tod == 0.0;
 
     if sun_needs_update {
         lighting_state.last_sun_tod = tod;
-
-        let (new_transform, color, illuminance) = sun_from_time(tod);
-        for (mut transform, mut light) in sun_query.iter_mut() {
-            *transform = new_transform;
-            light.color = color;
-            // Disable the directional sun indoors — dungeon lighting comes entirely
-            // from the party torch (PointLight) and decoration lights.
-            light.illuminance = if is_indoor {
-                0.0
-            } else if cfg.lighting == "enhanced" {
-                illuminance * 1.06
-            } else {
-                0.0
-            };
-        }
     }
 
     if is_indoor {

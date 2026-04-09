@@ -73,8 +73,14 @@ impl GameTime {
 
     /// Time of day in [0, 1]: 0.0 = midnight, 0.25 = 6am, 0.5 = noon, 0.75 = 6pm.
     /// Used by the lighting and sky systems.
+    ///
+    /// Computed from fractional seconds (not integer minutes) so the sun and
+    /// shadows move smoothly between game-minute ticks.
     pub fn time_of_day(&self) -> f32 {
-        (self.total_minutes() % time::MINS_PER_DAY) as f32 / time::MINS_PER_DAY as f32
+        let total_mins_f =
+            self.start_minute as f64 + self.elapsed_secs / SECS_PER_GAME_MINUTE;
+        let mins_per_day = time::MINS_PER_DAY as f64;
+        ((total_mins_f % mins_per_day) / mins_per_day) as f32
     }
 
     /// Format the current date and time, e.g. `"Monday Jan 1 1000 9:00am"`.
