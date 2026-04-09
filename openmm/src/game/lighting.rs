@@ -138,16 +138,23 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTi
     }
 }
 
-/// Compute sun transform, color, and illuminance from time of day [0, 1].
-fn sun_from_time(tod: f32) -> (Transform, Color, f32) {
-    // Sun arc: rises at tod=0.25 (6am), sets at tod=0.75 (6pm).
+/// World-space direction from origin toward the sun for a given time of day.
+/// Sun rises at tod=0.25 (6am, +X horizon), sets at tod=0.75 (6pm, -X horizon).
+/// Shared between the directional light setup and the sky shader so the
+/// visible disc stays locked to the shadow direction.
+pub fn sun_direction_from_time(tod: f32) -> Vec3 {
     let sun_progress = ((tod - 0.25) / 0.5).clamp(0.0, 1.0);
     let angle = sun_progress * std::f32::consts::PI;
+    Vec3::new(angle.cos(), angle.sin(), 0.0)
+}
 
+/// Compute sun transform, color, and illuminance from time of day [0, 1].
+fn sun_from_time(tod: f32) -> (Transform, Color, f32) {
+    let dir = sun_direction_from_time(tod);
     let radius = 50000.0;
-    let x = angle.cos() * radius;
-    let y = angle.sin() * radius;
-    let transform = Transform::from_xyz(x, y, 0.0).looking_at(Vec3::ZERO, Vec3::Y);
+    let transform = Transform::from_translation(dir * radius).looking_at(Vec3::ZERO, Vec3::Y);
+    // Elevation echoes the unit-vector y component for the colour/illuminance ramp below.
+    let angle = dir.y.asin();
 
     // Elevation: 0 at horizon, 1 at zenith
     let elevation = angle.sin().max(0.0);
@@ -237,10 +244,13 @@ pub fn sprite_tint_from_time(tod: f32) -> Color {
         (1.0 - (d1.min(d2) * 10.0).min(1.0)).max(0.0)
     };
 
-    // Night floor (0.05, 0.05, 0.10) → noon white (0.95, 0.95, 0.95)
-    let r = (0.05 + 0.90 * day_amount + 0.05 * dawn_dusk).clamp(0.0, 1.0);
-    let g = (0.05 + 0.90 * day_amount).clamp(0.0, 1.0);
-    let b = (0.10 + 0.85 * day_amount - 0.05 * dawn_dusk).clamp(0.0, 1.0);
+    // Night floor raised to roughly match the ambient light level terrain and
+    // buildings receive at night — sprites are unlit so they only see this
+    // tint, and a too-low floor leaves them visibly darker than the world
+    // around them. (0.18, 0.18, 0.24) → noon white (~0.95).
+    let r = (0.18 + 0.77 * day_amount + 0.05 * dawn_dusk).clamp(0.0, 1.0);
+    let g = (0.18 + 0.77 * day_amount).clamp(0.0, 1.0);
+    let b = (0.24 + 0.71 * day_amount - 0.05 * dawn_dusk).clamp(0.0, 1.0);
 
     Color::srgb(r, g, b)
 }

@@ -20,8 +20,11 @@ struct SkyDome;
 /// Custom unlit material for the sky with time-scrolling UVs.
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
 pub struct SkyMaterial {
-    #[texture(0)]
-    #[sampler(1)]
+    /// World-space direction from origin toward the sun (xyz). w unused, present for std140 alignment.
+    #[uniform(0)]
+    pub sun_dir: Vec4,
+    #[texture(1)]
+    #[sampler(2)]
     pub sky_texture: Handle<Image>,
 }
 
@@ -58,6 +61,7 @@ impl Plugin for SkyPlugin {
                 (
                     follow_camera,
                     update_sky_color.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
+                    update_sky_sun_dir.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
                     sync_fog_to_sky,
                 )
                     .chain()
@@ -116,6 +120,8 @@ fn spawn_sky(
     let mesh = build_sky_plane(sky_size, uv_repeat);
 
     let sky_mat = sky_materials.add(SkyMaterial {
+        // Initialised to noon-ish; update_sky_sun_dir overwrites it next frame.
+        sun_dir: Vec4::new(0.0, 1.0, 0.0, 0.0),
         sky_texture: sky_tex_handle,
     });
 
@@ -189,6 +195,23 @@ fn update_sky_color(mut clear_color: ResMut<ClearColor>, game_time: Res<crate::g
     let b: f32 = 0.14 + 0.38 * day_amount - 0.08 * dawn_dusk;
 
     clear_color.0 = Color::srgb(r.clamp(0.06, 0.80), g.clamp(0.06, 0.70), b.clamp(0.08, 0.65));
+}
+
+/// Push the current sun direction into every `SkyMaterial` so the shader can
+/// draw the visible disc aligned with the directional light. Outdoor only.
+/// `sun_dir.w` is the visibility flag (1.0 = draw the disc, 0.0 = hide) so the
+/// `cfg.visible_sun` toggle is a single uniform write — no recompile needed.
+fn update_sky_sun_dir(
+    mut sky_materials: ResMut<Assets<SkyMaterial>>,
+    game_time: Res<crate::game::world::GameTime>,
+    cfg: Res<crate::config::GameConfig>,
+) {
+    let dir = crate::game::lighting::sun_direction_from_time(game_time.time_of_day());
+    let visible = if cfg.visible_sun { 1.0 } else { 0.0 };
+    let dir4 = Vec4::new(dir.x, dir.y, dir.z, visible);
+    for (_, mat) in sky_materials.iter_mut() {
+        mat.sun_dir = dir4;
+    }
 }
 
 /// Keep fog color in sync with the sky so distant objects fade into the horizon.

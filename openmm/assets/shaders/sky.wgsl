@@ -19,8 +19,10 @@ struct VertexOutput {
 };
 
 @group(#{MATERIAL_BIND_GROUP}) @binding(0)
-var sky_texture: texture_2d<f32>;
+var<uniform> sun_dir: vec4<f32>;
 @group(#{MATERIAL_BIND_GROUP}) @binding(1)
+var sky_texture: texture_2d<f32>;
+@group(#{MATERIAL_BIND_GROUP}) @binding(2)
 var sky_sampler: sampler;
 
 @vertex
@@ -51,6 +53,24 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // dir.y > 0 means looking up. Fade out when dir.y is small (near horizon).
     let fade = smoothstep(0.0, 0.15, abs(dir.y));
     color.a = fade;
+
+    // Visible sun disc — locked to the same direction the directional light uses,
+    // so the disc on screen matches where shadows say the sun is.
+    // Only draw when the sun is above the horizon and the fragment is on the
+    // upper hemisphere of the sky plane (dir.y > 0).
+    // sun_dir.w is the visibility flag from `cfg.visible_sun` (0.0 hides the disc).
+    let sun = normalize(sun_dir.xyz);
+    if (sun_dir.w > 0.5 && sun.y > 0.0 && dir.y > 0.0) {
+        let d = dot(dir, sun);
+        // Tight disc + soft halo. Tuned for a small MM6-ish sun.
+        let disc = smoothstep(0.9995, 0.9999, d);
+        let halo = smoothstep(0.985, 1.0, d) * 0.35;
+        // Warm at horizon, white at zenith.
+        let warmth = 1.0 - sun.y;
+        let sun_color = vec3<f32>(1.0, 0.85 + 0.15 * sun.y, 0.65 + 0.35 * sun.y);
+        let sun_rgb = sun_color * (disc + halo);
+        color = vec4<f32>(max(color.rgb, sun_rgb), max(color.a, (disc + halo) * fade));
+    }
 
     return color;
 }

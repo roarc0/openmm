@@ -159,6 +159,10 @@ struct Cli {
     #[arg(long)]
     shadows: Option<bool>,
 
+    /// Draw a visible sun disc in the sky
+    #[arg(long)]
+    visible_sun: Option<bool>,
+
     /// Cast shadows from billboard decorations
     #[arg(long)]
     billboard_shadows: Option<bool>,
@@ -238,6 +242,7 @@ struct ConfigFile {
     ssao: Option<bool>,
     tonemapping: Option<String>,
     shadows: Option<bool>,
+    visible_sun: Option<bool>,
     billboard_shadows: Option<bool>,
     actor_shadows: Option<bool>,
     depth_of_field: Option<bool>,
@@ -317,6 +322,8 @@ pub struct GameConfig {
     pub tonemapping: String,
     /// Sun shadow mapping
     pub shadows: bool,
+    /// Draw a visible sun disc in the sky
+    pub visible_sun: bool,
     /// Billboard decorations cast shadows
     pub billboard_shadows: bool,
     /// Actor sprites (NPCs, monsters) cast shadows
@@ -378,6 +385,7 @@ impl Default for GameConfig {
             ssao: false,
             tonemapping: "reinhard".into(),
             shadows: true,
+            visible_sun: true,
             billboard_shadows: false,
             actor_shadows: false,
             depth_of_field: false,
@@ -488,6 +496,7 @@ impl GameConfig {
             ssao: resolve!(cli.ssao, file_cfg.ssao, d.ssao),
             tonemapping: resolve!(cli.tonemapping, file_cfg.tonemapping, d.tonemapping),
             shadows: resolve!(cli.shadows, file_cfg.shadows, d.shadows),
+            visible_sun: resolve!(cli.visible_sun, file_cfg.visible_sun, d.visible_sun),
             billboard_shadows: resolve!(cli.billboard_shadows, file_cfg.billboard_shadows, d.billboard_shadows),
             actor_shadows: resolve!(cli.actor_shadows, file_cfg.actor_shadows, d.actor_shadows),
             depth_of_field: resolve!(cli.depth_of_field, file_cfg.depth_of_field, d.depth_of_field),
