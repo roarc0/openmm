@@ -134,7 +134,45 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 - `563a730` — **B7** parallelism in HUD and player plugins
 - (next commit) — **B3** split `execute_command` into `console/mod.rs` + `console/commands.rs`
 
-### Known bug — **tint mismatch between standing and walking animations** (NEW, regression from A1)
+### 2026-04-10 Perf session — stopping point & next steps
+
+Full audit-item sweep landed: **A2 A3 A4 A5** all done plus a bonus
+allocation fix in `resolve_movement`. Per-frame O(n) loops in the AI,
+interaction, distance-culling, ground-probing, and wall-collision paths
+are all either spatially pruned or allocation-free. Remaining guesses
+from source reading (`actor_gravity_system` early-exit,
+`update_sprite_sheets` parallelism, atan2 caching) are sub-millisecond
+shaves with diminishing returns.
+
+**Next perf step is a profile, not more reading.** `cargo flamegraph`
+or enabling Bevy's Tracy feature for 5 minutes will say exactly where
+the CPU is going — whether it's ECS overhead, render-world extraction,
+shadow cascades, BSP rendering, or something not in the audit at all.
+After the A1–A7 sweep the guesses are getting thinner and the risk of
+shaving microseconds off the wrong loop is real.
+
+Commits this perf session:
+- `2e77916` — **A2** monster AI cached steering detour + narrower fan
+- `42e0894` — **A4 + A5** entity spatial index + fused distance cull
+- `244096b` — **A3** `probe_ground_height` via BSP grid
+- `71f3ee8` — `resolve_movement` allocation-free hot path
+
+### 2026-04-10 — Root cause of the A1 sprite tint regression
+
+Confirmed via reading the Bevy 0.18 source (`bevy_render_macros/src/as_bind_group.rs` line 469 + `bevy_render/src/storage.rs::prepare_asset`): **Bevy does not re-prepare material bind groups when a `ShaderStorageBuffer` asset they reference is updated.**
+
+The flow on a `set_data` call is:
+1. `Assets::get_mut` marks the storage asset changed.
+2. Next frame, `prepare_asset` on `GpuShaderStorageBuffer` creates a **new wgpu `Buffer`** (the buffer description doesn't include `COPY_DST`, so in-place writes aren't possible), and stores it in `RenderAssets` under the same asset id.
+3. **Materials that were already prepared still hold bind groups pointing to the OLD wgpu `Buffer`.** Nothing invalidates them — `prepare_asset` for the material only runs on material asset changes, not on dependency changes.
+
+So the tint values we write via `SpriteTintBuffers::write` go into a new GPU buffer that nothing is bound to. The visible symptom is that sprite tints freeze at whatever value was in the storage buffer when each material was first prepared — and because different cache paths (preload vs runtime spawn vs SetSprite) prepare their materials at different times, different sprites see different stale tints.
+
+This is why `time add 10` darkens terrain and buildings but leaves sprites visually unchanged, and why state-swap on an actor (walking ↔ standing) looks like a brightness flash.
+
+**Fix:** revert A1. Use `#[uniform(100)] tint: Vec4` on `SpriteExtension` and propagate tint updates by iterating sprite materials on threshold crossings — the pre-A1 design. The hitch returns (~20k writes a handful of times per in-game day) but correctness is restored. Future perf: amortize the material iteration across multiple frames.
+
+### Original diagnostic notes — **tint mismatch between standing and walking animations** (regression from A1)
 
 When an NPC is standing still, its tint appears **darker** than the same NPC's walking animation. The walking sprites look correctly lit; the standing sprites look dimmer.
 

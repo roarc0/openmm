@@ -1,61 +1,63 @@
-//! Shared day/night tint storage buffers for all sprite materials.
+//! Current day/night tint values for sprite materials.
 //!
-//! Instead of mutating a per-material `tint: Vec4` on every sprite when the
-//! day/night tint crosses a threshold, every `SpriteMaterial` references one
-//! of two globally shared `ShaderStorageBuffer` assets:
+//! Used at sprite creation time (at spawn or via runtime swaps like
+//! `SetSprite`) so brand-new materials are built with the current tint and
+//! don't flash from `Vec4::ONE` to the real tint on the next crossing.
 //!
-//! - [`SpriteTintBuffers::regular`] — applied to normal billboards and actors.
-//! - [`SpriteTintBuffers::selflit`] — applied to torches, campfires, braziers
-//!   (anything with the `SelfLit` marker) — stays mostly full-bright.
+//! **History.** This module briefly held two `ShaderStorageBuffer` handles
+//! (commit `0676f4f` / A1) that sprite materials all referenced, so a single
+//! in-place `set_data` on the buffer would update every sprite. That design
+//! is broken on Bevy 0.18: `prepare_asset` on `GpuShaderStorageBuffer`
+//! creates a new wgpu `Buffer` every time, and Bevy does not invalidate
+//! materials whose bind groups reference the old buffer. The symptom was
+//! sprite tints frozen at whatever value happened to be current when each
+//! material was first prepared.
 //!
-//! `animate_day_cycle` in `game/lighting.rs` writes the new tint values to
-//! these buffers on threshold crossings. Since every sprite material holds a
-//! clone of the same `Handle`, the GPU buffer is updated in place and all
-//! sprites see the new tint on the next frame — with zero material asset
-//! mutation and zero iteration over the ECS.
+//! We are back to the pre-A1 design: per-material `#[uniform(100)] tint`,
+//! pushed by `lighting::animate_day_cycle` iterating sprite materials on
+//! threshold crossings. This resource is the small piece A1 got right —
+//! fresh materials created at runtime need to know the current tint so they
+//! don't appear full-bright until the next crossing.
+//!
+//! The name `SpriteTintBuffers` is kept for call-site compatibility even
+//! though there are no GPU buffers involved anymore.
+//!
+//! See [`SpriteExtension`](super::material::SpriteExtension) for the full
+//! reasoning.
 
 use bevy::prelude::*;
-use bevy::render::storage::ShaderStorageBuffer;
 
-/// Holds the shared handles to the two sprite tint buffers.
+/// Current tint values for sprite materials, used at creation time.
 ///
-/// Inserted at `Startup` by [`SpriteTintBufferPlugin`], read by every system
-/// that creates a sprite material. Callers pick [`regular`](Self::regular) for
-/// normal billboards or [`selflit`](Self::selflit) for light sources.
-#[derive(Resource, Clone)]
+/// `regular` is the ambient day/night tint that most billboards use;
+/// `selflit` is a much lighter tint applied to torches, campfires, braziers,
+/// and other light sources so they feel grounded in the scene without being
+/// dimmed when the sun goes down.
+///
+/// Initial value is `Vec4::ONE` on both fields. `animate_day_cycle`
+/// overwrites them on the first frame of `GameState::Game`.
+#[derive(Resource, Clone, Copy, Debug)]
 pub struct SpriteTintBuffers {
-    pub regular: Handle<ShaderStorageBuffer>,
-    pub selflit: Handle<ShaderStorageBuffer>,
+    pub regular: Vec4,
+    pub selflit: Vec4,
 }
 
-impl SpriteTintBuffers {
-    /// Write new tint values into both buffers. Called by the lighting system
-    /// whenever the day/night tint crosses its change threshold. All sprite
-    /// materials referencing these handles pick up the new values on the next
-    /// render without any per-material mutation.
-    pub fn write(&self, buffers: &mut Assets<ShaderStorageBuffer>, regular: Vec4, selflit: Vec4) {
-        if let Some(buf) = buffers.get_mut(&self.regular) {
-            buf.set_data(regular);
-        }
-        if let Some(buf) = buffers.get_mut(&self.selflit) {
-            buf.set_data(selflit);
+impl Default for SpriteTintBuffers {
+    fn default() -> Self {
+        Self {
+            regular: Vec4::ONE,
+            selflit: Vec4::ONE,
         }
     }
 }
 
-/// Creates the two shared tint buffers at startup and inserts
-/// [`SpriteTintBuffers`] as a resource. Initial value is `Vec4::ONE` (no tint);
-/// the lighting system overwrites it on the first frame of `GameState::Game`.
+/// Registers [`SpriteTintBuffers`] as a resource at app startup so every
+/// spawn site can pull the current tint without plumbing it through a
+/// separate parameter.
 pub struct SpriteTintBufferPlugin;
 
 impl Plugin for SpriteTintBufferPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, init_sprite_tint_buffers);
+        app.init_resource::<SpriteTintBuffers>();
     }
-}
-
-fn init_sprite_tint_buffers(mut commands: Commands, mut buffers: ResMut<Assets<ShaderStorageBuffer>>) {
-    let regular = buffers.add(ShaderStorageBuffer::from(Vec4::ONE));
-    let selflit = buffers.add(ShaderStorageBuffer::from(Vec4::ONE));
-    commands.insert_resource(SpriteTintBuffers { regular, selflit });
 }

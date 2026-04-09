@@ -524,7 +524,8 @@ fn process_events(
             }
             GameEvent::OpenChest { id } => {
                 debug!("OpenChest(id={})", id);
-                if let Some(image) = game_assets.load_icon("chest01", &mut images) {
+                let icon_name = format!("chest{:02}", id);
+                if let Some(image) = game_assets.load_icon(&icon_name, &mut images) {
                     // Play chest-open sound if available
                     if let Some(ref sm) = audio.sound_manager
                         && let Some(s) = sm.dsounds.get_by_name("openchest0101")
@@ -774,7 +775,7 @@ fn process_events(
                         &mut images,
                         sprite_materials,
                         &mut audio.meshes,
-                        &entities.tint_buffers.regular,
+                        entities.tint_buffers.regular,
                     )
                 else {
                     warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);

@@ -1214,7 +1214,7 @@ fn loading_step(
                         game_assets.assets(),
                         &mut images,
                         sprite_materials,
-                        &tint_buffers.regular,
+                        tint_buffers.regular,
                     );
                     queue.sprite_idx += 1;
                 }
@@ -1265,7 +1265,7 @@ fn loading_step(
                                     let m =
                                         sprite_materials.add(crate::game::sprites::material::unlit_billboard_material(
                                             tex,
-                                            tint_buffers.regular.clone(),
+                                            tint_buffers.regular,
                                         ));
                                     let q = meshes.add(Rectangle::new(w, h));
                                     bb_cache.insert(dec.sprite_name.clone(), (m, q, w, h, mask));

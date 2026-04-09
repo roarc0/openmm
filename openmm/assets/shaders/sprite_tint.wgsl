@@ -8,16 +8,17 @@
 
 // Day/night tint for this sprite (linear sRGB). Vec4(1.0) = no change.
 //
-// Backed by a globally shared `ShaderStorageBuffer` asset (see
-// `SpriteTintBuffers` in game/sprites/tint_buffer.rs). Every sprite material
-// references one of two handles — regular or selflit — and the lighting
-// system updates the buffer data in place once per threshold crossing.
-// The shader reads a single `vec4<f32>` from the start of the buffer.
+// Per-material uniform, rewritten by `animate_day_cycle` on threshold
+// crossings. A previous revision (A1 / commit 0676f4f) routed this through a
+// shared `ShaderStorageBuffer` asset to avoid iterating every sprite
+// material, but Bevy 0.18 does not invalidate material bind groups when a
+// referenced storage buffer asset changes, so the tint stopped propagating.
+// The per-material uniform is the design that actually works on 0.18.
 //
 // TODO: add point-light contribution from nearby torches/campfires in dungeons
 //       so sprites respond to indoor lighting rather than only the global ambient tint.
 @group(#{MATERIAL_BIND_GROUP}) @binding(100)
-var<storage, read> tint: vec4<f32>;
+var<uniform> tint: vec4<f32>;
 
 @fragment
 fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {

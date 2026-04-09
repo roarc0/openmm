@@ -401,9 +401,9 @@ pub(crate) fn spawn_indoor_world(
         if dec.is_directional {
             // Indoor directionals with a ddeclist light are selflit.
             let tint_handle = if dec.light_radius > 0 {
-                tint_buffers.selflit.clone()
+                tint_buffers.selflit
             } else {
-                tint_buffers.regular.clone()
+                tint_buffers.regular
             };
             let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
                 key,
@@ -411,7 +411,7 @@ pub(crate) fn spawn_indoor_world(
                 &mut images,
                 &mut sprite_materials,
                 &mut Some(&mut sprite_cache),
-                &tint_handle,
+                tint_handle,
             );
             if px_w == 0.0 {
                 continue;
@@ -469,14 +469,14 @@ pub(crate) fn spawn_indoor_world(
             sprite_center = pos;
             // All indoor animated decorations (torches, campfires, cauldrons)
             // are flame sources → always selflit.
-            let tint_handle = tint_buffers.selflit.clone();
+            let tint_handle = tint_buffers.selflit;
             let mut frame_mats = vec![];
             let mut frame_masks = vec![];
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
                 let msk = std::sync::Arc::new(sprites::AlphaMask::from_image(&rgba));
                 let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-                let mat = sprite_materials.add(unlit_billboard_material(tex, tint_handle.clone()));
+                let mat = sprite_materials.add(unlit_billboard_material(tex, tint_handle));
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
             }
@@ -547,9 +547,9 @@ pub(crate) fn spawn_indoor_world(
             // ddeclist-lit decorations are selflit.
             let is_selflit = dec.light_radius > 0 || dsft_lr > 0;
             let tint_handle = if is_selflit {
-                tint_buffers.selflit.clone()
+                tint_buffers.selflit
             } else {
-                tint_buffers.regular.clone()
+                tint_buffers.regular
             };
             let rgba = sprite.image.to_rgba8();
             let mask = sprites::AlphaMask::from_image(&rgba);
@@ -656,7 +656,7 @@ pub(crate) fn spawn_indoor_world(
                 &mut Some(&mut sprite_cache),
                 mon.variant,
                 mon.palette_id,
-                &tint_buffers.regular,
+                tint_buffers.regular,
             );
             if states.is_empty() || states[0].is_empty() {
                 error!(

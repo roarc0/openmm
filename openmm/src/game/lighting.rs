@@ -1,6 +1,5 @@
 use bevy::light::CascadeShadowConfigBuilder;
 use bevy::prelude::*;
-use bevy::render::storage::ShaderStorageBuffer;
 
 use crate::GameState;
 use crate::config::GameConfig;
@@ -8,8 +7,10 @@ use crate::game::InGame;
 use crate::game::hud::HudView;
 use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
-use crate::game::sprites::Billboard;
+use crate::game::sprites::loading::SpriteSheet;
+use crate::game::sprites::material::SpriteMaterial;
 use crate::game::sprites::tint_buffer::SpriteTintBuffers;
+use crate::game::sprites::{Billboard, SelfLit};
 use crate::game::world::GameTime;
 
 // ── Decoration point lights ─────────────────────────────────────────────────
@@ -208,17 +209,35 @@ pub fn sprite_tint_from_time(tod: f32) -> Color {
     Color::srgb(r, g, b)
 }
 
+/// Sprite queries bundled into a single `SystemParam` so `animate_day_cycle`
+/// stays under Bevy's 16-parameter limit. All five are used only by
+/// `update_sprite_tints` on threshold crossings.
+#[derive(bevy::ecs::system::SystemParam)]
+struct SpriteTintQueries<'w, 's> {
+    // Billboard decorations — tinted (except SelfLit ones).
+    billboards: Query<'w, 's, &'static MeshMaterial3d<SpriteMaterial>, (With<Billboard>, Without<SelfLit>)>,
+    // Static sprites without Billboard marker — some spawn sites skip it.
+    static_sprites: Query<'w, 's, &'static MeshMaterial3d<SpriteMaterial>, Without<SelfLit>>,
+    // Actor / NPC / monster sheets — tint ALL frames, not just the active one.
+    actor_sheets: Query<'w, 's, &'static SpriteSheet, Without<SelfLit>>,
+    // SelfLit billboards (torches, campfires) — receive the lighter selflit tint.
+    selflit_billboards: Query<'w, 's, &'static MeshMaterial3d<SpriteMaterial>, (With<SelfLit>, With<Billboard>)>,
+    selflit_sheets: Query<'w, 's, &'static SpriteSheet, With<SelfLit>>,
+}
+
+#[allow(clippy::too_many_arguments)]
 fn animate_day_cycle(
     game_time: Res<GameTime>,
     cfg: Res<GameConfig>,
     mut lighting_state: ResMut<LightingState>,
     mut std_materials: ResMut<Assets<StandardMaterial>>,
+    mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     mut terrain_materials: Option<ResMut<Assets<TerrainMaterial>>>,
-    mut storage_buffers: ResMut<Assets<ShaderStorageBuffer>>,
-    tint_buffers: Res<SpriteTintBuffers>,
+    mut tint_buffers: ResMut<SpriteTintBuffers>,
     indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
     // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
     model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
+    sprite_queries: SpriteTintQueries,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
     player_query: Query<&Transform, With<Player>>,
@@ -246,13 +265,14 @@ fn animate_day_cycle(
         &player_query,
     );
 
-    update_sprite_tint_buffers(
+    update_sprite_tints(
         tod,
         &cfg,
         is_indoor,
         &mut lighting_state,
-        &tint_buffers,
-        &mut storage_buffers,
+        &mut tint_buffers,
+        &mut sprite_materials,
+        &sprite_queries,
     );
 }
 
@@ -422,21 +442,35 @@ fn indoor_sector_ambient_brightness(
     }
 }
 
-/// Write new day/night tint values into the two shared sprite-tint storage
-/// buffers. All `SpriteMaterial` instances reference one of these two handles,
-/// so a single `set_data` call propagates the new tint to every sprite in the
-/// world without any per-material mutation or ECS iteration.
+/// Recompute the current day/night tint and push it into every sprite
+/// material that references it.
 ///
-/// Uses the same threshold-based change detection as before (~1/512 on the
-/// tint value, tighter under shadows) so the buffer is only rewritten a
-/// handful of times per in-game day.
-fn update_sprite_tint_buffers(
+/// This is the pre-A1 design: `SpriteExtension::tint` is a per-material
+/// `#[uniform(100)]`, and when the tint crosses its threshold we iterate
+/// every sprite material handle and rewrite the uniform. A1 tried to avoid
+/// this iteration with a shared `ShaderStorageBuffer`, but Bevy 0.18 does
+/// not invalidate material bind groups when the storage buffer updates, so
+/// the new tint never reached the shader — see
+/// `game/sprites/material.rs` for the full history.
+///
+/// Cost: on threshold crossings we `Assets::get_mut` each sprite material,
+/// which marks it dirty and triggers a bind group rebuild next frame. On a
+/// dense outdoor map this is ~15k–25k writes in one frame. A threshold of
+/// ~1/512 (or 1/2048 under shadows) keeps the number of crossings down to a
+/// handful per in-game day; the `lighting_state.tinted` `HashSet` dedupes
+/// shared handles so each material asset is touched only once per crossing.
+///
+/// `tint_buffers` is also updated so new sprites created at runtime (e.g.
+/// via `SetSprite` picking an apple) start life with the correct tint
+/// instead of `Vec4::ONE`.
+fn update_sprite_tints(
     tod: f32,
     cfg: &GameConfig,
     is_indoor: bool,
     lighting_state: &mut LightingState,
-    tint_buffers: &SpriteTintBuffers,
-    storage_buffers: &mut Assets<ShaderStorageBuffer>,
+    tint_buffers: &mut SpriteTintBuffers,
+    sprite_materials: &mut Assets<SpriteMaterial>,
+    sprite_queries: &SpriteTintQueries,
 ) {
     let tint = if is_indoor {
         Color::srgb(0.35, 0.30, 0.22)
@@ -456,13 +490,14 @@ fn update_sprite_tint_buffers(
         return;
     }
     lighting_state.last_tint = Some(tint_rgb);
+    lighting_state.tinted.clear();
 
     let tl = tint.to_linear();
     let regular = Vec4::new(tl.red, tl.green, tl.blue, 1.0);
 
-    // SelfLit sprites (campfires, torches) blend a small fraction of the ambient
-    // tint so they feel grounded in the scene rather than floating at pure
-    // full-bright. Same constant and formula as the old per-material code.
+    // SelfLit sprites (campfires, torches) blend only a small fraction of
+    // the ambient tint so they feel grounded in the scene rather than
+    // floating at pure full-bright.
     const SELFLIT_TINT_BLEND: f32 = 0.12;
     let selflit_srgb = Color::srgb(
         1.0 - (1.0 - t.red) * SELFLIT_TINT_BLEND,
@@ -472,7 +507,66 @@ fn update_sprite_tint_buffers(
     let stl = selflit_srgb.to_linear();
     let selflit = Vec4::new(stl.red, stl.green, stl.blue, 1.0);
 
-    tint_buffers.write(storage_buffers, regular, selflit);
+    // Resource so new materials created at runtime pick up the right value.
+    tint_buffers.regular = regular;
+    tint_buffers.selflit = selflit;
+
+    // ── Regular (non-selflit) sprites ────────────────────────────────────
+    // Static billboard decorations (single material per entity).
+    for mat_handle in sprite_queries.billboards.iter() {
+        if lighting_state.tinted.insert(mat_handle.id())
+            && let Some(mat) = sprite_materials.get_mut(mat_handle.id())
+        {
+            mat.extension.tint = regular;
+        }
+    }
+    // Static sprites without Billboard marker — some spawn sites don't attach it.
+    for mat_handle in sprite_queries.static_sprites.iter() {
+        if lighting_state.tinted.insert(mat_handle.id())
+            && let Some(mat) = sprite_materials.get_mut(mat_handle.id())
+        {
+            mat.extension.tint = regular;
+        }
+    }
+    // Actor / NPC / monster sprite sheets — iterate every state × frame ×
+    // direction and tint each material. Querying only the active
+    // `MeshMaterial3d` would miss the inactive frames, which would then
+    // flash full-bright when the animation advances to them.
+    for sheet in sprite_queries.actor_sheets.iter() {
+        for state in &sheet.states {
+            for frame in state {
+                for handle in frame {
+                    if lighting_state.tinted.insert(handle.id())
+                        && let Some(mat) = sprite_materials.get_mut(handle.id())
+                    {
+                        mat.extension.tint = regular;
+                    }
+                }
+            }
+        }
+    }
+
+    // ── SelfLit sprites ──────────────────────────────────────────────────
+    for mat_handle in sprite_queries.selflit_billboards.iter() {
+        if lighting_state.tinted.insert(mat_handle.id())
+            && let Some(mat) = sprite_materials.get_mut(mat_handle.id())
+        {
+            mat.extension.tint = selflit;
+        }
+    }
+    for sheet in sprite_queries.selflit_sheets.iter() {
+        for state in &sheet.states {
+            for frame in state {
+                for handle in frame {
+                    if lighting_state.tinted.insert(handle.id())
+                        && let Some(mat) = sprite_materials.get_mut(handle.id())
+                    {
+                        mat.extension.tint = selflit;
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Tracks applied lighting state to detect changes.
@@ -481,9 +575,13 @@ struct LightingState {
     last_mode: String,
     /// Last tod at which sun/ambient were updated. Skip update below this threshold.
     last_sun_tod: f32,
-    /// Last tint applied to the shared sprite tint buffers (rgb). `None` = never
-    /// applied → force an update on the next frame.
+    /// Last tint applied to sprite materials (sRGB). `None` = never applied →
+    /// force an update on the next frame.
     last_tint: Option<[f32; 3]>,
+    /// Material asset IDs already touched this tint crossing, so materials
+    /// shared between multiple entities are only rewritten once. Reused
+    /// between calls — `clear()` resets membership without freeing capacity.
+    tinted: std::collections::HashSet<AssetId<SpriteMaterial>>,
     /// Index into `PreparedIndoorWorld::sector_ambients` of the sector the
     /// player was last known to be inside. Used to short-circuit the linear
     /// scan in `indoor_sector_ambient_brightness` — the cached sector is
