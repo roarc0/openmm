@@ -382,6 +382,7 @@ pub(crate) fn spawn_indoor_world(
         AmbientLight {
             color: Color::srgb(0.05, 0.04, 0.03),
             brightness: 0.5,
+            affects_lightmapped_meshes: true,
             ..default()
         },
         InGame,
@@ -602,7 +603,7 @@ pub(crate) fn spawn_indoor_world(
                 color: Color::srgb(1.0, 0.76, 0.38),
                 intensity,
                 range,
-                shadows_enabled: false,
+                shadows_enabled: true,
                 ..default()
             },
             Transform::from_translation(pos),

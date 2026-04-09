@@ -1,16 +1,17 @@
 use std::collections::HashSet;
 
 use bevy::asset::AssetId;
+use bevy::light::CascadeShadowConfigBuilder;
 use bevy::prelude::*;
 
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::sprites::{Billboard, SelfLit};
-use crate::game::world::GameTime;
 use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
 use crate::game::sprites::material::SpriteMaterial;
+use crate::game::sprites::{Billboard, SelfLit};
+use crate::game::world::GameTime;
 
 // ── Decoration point lights ─────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ pub fn decoration_point_light(light_radius: u16) -> impl Bundle {
         color: Color::srgb(1.0, 0.78, 0.40),
         intensity: lr * lr * 200.0,
         range: lr * RANGE_SCALE,
-        shadows_enabled: false,
+        shadows_enabled: true,
         ..default()
     }
 }
@@ -83,6 +84,7 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTi
         AmbientLight {
             color: Color::srgb(0.85, 0.85, 0.95),
             brightness: 2500.0,
+            affects_lightmapped_meshes: true,
             ..default()
         },
         AmbientMarker,
@@ -97,10 +99,19 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTi
         DirectionalLight {
             shadows_enabled: cfg.shadows,
             illuminance,
+            affects_lightmapped_mesh_diffuse: true,
+            shadow_depth_bias: 0.1,
             color,
             ..default()
         },
         dir_transform,
+        CascadeShadowConfigBuilder {
+            maximum_distance: 10000.0,
+            first_cascade_far_bound: 10.0,
+            overlap_proportion: 0.5,
+            ..default()
+        }
+        .build(),
         InGame,
     ));
 }
@@ -144,7 +155,7 @@ fn ambient_from_time(tod: f32) -> (Color, f32) {
     let r = 0.15 + 0.65 * day_amount + 0.20 * dawn_dusk;
     let g = 0.15 + 0.60 * day_amount + 0.10 * dawn_dusk;
     let b = 0.25 + 0.55 * day_amount - 0.10 * dawn_dusk;
-    let brightness = 1500.0 + 2500.0 * day_amount;
+    let brightness = 2000.0 + 3000.0 * day_amount;
 
     (
         Color::srgb(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)),
@@ -251,9 +262,8 @@ fn animate_day_cycle(
 
     // ── Sun and ambient ────────────────────────────────────────────────────────
     // 1 real second = 1 game minute. Update sun/ambient at most once per ~2 game seconds
-    // (threshold 0.0014 ≈ 2/1440) to avoid marking DirectionalLight changed every frame,
-    // which triggers shadow re-renders.
-    const SUN_TOD_THRESHOLD: f32 = 0.0014;
+    // (threshold 0.00007 ≈ Every ~6 game seconds / ~0.1 real seconds)
+    const SUN_TOD_THRESHOLD: f32 = 0.00007;
     let sun_needs_update =
         (tod - lighting_state.last_sun_tod).abs() > SUN_TOD_THRESHOLD || lighting_state.last_sun_tod == 0.0;
 
@@ -335,7 +345,7 @@ fn animate_day_cycle(
     let t = tint.to_srgba();
     let tint_rgb = [t.red, t.green, t.blue];
 
-    const TINT_THRESHOLD: f32 = 1.0 / 512.0;
+    const TINT_THRESHOLD: f32 = 1.0 / 2048.0;
     let tint_changed = lighting_state.last_tint.is_none_or(|last| {
         (last[0] - tint_rgb[0]).abs() > TINT_THRESHOLD
             || (last[1] - tint_rgb[1]).abs() > TINT_THRESHOLD

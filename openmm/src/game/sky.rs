@@ -1,5 +1,6 @@
 use bevy::{
     asset::RenderAssetUsages,
+    light::{NotShadowCaster, NotShadowReceiver},
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
     render::render_resource::AsBindGroup,
@@ -113,6 +114,8 @@ fn spawn_sky(
         Mesh3d(meshes.add(mesh)),
         MeshMaterial3d(sky_mat),
         Transform::from_translation(Vec3::new(0.0, 3000.0, 0.0)),
+        NotShadowCaster,
+        NotShadowReceiver,
         SkyDome,
         InGame,
     ));
