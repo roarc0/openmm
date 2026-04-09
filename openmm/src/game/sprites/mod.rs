@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::GameState;
 use crate::game::hud::HudView;
+use crate::game::spatial_index::SpatialIndexSet;
 
 pub mod loading;
 pub mod material;
@@ -104,49 +105,24 @@ pub struct SpritesPlugin;
 
 impl Plugin for SpritesPlugin {
     fn build(&self, app: &mut App) {
+        // Distance culling now lives in `spatial_index::rebuild_and_cull` so
+        // the grid build and the per-entity visibility write share a single
+        // iteration. Everything here runs after that set.
         app.add_systems(
             Update,
-            (
-                distance_culling,
-                flicker_system,
-                loading::update_sprite_sheets,
-                billboard_face_camera,
-            )
+            (flicker_system, loading::update_sprite_sheets, billboard_face_camera)
                 .chain()
+                .after(SpatialIndexSet)
                 .run_if(in_state(GameState::Game))
                 .run_if(resource_equals(HudView::World)),
         );
     }
 }
 
-/// Hide entities that are far from the player, show ones that are close.
-fn distance_culling(
-    cfg: Res<crate::config::GameConfig>,
-    player_query: Query<&GlobalTransform, With<crate::game::player::Player>>,
-    mut entity_query: Query<(&GlobalTransform, &mut Visibility), With<WorldEntity>>,
-) {
-    let Ok(player_gt) = player_query.single() else {
-        return;
-    };
-    let player_pos = player_gt.translation();
-    let draw_dist_sq = cfg.draw_distance * cfg.draw_distance;
-
-    for (entity_gt, mut vis) in entity_query.iter_mut() {
-        let dist_sq = player_pos.distance_squared(entity_gt.translation());
-        let new_vis = if dist_sq < draw_dist_sq {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
-        };
-        if *vis != new_vis {
-            *vis = new_vis;
-        }
-    }
-}
-
 /// Toggle visibility for flickering decorations (torches, candles, etc.).
-/// Runs after distance_culling: when unlit it forces Hidden; when lit it leaves
-/// whatever distance_culling set, so out-of-range entities stay hidden.
+/// Runs after `SpatialIndexSet` (which performs distance culling): when
+/// unlit it forces Hidden; when lit it leaves whatever the cull set, so
+/// out-of-range entities stay hidden.
 fn flicker_system(time: Res<Time>, mut query: Query<(&DecorFlicker, &mut Visibility)>) {
     let elapsed = time.elapsed_secs();
     for (flicker, mut vis) in query.iter_mut() {

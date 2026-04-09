@@ -15,6 +15,7 @@ pub(crate) mod physics;
 pub(crate) mod player;
 pub(crate) mod sky;
 pub(crate) mod sound;
+pub(crate) mod spatial_index;
 pub(crate) mod sprites;
 pub(crate) mod world;
 
@@ -75,6 +76,7 @@ impl Plugin for MapPlugin {
             outdoor::OdmPlugin,
             indoor::BlvPlugin,
             physics::PhysicsPlugin,
+            spatial_index::SpatialIndexPlugin,
             sprites::SpritesPlugin,
         ));
     }

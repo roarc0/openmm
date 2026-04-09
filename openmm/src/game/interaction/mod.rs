@@ -8,6 +8,7 @@ use crate::game::actors::KillActorEvent;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::indoor::OccluderFaces;
 use crate::game::player::{Player, PlayerCamera};
+use crate::game::spatial_index::{EntitySpatialIndex, SpatialIndexSet};
 use crate::game::sprites::loading::{AlphaMask, SpriteSheet};
 use crate::game::world::EventQueue;
 use crate::game::world::WorldState;
@@ -87,6 +88,7 @@ impl Plugin for InteractionPlugin {
             Update,
             (hover_hint_system, world_interact_system)
                 .chain()
+                .after(SpatialIndexSet)
                 .run_if(in_state(GameState::Game))
                 .run_if(crate::game::hud::game_input_active),
         )
@@ -183,6 +185,7 @@ fn world_interact_system(
     clickable_faces: Option<Res<clickable::Faces>>,
     occluder_faces: Option<Res<OccluderFaces>>,
     map_events: Option<Res<MapEvents>>,
+    spatial: Res<EntitySpatialIndex>,
     mut event_queue: ResMut<EventQueue>,
     kill_events: Option<bevy::ecs::message::MessageWriter<KillActorEvent>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
@@ -237,83 +240,91 @@ fn world_interact_system(
         }
     }
 
-    for (info, g_tf, sheet_opt) in decorations.iter() {
-        let center = g_tf.translation();
-        if origin.distance_squared(center) > max_range_sq {
+    // Spatially gated pass over billboard entities. The spatial index already
+    // narrows the candidate list to entities whose cell overlaps the interact
+    // range, so the heavy matrix + polygon + mask work here only runs for a
+    // handful of nearby entities instead of every `WorldEntity` on the map.
+    for entity in spatial.query_radius(origin.x, origin.z, MAX_INTERACT_RANGE) {
+        if let Ok((info, g_tf, sheet_opt)) = decorations.get(entity) {
+            let center = g_tf.translation();
+            if origin.distance_squared(center) > max_range_sq {
+                continue;
+            }
+            let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
+                let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+                    continue;
+                };
+                (sw / 2.0, sh / 2.0, sheet.current_mask.as_deref())
+            } else {
+                if info.half_w == 0.0 && info.half_h == 0.0 {
+                    continue;
+                }
+                (info.half_w, info.half_h, info.mask.as_deref())
+            };
+            if let Some(t) = billboard_hit_test(
+                origin,
+                dir,
+                center,
+                facing_rotation(origin, center),
+                half_w,
+                half_h,
+                mask,
+            ) && t < occluder_t
+                && t < MAX_INTERACT_RANGE
+                && nearest.as_ref().is_none_or(|n| t < n.0)
+            {
+                nearest = Some((t, Hit::Decoration(info.event_id, info.billboard_index)));
+            }
             continue;
         }
-        let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
+
+        if let Ok((info, g_tf, sheet)) = npcs.get(entity) {
+            let center = g_tf.translation();
+            if origin.distance_squared(center) > max_range_sq {
+                continue;
+            }
             let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
                 continue;
             };
-            (sw / 2.0, sh / 2.0, sheet.current_mask.as_deref())
-        } else {
-            if info.half_w == 0.0 && info.half_h == 0.0 {
+            if let Some(t) = billboard_hit_test(
+                origin,
+                dir,
+                center,
+                facing_rotation(origin, center),
+                sw / 2.0,
+                sh / 2.0,
+                sheet.current_mask.as_deref(),
+            ) && t < occluder_t
+                && t < MAX_INTERACT_RANGE
+                && nearest.as_ref().is_none_or(|n| t < n.0)
+            {
+                nearest = Some((t, Hit::Npc(info.npc_id)));
+            }
+            continue;
+        }
+
+        if let Ok((_, _info, g_tf, sheet)) = monsters.get(entity) {
+            let center = g_tf.translation();
+            if origin.distance_squared(center) > max_range_sq {
                 continue;
             }
-            (info.half_w, info.half_h, info.mask.as_deref())
-        };
-        if let Some(t) = billboard_hit_test(
-            origin,
-            dir,
-            center,
-            facing_rotation(origin, center),
-            half_w,
-            half_h,
-            mask,
-        ) && t < occluder_t
-            && t < MAX_INTERACT_RANGE
-            && nearest.as_ref().is_none_or(|n| t < n.0)
-        {
-            nearest = Some((t, Hit::Decoration(info.event_id, info.billboard_index)));
-        }
-    }
-
-    for (info, g_tf, sheet) in npcs.iter() {
-        let center = g_tf.translation();
-        if origin.distance_squared(center) > max_range_sq {
-            continue;
-        }
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
-            continue;
-        };
-        if let Some(t) = billboard_hit_test(
-            origin,
-            dir,
-            center,
-            facing_rotation(origin, center),
-            sw / 2.0,
-            sh / 2.0,
-            sheet.current_mask.as_deref(),
-        ) && t < occluder_t
-            && t < MAX_INTERACT_RANGE
-            && nearest.as_ref().is_none_or(|n| t < n.0)
-        {
-            nearest = Some((t, Hit::Npc(info.npc_id)));
-        }
-    }
-
-    for (entity, _info, g_tf, sheet) in monsters.iter() {
-        let center = g_tf.translation();
-        if origin.distance_squared(center) > max_range_sq {
-            continue;
-        }
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
-            continue;
-        };
-        if let Some(t) = billboard_hit_test(
-            origin,
-            dir,
-            center,
-            facing_rotation(origin, center),
-            sw / 2.0,
-            sh / 2.0,
-            sheet.current_mask.as_deref(),
-        ) && t < occluder_t
-            && t < MAX_INTERACT_RANGE
-            && nearest.as_ref().is_none_or(|n| t < n.0)
-        {
-            nearest = Some((t, Hit::Monster(entity)));
+            let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+                continue;
+            };
+            if let Some(t) = billboard_hit_test(
+                origin,
+                dir,
+                center,
+                facing_rotation(origin, center),
+                sw / 2.0,
+                sh / 2.0,
+                sheet.current_mask.as_deref(),
+            ) && t < occluder_t
+                && t < MAX_INTERACT_RANGE
+                && nearest.as_ref().is_none_or(|n| t < n.0)
+            {
+                nearest = Some((t, Hit::Monster(entity)));
+            }
         }
     }
 
@@ -408,6 +419,7 @@ fn hover_hint_system(
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
     monsters: Query<(&MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
+    spatial: Res<EntitySpatialIndex>,
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
 ) {
@@ -443,88 +455,90 @@ fn hover_hint_system(
 
     let max_range_sq = MAX_INTERACT_RANGE * MAX_INTERACT_RANGE;
 
-    // Decorations — cheap distance reject first, then ray test.
-    for (info, g_tf, sheet_opt) in decorations.iter() {
-        let center = g_tf.translation();
-        // Cheap XZ distance pre-check — avoids atan2 + ray-plane intersection for most entities.
-        if origin.distance_squared(center) > max_range_sq {
+    // Billboard entities — spatial index narrows to the interact cell block,
+    // then the same per-entity hit test runs as before.
+    for entity in spatial.query_radius(origin.x, origin.z, MAX_INTERACT_RANGE) {
+        if let Ok((info, g_tf, sheet_opt)) = decorations.get(entity) {
+            let center = g_tf.translation();
+            if origin.distance_squared(center) > max_range_sq {
+                continue;
+            }
+            let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
+                let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+                    continue;
+                };
+                (sw / 2.0, sh / 2.0, sheet.current_mask.as_deref())
+            } else {
+                if info.half_w == 0.0 && info.half_h == 0.0 {
+                    continue;
+                }
+                (info.half_w, info.half_h, info.mask.as_deref())
+            };
+            if let Some(t) = billboard_hit_test(
+                origin,
+                dir,
+                center,
+                facing_rotation(origin, center),
+                half_w,
+                half_h,
+                mask,
+            ) && t < occluder_t
+                && t < MAX_INTERACT_RANGE
+                && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+                && let Some(name) = resolve_event_name(info.event_id, &map_events)
+            {
+                nearest = Some((t, name));
+            }
             continue;
         }
-        let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
+
+        if let Ok((info, g_tf, sheet)) = npcs.get(entity) {
+            let center = g_tf.translation();
+            if origin.distance_squared(center) > max_range_sq {
+                continue;
+            }
             let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
                 continue;
             };
-            (sw / 2.0, sh / 2.0, sheet.current_mask.as_deref())
-        } else {
-            if info.half_w == 0.0 && info.half_h == 0.0 {
+            if let Some(t) = billboard_hit_test(
+                origin,
+                dir,
+                center,
+                facing_rotation(origin, center),
+                sw / 2.0,
+                sh / 2.0,
+                sheet.current_mask.as_deref(),
+            ) && t < occluder_t
+                && t < MAX_INTERACT_RANGE
+                && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+            {
+                nearest = Some((t, info.name.clone()));
+            }
+            continue;
+        }
+
+        if let Ok((info, g_tf, sheet)) = monsters.get(entity) {
+            let center = g_tf.translation();
+            if origin.distance_squared(center) > max_range_sq {
                 continue;
             }
-            (info.half_w, info.half_h, info.mask.as_deref())
-        };
-        if let Some(t) = billboard_hit_test(
-            origin,
-            dir,
-            center,
-            facing_rotation(origin, center),
-            half_w,
-            half_h,
-            mask,
-        ) && t < occluder_t
-            && t < MAX_INTERACT_RANGE
-            && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
-            && let Some(name) = resolve_event_name(info.event_id, &map_events)
-        {
-            nearest = Some((t, name));
-        }
-    }
-
-    // NPCs — cheap distance reject first.
-    for (info, g_tf, sheet) in npcs.iter() {
-        let center = g_tf.translation();
-        if origin.distance_squared(center) > max_range_sq {
-            continue;
-        }
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
-            continue;
-        };
-        if let Some(t) = billboard_hit_test(
-            origin,
-            dir,
-            center,
-            facing_rotation(origin, center),
-            sw / 2.0,
-            sh / 2.0,
-            sheet.current_mask.as_deref(),
-        ) && t < occluder_t
-            && t < MAX_INTERACT_RANGE
-            && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
-        {
-            nearest = Some((t, info.name.clone()));
-        }
-    }
-
-    // Monsters — cheap distance reject first.
-    for (info, g_tf, sheet) in monsters.iter() {
-        let center = g_tf.translation();
-        if origin.distance_squared(center) > max_range_sq {
-            continue;
-        }
-        let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
-            continue;
-        };
-        if let Some(t) = billboard_hit_test(
-            origin,
-            dir,
-            center,
-            facing_rotation(origin, center),
-            sw / 2.0,
-            sh / 2.0,
-            sheet.current_mask.as_deref(),
-        ) && t < occluder_t
-            && t < MAX_INTERACT_RANGE
-            && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
-        {
-            nearest = Some((t, info.name.clone()));
+            let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
+                continue;
+            };
+            if let Some(t) = billboard_hit_test(
+                origin,
+                dir,
+                center,
+                facing_rotation(origin, center),
+                sw / 2.0,
+                sh / 2.0,
+                sheet.current_mask.as_deref(),
+            ) && t < occluder_t
+                && t < MAX_INTERACT_RANGE
+                && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+            {
+                nearest = Some((t, info.name.clone()));
+            }
         }
     }
 
