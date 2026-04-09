@@ -46,4 +46,9 @@ pub struct Actor {
     /// AI behaviour type from monsters.txt: "Normal", "Aggress", "Wimp", "Suicidal".
     /// Controls aggro probability and flee behaviour.
     pub ai_type: String,
+    /// Cached steering detour angle (radians, relative to base heading) from the last
+    /// blocked frame. `None` means no cache — try the direct path fresh. When set, the
+    /// steering probe tries this offset first so a monster hugging a wall doesn't need
+    /// to re-probe every frame while rounding the same obstacle.
+    pub cached_steer_offset: Option<f32>,
 }

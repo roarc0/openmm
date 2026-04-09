@@ -93,7 +93,7 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 ### A. Critical perf (high impact, localized fix)
 
 - [x] **A1. Day/night tint is O(actors × states × frames × 5)** — DONE (0676f4f). Replaced per-material uniform with a shared `ShaderStorageBuffer` (regular + selflit), updated in place once per threshold crossing. See `game/sprites/tint_buffer.rs`. **Known regression: see "Standing vs walking tint mismatch" below.**
-- [ ] **A2. Monster AI probes 8 directions per actor per frame** — `ai.rs:85-102,118-127`. `resolve_movement` called 8× per aggro'd monster; scales with `n_actors × n_walls`. Probe only on block, cache last clear heading, reduce to 2–3 rays.
+- [x] **A2. Monster AI probes 8 directions per actor per frame** — DONE. `steer_toward` now probes a 4-angle fan (`±45 / ±90°` instead of 8 offsets) and caches the winning detour on `Actor::cached_steer_offset`. Next frame retries the cached offset before fanning out, so a monster hugging the same wall uses 2 `resolve_movement` calls per frame instead of 9. Worst case 5 (was 9) when both direct + cache fail. Regression tests cover the direct-path cache clear. See `game/actors/ai.rs:33-44,82-158`.
 - [ ] **A3. `probe_ground_height` ignores the spatial grid** — `collision.rs:532-554` iterates every floor triangle. The grid is already built at load time; use it. Called on every actor spawn + physics query.
 - [ ] **A4. Interaction ray-tests every entity every frame** — `interaction/mod.rs:175-371` (`world_interact_system`, `hover_hint_system`) raycasts all decorations/NPCs/monsters with no spatial cull and no input-gating. Gate on input-changed frames; use the spatial grid to pre-cull.
 - [ ] **A5. Sprite distance culling writes `Visibility` for all `WorldEntity` every frame** — `sprites/mod.rs:110-132`. Same iteration cost even when nothing changes. Use the spatial grid for near-entity checks and skip the rest.
@@ -165,7 +165,7 @@ The bug is purely a regression of commit `0676f4f`; the pre-A1 code wrote the ti
 2. **A6** — material pool for outdoor texture swap (`outdoor/texture_swap.rs:27-78`). Small and localized.
 3. **D3** — compute flicker from global time instead of storing a per-entity timer (`sprites/mod.rs:137-151`). ~10 lines, eliminates per-frame writes on every flickering torch.
 4. **A7** — cache last sector index in indoor ambient lookup (`lighting.rs:355-375`). Tiny.
-5. **A2** — reduce monster AI probes (`ai.rs:85-102`). Medium; needs careful heading-cache logic.
+5. ~~**A2** — reduce monster AI probes~~ — DONE (cached detour offset + 4-angle fan).
 6. **A3** — use spatial grid in `probe_ground_height` (`collision.rs:532-554`). Medium, relies on existing grid.
 7. **B1** — split `WorldState` into focused resources. Highest-impact cleanup but invasive.
 8. **B3**/B4/B5/B6 — other large-file splits (loading.rs 1410 lines, indoor.rs 1166 lines, scripting.rs process_events 600-line match).

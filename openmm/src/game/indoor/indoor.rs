@@ -720,6 +720,7 @@ pub(crate) fn spawn_indoor_world(
                         can_fly: mon.can_fly,
                         vertical_velocity: 0.0,
                         ai_type: mon.ai_type.clone(),
+                        cached_steer_offset: None,
                     },
                     crate::game::sprites::Billboard,
                     InGame,

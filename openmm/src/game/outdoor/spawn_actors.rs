@@ -117,6 +117,7 @@ pub(super) fn spawn_npc_actors(
                     can_fly: actor.can_fly,
                     vertical_velocity: 0.0,
                     ai_type: actor.ai_type.clone(),
+                    cached_steer_offset: None,
                 })
                 .insert(InGame);
             if !ctx.actor_shadows {
@@ -240,6 +241,7 @@ pub(super) fn spawn_npc_actors(
                 can_fly: actor.can_fly,
                 vertical_velocity: 0.0,
                 ai_type: actor.ai_type.clone(),
+                cached_steer_offset: None,
             })
             .insert(InGame);
         if !ctx.actor_shadows {
@@ -349,6 +351,7 @@ pub(super) fn spawn_odm_monsters(
                 can_fly: mon.can_fly,
                 vertical_velocity: 0.0,
                 ai_type: mon.ai_type.clone(),
+                cached_steer_offset: None,
             })
             .insert(InGame);
         if !ctx.actor_shadows {

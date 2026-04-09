@@ -8,12 +8,15 @@
 //! Each frame in aggro mode:
 //!  1. Try the direct heading toward the player.
 //!  2. If the direct path is heavily blocked (< 70 % of intended movement
-//!     achieved after `resolve_movement`), probe ±20 / ±40 / ±70 / ±110°.
-//!  3. Pick the heading with the best forward progress.
+//!     achieved after `resolve_movement`), first retry the offset that worked
+//!     last frame (cached on the `Actor`) — hugging the same wall rarely needs
+//!     a re-probe.
+//!  3. If the cached offset also fails (or there is none), probe ±45 / ±90°
+//!     and pick the heading with the best forward progress, then cache it.
 //!
-//! This is O(probes × walls) per actor per frame — fast enough for any
-//! realistic group size. Works for both outdoor (no colliders → direct path)
-//! and indoor BSP geometry.
+//! `resolve_movement` is the hot inner call; worst case 5 rays per blocked
+//! actor per frame (was 9), steady state 1–2 rays while rounding an obstacle.
+//! Works for both outdoor (no colliders → direct path) and indoor BSP geometry.
 
 use bevy::{ecs::message::MessageWriter, prelude::*};
 
@@ -30,9 +33,10 @@ use crate::game::sound::effects::PlayOnceSoundEvent;
 use crate::game::sprites::{AnimationState, WorldEntity};
 use openmm_data::ActorSoundSlot;
 
-/// Heading offsets (degrees) probed when the direct path is blocked.
-/// Symmetric left/right pairs; wider angles last so narrower detours win ties.
-const PROBE_OFFSETS_DEG: &[f32] = &[20.0, -20.0, 40.0, -40.0, 70.0, -70.0, 110.0, -110.0];
+/// Heading offsets (degrees) probed when the direct path is blocked and the
+/// cached detour (if any) also failed. Narrow angles first so a tight detour
+/// wins ties over a big one.
+const PROBE_OFFSETS_DEG: &[f32] = &[45.0, -45.0, 90.0, -90.0];
 
 /// If the direct path delivers < this fraction of intended movement, try probes.
 const BLOCK_THRESHOLD: f32 = 0.7;
@@ -67,7 +71,9 @@ impl Plugin for MonsterAiPlugin {
 
 /// Try to move `from` toward `target_pos` by `speed` units, steering around walls.
 ///
-/// Returns `(destination, facing_yaw)`.
+/// Returns `(destination, facing_yaw)`. `cached_offset` is read and updated in
+/// place so the same detour heading can be retried next frame without
+/// re-probing the whole fan.
 /// When `colliders` is `None` (outdoor, no buildings) the direct path is always used.
 fn steer_toward(
     from: Vec3,
@@ -75,9 +81,11 @@ fn steer_toward(
     speed: f32,
     colliders: Option<&BuildingColliders>,
     door_colliders: Option<&DoorColliders>,
+    cached_offset: &mut Option<f32>,
 ) -> (Vec3, f32) {
     let flat = Vec3::new(target_pos.x - from.x, 0.0, target_pos.z - from.z);
     if flat.length_squared() < 1.0 {
+        *cached_offset = None;
         return (from, 0.0);
     }
     let base_yaw = flat.x.atan2(flat.z); // yaw pointing toward target
@@ -101,31 +109,46 @@ fn steer_toward(
         pos
     };
 
-    // Direct heading first.
+    // 1) Direct heading first.
     let direct = probe_dest(base_yaw);
     let direct_progress = (direct - from).length();
-
-    // If mostly unblocked, go direct.
     if direct_progress >= speed * BLOCK_THRESHOLD {
+        *cached_offset = None;
         return (direct, base_yaw);
     }
 
-    // Blocked — probe side angles, pick best forward progress.
+    // 2) Blocked — try the cached detour offset before fanning out. Monsters
+    // hugging the same wall converge on a stable offset, so this is usually a hit.
+    if let Some(off) = *cached_offset {
+        let yaw = base_yaw + off;
+        let dest = probe_dest(yaw);
+        let progress = (dest - from).length();
+        if progress >= speed * BLOCK_THRESHOLD {
+            return (dest, yaw);
+        }
+    }
+
+    // 3) Still blocked — probe the fan. Cache whichever offset wins so next
+    // frame's step 2 can short-circuit.
     let mut best_dest = direct;
     let mut best_progress = direct_progress;
     let mut best_yaw = base_yaw;
+    let mut best_offset: Option<f32> = None;
 
     for &deg in PROBE_OFFSETS_DEG {
-        let yaw = base_yaw + deg.to_radians();
+        let off = deg.to_radians();
+        let yaw = base_yaw + off;
         let dest = probe_dest(yaw);
         let progress = (dest - from).length();
         if progress > best_progress {
             best_progress = progress;
             best_dest = dest;
             best_yaw = yaw;
+            best_offset = Some(off);
         }
     }
 
+    *cached_offset = best_offset;
     (best_dest, best_yaw)
 }
 
@@ -266,7 +289,9 @@ fn monster_ai_system(
                     let jitter_offset = perp * (jitter_angle.sin() * actor.aggro_range * 0.15);
                     let chase_target = player_pos + jitter_offset;
 
-                    let (dest, facing) = steer_toward(my_pos, chase_target, speed, c, dc);
+                    let mut cache = actor.cached_steer_offset;
+                    let (dest, facing) = steer_toward(my_pos, chase_target, speed, c, dc, &mut cache);
+                    actor.cached_steer_offset = cache;
                     actor.facing_yaw = facing;
                     let new_y = snap_actor_y(dest, actor.sprite_half_height, actor.can_fly, hm, c);
                     if is_passable(&actor, transform.translation.y, dest, new_y, wm) {
@@ -307,7 +332,9 @@ fn monster_ai_system(
                 if flat_dir.length() > 20.0 {
                     // Wander uses capped speed; steering handles indoor walls.
                     let speed = actor.move_speed.min(60.0) * dt;
-                    let (dest, facing) = steer_toward(my_pos, actor.wander_target, speed, c, dc);
+                    let mut cache = actor.cached_steer_offset;
+                    let (dest, facing) = steer_toward(my_pos, actor.wander_target, speed, c, dc, &mut cache);
+                    actor.cached_steer_offset = cache;
                     actor.facing_yaw = facing;
                     let new_y = snap_actor_y(dest, actor.sprite_half_height, actor.can_fly, hm, c);
                     // If wall-stuck (moved <10% of intended), or terrain blocked, abandon target.
@@ -331,5 +358,35 @@ fn monster_ai_system(
     // Write all queued sound events serially
     for event in pending_sounds.lock().unwrap().drain(..) {
         sounds.try_write(event);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression for A2: with no colliders the direct heading always succeeds,
+    /// so `steer_toward` must clear any stale cached detour offset instead of
+    /// letting a stale sidestep angle persist and mislead a later blocked frame.
+    #[test]
+    fn steer_toward_clears_cache_on_direct_success() {
+        let from = Vec3::new(0.0, 0.0, 0.0);
+        let target = Vec3::new(100.0, 0.0, 0.0);
+        let mut cache = Some(1.2); // stale offset from a previous frame
+        let (dest, yaw) = steer_toward(from, target, 10.0, None, None, &mut cache);
+        assert!(cache.is_none(), "direct path should clear cached detour");
+        // Direct heading toward +X is yaw = π/2 (atan2(1, 0)).
+        assert!((yaw - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
+        assert!((dest - Vec3::new(10.0, 0.0, 0.0)).length() < 1e-3);
+    }
+
+    /// Zero-distance target should be a no-op and also clear the cache.
+    #[test]
+    fn steer_toward_zero_target_clears_cache() {
+        let from = Vec3::new(5.0, 0.0, 5.0);
+        let mut cache = Some(0.7);
+        let (dest, _) = steer_toward(from, from, 10.0, None, None, &mut cache);
+        assert!(cache.is_none());
+        assert_eq!(dest, from);
     }
 }
