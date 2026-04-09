@@ -6,18 +6,17 @@ use crate::game::InGame;
 use crate::game::player::Player;
 use crate::states::loading::PreparedWorld;
 
-/// Sound ID for walking on a terrain type (from OpenEnroth SoundEnums.h).
-fn walk_sound_id(tileset: Tileset) -> u32 {
+/// Base terrain suffix used to build footstep sound names ("Walk<Suffix>" / "Run<Suffix>").
+fn terrain_suffix(tileset: Tileset) -> &'static str {
     match tileset {
-        Tileset::Grass => 93,
-        Tileset::Snow => 97,
-        Tileset::Desert => 91,
-        Tileset::Volcanic => 88,
-        Tileset::Dirt => 92,
-        Tileset::Water => 101,
-        Tileset::CrackedSwamp => 100,
-        Tileset::Swamp => 100,
-        Tileset::Road => 96,
+        Tileset::Grass => "Grass",
+        Tileset::Snow => "Snow",
+        Tileset::Desert => "Desert",
+        Tileset::Volcanic => "Badlands",
+        Tileset::Dirt => "Dirt",
+        Tileset::Water => "Water",
+        Tileset::CrackedSwamp | Tileset::Swamp => "Swamp",
+        Tileset::Road => "Road",
     }
 }
 
@@ -26,6 +25,7 @@ struct FootstepState {
     last_position: Vec3,
     sound_entity: Option<Entity>,
     current_tileset: Option<Tileset>,
+    current_running: bool,
 }
 
 pub struct FootstepsPlugin;
@@ -72,12 +72,17 @@ fn footstep_system(
     }
 
     let tileset = prepared.terrain_at(pos.x, pos.z).unwrap_or(Tileset::Dirt);
+    let running = world_state.player.is_running;
 
     if state.current_tileset != Some(tileset) {
         debug!("Terrain: {:?}", tileset);
     }
 
-    if state.current_tileset == Some(tileset) && state.sound_entity.is_some() {
+    // Reuse current loop only if both terrain and walk/run mode are unchanged.
+    if state.current_tileset == Some(tileset)
+        && state.current_running == running
+        && state.sound_entity.is_some()
+    {
         return;
     }
 
@@ -85,7 +90,13 @@ fn footstep_system(
         commands.entity(entity).despawn();
     }
 
-    let Some(handle) = sound_manager.load_sound(walk_sound_id(tileset), &mut audio_sources) else {
+    let prefix = if running { "Run" } else { "Walk" };
+    let sound_name = format!("{}{}", prefix, terrain_suffix(tileset));
+    let Some(sound_id) = sound_manager.dsounds.get_by_name(&sound_name).map(|s| s.sound_id) else {
+        warn!("Footstep sound '{}' not found in dsounds", sound_name);
+        return;
+    };
+    let Some(handle) = sound_manager.load_sound(sound_id, &mut audio_sources) else {
         return;
     };
 
@@ -99,4 +110,5 @@ fn footstep_system(
 
     state.sound_entity = Some(entity);
     state.current_tileset = Some(tileset);
+    state.current_running = running;
 }
