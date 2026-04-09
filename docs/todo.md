@@ -92,7 +92,7 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 
 ### A. Critical perf (high impact, localized fix)
 
-- [ ] **A1. Day/night tint is O(actors × states × frames × 5)** — `animate_day_cycle` at `game/lighting.rs:410-449` calls `get_mut()` on *every* sprite-sheet material every frame a tint changes, forcing GPU re-upload. Move tint to a global shader uniform (or single `GlobalLighting` resource read by the sprite shader extension). Expected: 5–10ms frame time saved on dense maps.
+- [x] **A1. Day/night tint is O(actors × states × frames × 5)** — DONE (0676f4f). Replaced per-material uniform with a shared `ShaderStorageBuffer` (regular + selflit), updated in place once per threshold crossing. See `game/sprites/tint_buffer.rs`. **Known regression: see "Standing vs walking tint mismatch" below.**
 - [ ] **A2. Monster AI probes 8 directions per actor per frame** — `ai.rs:85-102,118-127`. `resolve_movement` called 8× per aggro'd monster; scales with `n_actors × n_walls`. Probe only on block, cache last clear heading, reduce to 2–3 rays.
 - [ ] **A3. `probe_ground_height` ignores the spatial grid** — `collision.rs:532-554` iterates every floor triangle. The grid is already built at load time; use it. Called on every actor spawn + physics query.
 - [ ] **A4. Interaction ray-tests every entity every frame** — `interaction/mod.rs:175-371` (`world_interact_system`, `hover_hint_system`) raycasts all decorations/NPCs/monsters with no spatial cull and no input-gating. Gate on input-changed frames; use the spatial grid to pre-cull.
@@ -108,19 +108,15 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 - [ ] **B4. `loading_step` is ~880 lines with 7 phases** — `states/loading.rs:440-1328`. Frame-budgeted sprite preloading is tangled with map geometry building. Split phases into individual systems driven by a `LoadingPhase` state enum; move sprite preloading into its own system in `Update` gated by phase.
 - [ ] **B5. Split `states/loading.rs` (1410 lines)** — Data types (`PreparedWorld`, `PreparedIndoorWorld`, door geometry, clickable/touch/occluder face data) belong in sibling modules. Keep only the pipeline driver in `loading.rs`.
 - [ ] **B6. Split `game/indoor/indoor.rs` (1166 lines)** — Door animation, clickable/trigger raycasts, and indoor world spawning are separate concerns currently chained under one plugin.
-- [ ] **B7. Overzealous `.chain()` in plugins** — kills parallelism for systems with no real dependency:
-    - `hud/mod.rs:84-101` chains 11 unrelated HUD systems (crosshair, minimap, stats, overlays, map overlay).
-    - `player.rs:168-181` chains 7 input toggles + movement + look that mostly don't depend on each other.
-    - `indoor/mod.rs:14-24` chains interact + touch-trigger + door animation.
-  Convert to `SystemSet` ordering only where ordering is actually required; let the rest run in parallel.
+- [x] **B7. Overzealous `.chain()` in plugins** — DONE (563a730). HUD plugin split into a parallel tuple with only `update_hud_layout → update_viewport` kept as a sub-chain. Player plugin split: toggles `.before(player_movement).before(player_look)`, everything else parallel. BlvPlugin was already parallel — audit was wrong about it.
 
 ### C. CLAUDE.md compliance (real violations)
 
-- [ ] **C1. Lighting runs during paused game** — `game/lighting.rs:82` gates only on `GameState::Game`, not `HudView::World`. `animate_day_cycle` should follow the HudView-gating rule from CLAUDE.md "Common Mistakes".
-- [ ] **C2. Party torch not HudView-gated** — `game/player.rs:182` (`party_torch_system`). Same issue.
-- [ ] **C3. Footsteps not ordered after `PlayerInputSet`** — `game/sound/footsteps.rs:37-39,44-49`. Reads player `Transform` with no ordering. One-frame lag possible.
-- [ ] **C4. Rule 3 violation — character-var range hardcoded in game code** — `game/world/scripting.rs:252` has `matches!(var.0, 0x01..=0x68)`. Use `!var.is_map_var()` from `openmm_data::enums::EvtVariable`.
-- [ ] **C5. Rule 3 violation — actor attribute bitflags hardcoded** — `game/world/scripting.rs:400-401` redefines `VISIBLE = 0x8`, `HOSTILE = 0x01000000`. Use `openmm_data::enums::ActorAttributes`.
+- [x] **C1. Lighting runs during paused game** — DONE (6753596). `animate_day_cycle` gated on `resource_equals(HudView::World)`.
+- [x] **C2. Party torch not HudView-gated** — DONE (6753596). Same gate added.
+- [x] **C3. Footsteps not ordered after `PlayerInputSet`** — DONE (6753596). `footstep_system.after(PlayerInputSet)`.
+- [ ] **C4. Rule 3 violation — character-var range hardcoded in game code** — `game/world/scripting.rs:252` has `matches!(var.0, 0x01..=0x68)`. NOTE: `!var.is_map_var()` is NOT equivalent — `0x01..=0x68` is the character-scoped range (HP, stats, skills); values outside 0x68 that aren't map vars (0xCD+) are party/global. Needs a new `EvtVariable::is_character_scoped()` method in openmm-data.
+- [x] **C5. Rule 3 violation — actor attribute bitflags hardcoded** — DONE (6753596). Uses `ActorAttributes::VISIBLE` / `HOSTILE` from openmm-data.
 
 ### D. Lower-impact cleanups
 
@@ -130,3 +126,54 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 - [ ] **D4. Sprite sheet `(w,h)` dimension lookup repeated on every interaction query** — cache as a component updated on state change.
 - [ ] **D5. Introduce `CurrentEnvironment { Outdoor, Indoor }` resource** — replaces scattered `resource_exists::<PreparedWorld>` / `resource_exists::<PreparedIndoorWorld>` checks in lighting, sky, HUD, debug.
 - [ ] **D6. NPC dialogue strings clone eagerly** — `hud/overlay.rs:141-166`. Use `&str`/`Cow` from the parsed tables.
+
+## 2026-04-09 Session Handoff
+
+### Done this session
+- `0676f4f` — **A1** shared sprite tint storage buffer (big perf fix)
+- `6753596` — **C1/C2/C3/C5** HudView gating + footstep ordering + ActorAttributes constants
+- `563a730` — **B7** parallelism in HUD and player plugins
+
+### Known bug — **tint mismatch between standing and walking animations** (NEW, regression from A1)
+
+When an NPC is standing still, its tint appears **darker** than the same NPC's walking animation. The walking sprites look correctly lit; the standing sprites look dimmer.
+
+Both states go through `load_entity_sprites` in `game/sprites/loading.rs` with the same `&tint_buffer` argument (the regular buffer from `SpriteTintBuffers`), so they should reference the same shared storage buffer and render identically. The fact that they don't suggests one of:
+
+1. **Cache aliasing** — `load_sprite_frames` caches by `cache_key(root, variant, min_w, min_h, palette_id)`. Standing is loaded *after* walking with `min_w = ww as u32, min_h = wh as u32` (walking's dims), creating a different cache key than a fresh load would. If an earlier unrelated load populated a cache entry for the standing root with a *different* tint buffer handle (e.g. first load happened before `SpriteTintBuffers` was initialized, or from a prior map that somehow kept stale material handles), the standing frames could reference a different or empty storage buffer.
+2. **Empty `Handle::default()` leaking through** — if any code path constructs `SpriteExtension` without explicitly passing a tint buffer, the field gets a default empty handle, and the bind group may read zeros (→ dark sprite).
+3. **First-frame reload of walking** — inside `load_entity_sprites`, if `sw > ww || sh > wh`, walking is *reloaded* padded to standing dimensions. This creates new walking materials but the *standing* materials were already built with the correct tint buffer. Both should still tint identically, but if there's a path where walking goes through the helper twice and standing only once, they could diverge in cache handling.
+
+Good starting points:
+- Add a temporary `assert_eq!` in `decode_sprite_frames` that the passed `tint_buffer` equals the buffers resource's `regular` handle, and log the material asset IDs at create time.
+- Alternatively, instrument the shader: set the WGSL fragment to output `tint.rgb` directly (bypass texture sampling) and compare the standing vs walking sprite frames visually — if they show different colours, it confirms different buffers/handles.
+- Check `SpriteCache` state between the walking and standing `load_sprite_frames` calls inside `load_entity_sprites` — does the walking pass populate any cache entry under a key that the standing pass then hits with the wrong handle?
+
+The bug is purely a regression of commit `0676f4f`; the pre-A1 code wrote the tint into every material's `extension.tint` in `animate_day_cycle`, which masked any cache-aliasing issue.
+
+### Next task (already agreed): **B3** — split `execute_command` in `game/debug/console.rs`
+
+- The function spans `console.rs:300-867`, 567 lines, ~40 command handlers in one match.
+- Goal: extract each command into its own function (or `debug/console/commands/<name>.rs` submodule) and dispatch via a small command table `&[(name, handler)]` or similar.
+- This is the "plugins are too big" pain point the user explicitly called out.
+- Contained to one file; low risk; good template for future commands.
+
+### Remaining candidates after B3, ordered by rec
+
+1. **A4 + A5** — spatial-grid gate for interaction raycasts and distance culling (`interaction/mod.rs`, `sprites/mod.rs::distance_culling`). Meaty (~150-250 lines): needs a simple entity spatial index built at spawn + maintained on move. Biggest remaining perf win.
+2. **A6** — material pool for outdoor texture swap (`outdoor/texture_swap.rs:27-78`). Small and localized.
+3. **D3** — compute flicker from global time instead of storing a per-entity timer (`sprites/mod.rs:137-151`). ~10 lines, eliminates per-frame writes on every flickering torch.
+4. **A7** — cache last sector index in indoor ambient lookup (`lighting.rs:355-375`). Tiny.
+5. **A2** — reduce monster AI probes (`ai.rs:85-102`). Medium; needs careful heading-cache logic.
+6. **A3** — use spatial grid in `probe_ground_height` (`collision.rs:532-554`). Medium, relies on existing grid.
+7. **B1** — split `WorldState` into focused resources. Highest-impact cleanup but invasive.
+8. **B3**/B4/B5/B6 — other large-file splits (loading.rs 1410 lines, indoor.rs 1166 lines, scripting.rs process_events 600-line match).
+9. **D1/D2/D4/D5/D6** — lower-impact cleanups, pick opportunistically.
+10. **C4** — add `EvtVariable::is_character_scoped()` in openmm-data, then replace the hardcoded range in `scripting.rs:250-252`.
+
+### Context for the next session
+- Project: OpenMM (MM6 reimplementation, Rust + Bevy 0.18). Workspace: `openmm-data/` (pure data), `openmm/` (game).
+- Always read `CLAUDE.md` first. Key rules: behaviour change ⇒ doc update, no hardcoded format constants in game code, bug fix ⇒ regression test, keep modules focused.
+- `make lint`, `cargo test -p openmm`, and `cargo check -p openmm` are the main verification commands. `openmm-data` tests need MM6 data files and fail on systems without them — ignore those.
+- The sprite tint system now lives in `game/sprites/tint_buffer.rs`. `SpriteTintBuffers` is a startup-created resource; every spawn site must pass one of its handles into `unlit_billboard_material`.
+- Recent commits to read before touching sprites/lighting: `0676f4f`, `6753596`, `563a730`.
