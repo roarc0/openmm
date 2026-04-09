@@ -4,6 +4,7 @@
 //! spawns the face-based geometry, door entities, and ambient lighting.
 //! Also handles indoor face interaction (click/Enter) and door animation.
 
+use bevy::light::NotShadowCaster;
 use bevy::mesh::VertexAttributeValues;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
@@ -382,7 +383,6 @@ pub(crate) fn spawn_indoor_world(
         AmbientLight {
             color: Color::srgb(0.05, 0.04, 0.03),
             brightness: 0.5,
-            affects_lightmapped_meshes: true,
             ..default()
         },
         InGame,
@@ -432,6 +432,9 @@ pub(crate) fn spawn_indoor_world(
                 crate::game::sprites::FacingYaw(dec.facing_yaw),
                 InGame,
             ));
+            if !cfg.billboard_shadows {
+                ent.insert(NotShadowCaster);
+            }
             if dec.event_id > 0 {
                 ent.insert(crate::game::interaction::DecorationInfo {
                     event_id: dec.event_id as u16,
@@ -483,6 +486,9 @@ pub(crate) fn spawn_indoor_world(
                 sheet,
                 InGame,
             ));
+            if !cfg.billboard_shadows {
+                ent.insert(NotShadowCaster);
+            }
             if dec.event_id > 0 {
                 ent.insert(crate::game::interaction::DecorationInfo {
                     event_id: dec.event_id as u16,
@@ -512,6 +518,7 @@ pub(crate) fn spawn_indoor_world(
                 commands.spawn((
                     crate::game::lighting::decoration_point_light(
                         dsft_lr.saturating_mul(crate::game::lighting::DSFT_ANIMATED_LR_SCALE),
+                        cfg.shadows,
                     ),
                     Transform::from_translation(sprite_center),
                     InGame,
@@ -545,6 +552,9 @@ pub(crate) fn spawn_indoor_world(
                 crate::game::sprites::AnimationState::Idle,
                 InGame,
             ));
+            if !cfg.billboard_shadows {
+                ent.insert(NotShadowCaster);
+            }
             if dec.event_id > 0 {
                 ent.insert(crate::game::interaction::DecorationInfo {
                     event_id: dec.event_id as u16,
@@ -568,6 +578,7 @@ pub(crate) fn spawn_indoor_world(
                 commands.spawn((
                     crate::game::lighting::decoration_point_light(
                         dsft_lr.saturating_mul(crate::game::lighting::DSFT_STATIC_LR_SCALE),
+                        cfg.shadows,
                     ),
                     Transform::from_translation(sprite_center),
                     InGame,
@@ -576,7 +587,7 @@ pub(crate) fn spawn_indoor_world(
         }
         if dec.light_radius > 0 {
             commands.spawn((
-                crate::game::lighting::decoration_point_light(dec.light_radius),
+                crate::game::lighting::decoration_point_light(dec.light_radius, cfg.shadows),
                 Transform::from_translation(sprite_center),
                 InGame,
             ));
@@ -603,7 +614,7 @@ pub(crate) fn spawn_indoor_world(
                 color: Color::srgb(1.0, 0.76, 0.38),
                 intensity,
                 range,
-                shadows_enabled: true,
+                shadows_enabled: cfg.shadows,
                 ..default()
             },
             Transform::from_translation(pos),
@@ -650,47 +661,52 @@ pub(crate) fn spawn_indoor_world(
             );
             let pos = Vec3::new(bx, by + sh / 2.0, bz);
 
-            commands.spawn((
-                Name::new(format!("monster:{}", mon.name)),
-                Mesh3d(quad),
-                MeshMaterial3d(initial_mat),
-                Transform::from_translation(pos),
-                crate::game::sprites::WorldEntity,
-                crate::game::sprites::EntityKind::Monster,
-                crate::game::sprites::AnimationState::Idle,
-                sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
-                crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
-                crate::game::actors::MonsterAiMode::Wander,
-                actor::Actor {
-                    name: mon.name.clone(),
-                    hp: mon.hp,
-                    max_hp: mon.hp,
-                    move_speed: mon.move_speed as f32,
-                    initial_position: pos,
-                    guarding_position: pos,
-                    tether_distance: mon.radius as f32 * 2.0,
-                    wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
-                    wander_target: pos,
-                    facing_yaw: 0.0,
-                    hostile: true,
-                    variant: mon.variant,
-                    sound_ids: mon.sound_ids,
-                    fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
-                    attack_range: mon.body_radius as f32 * 2.0,
-                    attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
-                    attack_anim_remaining: 0.0,
-                    ddm_id: -1,
-                    group_id: 0,
-                    aggro_range: mon.aggro_range,
-                    recovery_secs: mon.recovery_secs,
-                    sprite_half_height: sh / 2.0,
-                    can_fly: mon.can_fly,
-                    vertical_velocity: 0.0,
-                    ai_type: mon.ai_type.clone(),
-                },
-                crate::game::sprites::Billboard,
-                InGame,
-            ));
+            let mon_id = commands
+                .spawn((
+                    Name::new(format!("monster:{}", mon.name)),
+                    Mesh3d(quad),
+                    MeshMaterial3d(initial_mat),
+                    Transform::from_translation(pos),
+                    crate::game::sprites::WorldEntity,
+                    crate::game::sprites::EntityKind::Monster,
+                    crate::game::sprites::AnimationState::Idle,
+                    sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
+                    crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
+                    crate::game::actors::MonsterAiMode::Wander,
+                    actor::Actor {
+                        name: mon.name.clone(),
+                        hp: mon.hp,
+                        max_hp: mon.hp,
+                        move_speed: mon.move_speed as f32,
+                        initial_position: pos,
+                        guarding_position: pos,
+                        tether_distance: mon.radius as f32 * 2.0,
+                        wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
+                        wander_target: pos,
+                        facing_yaw: 0.0,
+                        hostile: true,
+                        variant: mon.variant,
+                        sound_ids: mon.sound_ids,
+                        fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                        attack_range: mon.body_radius as f32 * 2.0,
+                        attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
+                        attack_anim_remaining: 0.0,
+                        ddm_id: -1,
+                        group_id: 0,
+                        aggro_range: mon.aggro_range,
+                        recovery_secs: mon.recovery_secs,
+                        sprite_half_height: sh / 2.0,
+                        can_fly: mon.can_fly,
+                        vertical_velocity: 0.0,
+                        ai_type: mon.ai_type.clone(),
+                    },
+                    crate::game::sprites::Billboard,
+                    InGame,
+                ))
+                .id();
+            if !cfg.actor_shadows {
+                commands.entity(mon_id).insert(NotShadowCaster);
+            }
             info!("Spawned indoor monster '{}' at {:?}", mon.name, pos);
         }
     }

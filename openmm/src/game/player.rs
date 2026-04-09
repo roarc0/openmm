@@ -21,9 +21,12 @@ use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
 // --- Constants ---
 
-const WALK_SPEED: f32 = 1024.0;
-const RUN_SPEED: f32 = WALK_SPEED * 1.25;
-const FLY_SPEED: f32 = 2048.0;
+const WALK_SPEED: f32 = 640.0;
+const RUN_SPEED: f32 = WALK_SPEED * 1.5;
+const FLY_SPEED: f32 = 1920.0;
+/// Indoor maps are roughly half the scale of outdoor — reduce walk speed accordingly
+/// so the player feels similarly paced relative to the room sizes.
+const INDOOR_SPEED_SCALE: f32 = 0.5;
 const ROTATION_SPEED: f32 = 1.8;
 const EYE_HEIGHT: f32 = 140.0;
 const GRAVITY: f32 = 9800.0;
@@ -64,6 +67,16 @@ pub struct MouseLookEnabled(pub bool);
 pub struct MouseSensitivity {
     pub x: f32,
     pub y: f32,
+}
+
+/// Runtime walk/run/fly speed multiplier — adjusted via the console `speed` command.
+#[derive(Resource)]
+pub struct SpeedMultiplier(pub f32);
+
+impl Default for SpeedMultiplier {
+    fn default() -> Self {
+        Self(1.0)
+    }
 }
 
 #[derive(Resource)]
@@ -143,6 +156,7 @@ impl Plugin for PlayerPlugin {
         let cfg = app.world().resource::<GameConfig>().clone();
         app.init_resource::<PlayerSettings>()
             .init_resource::<PlayerKeyBindings>()
+            .init_resource::<SpeedMultiplier>()
             .insert_resource(MouseLookEnabled(true))
             .insert_resource(MouseSensitivity {
                 x: cfg.mouse_sensitivity_x,
@@ -496,6 +510,8 @@ fn player_movement(
     cfg: Res<GameConfig>,
     key_bindings: Res<PlayerKeyBindings>,
     world_state: Res<crate::game::world::WorldState>,
+    speed_mul: Res<SpeedMultiplier>,
+    indoor_world: Option<Res<PreparedIndoorWorld>>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
     door_colliders: Option<Res<crate::game::indoor::DoorColliders>>,
@@ -527,13 +543,17 @@ fn player_movement(
         return;
     }
 
-    let base_speed = if world_state.player.fly_mode {
+    let mut base_speed = if world_state.player.fly_mode {
         settings.fly_speed
     } else if world_state.player.is_running {
         settings.run_speed
     } else {
         settings.speed
     };
+    if indoor_world.is_some() {
+        base_speed *= INDOOR_SPEED_SCALE;
+    }
+    base_speed *= speed_mul.0;
 
     // turn_speed from config (degrees/sec → radians/sec)
     let turn_speed = cfg.turn_speed.to_radians();

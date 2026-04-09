@@ -159,6 +159,14 @@ struct Cli {
     #[arg(long)]
     shadows: Option<bool>,
 
+    /// Cast shadows from billboard decorations
+    #[arg(long)]
+    billboard_shadows: Option<bool>,
+
+    /// Cast shadows from actor sprites (NPCs, monsters)
+    #[arg(long)]
+    actor_shadows: Option<bool>,
+
     /// Enable depth of field
     #[arg(long)]
     depth_of_field: Option<bool>,
@@ -230,6 +238,8 @@ struct ConfigFile {
     ssao: Option<bool>,
     tonemapping: Option<String>,
     shadows: Option<bool>,
+    billboard_shadows: Option<bool>,
+    actor_shadows: Option<bool>,
     depth_of_field: Option<bool>,
     depth_of_field_distance: Option<f32>,
     depth_of_field_aperture: Option<f32>,
@@ -307,6 +317,10 @@ pub struct GameConfig {
     pub tonemapping: String,
     /// Sun shadow mapping
     pub shadows: bool,
+    /// Billboard decorations cast shadows
+    pub billboard_shadows: bool,
+    /// Actor sprites (NPCs, monsters) cast shadows
+    pub actor_shadows: bool,
     /// Depth of field blur
     pub depth_of_field: bool,
     /// Depth of field focal distance (world units)
@@ -364,6 +378,8 @@ impl Default for GameConfig {
             ssao: false,
             tonemapping: "reinhard".into(),
             shadows: true,
+            billboard_shadows: false,
+            actor_shadows: false,
             depth_of_field: false,
             depth_of_field_distance: 1000.0,
             depth_of_field_aperture: 2.8,
@@ -472,6 +488,8 @@ impl GameConfig {
             ssao: resolve!(cli.ssao, file_cfg.ssao, d.ssao),
             tonemapping: resolve!(cli.tonemapping, file_cfg.tonemapping, d.tonemapping),
             shadows: resolve!(cli.shadows, file_cfg.shadows, d.shadows),
+            billboard_shadows: resolve!(cli.billboard_shadows, file_cfg.billboard_shadows, d.billboard_shadows),
+            actor_shadows: resolve!(cli.actor_shadows, file_cfg.actor_shadows, d.actor_shadows),
             depth_of_field: resolve!(cli.depth_of_field, file_cfg.depth_of_field, d.depth_of_field),
             depth_of_field_distance: resolve!(
                 cli.depth_of_field_distance,

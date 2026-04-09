@@ -1,6 +1,7 @@
 //! Per-frame decoration spawning (static, animated, and directional billboards).
 
 use bevy::ecs::message::MessageWriter;
+use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 
 use crate::game::InGame;
@@ -66,6 +67,9 @@ pub(super) fn spawn_decorations(
                         crate::game::sprites::FacingYaw(dec.facing_yaw),
                     ))
                     .id();
+                if !ctx.billboard_shadows {
+                    commands.entity(child_id).insert(NotShadowCaster);
+                }
                 commands.entity(ctx.terrain_entity).add_child(child_id);
                 if dec.event_id > 0 {
                     commands
@@ -90,7 +94,7 @@ pub(super) fn spawn_decorations(
                         ));
                 }
                 if dec.light_radius > 0 {
-                    let light_id = commands.spawn(decoration_point_light(dec.light_radius)).id();
+                    let light_id = commands.spawn(decoration_point_light(dec.light_radius, ctx.shadows)).id();
                     commands
                         .entity(child_id)
                         .add_child(light_id)
@@ -141,6 +145,9 @@ pub(super) fn spawn_decorations(
                     sheet,
                 ))
                 .id();
+            if !ctx.billboard_shadows {
+                commands.entity(child_id).insert(NotShadowCaster);
+            }
             commands.entity(ctx.terrain_entity).add_child(child_id);
             if dec.event_id > 0 {
                 commands
@@ -175,7 +182,7 @@ pub(super) fn spawn_decorations(
                 }
             };
             if effective_lr > 0 {
-                let light_id = commands.spawn(decoration_point_light(effective_lr)).id();
+                let light_id = commands.spawn(decoration_point_light(effective_lr, ctx.shadows)).id();
                 commands
                     .entity(child_id)
                     .add_child(light_id)
@@ -220,6 +227,9 @@ pub(super) fn spawn_decorations(
                 .insert(crate::game::sprites::EntityKind::Decoration)
                 .insert(crate::game::sprites::Billboard)
                 .insert(InGame);
+            if !ctx.billboard_shadows {
+                commands.entity(child_id).insert(NotShadowCaster);
+            }
             commands.entity(ctx.terrain_entity).add_child(child_id);
             if dec.event_id > 0 {
                 commands
@@ -256,7 +266,7 @@ pub(super) fn spawn_decorations(
                     .saturating_mul(DSFT_STATIC_LR_SCALE)
             };
             if effective_lr > 0 {
-                let light_id = commands.spawn(decoration_point_light(effective_lr)).id();
+                let light_id = commands.spawn(decoration_point_light(effective_lr, ctx.shadows)).id();
                 commands
                     .entity(child_id)
                     .add_child(light_id)

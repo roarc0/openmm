@@ -178,6 +178,7 @@ fn console_input(
     mut wireframe_config: ResMut<WireframeConfig>,
     game_assets: Res<crate::GameAssets>,
     mut game_time: ResMut<crate::game::world::GameTime>,
+    mut speed_mul: ResMut<crate::game::player::SpeedMultiplier>,
 ) {
     if !state.open {
         return;
@@ -210,6 +211,7 @@ fn console_input(
                         &mut wireframe_config,
                         &game_assets,
                         &mut game_time,
+                        &mut speed_mul,
                     );
                     state.input.clear();
                 }
@@ -307,6 +309,7 @@ fn execute_command(
     ctx_wireframe_config: &mut WireframeConfig,
     ctx_game_assets: &crate::GameAssets,
     ctx_game_time: &mut crate::game::world::GameTime,
+    ctx_speed_mul: &mut crate::game::player::SpeedMultiplier,
 ) {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some(&command) = parts.first() else { return };
@@ -429,6 +432,23 @@ fn execute_command(
         "shadows" => {
             ctx_cfg.shadows = parse_toggle(arg, ctx_cfg.shadows);
             ctx_state.push_output(format!("Shadows: {}", if ctx_cfg.shadows { "on" } else { "off" }));
+        }
+        "speed" => {
+            if arg.is_empty() {
+                ctx_state.push_output(format!(
+                    "Speed: {:.2}x (usage: speed <multiplier>, e.g. 1.2, 2, 4)",
+                    ctx_speed_mul.0
+                ));
+            } else if let Ok(v) = arg.parse::<f32>() {
+                if v > 0.0 {
+                    ctx_speed_mul.0 = v;
+                    ctx_state.push_output(format!("Speed: {:.2}x", v));
+                } else {
+                    ctx_state.push_output("Speed must be > 0".to_string());
+                }
+            } else {
+                ctx_state.push_output("Usage: speed <multiplier>".to_string());
+            }
         }
         "bloom" => {
             match arg {
@@ -580,14 +600,14 @@ fn execute_command(
                 if ctx_world.player.fly_mode { "on" } else { "off" }
             ));
         }
-        "speed" => {
+        "turn_speed" => {
             if arg.is_empty() {
                 ctx_state.push_output(format!("Turn speed: {:.0}", ctx_cfg.turn_speed));
             } else if let Ok(v) = arg.parse::<f32>() {
                 ctx_cfg.turn_speed = v;
                 ctx_state.push_output(format!("Turn speed: {:.0}", v));
             } else {
-                ctx_state.push_output("Usage: speed <turn_speed>".to_string());
+                ctx_state.push_output("Usage: turn_speed <deg/sec>".to_string());
             }
         }
         "sensitivity" | "sens" => {

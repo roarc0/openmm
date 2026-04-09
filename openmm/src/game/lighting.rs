@@ -35,14 +35,14 @@ pub const DSFT_STATIC_LR_SCALE: u16 = 6;
 /// RANGE_SCALE=2: torch (lr=512) → range=1024, campfire (DSFT lr=256×8=2048) → range=4096.
 /// Keep RANGE_SCALE small — Bevy clusters every light by its range sphere; a light with
 /// range=40960 in a 22000-unit dungeon touches every cluster and tanks frame time.
-pub fn decoration_point_light(light_radius: u16) -> impl Bundle {
+pub fn decoration_point_light(light_radius: u16, shadows: bool) -> impl Bundle {
     const RANGE_SCALE: f32 = 2.0;
     let lr = light_radius as f32;
     PointLight {
         color: Color::srgb(1.0, 0.78, 0.40),
         intensity: lr * lr * 200.0,
         range: lr * RANGE_SCALE,
-        shadows_enabled: true,
+        shadows_enabled: shadows,
         ..default()
     }
 }
@@ -84,7 +84,6 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTi
         AmbientLight {
             color: Color::srgb(0.85, 0.85, 0.95),
             brightness: 2500.0,
-            affects_lightmapped_meshes: true,
             ..default()
         },
         AmbientMarker,
@@ -94,26 +93,28 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTi
     let tod = game_time.time_of_day();
     let (dir_transform, color, illuminance) = sun_from_time(tod);
 
-    commands.spawn((
+    let mut sun = commands.spawn((
         Name::new("sun"),
         DirectionalLight {
             shadows_enabled: cfg.shadows,
             illuminance,
-            affects_lightmapped_mesh_diffuse: true,
-            shadow_depth_bias: 0.1,
             color,
             ..default()
         },
         dir_transform,
-        CascadeShadowConfigBuilder {
-            maximum_distance: 10000.0,
-            first_cascade_far_bound: 10.0,
-            overlap_proportion: 0.5,
-            ..default()
-        }
-        .build(),
         InGame,
     ));
+    if cfg.shadows {
+        sun.insert(
+            CascadeShadowConfigBuilder {
+                maximum_distance: 10000.0,
+                first_cascade_far_bound: 10.0,
+                overlap_proportion: 0.5,
+                ..default()
+            }
+            .build(),
+        );
+    }
 }
 
 /// Compute sun transform, color, and illuminance from time of day [0, 1].
@@ -260,33 +261,31 @@ fn animate_day_cycle(
 
     let tod = game_time.time_of_day();
 
-    // ── Sun transform ──────────────────────────────────────────────────────────
-    // Update the sun's rotation every frame so shadows move smoothly.
-    // This is cheap: just a Transform write. Directional shadow maps re-render
-    // every frame regardless, so there's no extra GPU cost vs. throttling.
-    let (new_transform, sun_color, sun_illuminance) = sun_from_time(tod);
-    for (mut transform, mut light) in sun_query.iter_mut() {
-        *transform = new_transform;
-        light.color = sun_color;
-        // Disable the directional sun indoors — dungeon lighting comes entirely
-        // from the party torch (PointLight) and decoration lights.
-        light.illuminance = if is_indoor {
-            0.0
-        } else if cfg.lighting == "enhanced" {
-            sun_illuminance * 1.06
-        } else {
-            0.0
-        };
-    }
-
-    // ── Ambient / sprite tint throttle ─────────────────────────────────────────
-    // Sprite tint writes re-upload materials to the GPU, so we throttle them.
-    // 1 real second = 1 game minute. Threshold 0.00007 ≈ every ~0.1 real seconds.
-    const SUN_TOD_THRESHOLD: f32 = 0.00007;
+    // ── Sun / ambient / tint throttle ──────────────────────────────────────────
+    // Sprite tint and DirectionalLight writes trigger GPU re-uploads. When sun
+    // shadows are on we update every frame so the shadows sweep smoothly;
+    // otherwise we throttle aggressively since there's nothing that benefits
+    // from high-frequency updates.
+    let sun_tod_threshold: f32 = if cfg.shadows { 0.00007 } else { 0.0014 };
     let sun_needs_update =
-        (tod - lighting_state.last_sun_tod).abs() > SUN_TOD_THRESHOLD || lighting_state.last_sun_tod == 0.0;
+        (tod - lighting_state.last_sun_tod).abs() > sun_tod_threshold || lighting_state.last_sun_tod == 0.0;
 
+    // ── Sun transform ──────────────────────────────────────────────────────────
     if sun_needs_update {
+        let (new_transform, sun_color, sun_illuminance) = sun_from_time(tod);
+        for (mut transform, mut light) in sun_query.iter_mut() {
+            *transform = new_transform;
+            light.color = sun_color;
+            // Disable the directional sun indoors — dungeon lighting comes entirely
+            // from the party torch (PointLight) and decoration lights.
+            light.illuminance = if is_indoor {
+                0.0
+            } else if cfg.lighting == "enhanced" {
+                sun_illuminance * 1.06
+            } else {
+                0.0
+            };
+        }
         lighting_state.last_sun_tod = tod;
     }
 
@@ -349,11 +348,11 @@ fn animate_day_cycle(
     let t = tint.to_srgba();
     let tint_rgb = [t.red, t.green, t.blue];
 
-    const TINT_THRESHOLD: f32 = 1.0 / 2048.0;
+    let tint_threshold: f32 = if cfg.shadows { 1.0 / 2048.0 } else { 1.0 / 512.0 };
     let tint_changed = lighting_state.last_tint.is_none_or(|last| {
-        (last[0] - tint_rgb[0]).abs() > TINT_THRESHOLD
-            || (last[1] - tint_rgb[1]).abs() > TINT_THRESHOLD
-            || (last[2] - tint_rgb[2]).abs() > TINT_THRESHOLD
+        (last[0] - tint_rgb[0]).abs() > tint_threshold
+            || (last[1] - tint_rgb[1]).abs() > tint_threshold
+            || (last[2] - tint_rgb[2]).abs() > tint_threshold
     });
 
     if tint_changed {

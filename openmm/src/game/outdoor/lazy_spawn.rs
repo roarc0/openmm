@@ -73,6 +73,9 @@ pub(super) struct SpawnCtx<'a> {
     pub time_budget: f32,
     pub batch_max: usize,
     pub terrain_entity: Entity,
+    pub shadows: bool,
+    pub billboard_shadows: bool,
+    pub actor_shadows: bool,
 }
 
 /// Sort indices by distance from player using MM6 coords (works with i16 or i32).
@@ -106,6 +109,7 @@ pub(super) fn lazy_spawn(
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
     mut map_events: Option<ResMut<crate::game::world::MapEvents>>,
+    cfg: Res<crate::config::GameConfig>,
 ) {
     let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
         return;
@@ -153,6 +157,9 @@ pub(super) fn lazy_spawn(
         time_budget,
         batch_max,
         terrain_entity,
+        shadows: cfg.shadows,
+        billboard_shadows: cfg.billboard_shadows,
+        actor_shadows: cfg.actor_shadows,
     };
 
     spawn_decorations(&mut commands, &mut ctx, p, &mut bb_idx, &mut spawned, &mut sound_events);

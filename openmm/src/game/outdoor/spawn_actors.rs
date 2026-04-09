@@ -1,5 +1,6 @@
 //! Per-frame spawning of NPC actors (DDM-placed) and ODM monster spawn-points.
 
+use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 
 use crate::game::InGame;
@@ -127,6 +128,9 @@ pub(super) fn spawn_npc_actors(
                     ai_type: actor.ai_type.clone(),
                 })
                 .insert(InGame);
+            if !ctx.actor_shadows {
+                commands.entity(child_id).insert(NotShadowCaster);
+            }
             commands.entity(ctx.terrain_entity).add_child(child_id);
             *spawned += 1;
             continue;
@@ -256,6 +260,9 @@ pub(super) fn spawn_npc_actors(
                 ai_type: actor.ai_type.clone(),
             })
             .insert(InGame);
+        if !ctx.actor_shadows {
+            commands.entity(child_id).insert(NotShadowCaster);
+        }
         commands.entity(ctx.terrain_entity).add_child(child_id);
         *spawned += 1;
     }
@@ -371,6 +378,9 @@ pub(super) fn spawn_odm_monsters(
                 ai_type: mon.ai_type.clone(),
             })
             .insert(InGame);
+        if !ctx.actor_shadows {
+            commands.entity(child_id).insert(NotShadowCaster);
+        }
         commands.entity(ctx.terrain_entity).add_child(child_id);
         *spawned += 1;
     }
