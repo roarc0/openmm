@@ -57,8 +57,7 @@ impl Plugin for SkyPlugin {
                 Update,
                 (
                     follow_camera,
-                    update_sky_color
-                        .run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
+                    update_sky_color.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
                     sync_fog_to_sky,
                 )
                     .chain()

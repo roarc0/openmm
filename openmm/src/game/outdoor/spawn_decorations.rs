@@ -5,12 +5,12 @@ use bevy::light::NotShadowCaster;
 use bevy::prelude::*;
 
 use crate::game::InGame;
-use crate::game::sprites::loading as sprites;
-use crate::game::optional::OptionalWrite;
-use crate::game::sprites::material::unlit_billboard_material;
 use crate::game::coords::mm6_position_to_bevy;
+use crate::game::optional::OptionalWrite;
+use crate::game::sprites::loading as sprites;
+use crate::game::sprites::material::unlit_billboard_material;
 
-use crate::game::lighting::{DSFT_ANIMATED_LR_SCALE, DSFT_STATIC_LR_SCALE, decoration_point_light};
+use crate::game::lighting::{DecorationLight, decoration_point_light};
 
 use super::lazy_spawn::{PendingSpawns, SpawnCtx};
 
@@ -94,7 +94,12 @@ pub(super) fn spawn_decorations(
                         ));
                 }
                 if dec.light_radius > 0 {
-                    let light_id = commands.spawn(decoration_point_light(dec.light_radius, ctx.shadows)).id();
+                    let light_id = commands
+                        .spawn(decoration_point_light(
+                            DecorationLight::Ddeclist(dec.light_radius),
+                            ctx.shadows,
+                        ))
+                        .id();
                     commands
                         .entity(child_id)
                         .add_child(light_id)
@@ -171,18 +176,18 @@ pub(super) fn spawn_decorations(
                         dec.trigger_radius as f32,
                     ));
             }
-            let effective_lr = if dec.light_radius > 0 {
-                dec.light_radius
+            let light_source = if dec.light_radius > 0 {
+                Some(DecorationLight::Ddeclist(dec.light_radius))
             } else {
                 let f = &frame_sprites[0];
                 if f.d_sft_frame.is_luminous() && f.d_sft_frame.light_radius > 0 {
-                    (f.d_sft_frame.light_radius as u16).saturating_mul(DSFT_ANIMATED_LR_SCALE)
+                    Some(DecorationLight::AnimatedDsft(f.d_sft_frame.light_radius as u16))
                 } else {
-                    0
+                    None
                 }
             };
-            if effective_lr > 0 {
-                let light_id = commands.spawn(decoration_point_light(effective_lr, ctx.shadows)).id();
+            if let Some(source) = light_source {
+                let light_id = commands.spawn(decoration_point_light(source, ctx.shadows)).id();
                 commands
                     .entity(child_id)
                     .add_child(light_id)
@@ -259,14 +264,18 @@ pub(super) fn spawn_decorations(
                     .entity(child_id)
                     .insert(crate::game::sprites::DecorFlicker::new(dec.flicker_rate, phase));
             }
-            let effective_lr = if dec.light_radius > 0 {
-                dec.light_radius
+            let light_source = if dec.light_radius > 0 {
+                Some(DecorationLight::Ddeclist(dec.light_radius))
             } else {
-                lod.billboard_luminous_light_radius(dec.declist_id)
-                    .saturating_mul(DSFT_STATIC_LR_SCALE)
+                let lr = lod.billboard_luminous_light_radius(dec.declist_id);
+                if lr > 0 {
+                    Some(DecorationLight::StaticDsft(lr))
+                } else {
+                    None
+                }
             };
-            if effective_lr > 0 {
-                let light_id = commands.spawn(decoration_point_light(effective_lr, ctx.shadows)).id();
+            if let Some(source) = light_source {
+                let light_id = commands.spawn(decoration_point_light(source, ctx.shadows)).id();
                 commands
                     .entity(child_id)
                     .add_child(light_id)

@@ -516,11 +516,8 @@ pub(crate) fn spawn_indoor_world(
             let dsft_lr = lod.billboard_luminous_light_radius(dec.declist_id);
             if dsft_lr > 0 {
                 commands.spawn((
-                    // Point light shadows forced off indoors: each shadow-casting point
-                    // light cube-maps the scene 6× per frame, and dungeons have dozens
-                    // of braziers/torches/chandeliers — enabling them hangs the game.
                     crate::game::lighting::decoration_point_light(
-                        dsft_lr.saturating_mul(crate::game::lighting::DSFT_ANIMATED_LR_SCALE),
+                        crate::game::lighting::DecorationLight::AnimatedDsft(dsft_lr),
                         false,
                     ),
                     Transform::from_translation(sprite_center),
@@ -580,7 +577,7 @@ pub(crate) fn spawn_indoor_world(
             if dsft_lr > 0 {
                 commands.spawn((
                     crate::game::lighting::decoration_point_light(
-                        dsft_lr.saturating_mul(crate::game::lighting::DSFT_STATIC_LR_SCALE),
+                        crate::game::lighting::DecorationLight::StaticDsft(dsft_lr),
                         false,
                     ),
                     Transform::from_translation(sprite_center),
@@ -590,7 +587,10 @@ pub(crate) fn spawn_indoor_world(
         }
         if dec.light_radius > 0 {
             commands.spawn((
-                crate::game::lighting::decoration_point_light(dec.light_radius, false),
+                crate::game::lighting::decoration_point_light(
+                    crate::game::lighting::DecorationLight::Ddeclist(dec.light_radius),
+                    false,
+                ),
                 Transform::from_translation(sprite_center),
                 InGame,
             ));

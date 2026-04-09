@@ -18,11 +18,19 @@ fn limiter_from_cap(fps_cap: u32) -> Limiter {
 }
 
 /// Syncs `FramepaceSettings` when `GameConfig::fps_cap` is mutated at runtime
-/// (e.g. from the developer console).
-fn sync_framepace_settings(cfg: Res<GameConfig>, mut settings: ResMut<FramepaceSettings>) {
-    if cfg.is_changed() {
-        settings.limiter = limiter_from_cap(cfg.fps_cap);
+/// (e.g. from the developer console). Tracks the previous cap so unrelated
+/// config changes (volume, vsync, …) don't touch the framepace resource and
+/// trigger downstream change-detection on its proxy.
+fn sync_framepace_settings(
+    cfg: Res<GameConfig>,
+    mut settings: ResMut<FramepaceSettings>,
+    mut last_cap: Local<Option<u32>>,
+) {
+    if *last_cap == Some(cfg.fps_cap) {
+        return;
     }
+    *last_cap = Some(cfg.fps_cap);
+    settings.limiter = limiter_from_cap(cfg.fps_cap);
 }
 
 pub struct EngineConfigPlugin;

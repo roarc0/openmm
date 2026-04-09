@@ -15,29 +15,48 @@ use crate::game::world::GameTime;
 
 // ── Decoration point lights ─────────────────────────────────────────────────
 
-/// Pre-scale applied to DSFT light_radius before [`decoration_point_light`] for animated
-/// decorations (campfires, braziers).
+/// Pre-scales applied to DSFT `light_radius` before building a `PointLight`.
 /// campfireon: lr=256 × 8 = 2048 → range=4096, intensity=838M.
 /// Keep range below indoor fog end (~2000) so the light cluster doesn't cover the whole dungeon.
-pub const DSFT_ANIMATED_LR_SCALE: u16 = 8;
+const DSFT_ANIMATED_LR_SCALE: u16 = 8;
+/// Static DSFT decorations (crystals, chandeliers, sconces) — slightly smaller scale.
+const DSFT_STATIC_LR_SCALE: u16 = 6;
 
-/// Pre-scale for static DSFT decorations (crystals, chandeliers, sconces).
-pub const DSFT_STATIC_LR_SCALE: u16 = 6;
+/// Source of the `light_radius` value used to build a decoration `PointLight`.
+/// Baked into the helper so callers don't need to know about DSFT scale factors.
+pub enum DecorationLight {
+    /// `light_radius` comes directly from `DDeclist` (torches, signs) — no pre-scale.
+    Ddeclist(u16),
+    /// `light_radius` comes from an animated DSFT frame (campfireon, brazier).
+    AnimatedDsft(u16),
+    /// `light_radius` comes from a luminous static DSFT frame.
+    StaticDsft(u16),
+}
 
-/// Build a `PointLight` for a decoration with the given MM6 light radius.
+/// Build a `PointLight` bundle for a decoration.
 ///
 /// MM6 `light_radius` values (256–512) were calibrated for the original software renderer
 /// and map to small Bevy world-unit spheres without scaling. We decouple range from intensity:
 /// - `range  = light_radius * RANGE_SCALE` — controls how far the light reaches.
-/// - `intensity = light_radius² * 200`    — controls brightness; tied to the original radius,
-///   NOT the scaled range, so doubling the range doesn't quadruple brightness.
+/// - `intensity = light_radius² * 200`    — brightness, tied to the original radius so
+///   doubling the range doesn't quadruple brightness.
 ///
 /// RANGE_SCALE=2: torch (lr=512) → range=1024, campfire (DSFT lr=256×8=2048) → range=4096.
 /// Keep RANGE_SCALE small — Bevy clusters every light by its range sphere; a light with
 /// range=40960 in a 22000-unit dungeon touches every cluster and tanks frame time.
-pub fn decoration_point_light(light_radius: u16, shadows: bool) -> impl Bundle {
+///
+/// `shadows`: pass `false` indoors. Each shadow-casting point light cube-maps the scene
+/// 6× per frame, and dungeons have dozens of braziers/torches/chandeliers — enabling
+/// them hangs the game. Outdoors, individual decoration lights are rare enough that
+/// the `cfg.shadows` toggle is affordable.
+pub fn decoration_point_light(source: DecorationLight, shadows: bool) -> impl Bundle {
     const RANGE_SCALE: f32 = 2.0;
-    let lr = light_radius as f32;
+    let radius = match source {
+        DecorationLight::Ddeclist(lr) => lr,
+        DecorationLight::AnimatedDsft(lr) => lr.saturating_mul(DSFT_ANIMATED_LR_SCALE),
+        DecorationLight::StaticDsft(lr) => lr.saturating_mul(DSFT_STATIC_LR_SCALE),
+    };
+    let lr = radius as f32;
     PointLight {
         color: Color::srgb(1.0, 0.78, 0.40),
         intensity: lr * lr * 200.0,
