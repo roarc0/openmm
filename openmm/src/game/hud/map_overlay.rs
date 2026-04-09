@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
-use crate::config::GameConfig;
 use super::UiAssets;
+use crate::config::GameConfig;
 
 use super::overlay::viewport_inner_rect;
 use super::{HudUI, HudView, MapOverviewImage};

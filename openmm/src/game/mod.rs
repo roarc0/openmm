@@ -1,15 +1,15 @@
 use bevy::prelude::*;
 
 pub(crate) mod actors;
-pub mod coords;
-pub(crate) mod indoor;
 pub(crate) mod collision;
+pub mod coords;
 pub(crate) mod debug;
 pub(crate) mod hud;
+pub(crate) mod indoor;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
-pub(crate) mod outdoor;
 pub(crate) mod optional;
+pub(crate) mod outdoor;
 pub(crate) mod party;
 pub(crate) mod physics;
 pub(crate) mod player;

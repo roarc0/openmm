@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
+use super::UiAssets;
 use crate::assets::{self, GameAssets};
 use crate::config::GameConfig;
 use crate::game::player::Player;
-use super::UiAssets;
 
 use super::borders::{hud_dimensions, logical_size};
 

@@ -7,8 +7,8 @@ use crate::game::collision::{
     BuildingColliders, CollisionTriangle, CollisionWall, TerrainHeightMap, WaterMap, WaterWalking,
     sample_terrain_height,
 };
-use crate::game::player::{Player, PlayerPhysics, PlayerSettings};
 use crate::game::coords::mm6_fixed_normal_to_bevy;
+use crate::game::player::{Player, PlayerPhysics, PlayerSettings};
 use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
 
 pub struct PhysicsPlugin;

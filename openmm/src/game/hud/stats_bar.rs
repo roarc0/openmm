@@ -6,10 +6,10 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
+use super::UiAssets;
 use crate::config::GameConfig;
 use crate::fonts::{GameFonts, YELLOW};
 use crate::game::world::WorldState;
-use super::UiAssets;
 
 use super::borders::*;
 

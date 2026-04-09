@@ -20,7 +20,7 @@ pub const DAY_NAMES: [&str; 7] = [
 ];
 
 pub fn is_leap_year(year: u32) -> bool {
-    year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+    year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400))
 }
 
 pub fn to_12_hour(hour: u32) -> (u32, &'static str) {
@@ -83,6 +83,12 @@ pub fn format(total_minutes: u64) -> String {
     let (h12, ampm) = to_12_hour(hour(total_minutes));
     format!(
         "{} {} {} {} {}:{:02}{}",
-        dow, month_name, d, y, h12, minute(total_minutes), ampm
+        dow,
+        month_name,
+        d,
+        y,
+        h12,
+        minute(total_minutes),
+        ampm
     )
 }

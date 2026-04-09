@@ -77,8 +77,7 @@ impl GameTime {
     /// Computed from fractional seconds (not integer minutes) so the sun and
     /// shadows move smoothly between game-minute ticks.
     pub fn time_of_day(&self) -> f32 {
-        let total_mins_f =
-            self.start_minute as f64 + self.elapsed_secs / SECS_PER_GAME_MINUTE;
+        let total_mins_f = self.start_minute as f64 + self.elapsed_secs / SECS_PER_GAME_MINUTE;
         let mins_per_day = time::MINS_PER_DAY as f64;
         ((total_mins_f % mins_per_day) / mins_per_day) as f32
     }

@@ -13,10 +13,8 @@ use openmm_data::blv::DoorState;
 
 use crate::game::coords::mm6_position_to_bevy;
 
-use crate::GameState;
 use crate::game::InGame;
 use crate::game::actors::actor;
-use crate::game::hud::HudView;
 use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
 use crate::game::player::PlayerCamera;
 use crate::game::sprites::SelfLit;

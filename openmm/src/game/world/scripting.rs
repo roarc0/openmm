@@ -20,18 +20,18 @@ struct TransitionParams<'w> {
     save_data: ResMut<'w, crate::save::GameSave>,
     game_state: ResMut<'w, NextState<GameState>>,
 }
-use crate::game::actors::Actor;
 use super::events::MapEvents;
+use super::state::GameVariables;
+use crate::game::actors::Actor;
 use crate::game::hud::{FooterText, HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
 use crate::game::lighting::CurrentSpriteTint;
-use openmm_data::utils::MapName;
-use crate::game::outdoor::ApplyTextureOutdoors;
 use crate::game::optional::OptionalWrite;
+use crate::game::outdoor::ApplyTextureOutdoors;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
-use super::state::GameVariables;
 use crate::states::loading::LoadRequest;
+use openmm_data::utils::MapName;
 
 /// Bundles map entity queries to stay within Bevy's 16-param system limit.
 /// Wraps the decoration sprite-swap query and actor visibility/flag query.
@@ -515,9 +515,7 @@ fn process_events(
                 }
                 let image = map_events
                     .as_ref()
-                    .and_then(|me| {
-                        super::events::resolve_building_image(*house_id, me, &game_assets, &mut images)
-                    })
+                    .and_then(|me| super::events::resolve_building_image(*house_id, me, &game_assets, &mut images))
                     .or_else(|| game_assets.load_icon("evt02", &mut images));
                 if let Some(image) = image {
                     commands.insert_resource(OverlayImage { image });
@@ -824,15 +822,7 @@ fn process_events(
             } => {
                 warn!(
                     "STUB CastSpell: spell={} level={} mastery={} from=({},{},{}) to=({},{},{})",
-                    spell_id,
-                    skill_level,
-                    skill_mastery,
-                    from_x,
-                    from_y,
-                    from_z,
-                    to_x,
-                    to_y,
-                    to_z
+                    spell_id, skill_level, skill_mastery, from_x, from_y, from_z, to_x, to_y, to_z
                 );
             }
             GameEvent::ReceiveDamage { damage_type, amount } => {
@@ -848,10 +838,7 @@ fn process_events(
             } => {
                 // strength and item_type control enchantment/quality — not tracked yet.
                 world_state.game_vars.give_item(*item_id as i32, 1);
-                info!(
-                    "GiveItem: id={} str={} type={}",
-                    item_id, strength, item_type
-                );
+                info!("GiveItem: id={} str={} type={}", item_id, strength, item_type);
             }
             GameEvent::SetNPCTopic {
                 npc_id,
@@ -888,21 +875,12 @@ fn process_events(
                     crate::game::hud::grab_cursor(&mut cursor_query, false);
                 }
             }
-            GameEvent::ChangeEvent {
-                target,
-                new_event_id,
-            } => {
+            GameEvent::ChangeEvent { target, new_event_id } => {
                 warn!("STUB ChangeEvent: target={} event={}", target, new_event_id);
             }
-            GameEvent::SetNPCGreeting {
-                npc_id,
-                greeting_id,
-            } => {
+            GameEvent::SetNPCGreeting { npc_id, greeting_id } => {
                 info!("SetNPCGreeting: npc={} greeting={}", npc_id, greeting_id);
-                world_state
-                    .game_vars
-                    .npc_greetings
-                    .insert(*npc_id, *greeting_id);
+                world_state.game_vars.npc_greetings.insert(*npc_id, *greeting_id);
             }
             GameEvent::OnMapReload => {
                 debug!("Marker: OnMapReload");
@@ -981,10 +959,7 @@ fn process_events(
                 }
             }
             GameEvent::SummonItem { item_id, x, y, z } => {
-                warn!(
-                    "STUB SummonItem: id={} at ({},{},{})",
-                    item_id, x, y, z
-                );
+                warn!("STUB SummonItem: id={} at ({},{},{})", item_id, x, y, z);
             }
             GameEvent::CharacterAnimation { player, anim_id } => {
                 debug!(
@@ -1034,24 +1009,21 @@ fn process_events(
             GameEvent::InputString { params } => {
                 warn!("STUB InputString: params={:02x?}", params);
             }
-            GameEvent::SetNPCGroupNews {
-                npc_group,
-                news_id,
-            } => {
+            GameEvent::SetNPCGroupNews { npc_group, news_id } => {
                 warn!("STUB SetNPCGroupNews: group={} news={}", npc_group, news_id);
             }
             GameEvent::SetActorGroup { actor_id, group_id } => {
                 info!("SetActorGroup: actor={} group={}", actor_id, group_id);
-                world_state
-                    .game_vars
-                    .actor_groups
-                    .insert(*actor_id, *group_id);
+                world_state.game_vars.actor_groups.insert(*actor_id, *group_id);
             }
             GameEvent::NPCSetItem { npc_id, item_id, on } => {
                 warn!("STUB NPCSetItem: npc={} item={} on={}", npc_id, item_id, on);
             }
             GameEvent::CanShowTopicIsActorKilled { actor_group, count } => {
-                debug!("Marker: CanShowTopicIsActorKilled(group={} count={})", actor_group, count);
+                debug!(
+                    "Marker: CanShowTopicIsActorKilled(group={} count={})",
+                    actor_group, count
+                );
                 // Marker.
             }
             GameEvent::ChangeGroup { old_group, new_group } => {
@@ -1063,25 +1035,13 @@ fn process_events(
                     }
                 }
             }
-            GameEvent::ChangeGroupAlly {
-                group_id,
-                ally_group,
-            } => {
+            GameEvent::ChangeGroupAlly { group_id, ally_group } => {
                 info!("ChangeGroupAlly: group={} ally={}", group_id, ally_group);
-                world_state
-                    .game_vars
-                    .actor_ally_groups
-                    .insert(*group_id, *ally_group);
+                world_state.game_vars.actor_ally_groups.insert(*group_id, *ally_group);
             }
             GameEvent::CheckSeason { season, jump_step } => {
                 // MM6 simplified season (0=winter?)
-                let current = (audio
-                    .game_time
-                    .as_ref()
-                    .map(|gt| gt.calendar_date().1)
-                    .unwrap_or(1)
-                    - 1)
-                    / 3;
+                let current = (audio.game_time.as_ref().map(|gt| gt.calendar_date().1).unwrap_or(1) - 1) / 3;
                 if current as i32 == *season {
                     if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
                         log_skipped(steps, pc, target_idx, "CheckSeason jump");
@@ -1095,25 +1055,15 @@ fn process_events(
             GameEvent::ToggleActorGroupFlag { group_id, flag, on } => {
                 let flag = *flag as u32;
                 let on = *on != 0;
-                info!(
-                    "ToggleActorGroupFlag: group={} flag=0x{:x} on={}",
-                    group_id, flag, on
-                );
+                info!("ToggleActorGroupFlag: group={} flag=0x{:x} on={}", group_id, flag, on);
                 for (mut actor, mut vis) in entities.actors.iter_mut() {
                     if world_state.game_vars.actor_groups.get(&actor.ddm_id) == Some(group_id) {
                         apply_actor_flags(&mut actor, &mut vis, flag, on);
                     }
                 }
             }
-            GameEvent::ToggleChestFlag {
-                chest_id,
-                flag,
-                on,
-            } => {
-                warn!(
-                    "STUB ToggleChestFlag: chest={} flag=0x{:x} on={}",
-                    chest_id, flag, on
-                );
+            GameEvent::ToggleChestFlag { chest_id, flag, on } => {
+                warn!("STUB ToggleChestFlag: chest={} flag=0x{:x} on={}", chest_id, flag, on);
             }
             GameEvent::SetActorItem { actor_id, item_id, on } => {
                 warn!("STUB SetActorItem: actor={} item={} on={}", actor_id, item_id, on);
@@ -1146,11 +1096,7 @@ fn process_events(
                     return;
                 }
             }
-            GameEvent::IsTotalBountyHuntingAwardInRange {
-                min,
-                max,
-                jump_step,
-            } => {
+            GameEvent::IsTotalBountyHuntingAwardInRange { min, max, jump_step } => {
                 warn!(
                     "STUB IsTotalBountyHuntingAwardInRange: min={} max={} (assuming fail)",
                     min, max

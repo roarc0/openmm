@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+use super::UiAssets;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use super::UiAssets;
 
 use super::HudUI;
 use super::borders::viewport_rect;

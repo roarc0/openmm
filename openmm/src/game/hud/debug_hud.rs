@@ -8,10 +8,10 @@
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+use super::UiAssets;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use super::UiAssets;
 
 use super::borders::letterbox_rect;
 

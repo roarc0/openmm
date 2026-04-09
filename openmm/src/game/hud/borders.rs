@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
 use crate::config::GameConfig;
-use crate::game::player::PlayerCamera;
 use crate::game::hud::UiAssets;
+use crate::game::player::PlayerCamera;
 
 // MM6 reference dimensions — all HUD dimensions scale relative to these
 pub(super) const REF_H: f32 = 480.0;

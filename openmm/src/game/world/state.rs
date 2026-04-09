@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use openmm_data::utils::MapName;
 use crate::game::outdoor::OdmName;
 use crate::game::player::Player;
 use crate::save::GameSave;
+use openmm_data::utils::MapName;
 
 /// Centralized live runtime state for the game world.
 /// The single source of truth for player state and current map.

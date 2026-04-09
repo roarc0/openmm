@@ -1,9 +1,9 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
+use super::UiAssets;
 use crate::config::GameConfig;
 use crate::fonts::GameFonts;
-use super::UiAssets;
 
 use super::borders::viewport_rect;
 

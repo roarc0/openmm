@@ -14,13 +14,13 @@ use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::debug::hud::DebugHud;
+use crate::game::hud::UiAssets;
 use crate::game::hud::viewport_inner_rect;
-use openmm_data::utils::MapName;
 use crate::game::outdoor::{OdmName, PLAY_WIDTH};
 use crate::game::world::WorldState;
 use crate::save::GameSave;
 use crate::states::loading::LoadRequest;
-use crate::game::hud::UiAssets;
+use openmm_data::utils::MapName;
 
 const FONT_SIZE: f32 = 16.0;
 const MAX_OUTPUT_LINES: usize = 50;

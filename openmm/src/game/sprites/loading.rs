@@ -11,10 +11,10 @@ use bevy::prelude::*;
 use image::DynamicImage;
 
 use crate::game::actors::Actor;
-use openmm_data::Assets as DataAssets;
+use crate::game::player::PlayerCamera;
 use crate::game::sprites::material::{SpriteMaterial, unlit_billboard_material};
 use crate::game::sprites::{AnimationState, FacingYaw};
-use crate::game::player::PlayerCamera;
+use openmm_data::Assets as DataAssets;
 
 /// CPU-side 1-bit alpha mask for a sprite image. Used for pixel-accurate ray hit testing.
 /// Built from the padded RGBA image at load time and kept in memory alongside the material.

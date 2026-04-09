@@ -18,16 +18,16 @@
 use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
+use crate::game::actors::Actor;
 use crate::game::actors::combat::{ActorDead, DyingTimer};
 use crate::game::actors::physics::{is_passable, snap_actor_y};
-use crate::game::indoor::DoorColliders;
 use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
-use crate::game::actors::Actor;
-use crate::game::sprites::{AnimationState, WorldEntity};
 use crate::game::hud::HudView;
+use crate::game::indoor::DoorColliders;
 use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
+use crate::game::sprites::{AnimationState, WorldEntity};
 use openmm_data::ActorSoundSlot;
 
 /// Heading offsets (degrees) probed when the direct path is blocked.
