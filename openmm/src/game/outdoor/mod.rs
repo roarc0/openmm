@@ -33,7 +33,10 @@ impl Plugin for OdmPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SpawnProgress>()
             .add_message::<ApplyTextureOutdoors>()
-            .add_systems(OnEnter(GameState::Game), spawn::spawn_world)
+            .add_systems(
+                OnEnter(GameState::Game),
+                spawn::spawn_world.run_if(resource_exists::<crate::states::loading::PreparedWorld>),
+            )
             .add_systems(
                 Update,
                 (
@@ -42,7 +45,8 @@ impl Plugin for OdmPlugin {
                     texture_swap::apply_texture_outdoors,
                 )
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(crate::game::hud::HudView::World)),
+                    .run_if(resource_equals(crate::game::hud::HudView::World))
+                    .run_if(resource_exists::<crate::states::loading::PreparedWorld>),
             );
     }
 }

@@ -7,10 +7,10 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
-use crate::game::sprites::loading as sprites;
-use crate::game::world::GameTime;
 use crate::game::lighting::sprite_tint_from_time;
+use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
+use crate::game::world::GameTime;
 use crate::states::loading::PreparedWorld;
 
 use super::spawn_actors::{spawn_npc_actors, spawn_odm_monsters};
@@ -99,7 +99,7 @@ pub(super) fn sort_by_distance_mm6<T>(
 pub(super) fn lazy_spawn(
     mut commands: Commands,
     pending: Option<ResMut<PendingSpawns>>,
-    prepared: Option<Res<PreparedWorld>>,
+    prepared: Res<PreparedWorld>,
     game_assets: Res<GameAssets>,
     game_time: Res<GameTime>,
     mut images: ResMut<Assets<Image>>,
@@ -111,7 +111,7 @@ pub(super) fn lazy_spawn(
     mut map_events: Option<ResMut<crate::game::world::MapEvents>>,
     cfg: Res<crate::config::GameConfig>,
 ) {
-    let (Some(mut pending), Some(prepared)) = (pending, prepared) else {
+    let Some(mut pending) = pending else {
         return;
     };
 

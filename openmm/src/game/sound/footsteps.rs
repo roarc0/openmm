@@ -32,24 +32,25 @@ pub struct FootstepsPlugin;
 
 impl Plugin for FootstepsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, footstep_system.run_if(resource_exists::<SoundManager>));
+        app.add_systems(
+            Update,
+            footstep_system
+                .run_if(resource_exists::<SoundManager>)
+                .run_if(resource_exists::<PreparedWorld>),
+        );
     }
 }
 
 fn footstep_system(
     mut commands: Commands,
-    mut sound_manager: Option<ResMut<SoundManager>>,
+    mut sound_manager: ResMut<SoundManager>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
-    prepared: Option<Res<PreparedWorld>>,
+    prepared: Res<PreparedWorld>,
     player_query: Query<&Transform, With<Player>>,
     cfg: Res<crate::config::GameConfig>,
     world_state: Res<crate::game::world::WorldState>,
     mut state: Local<FootstepState>,
 ) {
-    let Some(ref mut sound_manager) = sound_manager else {
-        return;
-    };
-    let Some(prepared) = prepared else { return };
     let Ok(player_tf) = player_query.single() else { return };
 
     let pos = player_tf.translation;
@@ -79,10 +80,7 @@ fn footstep_system(
     }
 
     // Reuse current loop only if both terrain and walk/run mode are unchanged.
-    if state.current_tileset == Some(tileset)
-        && state.current_running == running
-        && state.sound_entity.is_some()
-    {
+    if state.current_tileset == Some(tileset) && state.current_running == running && state.sound_entity.is_some() {
         return;
     }
 

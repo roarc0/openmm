@@ -53,7 +53,13 @@ impl Plugin for LightingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LightingState>()
             .init_resource::<CurrentSpriteTint>()
-            .add_systems(OnEnter(GameState::Game), sun_setup)
+            .add_systems(
+                OnEnter(GameState::Game),
+                (
+                    ambient_setup,
+                    sun_setup.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
+                ),
+            )
             .add_systems(Update, animate_day_cycle.run_if(in_state(GameState::Game)));
     }
 }
@@ -79,7 +85,10 @@ impl Default for CurrentSpriteTint {
 #[derive(Component)]
 struct AmbientMarker;
 
-fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTime>) {
+/// Spawn the AmbientLight entity. Reused by both indoor and outdoor maps —
+/// `animate_day_cycle` sets its colour and brightness from sector data (indoor)
+/// or time of day (outdoor) each frame.
+fn ambient_setup(mut commands: Commands) {
     commands.spawn((
         AmbientLight {
             color: Color::srgb(0.85, 0.85, 0.95),
@@ -89,7 +98,13 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTi
         AmbientMarker,
         InGame,
     ));
+}
 
+/// Spawn the directional sun light. Outdoor only — gated by a `run_if` on
+/// `PreparedIndoorWorld` absence. Indoor dungeons are lit entirely by the
+/// party torch and decoration point lights, so skipping the sun entity avoids
+/// running the shadow cascade pass on a light with 0 illuminance.
+fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTime>) {
     let tod = game_time.time_of_day();
     let (dir_transform, color, illuminance) = sun_from_time(tod);
 

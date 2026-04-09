@@ -7,9 +7,9 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::world::GameTime;
-use crate::game::hud::HudView;
 use crate::game::coords::mm6_position_to_bevy;
+use crate::game::hud::HudView;
+use crate::game::world::GameTime;
 use crate::states::loading::PreparedWorld;
 
 use super::effects::PlaySoundEvent;
@@ -32,7 +32,8 @@ impl Plugin for DecorationSoundsPlugin {
             Update,
             dawn_dusk_sound_system
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(HudView::World)),
+                .run_if(resource_equals(HudView::World))
+                .run_if(resource_exists::<PreparedWorld>),
         );
     }
 }
@@ -40,13 +41,9 @@ impl Plugin for DecorationSoundsPlugin {
 fn dawn_dusk_sound_system(
     game_time: Res<GameTime>,
     mut state: ResMut<DawnDuskState>,
-    prepared: Option<Res<PreparedWorld>>,
+    prepared: Res<PreparedWorld>,
     mut sound_events: bevy::ecs::message::MessageWriter<PlaySoundEvent>,
 ) {
-    let Some(prepared) = prepared else {
-        return;
-    };
-
     let tod = game_time.time_of_day();
     let is_day = tod > DAWN_TOD && tod < DUSK_TOD;
 

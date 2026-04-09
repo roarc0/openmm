@@ -22,15 +22,12 @@ pub(super) fn spawn_world(
     mut materials: ResMut<Assets<StandardMaterial>>,
     _sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
     mut terrain_materials: Option<ResMut<Assets<spawn_terrain::TerrainMaterial>>>,
-    mut prepared: Option<ResMut<PreparedWorld>>,
+    mut prepared: ResMut<PreparedWorld>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<crate::config::GameConfig>,
     mut music_events: Option<bevy::ecs::message::MessageWriter<crate::game::sound::music::PlayMusicEvent>>,
 ) {
-    let Some(prepared) = prepared.as_mut() else {
-        // No outdoor PreparedWorld — this is an indoor map, skip outdoor spawning
-        return;
-    };
+    let prepared = prepared.as_mut();
 
     let (terrain_tex_handle, water_tex_handle, water_mask_handle) =
         spawn_terrain::prepare_terrain_textures(prepared, &mut images, &cfg);

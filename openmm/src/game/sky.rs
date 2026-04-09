@@ -46,14 +46,32 @@ impl Plugin for SkyPlugin {
         // ClearColor = fog/sky target. Updated each frame by update_sky_color.
         app.insert_resource(ClearColor(Color::srgb(0.38, 0.43, 0.52)))
             .add_plugins(MaterialPlugin::<SkyMaterial>::default())
-            .add_systems(OnEnter(GameState::Game), spawn_sky)
+            .add_systems(
+                OnEnter(GameState::Game),
+                (
+                    spawn_sky.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
+                    set_indoor_clear_color.run_if(resource_exists::<crate::states::loading::PreparedIndoorWorld>),
+                ),
+            )
             .add_systems(
                 Update,
-                (follow_camera, update_sky_color, sync_fog_to_sky)
+                (
+                    follow_camera,
+                    update_sky_color
+                        .run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
+                    sync_fog_to_sky,
+                )
                     .chain()
                     .run_if(in_state(GameState::Game)),
             );
     }
+}
+
+/// Indoor equivalent of `spawn_sky` — dungeons have a pitch-black background
+/// instead of a sky dome. Set once on map enter; `update_sky_color` is gated
+/// off indoors so nothing overwrites it.
+fn set_indoor_clear_color(mut commands: Commands) {
+    commands.insert_resource(ClearColor(Color::BLACK));
 }
 
 /// Spawn the sky dome — a large inverted cylinder around the camera
@@ -64,15 +82,8 @@ fn spawn_sky(
     mut images: ResMut<Assets<Image>>,
     mut sky_materials: ResMut<Assets<SkyMaterial>>,
     prepared: Option<Res<PreparedWorld>>,
-    indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
     game_assets: Res<GameAssets>,
 ) {
-    // Indoor maps: dark ceiling, no sky dome
-    if indoor.is_some() {
-        commands.insert_resource(ClearColor(Color::BLACK));
-        return;
-    }
-
     // Determine sky texture name from ODM, fallback to plansky1
     let sky_name = prepared
         .as_ref()
@@ -161,15 +172,8 @@ fn follow_camera(
 }
 
 /// Update the clear color (sky background) based on time of day.
-/// Skipped indoors — black is set once in spawn_sky and must not be overwritten.
-fn update_sky_color(
-    mut clear_color: ResMut<ClearColor>,
-    game_time: Res<crate::game::world::GameTime>,
-    indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
-) {
-    if indoor.is_some() {
-        return;
-    }
+/// Outdoor only — gated by `run_if` on `PreparedIndoorWorld` absence.
+fn update_sky_color(mut clear_color: ResMut<ClearColor>, game_time: Res<crate::game::world::GameTime>) {
     let tod = game_time.time_of_day();
 
     let day_amount = 1.0 - (tod * 2.0 - 1.0).abs();
