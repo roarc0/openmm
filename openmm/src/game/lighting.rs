@@ -71,6 +71,14 @@ pub struct LightingPlugin;
 impl Plugin for LightingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LightingState>()
+            // Pre-seed the sprite tint resource with the correct day/night
+            // values BEFORE the Loading pipeline starts spawning sprites.
+            // Without this, every sprite spawns with `Vec4::ONE`, then
+            // `animate_day_cycle`'s first run in Game state rewrites them all
+            // — which is visible as a one-frame bright-to-dim pop because
+            // the first render happens before the material bind groups
+            // rebuild.
+            .add_systems(OnEnter(GameState::Loading), init_sprite_tints_for_loading)
             .add_systems(
                 OnEnter(GameState::Game),
                 (
@@ -88,6 +96,28 @@ impl Plugin for LightingPlugin {
                     .run_if(resource_equals(HudView::World)),
             );
     }
+}
+
+/// Compute and write the correct initial sprite tints into `SpriteTintBuffers`
+/// when the Loading state is entered, so every sprite material spawned by the
+/// loading pipeline reads the right tint value at creation time instead of
+/// the default `Vec4::ONE`.
+///
+/// `GameTime` is Optional because it might not be initialised yet on the very
+/// first Loading enter (before `GameTimePlugin`'s setup runs). In that case we
+/// fall back to a reasonable 9am default.
+fn init_sprite_tints_for_loading(
+    game_time: Option<Res<GameTime>>,
+    load_request: Option<Res<crate::states::loading::LoadRequest>>,
+    mut tint_buffers: ResMut<SpriteTintBuffers>,
+) {
+    // Default to 9am (0.375) if GameTime isn't initialised yet — matches the
+    // spawn-time default of `GameTime::default()`.
+    let tod = game_time.as_deref().map(|gt| gt.time_of_day()).unwrap_or(0.375);
+    let is_indoor = load_request.as_deref().is_some_and(|r| r.map_name.is_indoor());
+    let (regular, selflit, _) = compute_sprite_tints(tod, is_indoor);
+    tint_buffers.regular = regular;
+    tint_buffers.selflit = selflit;
 }
 
 #[derive(Component)]
@@ -193,6 +223,44 @@ fn ambient_from_time(tod: f32) -> (Color, f32) {
 /// always face the camera, so dot(normal, sun) varies wildly with camera yaw).
 /// Instead we multiply `base_color` by this tint each frame in enhanced mode.
 /// Night floor: dark blue moonlight. Noon: white (no change to texture color).
+/// Compute the day/night sprite tints for the current time and environment.
+///
+/// Returns `(regular_linear, selflit_linear, base_srgb_rgb)` — the first two
+/// are ready to drop into `SpriteExtension::tint`, the last is the sRGB
+/// triple used by `animate_day_cycle`'s threshold-crossing detector.
+///
+/// Shared between `animate_day_cycle` (on threshold crossings) and
+/// `init_sprite_tints_for_loading` (on entering `GameState::Loading`, so that
+/// `SpriteTintBuffers` already has the correct values before any sprite spawn
+/// reads them — otherwise sprites spawn with `Vec4::ONE` and visibly pop to
+/// the real tint on the first render of `GameState::Game`).
+pub fn compute_sprite_tints(tod: f32, is_indoor: bool) -> (Vec4, Vec4, [f32; 3]) {
+    let tint = if is_indoor {
+        Color::srgb(0.35, 0.30, 0.22)
+    } else {
+        sprite_tint_from_time(tod)
+    };
+    let t = tint.to_srgba();
+    let tint_rgb = [t.red, t.green, t.blue];
+
+    let tl = tint.to_linear();
+    let regular = Vec4::new(tl.red, tl.green, tl.blue, 1.0);
+
+    // SelfLit sprites (campfires, torches) blend only a small fraction of
+    // the ambient tint so they feel grounded in the scene rather than
+    // floating at pure full-bright.
+    const SELFLIT_TINT_BLEND: f32 = 0.12;
+    let selflit_srgb = Color::srgb(
+        1.0 - (1.0 - t.red) * SELFLIT_TINT_BLEND,
+        1.0 - (1.0 - t.green) * SELFLIT_TINT_BLEND,
+        1.0 - (1.0 - t.blue) * SELFLIT_TINT_BLEND,
+    );
+    let stl = selflit_srgb.to_linear();
+    let selflit = Vec4::new(stl.red, stl.green, stl.blue, 1.0);
+
+    (regular, selflit, tint_rgb)
+}
+
 pub fn sprite_tint_from_time(tod: f32) -> Color {
     let day_amount = (1.0_f32 - (tod * 2.0 - 1.0).abs()).max(0.0);
     let dawn_dusk: f32 = {
@@ -472,13 +540,7 @@ fn update_sprite_tints(
     sprite_materials: &mut Assets<SpriteMaterial>,
     sprite_queries: &SpriteTintQueries,
 ) {
-    let tint = if is_indoor {
-        Color::srgb(0.35, 0.30, 0.22)
-    } else {
-        sprite_tint_from_time(tod)
-    };
-    let t = tint.to_srgba();
-    let tint_rgb = [t.red, t.green, t.blue];
+    let (regular, selflit, tint_rgb) = compute_sprite_tints(tod, is_indoor);
 
     let tint_threshold: f32 = if cfg.shadows { 1.0 / 2048.0 } else { 1.0 / 512.0 };
     let tint_changed = lighting_state.last_tint.is_none_or(|last| {
@@ -491,21 +553,6 @@ fn update_sprite_tints(
     }
     lighting_state.last_tint = Some(tint_rgb);
     lighting_state.tinted.clear();
-
-    let tl = tint.to_linear();
-    let regular = Vec4::new(tl.red, tl.green, tl.blue, 1.0);
-
-    // SelfLit sprites (campfires, torches) blend only a small fraction of
-    // the ambient tint so they feel grounded in the scene rather than
-    // floating at pure full-bright.
-    const SELFLIT_TINT_BLEND: f32 = 0.12;
-    let selflit_srgb = Color::srgb(
-        1.0 - (1.0 - t.red) * SELFLIT_TINT_BLEND,
-        1.0 - (1.0 - t.green) * SELFLIT_TINT_BLEND,
-        1.0 - (1.0 - t.blue) * SELFLIT_TINT_BLEND,
-    );
-    let stl = selflit_srgb.to_linear();
-    let selflit = Vec4::new(stl.red, stl.green, stl.blue, 1.0);
 
     // Resource so new materials created at runtime pick up the right value.
     tint_buffers.regular = regular;
