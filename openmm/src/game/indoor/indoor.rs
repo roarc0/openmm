@@ -224,7 +224,6 @@ pub(crate) fn spawn_indoor_world(
     mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     game_assets: Res<crate::assets::GameAssets>,
     cfg: Res<crate::config::GameConfig>,
-    tint_buffers: Res<crate::game::sprites::tint_buffer::SpriteTintBuffers>,
 ) {
     let Some(prepared) = prepared else { return };
 
@@ -400,18 +399,14 @@ pub(crate) fn spawn_indoor_world(
 
         if dec.is_directional {
             // Indoor directionals with a ddeclist light are selflit.
-            let tint_handle = if dec.light_radius > 0 {
-                tint_buffers.selflit
-            } else {
-                tint_buffers.regular
-            };
+            let is_selflit = dec.light_radius > 0;
             let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
                 key,
                 game_assets.assets(),
                 &mut images,
                 &mut sprite_materials,
                 &mut Some(&mut sprite_cache),
-                tint_handle,
+                is_selflit,
             );
             if px_w == 0.0 {
                 continue;
@@ -469,14 +464,13 @@ pub(crate) fn spawn_indoor_world(
             sprite_center = pos;
             // All indoor animated decorations (torches, campfires, cauldrons)
             // are flame sources → always selflit.
-            let tint_handle = tint_buffers.selflit;
             let mut frame_mats = vec![];
             let mut frame_masks = vec![];
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
                 let msk = std::sync::Arc::new(sprites::AlphaMask::from_image(&rgba));
                 let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-                let mat = sprite_materials.add(unlit_billboard_material(tex, tint_handle));
+                let mat = sprite_materials.add(unlit_billboard_material(tex, true));
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
             }
@@ -546,15 +540,10 @@ pub(crate) fn spawn_indoor_world(
             // Luminous DSFT statics (chandeliers, crystals, sconces) and
             // ddeclist-lit decorations are selflit.
             let is_selflit = dec.light_radius > 0 || dsft_lr > 0;
-            let tint_handle = if is_selflit {
-                tint_buffers.selflit
-            } else {
-                tint_buffers.regular
-            };
             let rgba = sprite.image.to_rgba8();
             let mask = sprites::AlphaMask::from_image(&rgba);
             let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-            let mat = sprite_materials.add(unlit_billboard_material(tex, tint_handle));
+            let mat = sprite_materials.add(unlit_billboard_material(tex, is_selflit));
             let quad = meshes.add(Rectangle::new(w, h));
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
             sprite_center = pos;
@@ -656,7 +645,7 @@ pub(crate) fn spawn_indoor_world(
                 &mut Some(&mut sprite_cache),
                 mon.variant,
                 mon.palette_id,
-                tint_buffers.regular,
+                false,
             );
             if states.is_empty() || states[0].is_empty() {
                 error!(

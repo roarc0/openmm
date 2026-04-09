@@ -70,7 +70,7 @@ impl SpriteCache {
         assets: &DataAssets,
         images: &mut Assets<Image>,
         materials: &mut Assets<SpriteMaterial>,
-        tint: Vec4,
+        selflit: bool,
     ) {
         for &(root, variant, palette_id) in roots {
             load_sprite_frames(
@@ -83,7 +83,7 @@ impl SpriteCache {
                 0,
                 0,
                 palette_id,
-                tint,
+                selflit,
             );
         }
     }
@@ -164,7 +164,7 @@ pub fn load_entity_sprites(
     cache: &mut Option<&mut SpriteCache>,
     variant: u8,
     palette_id: u16,
-    tint: Vec4,
+    selflit: bool,
 ) -> (
     Vec<Vec<[Handle<SpriteMaterial>; 5]>>,
     Vec<Vec<[Arc<AlphaMask>; 5]>>,
@@ -182,7 +182,7 @@ pub fn load_entity_sprites(
         0,
         0,
         palette_id,
-        tint,
+        selflit,
     );
 
     // Load standing, padded to at least walking dimensions
@@ -196,7 +196,7 @@ pub fn load_entity_sprites(
         ww as u32,
         wh as u32,
         palette_id,
-        tint,
+        selflit,
     );
     if standing.is_empty() {
         return (Vec::new(), Vec::new(), 0.0, 0.0);
@@ -217,7 +217,7 @@ pub fn load_entity_sprites(
             qw as u32,
             qh as u32,
             palette_id,
-            tint,
+            selflit,
         );
         (padded, padded_masks)
     } else {
@@ -235,12 +235,12 @@ pub fn load_entity_sprites(
         qw as u32,
         qh as u32,
         palette_id,
-        tint,
+        selflit,
     );
 
     // Load dying animation (state 3), padded to the unified quad size.
     let (dying, dying_masks, _, _) = load_sprite_frames(
-        dying_root, assets, images, materials, cache, variant, qw as u32, qh as u32, palette_id, tint,
+        dying_root, assets, images, materials, cache, variant, qw as u32, qh as u32, palette_id, selflit,
     );
 
     let mut states = vec![standing];
@@ -277,7 +277,7 @@ pub fn load_sprite_frames(
     min_w: u32,
     min_h: u32,
     palette_id: u16,
-    tint: Vec4,
+    selflit: bool,
 ) -> (Vec<[Handle<SpriteMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
     let root = root.trim_end_matches(|c: char| c.is_ascii_digit());
     let key = cache_key(root, variant, min_w, min_h, palette_id);
@@ -295,7 +295,7 @@ pub fn load_sprite_frames(
     let mut try_root = root;
     while try_root.len() >= 3 {
         let (frames, frame_masks, w, h) = decode_sprite_frames(
-            try_root, assets, images, materials, variant, min_w, min_h, palette_id, tint,
+            try_root, assets, images, materials, variant, min_w, min_h, palette_id, selflit,
         );
         if !frames.is_empty() {
             store_in_cache(&key, &frames, &frame_masks, w, h, cache);
@@ -368,7 +368,7 @@ fn decode_sprite_frames(
     min_w: u32,
     min_h: u32,
     palette_id: u16,
-    tint: Vec4,
+    selflit: bool,
 ) -> (Vec<[Handle<SpriteMaterial>; 5]>, Vec<[Arc<AlphaMask>; 5]>, f32, f32) {
     // First pass: collect all raw sprites and find max dimensions.
     let mut raw_sprites: Vec<Vec<Option<DynamicImage>>> = Vec::new();
@@ -466,7 +466,7 @@ fn decode_sprite_frames(
                 };
                 dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
                 let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-                dir_materials[dir] = materials.add(unlit_billboard_material(tex, tint));
+                dir_materials[dir] = materials.add(unlit_billboard_material(tex, selflit));
             } else if dir > 0 {
                 dir_materials[dir] = dir_materials[0].clone();
                 dir_masks[dir] = dir_masks[0].clone();
@@ -660,7 +660,7 @@ pub fn load_decoration_directions(
     images: &mut Assets<Image>,
     materials: &mut Assets<SpriteMaterial>,
     cache: &mut Option<&mut SpriteCache>,
-    tint: Vec4,
+    selflit: bool,
 ) -> ([Handle<SpriteMaterial>; 5], [Arc<AlphaMask>; 5], f32, f32) {
     let key = format!("dec:{}", root);
     if let Some(c) = cache.as_ref()
@@ -743,7 +743,7 @@ pub fn load_decoration_directions(
             };
             dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
             let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-            dirs[dir] = materials.add(unlit_billboard_material(tex, tint));
+            dirs[dir] = materials.add(unlit_billboard_material(tex, selflit));
         } else if dir > 0 {
             dirs[dir] = dirs[0].clone();
             dir_masks[dir] = dir_masks[0].clone();
@@ -774,7 +774,7 @@ pub fn load_static_decoration_sprite(
     images: &mut Assets<Image>,
     materials: &mut Assets<SpriteMaterial>,
     meshes: &mut Assets<Mesh>,
-    tint: Vec4,
+    selflit: bool,
 ) -> Option<(Handle<SpriteMaterial>, Handle<Mesh>, f32, f32)> {
     let name_lower = sprite_name.to_lowercase();
     let img = assets.lod().sprite(&name_lower)?;
@@ -783,7 +783,7 @@ pub fn load_static_decoration_sprite(
     let h = img.height() as f32 * dsft_scale;
     let bevy_img = crate::assets::dynamic_to_bevy_image(img);
     let tex = images.add(bevy_img);
-    let mat = materials.add(unlit_billboard_material(tex, tint));
+    let mat = materials.add(unlit_billboard_material(tex, selflit));
     let mesh = meshes.add(Rectangle::new(w, h));
     Some((mat, mesh, w, h))
 }

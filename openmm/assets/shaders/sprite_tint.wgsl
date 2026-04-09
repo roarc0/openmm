@@ -6,23 +6,39 @@
 }
 #import bevy_pbr::pbr_functions::main_pass_post_lighting_processing
 
-// Day/night tint for this sprite (linear sRGB). Vec4(1.0) = no change.
+// Globally-shared day/night tint, updated once per frame on the CPU via
+// `sprites::tint_buffer::write_sprite_globals` (render world) and uploaded
+// with `queue.write_buffer`. Every sprite material's bind group references
+// the same wgpu Buffer — see `sprites/material.rs` for the hand-written
+// `AsBindGroup` impl that wires this binding without going through Bevy's
+// per-material asset pipeline.
 //
-// Per-material uniform, rewritten by `animate_day_cycle` on threshold
-// crossings. A previous revision (A1 / commit 0676f4f) routed this through a
-// shared `ShaderStorageBuffer` asset to avoid iterating every sprite
-// material, but Bevy 0.18 does not invalidate material bind groups when a
-// referenced storage buffer asset changes, so the tint stopped propagating.
-// The per-material uniform is the design that actually works on 0.18.
+// `regular` is the ambient day/night tint that most billboards use; `selflit`
+// is a lighter tint applied to torches, campfires, braziers and other light
+// sources so they stay grounded in the scene without being dimmed at night.
+// Selection is per-material: `SpriteExtension::selflit` is surfaced as
+// `AsBindGroup::Data = u32` and turned into the `SPRITE_SELFLIT` shader def
+// in `MaterialExtension::specialize`, producing two pipeline variants.
 //
 // TODO: add point-light contribution from nearby torches/campfires in dungeons
 //       so sprites respond to indoor lighting rather than only the global ambient tint.
+struct SpriteGlobals {
+    regular: vec4<f32>,
+    selflit: vec4<f32>,
+}
+
 @group(#{MATERIAL_BIND_GROUP}) @binding(100)
-var<uniform> tint: vec4<f32>;
+var<uniform> sprite_globals: SpriteGlobals;
 
 @fragment
 fn fragment(in: VertexOutput, @builtin(front_facing) is_front: bool) -> @location(0) vec4<f32> {
     var pbr_input = pbr_input_from_standard_material(in, is_front);
+
+#ifdef SPRITE_SELFLIT
+    let tint = sprite_globals.selflit;
+#else
+    let tint = sprite_globals.regular;
+#endif
 
     // Sprites are unlit (billboard normals always face the camera, making directional
     // lighting flicker with camera rotation). Tint simulates ambient day/night variation.

@@ -9,7 +9,6 @@ use bevy::prelude::*;
 use crate::assets::GameAssets;
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
-use crate::game::sprites::tint_buffer::SpriteTintBuffers;
 use crate::states::loading::PreparedWorld;
 
 use super::spawn_actors::{spawn_npc_actors, spawn_odm_monsters};
@@ -67,7 +66,6 @@ pub(super) struct SpawnCtx<'a> {
     pub images: &'a mut Assets<Image>,
     pub meshes: &'a mut Assets<Mesh>,
     pub sprite_materials: Option<&'a mut Assets<SpriteMaterial>>,
-    pub tint_buffers: &'a SpriteTintBuffers,
     pub start: std::time::Instant,
     pub time_budget: f32,
     pub batch_max: usize,
@@ -108,15 +106,15 @@ pub(super) fn lazy_spawn(
     mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
     mut map_events: Option<ResMut<crate::game::world::MapEvents>>,
     cfg: Res<crate::config::GameConfig>,
-    tint_buffers: Res<SpriteTintBuffers>,
 ) {
     let Some(mut pending) = pending else {
         return;
     };
 
-    // New sprite materials reference one of the shared tint storage buffers, so
-    // they automatically pick up the current day/night tint at creation time —
-    // no per-material tint write needed at spawn.
+    // Sprite materials pull their day/night tint from the globally-shared
+    // `SpriteGlobalsBuffer` via their hand-written `AsBindGroup` impl — spawn
+    // sites only need to tell the material whether it's `selflit` (torches,
+    // campfires) or the regular ambient tint.
 
     let p = &mut *pending;
     let terrain_entity = p.terrain_entity;
@@ -148,7 +146,6 @@ pub(super) fn lazy_spawn(
         images: &mut images,
         meshes: &mut meshes,
         sprite_materials: sprite_materials.as_deref_mut(),
-        tint_buffers: &tint_buffers,
         start,
         time_budget,
         batch_max,

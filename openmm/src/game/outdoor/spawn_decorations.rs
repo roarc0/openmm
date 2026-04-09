@@ -33,13 +33,9 @@ pub(super) fn spawn_decorations(
 
         if dec.is_directional {
             // Directional decorations with a light_radius (ships' lanterns, etc.)
-            // become SelfLit — pick the selflit tint buffer so they don't get
-            // dimmed at night. Non-lit directionals use the regular buffer.
-            let tint_handle = if dec.light_radius > 0 {
-                ctx.tint_buffers.selflit
-            } else {
-                ctx.tint_buffers.regular
-            };
+            // become SelfLit — pick the selflit shader variant so they don't
+            // get dimmed at night. Non-lit directionals use the regular one.
+            let is_selflit = dec.light_radius > 0;
             let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                 continue;
             };
@@ -49,7 +45,7 @@ pub(super) fn spawn_decorations(
                 ctx.images,
                 materials,
                 &mut Some(&mut p.sprite_cache),
-                tint_handle,
+                is_selflit,
             );
             if px_w > 0.0 {
                 let dsft_scale = lod.dsft_scale_for_group(&dec.sprite_name);
@@ -129,11 +125,6 @@ pub(super) fn spawn_decorations(
             let first = &frame_sprites[0];
             let is_selflit =
                 dec.light_radius > 0 || (first.d_sft_frame.is_luminous() && first.d_sft_frame.light_radius > 0);
-            let tint_handle = if is_selflit {
-                ctx.tint_buffers.selflit
-            } else {
-                ctx.tint_buffers.regular
-            };
             let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
             let mut frame_mats = vec![];
             let mut frame_masks = vec![];
@@ -144,7 +135,7 @@ pub(super) fn spawn_decorations(
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
                 };
-                let mat = materials.add(unlit_billboard_material(tex, tint_handle));
+                let mat = materials.add(unlit_billboard_material(tex, is_selflit));
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
             }
@@ -208,13 +199,8 @@ pub(super) fn spawn_decorations(
             }
             *spawned += 1;
         } else {
-            // Decide selflit up front so the cached material references the right buffer.
+            // Decide selflit up front so the cached material references the right shader variant.
             let is_selflit = dec.light_radius > 0 || lod.billboard_luminous_light_radius(dec.declist_id) > 0;
-            let tint_handle = if is_selflit {
-                ctx.tint_buffers.selflit
-            } else {
-                ctx.tint_buffers.regular
-            };
             let (mat, quad, w, h, mask) = if let Some((m, q, w, h, msk)) = p.dec_sprite_cache.get(key) {
                 (m.clone(), q.clone(), *w, *h, msk.clone())
             } else {
@@ -229,7 +215,7 @@ pub(super) fn spawn_decorations(
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
                 };
-                let m = materials.add(unlit_billboard_material(tex, tint_handle));
+                let m = materials.add(unlit_billboard_material(tex, is_selflit));
                 let q = ctx.meshes.add(Rectangle::new(w, h));
                 p.dec_sprite_cache
                     .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));

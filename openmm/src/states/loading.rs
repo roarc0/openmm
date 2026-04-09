@@ -448,7 +448,6 @@ fn loading_step(
     mut meshes: ResMut<Assets<Mesh>>,
     mut sprite_materials: Option<ResMut<Assets<crate::game::sprites::material::SpriteMaterial>>>,
     world_state: Option<Res<crate::game::world::WorldState>>,
-    tint_buffers: Res<crate::game::sprites::tint_buffer::SpriteTintBuffers>,
 ) {
     // Update loading text
     for mut text in &mut text_query {
@@ -1214,7 +1213,7 @@ fn loading_step(
                         game_assets.assets(),
                         &mut images,
                         sprite_materials,
-                        tint_buffers.regular,
+                        false,
                     );
                     queue.sprite_idx += 1;
                 }
@@ -1262,11 +1261,8 @@ fn loading_step(
                                         crate::game::sprites::loading::AlphaMask::from_image(&rgba),
                                     );
                                     let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-                                    let m =
-                                        sprite_materials.add(crate::game::sprites::material::unlit_billboard_material(
-                                            tex,
-                                            tint_buffers.regular,
-                                        ));
+                                    let m = sprite_materials
+                                        .add(crate::game::sprites::material::unlit_billboard_material(tex, false));
                                     let q = meshes.add(Rectangle::new(w, h));
                                     bb_cache.insert(dec.sprite_name.clone(), (m, q, w, h, mask));
                                 }

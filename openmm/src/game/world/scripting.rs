@@ -50,7 +50,6 @@ struct MapEntityParams<'w, 's> {
     actors: Query<'w, 's, (&'static mut Actor, &'static mut Visibility)>,
     player: Query<'w, 's, &'static mut Transform, With<crate::game::player::Player>>,
     player_settings: Res<'w, crate::game::player::PlayerSettings>,
-    tint_buffers: Res<'w, crate::game::sprites::tint_buffer::SpriteTintBuffers>,
 }
 
 /// Bundles audio + mesh assets + game_time to stay within Bevy's 16-param limit.
@@ -775,7 +774,7 @@ fn process_events(
                         &mut images,
                         sprite_materials,
                         &mut audio.meshes,
-                        entities.tint_buffers.regular,
+                        false,
                     )
                 else {
                     warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
