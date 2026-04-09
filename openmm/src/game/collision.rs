@@ -529,12 +529,21 @@ pub fn sample_terrain_height(height_map: &[u8], world_x: f32, world_z: f32) -> f
 }
 
 /// Probe for the ground height at a world position from above.
+///
+/// Uses the `BuildingColliders` spatial grid to prune the floor-triangle
+/// search to the single cell containing `(x, z)`. This function is called
+/// from the physics query path and on every actor spawn — iterating every
+/// floor on the map (as the original loop did) made it show up hot on maps
+/// with dense BSP geometry. The grid is already built at load time.
 pub fn probe_ground_height(height_map: &[u8], colliders: Option<&BuildingColliders>, x: f32, z: f32) -> f32 {
     let terrain_h = sample_terrain_height(height_map, x, z);
     let mut best = terrain_h;
-    if let Some(colliders) = colliders {
+    if let Some(colliders) = colliders
+        && let Some(cell_idx) = colliders.grid.cell_idx(x, z)
+    {
         let point = Vec2::new(x, z);
-        for floor in &colliders.floors {
+        for &floor_idx in &colliders.grid.floors[cell_idx] {
+            let floor = &colliders.floors[floor_idx as usize];
             if !floor.near_xz(x, z, 0.0) {
                 continue;
             }
@@ -612,4 +621,86 @@ fn point_to_segment_dist_sq(p: Vec2, a: Vec2, b: Vec2) -> f32 {
     let t = ((p - a).dot(ab) / len_sq).clamp(0.0, 1.0);
     let closest = a + ab * t;
     p.distance_squared(closest)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Flat heightmap so terrain height is always 0 everywhere — lets us
+    /// isolate the floor-triangle probe path from terrain interpolation.
+    fn flat_heightmap() -> Vec<u8> {
+        vec![0u8; ODM_SIZE * ODM_SIZE]
+    }
+
+    fn colliders_with_one_floor(height: f32) -> BuildingColliders {
+        // One large horizontal triangle elevated above the terrain, centred
+        // at the origin and spanning ±500 units on X/Z. Big enough that a
+        // point at (0, 0) is well inside it.
+        let n = Vec3::Y;
+        let floor = CollisionTriangle::new(
+            Vec3::new(-500.0, height, -500.0),
+            Vec3::new(500.0, height, -500.0),
+            Vec3::new(0.0, height, 500.0),
+            n,
+        );
+        let mut c = BuildingColliders::default();
+        c.floors.push(floor);
+        c.build_grid();
+        c
+    }
+
+    /// Regression for A3: `probe_ground_height` with a `BuildingColliders`
+    /// argument must still return the floor triangle's height for a point
+    /// inside it, even though we now prune via the spatial grid cell instead
+    /// of iterating every floor.
+    #[test]
+    fn probe_ground_height_finds_floor_via_grid() {
+        let hm = flat_heightmap();
+        let colliders = colliders_with_one_floor(200.0);
+        let h = probe_ground_height(&hm, Some(&colliders), 0.0, 0.0);
+        assert!(
+            (h - 200.0).abs() < 1e-3,
+            "expected floor height 200.0 at origin, got {h}"
+        );
+    }
+
+    /// A point well outside the single floor's AABB must fall back to the
+    /// terrain height (0 on a flat map).
+    #[test]
+    fn probe_ground_height_misses_floor_outside_aabb() {
+        let hm = flat_heightmap();
+        let colliders = colliders_with_one_floor(200.0);
+        let h = probe_ground_height(&hm, Some(&colliders), 10_000.0, 10_000.0);
+        assert!(h.abs() < 1e-3, "expected terrain 0.0 outside floor, got {h}");
+    }
+
+    /// When the query point lands in a grid cell that has no floors (but
+    /// floors exist elsewhere on the map), the result must still be terrain.
+    /// Guards against the bug where an empty cell would incorrectly fall
+    /// back to scanning all floors.
+    #[test]
+    fn probe_ground_height_empty_cell_returns_terrain() {
+        let hm = flat_heightmap();
+        // Build colliders with a floor centred at the origin, then query
+        // a point inside the grid but in a neighbouring empty cell.
+        let colliders = colliders_with_one_floor(200.0);
+        // 600 is outside the ±500 floor AABB but still inside the padded grid.
+        let h = probe_ground_height(&hm, Some(&colliders), 600.0, 0.0);
+        assert!(h.abs() < 1e-3, "expected terrain 0.0 in empty cell, got {h}");
+    }
+
+    /// Point inside the floor's AABB but outside its triangle hull (the
+    /// triangle's "corner gap") must not report the floor height. The grid
+    /// narrows the candidate list; `point_in_triangle_2d` is the final check.
+    #[test]
+    fn probe_ground_height_skips_triangle_corner_gap() {
+        let hm = flat_heightmap();
+        let colliders = colliders_with_one_floor(200.0);
+        // (-499, 499) is inside the AABB (-500..500, -500..500) but outside
+        // the triangle hull, which has vertices at (-500,-500), (500,-500),
+        // (0, 500) — the left edge runs from (-500,-500) to (0,500).
+        let h = probe_ground_height(&hm, Some(&colliders), -499.0, 499.0);
+        assert!(h.abs() < 1e-3, "expected terrain 0.0 outside hull, got {h}");
+    }
 }

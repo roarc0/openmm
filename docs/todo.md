@@ -94,7 +94,7 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 
 - [x] **A1. Day/night tint is O(actors × states × frames × 5)** — DONE (0676f4f). Replaced per-material uniform with a shared `ShaderStorageBuffer` (regular + selflit), updated in place once per threshold crossing. See `game/sprites/tint_buffer.rs`. **Known regression: see "Standing vs walking tint mismatch" below.**
 - [x] **A2. Monster AI probes 8 directions per actor per frame** — DONE. `steer_toward` now probes a 4-angle fan (`±45 / ±90°` instead of 8 offsets) and caches the winning detour on `Actor::cached_steer_offset`. Next frame retries the cached offset before fanning out, so a monster hugging the same wall uses 2 `resolve_movement` calls per frame instead of 9. Worst case 5 (was 9) when both direct + cache fail. Regression tests cover the direct-path cache clear. See `game/actors/ai.rs:33-44,82-158`.
-- [ ] **A3. `probe_ground_height` ignores the spatial grid** — `collision.rs:532-554` iterates every floor triangle. The grid is already built at load time; use it. Called on every actor spawn + physics query.
+- [x] **A3. `probe_ground_height` ignores the spatial grid** — DONE. `probe_ground_height` in `collision.rs` now prunes via `BuildingColliders.grid.cell_idx(x, z)` and iterates only that cell's floor list — the same pattern `floor_height_at` already used. Four regression tests cover the grid-hit, outside-AABB, empty-cell, and triangle-corner-gap cases.
 - [x] **A4. Interaction ray-tests every entity every frame** — DONE. `hover_hint_system` and `world_interact_system` now query the new `EntitySpatialIndex` for entities within `MAX_INTERACT_RANGE` (typically a 3×3 cell block ≈ a handful of entities) and call `Query::get(entity)` per candidate. The heavy matrix / polygon / mask work no longer runs for every `WorldEntity` on the map. See `game/spatial_index.rs`, `game/interaction/mod.rs`.
 - [x] **A5. Sprite distance culling writes `Visibility` for all `WorldEntity` every frame** — DONE. `distance_culling` was folded into `spatial_index::rebuild_and_cull`: one `iter_mut` pass now both buckets entities into the grid and does the `set_if_neq` visibility update, so we pay the cost once instead of twice. The standalone `distance_culling` system is gone.
 - [x] **A6. Material churn on texture swap** — DONE. `SwapMaterialCache` resource keyed by texture name now owns the pooled `Handle<StandardMaterial>`. Second swap to the same texture reuses the cached handle (no image decode, no material alloc, no bind-group churn).
@@ -166,7 +166,7 @@ The bug is purely a regression of commit `0676f4f`; the pre-A1 code wrote the ti
 3. **D3** — compute flicker from global time instead of storing a per-entity timer (`sprites/mod.rs:137-151`). ~10 lines, eliminates per-frame writes on every flickering torch.
 4. **A7** — cache last sector index in indoor ambient lookup (`lighting.rs:355-375`). Tiny.
 5. ~~**A2** — reduce monster AI probes~~ — DONE (cached detour offset + 4-angle fan).
-6. **A3** — use spatial grid in `probe_ground_height` (`collision.rs:532-554`). Medium, relies on existing grid.
+6. ~~**A3** — use spatial grid in `probe_ground_height`~~ — DONE.
 7. **B1** — split `WorldState` into focused resources. Highest-impact cleanup but invasive.
 8. **B3**/B4/B5/B6 — other large-file splits (loading.rs 1410 lines, indoor.rs 1166 lines, scripting.rs process_events 600-line match).
 9. **D1/D2/D4/D5/D6** — lower-impact cleanups, pick opportunistically.
