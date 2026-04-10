@@ -4,7 +4,6 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
 use super::format::{Screen, ScreenElement};
@@ -216,11 +215,7 @@ pub fn selection_system(
     windows: Query<&Window, With<PrimaryWindow>>,
     editor: Res<EditorScreen>,
     mut selection: ResMut<Selection>,
-    egui_input: Option<Res<EguiWantsInput>>,
 ) {
-    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
-        return;
-    }
     if !mouse.just_pressed(MouseButton::Left) {
         return;
     }
@@ -257,11 +252,7 @@ pub fn drag_system(
     windows: Query<&Window, With<PrimaryWindow>>,
     mut selection: ResMut<Selection>,
     mut editor: ResMut<EditorScreen>,
-    egui_input: Option<Res<EguiWantsInput>>,
 ) {
-    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
-        return;
-    }
     let Ok(window) = windows.single() else { return };
     let Some(cursor) = window.cursor_position() else { return };
     let win_w = window.width();
@@ -316,11 +307,7 @@ pub fn z_order_system(
     selection: Res<Selection>,
     mut editor: ResMut<EditorScreen>,
     mut elem_q: Query<(&CanvasElement, &mut ZIndex)>,
-    egui_input: Option<Res<EguiWantsInput>>,
 ) {
-    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
-        return;
-    }
     let Some(sel_idx) = selection.index else { return };
 
     let delta = scroll.delta.y;
@@ -352,11 +339,7 @@ pub fn delete_system(
     keys: Res<ButtonInput<KeyCode>>,
     mut selection: ResMut<Selection>,
     mut editor: ResMut<EditorScreen>,
-    egui_input: Option<Res<EguiWantsInput>>,
 ) {
-    if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
-        return;
-    }
     if !keys.just_pressed(KeyCode::Delete) && !keys.just_pressed(KeyCode::Backspace) {
         return;
     }
@@ -371,15 +354,7 @@ pub fn delete_system(
 // ─── Tab cycle ─────────────────────────────────────────────────────────
 
 /// Tab cycles forward through elements, Shift+Tab cycles backward.
-pub fn tab_cycle_system(
-    keys: Res<ButtonInput<KeyCode>>,
-    editor: Res<EditorScreen>,
-    mut selection: ResMut<Selection>,
-    egui_input: Option<Res<EguiWantsInput>>,
-) {
-    if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
-        return;
-    }
+pub fn tab_cycle_system(keys: Res<ButtonInput<KeyCode>>, editor: Res<EditorScreen>, mut selection: ResMut<Selection>) {
     if !keys.just_pressed(KeyCode::Tab) {
         return;
     }
