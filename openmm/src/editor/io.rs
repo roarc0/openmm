@@ -1,11 +1,39 @@
-//! Load/save .screen.ron files from data/screens/.
+//! Load/save .screen.ron files from data/screens/ and editor config.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use super::format::Screen;
 
 const SCREENS_DIR: &str = "data/screens";
+const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";
+
+/// Persisted editor settings.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EditorConfig {
+    /// Last screen that was open, auto-loaded on startup.
+    pub last_screen: Option<String>,
+    /// Whether the bitmap browser was open.
+    #[serde(default)]
+    pub browser_open: bool,
+}
+
+impl EditorConfig {
+    pub fn load() -> Self {
+        fs::read_to_string(EDITOR_CONFIG_PATH)
+            .ok()
+            .and_then(|s| toml::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+
+    pub fn save(&self) {
+        if let Ok(s) = toml::to_string_pretty(self) {
+            let _ = fs::write(EDITOR_CONFIG_PATH, s);
+        }
+    }
+}
 
 fn ensure_dir() {
     let _ = fs::create_dir_all(SCREENS_DIR);
@@ -21,8 +49,21 @@ pub fn save_screen(screen: &Screen) -> Result<(), String> {
     let ron_str = ron::ser::to_string_pretty(screen, ron::ser::PrettyConfig::default())
         .map_err(|e| format!("RON serialize error: {e}"))?;
     fs::write(&path, &ron_str).map_err(|e| format!("Write error {}: {e}", path.display()))?;
+    // Remember last screen in editor config.
+    let mut cfg = EditorConfig::load();
+    cfg.last_screen = Some(screen.id.clone());
+    cfg.save();
     bevy::log::info!("saved screen to {}", path.display());
     Ok(())
+}
+
+/// Load the last-edited screen from editor config, or return a blank screen.
+pub fn load_last_screen() -> Screen {
+    let cfg = EditorConfig::load();
+    cfg.last_screen
+        .as_deref()
+        .and_then(|id| load_screen(id).ok())
+        .unwrap_or_else(|| Screen::new("untitled"))
 }
 
 pub fn load_screen(id: &str) -> Result<Screen, String> {

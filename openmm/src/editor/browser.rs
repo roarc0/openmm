@@ -19,7 +19,7 @@ pub struct BrowserState {
     initialized: bool,
 }
 
-/// Load icon names from LOD once. Called every frame but guards with `initialized`.
+/// Load icon names from LOD once and restore browser state from config.
 pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserState>) {
     if browser.initialized {
         return;
@@ -43,6 +43,10 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
     let filtered = names.clone();
     browser.all_icons = names;
     browser.filtered = filtered;
+
+    // Restore open state from editor config.
+    let cfg = super::io::EditorConfig::load();
+    browser.open = cfg.browser_open;
 }
 
 /// Tab key toggles the browser open/closed.
@@ -57,6 +61,10 @@ pub fn toggle_browser(
     }
     if keys.just_pressed(KeyCode::Tab) {
         browser.open = !browser.open;
+        // Persist open state.
+        let mut cfg = super::io::EditorConfig::load();
+        cfg.browser_open = browser.open;
+        cfg.save();
     }
 }
 

@@ -63,12 +63,10 @@ fn editor_setup(mut commands: Commands) {
         bevy::picking::Pickable::IGNORE,
         InEditor,
     ));
-    let screen = canvas::EditorScreen {
-        screen: Screen::new("untitled"),
-        dirty: false,
-    };
-    commands.insert_resource(screen);
-    info!("screen editor started — Tab to browse bitmaps, Ctrl+S to save");
+    let screen = io::load_last_screen();
+    let name = screen.id.clone();
+    commands.insert_resource(canvas::EditorScreen { screen, dirty: false });
+    info!("screen editor started — editing '{name}'");
 }
 
 /// Top toolbar: name indicator, New/Open/Save buttons, help text.

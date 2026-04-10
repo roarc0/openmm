@@ -279,7 +279,10 @@ pub fn drag_system(
         if let Some(offset) = selection.drag_offset {
             let new_pos = cursor_ref - offset;
             if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-                elem.position = (new_pos.x.round(), new_pos.y.round());
+                let (w, h) = elem.size.unwrap_or((32.0, 32.0));
+                let x = new_pos.x.round().clamp(0.0, REF_W - w);
+                let y = new_pos.y.round().clamp(0.0, REF_H - h);
+                elem.position = (x, y);
                 editor.dirty = true;
             }
         }
