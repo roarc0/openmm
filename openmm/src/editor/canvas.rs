@@ -16,6 +16,16 @@ use crate::game::hud::UiAssets;
 pub const REF_W: f32 = 640.0;
 pub const REF_H: f32 = 480.0;
 
+/// Resolve element size: explicit size > texture dimensions > 32x32 fallback.
+fn resolve_size(elem: &ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
+    elem.size.unwrap_or_else(|| {
+        elem.texture_for_state("default")
+            .and_then(|name| ui_assets.dimensions(name))
+            .map(|(w, h)| (w as f32, h as f32))
+            .unwrap_or((32.0, 32.0))
+    })
+}
+
 /// Runtime state of the screen being edited.
 #[derive(Resource)]
 pub struct EditorScreen {
@@ -105,12 +115,7 @@ fn spawn_element(
     elem: &ScreenElement,
     index: usize,
 ) {
-    let (w, h) = elem.size.unwrap_or_else(|| {
-        elem.texture_for_state("default")
-            .and_then(|name| ui_assets.dimensions(name))
-            .map(|(w, h)| (w as f32, h as f32))
-            .unwrap_or((32.0, 32.0))
-    });
+    let (w, h) = resolve_size(elem, ui_assets);
 
     let node = Node {
         position_type: PositionType::Absolute,
@@ -154,6 +159,7 @@ pub fn draw_overlays(
     editor: Res<EditorScreen>,
     selection: Res<Selection>,
     windows: Query<&Window, With<PrimaryWindow>>,
+    ui_assets: Res<UiAssets>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     let Ok(window) = windows.single() else { return };
@@ -166,7 +172,7 @@ pub fn draw_overlays(
     ));
 
     for (i, elem) in editor.screen.elements.iter().enumerate() {
-        let (w, h) = elem.size.unwrap_or((32.0, 32.0));
+        let (w, h) = resolve_size(elem, &ui_assets);
 
         // Convert reference coords to screen coords.
         let sx = elem.position.0 / REF_W * win_w;
@@ -215,6 +221,7 @@ pub fn selection_system(
     windows: Query<&Window, With<PrimaryWindow>>,
     editor: Res<EditorScreen>,
     mut selection: ResMut<Selection>,
+    ui_assets: Res<UiAssets>,
 ) {
     if !mouse.just_pressed(MouseButton::Left) {
         return;
@@ -231,7 +238,7 @@ pub fn selection_system(
     // Hit test against elements (last = topmost due to z-order).
     let mut best: Option<(usize, i32)> = None;
     for (i, elem) in editor.screen.elements.iter().enumerate() {
-        let (w, h) = elem.size.unwrap_or((32.0, 32.0));
+        let (w, h) = resolve_size(elem, &ui_assets);
         let (ex, ey) = elem.position;
         if cx >= ex && cx <= ex + w && cy >= ey && cy <= ey + h {
             if best.map_or(true, |(_, bz)| elem.z > bz) {
@@ -252,6 +259,7 @@ pub fn drag_system(
     windows: Query<&Window, With<PrimaryWindow>>,
     mut selection: ResMut<Selection>,
     mut editor: ResMut<EditorScreen>,
+    ui_assets: Res<UiAssets>,
 ) {
     let Ok(window) = windows.single() else { return };
     let Some(cursor) = window.cursor_position() else { return };
@@ -272,7 +280,7 @@ pub fn drag_system(
         if let Some(offset) = selection.drag_offset {
             let new_pos = cursor_ref - offset;
             if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-                let (w, h) = elem.size.unwrap_or((32.0, 32.0));
+                let (w, h) = resolve_size(elem, &ui_assets);
                 let x = new_pos.x.round().clamp(0.0, (REF_W - w).max(0.0));
                 let y = new_pos.y.round().clamp(0.0, (REF_H - h).max(0.0));
                 elem.position = (x, y);
