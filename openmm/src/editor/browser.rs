@@ -1,7 +1,7 @@
 //! egui bitmap browser panel: search LOD icons, click-to-place.
 
 use bevy::prelude::*;
-use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
+use bevy_inspector_egui::bevy_egui::{EguiContexts, egui, input::EguiWantsInput};
 
 use super::canvas::{EditorScreen, REF_H, REF_W};
 use super::format::ScreenElement;
@@ -46,7 +46,15 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
 }
 
 /// Tab key toggles the browser open/closed.
-pub fn toggle_browser(keys: Res<ButtonInput<KeyCode>>, mut browser: ResMut<BrowserState>) {
+pub fn toggle_browser(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut browser: ResMut<BrowserState>,
+    egui_input: Option<Res<EguiWantsInput>>,
+) {
+    // Don't toggle when egui has keyboard focus (e.g. user typing in a text field).
+    if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
+        return;
+    }
     if keys.just_pressed(KeyCode::Tab) {
         browser.open = !browser.open;
     }

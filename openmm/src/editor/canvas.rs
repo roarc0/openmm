@@ -3,6 +3,7 @@
 use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
+use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
 
 use super::format::{Screen, ScreenElement};
 use super::io;
@@ -208,7 +209,11 @@ pub fn selection_system(
     windows: Query<&Window, With<PrimaryWindow>>,
     elem_q: Query<(&GlobalTransform, &ComputedNode, &CanvasElement)>,
     mut selection: ResMut<Selection>,
+    egui_input: Option<Res<EguiWantsInput>>,
 ) {
+    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
+        return;
+    }
     if !mouse.just_pressed(MouseButton::Left) {
         return;
     }
@@ -242,7 +247,11 @@ pub fn drag_system(
     elem_q: Query<(&GlobalTransform, &ComputedNode, &CanvasElement)>,
     mut selection: ResMut<Selection>,
     mut editor: ResMut<EditorScreen>,
+    egui_input: Option<Res<EguiWantsInput>>,
 ) {
+    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
+        return;
+    }
     let Ok(window) = windows.single() else { return };
     let Some(cursor) = window.cursor_position() else { return };
     let win_size = Vec2::new(window.width(), window.height());
@@ -302,7 +311,11 @@ pub fn z_order_system(
     selection: Res<Selection>,
     mut editor: ResMut<EditorScreen>,
     mut elem_q: Query<(&CanvasElement, &mut ZIndex)>,
+    egui_input: Option<Res<EguiWantsInput>>,
 ) {
+    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
+        return;
+    }
     let Some(sel_idx) = selection.index else { return };
 
     let delta = scroll.delta.y;
@@ -335,7 +348,11 @@ pub fn delete_system(
     keys: Res<ButtonInput<KeyCode>>,
     mut selection: ResMut<Selection>,
     mut editor: ResMut<EditorScreen>,
+    egui_input: Option<Res<EguiWantsInput>>,
 ) {
+    if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
+        return;
+    }
     if !keys.just_pressed(KeyCode::Delete) && !keys.just_pressed(KeyCode::Backspace) {
         return;
     }
