@@ -29,6 +29,45 @@ fn resolve_size(elem: &ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
         .unwrap_or((32.0, 32.0))
 }
 
+/// Color key transparency options.
+pub const TRANSPARENCY_OPTIONS: &[&str] = &["", "black", "cyan", "lime", "red", "magenta", "blue"];
+
+/// Load a texture with optional color-key transparency applied.
+fn load_texture_with_transparency(
+    tex_name: &str,
+    transparent_color: &str,
+    ui_assets: &mut UiAssets,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    cfg: &GameConfig,
+) -> Option<Handle<Image>> {
+    let bare = tex_name.split('/').last().unwrap_or(tex_name);
+    if transparent_color.is_empty() {
+        return ui_assets
+            .get_or_load(tex_name, game_assets, images, cfg)
+            .or_else(|| ui_assets.get_or_load(bare, game_assets, images, cfg));
+    }
+    // Use a cache key that includes the transparency mode.
+    let cache_key = format!("{}@t_{}", tex_name, transparent_color);
+    let source = if ui_assets.get_or_load(tex_name, game_assets, images, cfg).is_some() {
+        tex_name
+    } else {
+        bare
+    };
+    let tc = transparent_color.to_string();
+    ui_assets.get_or_load_transformed(source, &cache_key, game_assets, images, cfg, move |img| {
+        crate::game::hud::make_transparent_where(img, |r, g, b| match tc.as_str() {
+            "black" => r < 30 && g < 30 && b < 30,
+            "cyan" => r < 30 && g > 200 && b > 200,
+            "lime" => r < 30 && g > 200 && b < 30,
+            "red" => r > 200 && g < 30 && b < 30,
+            "magenta" => r > 200 && g < 30 && b > 200,
+            "blue" => r < 30 && g < 30 && b > 200,
+            _ => false,
+        });
+    })
+}
+
 /// Runtime state of the screen being edited.
 #[derive(Resource)]
 pub struct EditorScreen {
@@ -146,7 +185,7 @@ fn spawn_element(
 
     let tex_name = elem.texture_for_state("default").unwrap_or("").to_string();
     let maybe_handle = if !tex_name.is_empty() {
-        ui_assets.get_or_load(&tex_name, game_assets, images, cfg)
+        load_texture_with_transparency(&tex_name, &elem.transparent_color, ui_assets, game_assets, images, cfg)
     } else {
         None
     };
@@ -791,11 +830,14 @@ pub fn sync_element_positions(
             if let Some(ref state_name) = selection.preview_state {
                 if let Some(mut img) = image_node {
                     let tex_name = elem.states.get(state_name).map(|s| s.texture.as_str()).unwrap_or("");
-                    let bare = tex_name.split('/').last().unwrap_or(tex_name);
-                    if let Some(handle) = ui_assets
-                        .get_or_load(tex_name, &game_assets, &mut images, &cfg)
-                        .or_else(|| ui_assets.get_or_load(bare, &game_assets, &mut images, &cfg))
-                    {
+                    if let Some(handle) = load_texture_with_transparency(
+                        tex_name,
+                        &elem.transparent_color,
+                        &mut ui_assets,
+                        &game_assets,
+                        &mut images,
+                        &cfg,
+                    ) {
                         img.image = handle;
                     }
                 }

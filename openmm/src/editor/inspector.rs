@@ -112,6 +112,24 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                 }
             });
 
+            // Transparency color key.
+            let current_tc = editor.screen.elements[sel_idx].transparent_color.clone();
+            let tc_label = if current_tc.is_empty() { "none" } else { &current_tc };
+            ui.horizontal(|ui| {
+                ui.label("Transparent:");
+                egui::ComboBox::from_id_salt("tc_combo")
+                    .selected_text(tc_label)
+                    .show_ui(ui, |ui| {
+                        for &opt in super::canvas::TRANSPARENCY_OPTIONS {
+                            let label = if opt.is_empty() { "none" } else { opt };
+                            if ui.selectable_label(current_tc == opt, label).clicked() {
+                                editor.screen.elements[sel_idx].transparent_color = opt.to_string();
+                                editor.dirty = true;
+                            }
+                        }
+                    });
+            });
+
             ui.separator();
 
             // ── States ───────────────────────────────────────────────

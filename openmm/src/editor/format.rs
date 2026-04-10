@@ -31,6 +31,10 @@ pub struct ScreenElement {
     /// offset_x, offset_y, visible), Value = variable name (e.g. "player.compass_yaw").
     #[serde(default)]
     pub bindings: BTreeMap<String, String>,
+    /// Color key for transparency. Empty = no transparency.
+    /// Values: "black", "cyan", "lime", "red", "magenta", "blue".
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub transparent_color: String,
 }
 
 /// Visual state of an element — texture + optional trigger condition.
@@ -72,6 +76,7 @@ impl ScreenElement {
             on_click: Vec::new(),
             on_hover: Vec::new(),
             bindings: BTreeMap::new(),
+            transparent_color: String::new(),
         }
     }
 
