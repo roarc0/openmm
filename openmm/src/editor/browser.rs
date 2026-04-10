@@ -130,11 +130,7 @@ fn place_element(
     // Resolve the icon name — strip "bitmaps/" prefix for the lookup key.
     let icon_name = name.strip_prefix("bitmaps/").unwrap_or(name);
 
-    let mut elem = ScreenElement::new(
-        format!("elem_{}", editor.screen.elements.len()),
-        icon_name,
-        (REF_W / 2.0, REF_H / 2.0),
-    );
+    let mut elem = ScreenElement::new(icon_name, icon_name, (REF_W / 2.0, REF_H / 2.0));
 
     // Try to get dimensions from the loaded texture.
     if let Some(handle) = ui_assets.get_or_load(icon_name, game_assets, images, cfg) {

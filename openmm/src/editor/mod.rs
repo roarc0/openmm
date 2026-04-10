@@ -112,7 +112,7 @@ fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorS
             let screens = io::list_screens();
             if !screens.is_empty() {
                 egui::ComboBox::from_label("Open")
-                    .selected_text("— pick screen —")
+                    .selected_text(&editor.screen.id)
                     .show_ui(ui, |ui| {
                         for name in &screens {
                             if ui.selectable_label(false, name).clicked() {
