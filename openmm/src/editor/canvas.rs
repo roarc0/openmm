@@ -178,29 +178,31 @@ pub fn draw_overlays(
         let rect = egui::Rect::from_min_size(egui::pos2(sx, sy), egui::vec2(sw, sh));
 
         let is_selected = selection.index == Some(i);
-        let stroke = if is_selected {
-            egui::Stroke::new(2.0, egui::Color32::YELLOW)
+        let (stroke, text_color) = if is_selected {
+            (
+                egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 0, 255)),
+                egui::Color32::from_rgb(255, 0, 255),
+            )
         } else {
-            egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(128, 128, 128, 100))
+            (
+                egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(128, 128, 128, 100)),
+                egui::Color32::from_rgba_unmultiplied(200, 200, 200, 150),
+            )
         };
 
-        painter.rect_stroke(rect, 0.0, stroke, egui::StrokeKind::Outside);
+        // Border drawn inside the sprite rect.
+        painter.rect_stroke(rect, 0.0, stroke, egui::StrokeKind::Inside);
 
-        // Label: id[w,h]@(x,y)
+        // Label inside the sprite, top-left corner.
         let label = format!(
             "{}[{},{}]@({},{})",
             elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32,
         );
-        let text_color = if is_selected {
-            egui::Color32::YELLOW
-        } else {
-            egui::Color32::from_rgba_unmultiplied(200, 200, 200, 150)
-        };
         painter.text(
-            rect.left_top() + egui::vec2(2.0, -14.0),
+            rect.left_top() + egui::vec2(3.0, 2.0),
             egui::Align2::LEFT_TOP,
             label,
-            egui::FontId::proportional(11.0),
+            egui::FontId::proportional(13.0),
             text_color,
         );
     }
