@@ -42,8 +42,7 @@ impl Plugin for EditorPlugin {
                 Update,
                 (
                     canvas::rebuild_canvas,
-                    canvas::selection_system,
-                    canvas::drag_system,
+                    (canvas::selection_system, canvas::drag_system).chain(),
                     canvas::sync_element_positions,
                     canvas::z_order_system,
                     canvas::delete_system,
