@@ -1,14 +1,14 @@
 (
-    id: "segue",
+    id: "menu_load",
     elements: [
         Image((
-            id: "icons/Segue_bg.pcx",
+            id: "icons/LSAVE640.PCX",
             position: (0.0, 0.0),
             size: (640.0, 480.0),
             z: 1,
             states: {
                 "default": (
-                    texture: "icons/Segue_bg.pcx",
+                    texture: "icons/LSAVE640.PCX",
                 ),
             },
             on_click: [],
@@ -16,29 +16,29 @@
             bindings: {},
         )),
         Image((
-            id: "icons/CREAT_DN",
-            position: (74.0, 434.0),
-            size: (218.0, 40.0),
-            z: 2,
+            id: "icons/Load1",
+            position: (100.0, 202.0),
+            size: (215.0, 39.0),
+            z: 4,
             states: {
                 "default": (
-                    texture: "icons/CREAT_DN",
+                    texture: "icons/Load1",
                 ),
             },
-            on_click: [
-                "LoadScreen(\"create_party\")",
+            on_click: [],
+            on_hover: [
+                "PulseSprite()",
             ],
-            on_hover: [],
             bindings: {},
         )),
         Image((
-            id: "icons/QUICK_DN",
-            position: (349.0, 434.0),
+            id: "icons/load_up",
+            position: (100.0, 201.0),
             size: (218.0, 40.0),
             z: 3,
             states: {
                 "default": (
-                    texture: "icons/QUICK_DN",
+                    texture: "icons/load_up",
                 ),
             },
             on_click: [

@@ -57,8 +57,8 @@ pub fn list_screens() -> Vec<String> {
     names
 }
 
-/// Resolve element size: explicit size > texture dimensions > 32x32 fallback.
-pub fn resolve_size(elem: &super::ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
+/// Resolve image element size: explicit size > texture dimensions > 32x32 fallback.
+pub fn resolve_image_size(elem: &super::ImageElement, ui_assets: &UiAssets) -> (f32, f32) {
     let (w, h) = elem.size;
     if w > 0.0 && h > 0.0 {
         return (w, h);

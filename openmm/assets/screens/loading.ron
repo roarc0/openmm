@@ -1,0 +1,89 @@
+(
+    id: "loading",
+    elements: [
+        Image((
+            id: "icons/loading.pcx",
+            position: (0.0, 0.0),
+            size: (640.0, 480.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/loading.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/demover.pcx",
+            position: (449.0, 56.0),
+            size: (123.0, 171.0),
+            z: 2,
+            states: {
+                "default": (
+                    texture: "icons/demover.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/demover2.pcx",
+            position: (449.0, 56.0),
+            size: (123.0, 171.0),
+            z: 3,
+            states: {
+                "default": (
+                    texture: "icons/demover2.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/womover.pcx",
+            position: (118.0, 151.0),
+            size: (93.0, 59.0),
+            z: 4,
+            states: {
+                "default": (
+                    texture: "icons/womover.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/womover2.pcx",
+            position: (118.0, 151.0),
+            size: (93.0, 59.0),
+            z: 5,
+            states: {
+                "default": (
+                    texture: "icons/womover2.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/Smokover.PCX",
+            position: (202.0, 168.0),
+            size: (263.0, 23.0),
+            z: 6,
+            states: {
+                "default": (
+                    texture: "icons/Smokover.PCX",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+    ],
+)

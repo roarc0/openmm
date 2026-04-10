@@ -4,30 +4,38 @@ use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
 use super::canvas::EditorScreen;
-use crate::screens::{REF_H, REF_W, ScreenElement};
+use openmm_data::Archive;
+use openmm_data::assets::SmkArchive;
+
+use crate::screens::{ImageElement, REF_H, REF_W, ScreenElement, VideoElement};
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::hud::UiAssets;
 
-/// Filter to only LOD image archives (icons, bitmaps, sprites).
-fn lod_archive_names(assets: &openmm_data::Assets, all: Vec<String>) -> Vec<String> {
-    let known = ["icons", "bitmaps", "sprites"];
+/// Filter to LOD image archives and VID video archives (exclude sound archives).
+fn browsable_archive_names(assets: &openmm_data::Assets, all: Vec<String>) -> Vec<String> {
     all.into_iter()
         .filter(|name| {
-            let lower = name.to_lowercase();
-            known.iter().any(|k| lower == *k) || assets.files_in(name).is_some_and(|f| !f.is_empty())
+            assets.files_in(name).is_some_and(|f| !f.is_empty())
         })
         .filter(|name| {
             let lower = name.to_lowercase();
-            !lower.contains("snd") && !lower.contains("smk") && !lower.contains("vid")
+            !lower.contains("snd")
         })
         .collect()
 }
 
-/// One LOD archive and its file list.
+/// True if the archive name looks like a VID/SMK video archive.
+fn is_video_archive(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    lower.contains("anims") || lower.contains("vid") || lower.contains("smk")
+}
+
+/// One archive and its file list.
 struct LodFolder {
     name: String,
     files: Vec<String>,
+    is_video: bool,
 }
 
 /// Browser panel state.
@@ -57,7 +65,7 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
     let mut archive_names = assets.archives();
     archive_names.sort();
 
-    let lod_archives: Vec<String> = lod_archive_names(&assets, archive_names);
+    let lod_archives: Vec<String> = browsable_archive_names(&assets, archive_names);
 
     for archive in &lod_archives {
         let mut files = assets.files_in(archive).unwrap_or_default();
@@ -66,7 +74,30 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
         browser.folders.push(LodFolder {
             name: archive.clone(),
             files: prefixed,
+            is_video: false,
         });
+    }
+
+    // Discover VID archives in the Anims sibling directory.
+    let data_path = openmm_data::get_data_path();
+    let base = std::path::Path::new(&data_path);
+    let parent = base.parent().unwrap_or(base);
+    if let Some(anims_dir) = openmm_data::utils::find_path_case_insensitive(parent, "Anims") {
+        for vid_name in &["Anims1.vid", "Anims2.vid"] {
+            if let Some(path) = openmm_data::utils::find_path_case_insensitive(&anims_dir, vid_name) {
+                if let Ok(vid) = SmkArchive::open(&path) {
+                    let mut files: Vec<String> = vid.list_files().iter().map(|e| e.name.clone()).collect();
+                    files.sort();
+                    let folder_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or(vid_name).to_string();
+                    let prefixed: Vec<String> = files.into_iter().map(|f| format!("{}/{}", folder_name, f)).collect();
+                    browser.folders.push(LodFolder {
+                        name: folder_name,
+                        files: prefixed,
+                        is_video: true,
+                    });
+                }
+            }
+        }
     }
 
     browser.filtered.clear();
@@ -143,10 +174,12 @@ pub fn browser_ui(
                 ui.separator();
                 let folder_count = browser.folders.len();
                 for i in 0..folder_count {
+                    let tag = if browser.folders[i].is_video { " [VID]" } else { "" };
                     let label = format!(
-                        "{}/  ({} files)",
+                        "{}/  ({} files){}",
                         browser.folders[i].name,
-                        browser.folders[i].files.len()
+                        browser.folders[i].files.len(),
+                        tag,
                     );
                     if ui.button(&label).clicked() {
                         browser.current_folder = Some(i);
@@ -157,6 +190,7 @@ pub fn browser_ui(
             }
             Some(folder_idx) => {
                 let folder_name = browser.folders[folder_idx].name.clone();
+                let folder_is_video = browser.folders[folder_idx].is_video;
 
                 ui.horizontal(|ui| {
                     if ui.button("<- Back").clicked() {
@@ -203,14 +237,18 @@ pub fn browser_ui(
                                         .unwrap_or(full_name);
                                     let resp = ui.button(short);
                                     if resp.clicked() {
-                                        place_element(
-                                            full_name,
-                                            &mut editor,
-                                            &mut ui_assets,
-                                            &game_assets,
-                                            &mut images,
-                                            &cfg,
-                                        );
+                                        if folder_is_video {
+                                            place_video_element(short, &mut editor);
+                                        } else {
+                                            place_element(
+                                                full_name,
+                                                &mut editor,
+                                                &mut ui_assets,
+                                                &game_assets,
+                                                &mut images,
+                                                &cfg,
+                                            );
+                                        }
                                     }
                                     if resp.hovered() {
                                         new_hover = Some(full_name.clone());
@@ -270,10 +308,10 @@ fn place_element(
     images: &mut Assets<Image>,
     cfg: &GameConfig,
 ) {
-    let max_z = editor.screen.elements.iter().map(|e| e.z).max().unwrap_or(0);
+    let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
 
-    let mut elem = ScreenElement::new(name, name, (REF_W / 2.0, REF_H / 2.0));
-    elem.z = max_z + 1;
+    let mut img = ImageElement::new(name, name, (REF_W / 2.0, REF_H / 2.0));
+    img.z = max_z + 1;
 
     let bare = name.split('/').last().unwrap_or(name);
     let handle = ui_assets
@@ -283,10 +321,32 @@ fn place_element(
     if handle.is_some() {
         let dims = ui_assets.dimensions(name).or_else(|| ui_assets.dimensions(bare));
         if let Some((w, h)) = dims {
-            elem.size = (w as f32, h as f32);
+            img.size = (w as f32, h as f32);
         }
     }
 
-    editor.screen.elements.push(elem);
+    editor.screen.elements.push(ScreenElement::Image(img));
+    editor.dirty = true;
+}
+
+/// Create a new video element from a VID archive entry.
+fn place_video_element(name: &str, editor: &mut EditorScreen) {
+    let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
+    // Strip extension if present (e.g. "3dologo.smk" -> "3dologo").
+    let video_name = name.strip_suffix(".smk").or_else(|| name.strip_suffix(".SMK")).unwrap_or(name);
+
+    let vid = VideoElement {
+        id: format!("vid_{}", video_name),
+        position: (REF_W / 2.0, REF_H / 2.0),
+        size: (320.0, 240.0),
+        z: max_z + 1,
+        video: video_name.to_string(),
+        hidden: false,
+        looping: false,
+        skippable: false,
+        on_end: Vec::new(),
+    };
+
+    editor.screen.elements.push(ScreenElement::Video(vid));
     editor.dirty = true;
 }

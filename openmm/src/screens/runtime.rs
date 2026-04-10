@@ -1,24 +1,37 @@
-//! Screen runtime: renders a .ron screen definition as Bevy UI.
+//! Screen runtime: renders .ron screen definitions as composable Bevy UI layers.
 //! Activated via `--screens=<id>` CLI flag.
+//!
+//! Multiple screens can be visible simultaneously (e.g. HUD + building UI).
+//! - `LoadScreen("x")` — replaces ALL screens with a single new one
+//! - `ShowScreen("x")` — adds a screen layer on top of existing ones
+//! - `HideScreen("x")` — removes a specific screen layer
+
+use std::collections::HashMap;
 
 use bevy::prelude::*;
 
-use super::{REF_H, REF_W, Screen, ScreenElement, load_screen, load_texture_with_transparency, resolve_size};
+use bevy::asset::RenderAssetUsages;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use openmm_data::Archive;
+use openmm_data::assets::{SmkArchive as Vid, SmkDecoder};
+
+use super::{REF_H, REF_W, Screen, ScreenElement, ImageElement, VideoElement, load_screen, load_texture_with_transparency, resolve_image_size};
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::hud::UiAssets;
 use crate::GameState;
 
-/// Plugin that drives the screen runtime when `--screens` is set.
 pub struct ScreenRuntimePlugin;
 
 impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Menu), screen_setup)
+        app.init_resource::<ScreenLayers>()
+            .add_systems(OnEnter(GameState::Menu), screen_setup)
             .add_systems(OnExit(GameState::Menu), screen_teardown)
             .add_systems(
                 Update,
-                (screen_hover, screen_click, click_flash_tick, handle_load_screen)
+                (screen_hover, pulse_hover, pulse_animate, screen_click, screen_keys,
+                 video_tick, click_flash_tick, process_pending_actions)
                     .run_if(in_state(GameState::Menu)),
             );
     }
@@ -26,11 +39,14 @@ impl Plugin for ScreenRuntimePlugin {
 
 // ── Components & resources ──────────────────────────────────────────────────
 
-#[derive(Component)]
-struct OnScreenRuntime;
+/// Tags an entity as belonging to a specific screen layer.
+#[derive(Component, Clone)]
+struct ScreenLayer(String);
 
+/// Maps a Bevy entity to a screen element index within its layer.
 #[derive(Component)]
 struct RuntimeElement {
+    screen_id: String,
     index: usize,
 }
 
@@ -38,24 +54,52 @@ struct RuntimeElement {
 struct HoverOverlay;
 
 #[derive(Component)]
-struct ScreenMusic;
+struct ScreenMusic(String);
 
-/// Hides element briefly on click, then fires pending actions.
 #[derive(Component)]
 struct ClickFlash {
     timer: Timer,
     pending_actions: Vec<String>,
 }
 
-#[derive(Resource)]
-struct RuntimeScreen {
-    screen: Screen,
+/// Element starts hidden (from `hidden: true` in RON). Restored to Hidden on unhover.
+#[derive(Component)]
+struct HiddenByDefault;
+
+/// Runtime state for an inline SMK video.
+#[derive(Component)]
+struct InlineVideo {
+    decoder: SmkDecoder,
+    image_handle: Handle<Image>,
+    frame_timer: f32,
+    spf: f32,
+    looping: bool,
+    skippable: bool,
+    on_end: Vec<String>,
+    smk_bytes: Vec<u8>,
+    finished: bool,
 }
 
-/// Queued screen transition — processed by `handle_load_screen`.
-#[derive(Resource)]
-struct PendingLoadScreen {
-    screen_id: String,
+/// Element has PulseSprite() in on_hover — eligible for pulse animation.
+#[derive(Component)]
+struct Pulsable;
+
+/// Currently pulsing (hover active). Accumulates time for sine wave.
+#[derive(Component)]
+struct Pulsing {
+    elapsed: f32,
+}
+
+/// All active screen layers, keyed by screen id.
+#[derive(Resource, Default)]
+struct ScreenLayers {
+    screens: HashMap<String, Screen>,
+}
+
+/// Queued actions from click handlers, processed next frame.
+#[derive(Resource, Default)]
+struct PendingActions {
+    actions: Vec<String>,
 }
 
 // ── Setup & teardown ────────────────────────────────────────────────────────
@@ -67,45 +111,123 @@ fn screen_setup(
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
-    pending: Option<Res<PendingLoadScreen>>,
+    mut layers: ResMut<ScreenLayers>,
 ) {
-    let screen_id = if let Some(ref p) = pending {
-        p.screen_id.clone()
-    } else if let Some(ref id) = cfg.screens {
-        id.clone()
-    } else {
-        return;
-    };
-    commands.remove_resource::<PendingLoadScreen>();
+    let Some(ref screen_id) = cfg.screens else { return };
 
-    let screen = match load_screen(&screen_id) {
+    // Camera shared across all layers.
+    commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
+
+    show_screen(
+        screen_id,
+        &mut commands,
+        &mut layers,
+        &mut ui_assets,
+        &game_assets,
+        &mut images,
+        &mut audio_sources,
+        &cfg,
+    );
+}
+
+fn screen_teardown(
+    mut commands: Commands,
+    entities: Query<Entity, With<ScreenLayer>>,
+    mut layers: ResMut<ScreenLayers>,
+) {
+    for entity in &entities {
+        commands.entity(entity).despawn();
+    }
+    layers.screens.clear();
+}
+
+// ── Show / Hide / Load ──────────────────────────────────────────────────────
+
+fn show_screen(
+    screen_id: &str,
+    commands: &mut Commands,
+    layers: &mut ScreenLayers,
+    ui_assets: &mut UiAssets,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    audio_sources: &mut Assets<AudioSource>,
+    cfg: &GameConfig,
+) {
+    if layers.screens.contains_key(screen_id) {
+        warn!("ShowScreen: '{}' already visible", screen_id);
+        return;
+    }
+
+    let screen = match load_screen(screen_id) {
         Ok(s) => s,
         Err(e) => {
-            error!("failed to load screen '{}': {}", screen_id, e);
+            error!("ShowScreen: failed to load '{}': {}", screen_id, e);
             return;
         }
     };
 
-    info!("screen runtime: loaded '{}' ({} elements)", screen.id, screen.elements.len());
+    info!("ShowScreen: '{}' ({} elements)", screen.id, screen.elements.len());
 
-    commands.spawn((Camera2d, OnScreenRuntime));
-
-    // Background music.
     if !screen.bg_music.is_empty() {
-        spawn_screen_music(&mut commands, &mut audio_sources, &screen.bg_music, &cfg);
+        spawn_screen_music(commands, audio_sources, &screen.bg_music, screen_id, cfg);
     }
 
+    let layer_tag = ScreenLayer(screen_id.to_string());
     for (i, elem) in screen.elements.iter().enumerate() {
-        spawn_runtime_element(&mut commands, &mut ui_assets, &game_assets, &mut images, &cfg, elem, i);
+        spawn_runtime_element(commands, ui_assets, game_assets, images, cfg, elem, i, screen_id, &layer_tag, audio_sources);
     }
 
-    commands.insert_resource(RuntimeScreen { screen });
+    layers.screens.insert(screen_id.to_string(), screen);
 }
+
+fn hide_screen(
+    screen_id: &str,
+    commands: &mut Commands,
+    layers: &mut ScreenLayers,
+    entities: &Query<(Entity, &ScreenLayer)>,
+) {
+    if layers.screens.remove(screen_id).is_none() {
+        warn!("HideScreen: '{}' not visible", screen_id);
+        return;
+    }
+
+    info!("HideScreen: '{}'", screen_id);
+    for (entity, layer) in entities.iter() {
+        if layer.0 == screen_id {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn load_screen_replace_all(
+    screen_id: &str,
+    commands: &mut Commands,
+    layers: &mut ScreenLayers,
+    entities: &Query<(Entity, &ScreenLayer)>,
+    ui_assets: &mut UiAssets,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    audio_sources: &mut Assets<AudioSource>,
+    cfg: &GameConfig,
+) {
+    // Despawn everything except the camera.
+    for (entity, layer) in entities.iter() {
+        if layer.0 != "__camera__" {
+            commands.entity(entity).despawn();
+        }
+    }
+    layers.screens.clear();
+
+    show_screen(screen_id, commands, layers, ui_assets, game_assets, images, audio_sources, cfg);
+}
+
+// ── Music ───────────────────────────────────────────────────────────────────
 
 fn spawn_screen_music(
     commands: &mut Commands,
     audio_sources: &mut Assets<AudioSource>,
     track: &str,
+    screen_id: &str,
     cfg: &GameConfig,
 ) {
     let data_path = openmm_data::get_data_path();
@@ -125,8 +247,8 @@ fn spawn_screen_music(
                     volume: bevy::audio::Volume::Linear(cfg.music_volume),
                     ..default()
                 },
-                ScreenMusic,
-                OnScreenRuntime,
+                ScreenMusic(screen_id.to_string()),
+                ScreenLayer(screen_id.to_string()),
             ));
             info!("screen music: playing '{}' from {:?}", track, path);
         } else {
@@ -137,17 +259,191 @@ fn spawn_screen_music(
     }
 }
 
-fn screen_teardown(mut commands: Commands, entities: Query<Entity, With<OnScreenRuntime>>) {
-    for entity in &entities {
-        commands.entity(entity).despawn();
-    }
-    commands.remove_resource::<RuntimeScreen>();
+// ── Video spawning ──────────────────────────────────────────────────────────
+
+/// Build a minimal WAV from raw PCM bytes.
+fn build_wav(pcm: &[u8], channels: u8, sample_rate: u32, bitdepth: u8) -> Vec<u8> {
+    let data_len = pcm.len() as u32;
+    let block_align = (channels as u32) * (bitdepth as u32 / 8);
+    let byte_rate = sample_rate * block_align;
+    let mut wav = Vec::with_capacity(44 + pcm.len());
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&(channels as u16).to_le_bytes());
+    wav.extend_from_slice(&sample_rate.to_le_bytes());
+    wav.extend_from_slice(&byte_rate.to_le_bytes());
+    wav.extend_from_slice(&(block_align as u16).to_le_bytes());
+    wav.extend_from_slice(&(bitdepth as u16).to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    wav.extend_from_slice(pcm);
+    wav
 }
 
-/// Despawn all runtime entities in-place (for screen-to-screen transitions without state change).
-fn despawn_runtime(commands: &mut Commands, entities: &Query<Entity, With<OnScreenRuntime>>) {
-    for entity in entities.iter() {
-        commands.entity(entity).despawn();
+/// Load SMK bytes from Anims1.vid / Anims2.vid.
+fn load_smk_bytes(name: &str) -> Option<Vec<u8>> {
+    let data_path = openmm_data::get_data_path();
+    let base = std::path::Path::new(&data_path);
+    let parent = base.parent().unwrap_or(base);
+    let anims_dir = openmm_data::utils::find_path_case_insensitive(parent, "Anims")?;
+
+    ["Anims1.vid", "Anims2.vid"].iter().find_map(|fname| {
+        let path = openmm_data::utils::find_path_case_insensitive(&anims_dir, fname)?;
+        let vid = Vid::open(&path).ok()?;
+        vid.get_file(name)
+    })
+}
+
+fn spawn_video_element(
+    commands: &mut Commands,
+    images: &mut Assets<Image>,
+    audio_sources: &mut Assets<AudioSource>,
+    vid: &VideoElement,
+    layer_tag: &ScreenLayer,
+) {
+    let Some(bytes) = load_smk_bytes(&vid.video) else {
+        warn!("video element '{}': '{}' not found in Anims VID archives", vid.id, vid.video);
+        return;
+    };
+
+    let mut decoder = match SmkDecoder::new(bytes.clone()) {
+        Ok(d) => d,
+        Err(e) => {
+            warn!("video element '{}': failed to decode '{}': {e}", vid.id, vid.video);
+            return;
+        }
+    };
+
+    let native_w = decoder.width;
+    let native_h = decoder.height;
+    let spf = if decoder.fps > 0.0 { 1.0 / decoder.fps } else { 1.0 / 15.0 };
+
+    if let Some(audio_info) = decoder.audio
+        && let Ok(mut audio_dec) = SmkDecoder::new(bytes.clone())
+    {
+        let mut pcm: Vec<u8> = Vec::new();
+        while audio_dec.next_frame().is_some() {
+            pcm.extend_from_slice(&audio_dec.decode_current_audio());
+        }
+        if !pcm.is_empty() {
+            let wav = build_wav(&pcm, audio_info.channels, audio_info.rate, audio_info.bitdepth);
+            let handle = audio_sources.add(AudioSource { bytes: wav.into() });
+            let mode = if vid.looping {
+                bevy::audio::PlaybackMode::Loop
+            } else {
+                bevy::audio::PlaybackMode::Despawn
+            };
+            commands.spawn((AudioPlayer(handle), PlaybackSettings { mode, ..default() }, layer_tag.clone()));
+        }
+    }
+
+    let mut image = Image::new_fill(
+        Extent3d { width: native_w, height: native_h, depth_or_array_layers: 1 },
+        TextureDimension::D2,
+        &[0, 0, 0, 255],
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+    );
+    if let Some(rgba) = decoder.next_frame() {
+        image.data = Some(rgba);
+    }
+    let image_handle = images.add(image);
+
+    let (w, h) = if vid.size.0 > 0.0 && vid.size.1 > 0.0 {
+        vid.size
+    } else {
+        (native_w as f32, native_h as f32)
+    };
+
+    let initial_vis = if vid.hidden { Visibility::Hidden } else { Visibility::Inherited };
+
+    commands.spawn((
+        ImageNode::new(image_handle.clone()),
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(vid.position.0 / REF_W * 100.0),
+            top: Val::Percent(vid.position.1 / REF_H * 100.0),
+            width: Val::Percent(w / REF_W * 100.0),
+            height: Val::Percent(h / REF_H * 100.0),
+            ..default()
+        },
+        ZIndex(vid.z),
+        initial_vis,
+        layer_tag.clone(),
+        InlineVideo {
+            decoder,
+            image_handle,
+            frame_timer: 0.0,
+            spf,
+            looping: vid.looping,
+            skippable: vid.skippable,
+            on_end: vid.on_end.clone(),
+            smk_bytes: bytes,
+            finished: false,
+        },
+    ));
+
+    info!("video element '{}': '{}' ({}x{}, {:.1}fps, loop={})", vid.id, vid.video, native_w, native_h, 1.0/spf, vid.looping);
+}
+
+/// Advance inline video frames and dispatch on_end actions.
+fn video_tick(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut InlineVideo)>,
+    mut images: ResMut<Assets<Image>>,
+    keys: Res<ButtonInput<KeyCode>>,
+    pending: Option<Res<PendingActions>>,
+) {
+    for (entity, mut vid) in &mut query {
+        if vid.finished {
+            continue;
+        }
+
+        // Skip check.
+        if vid.skippable && keys.just_pressed(KeyCode::Escape) {
+            vid.finished = true;
+            if !vid.on_end.is_empty() && pending.is_none() {
+                commands.insert_resource(PendingActions { actions: vid.on_end.clone() });
+            }
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        vid.frame_timer += time.delta_secs();
+        if vid.frame_timer < vid.spf {
+            continue;
+        }
+        vid.frame_timer -= vid.spf;
+
+        match vid.decoder.next_frame() {
+            Some(rgba) => {
+                if let Some(img) = images.get_mut(&vid.image_handle) {
+                    img.data = Some(rgba);
+                }
+            }
+            None => {
+                if vid.looping {
+                    // Restart decoder from beginning.
+                    if let Ok(new_dec) = SmkDecoder::new(vid.smk_bytes.clone()) {
+                        vid.decoder = new_dec;
+                        vid.frame_timer = 0.0;
+                    } else {
+                        vid.finished = true;
+                    }
+                } else {
+                    vid.finished = true;
+                    if !vid.on_end.is_empty() && pending.is_none() {
+                        commands.insert_resource(PendingActions { actions: vid.on_end.clone() });
+                    }
+                    commands.entity(entity).despawn();
+                }
+            }
+        }
     }
 }
 
@@ -161,41 +457,73 @@ fn spawn_runtime_element(
     cfg: &GameConfig,
     elem: &ScreenElement,
     index: usize,
+    screen_id: &str,
+    layer_tag: &ScreenLayer,
+    audio_sources: &mut Assets<AudioSource>,
 ) {
-    let (w, h) = resolve_size(elem, ui_assets);
+    match elem {
+        ScreenElement::Image(img) => {
+            spawn_image_element(commands, ui_assets, game_assets, images, cfg, img, index, screen_id, layer_tag);
+        }
+        ScreenElement::Video(vid) => {
+            spawn_video_element(commands, images, audio_sources, vid, layer_tag);
+        }
+    }
+}
+
+fn spawn_image_element(
+    commands: &mut Commands,
+    ui_assets: &mut UiAssets,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    cfg: &GameConfig,
+    img: &ImageElement,
+    index: usize,
+    screen_id: &str,
+    layer_tag: &ScreenLayer,
+) {
+    let (w, h) = resolve_image_size(img, ui_assets);
 
     let node = Node {
         position_type: PositionType::Absolute,
-        left: Val::Percent(elem.position.0 / REF_W * 100.0),
-        top: Val::Percent(elem.position.1 / REF_H * 100.0),
+        left: Val::Percent(img.position.0 / REF_W * 100.0),
+        top: Val::Percent(img.position.1 / REF_H * 100.0),
         width: Val::Percent(w / REF_W * 100.0),
         height: Val::Percent(h / REF_H * 100.0),
         ..default()
     };
 
-    let default_tex = elem.texture_for_state("default").unwrap_or("").to_string();
+    let default_tex = img.texture_for_state("default").unwrap_or("").to_string();
     let default_handle = if !default_tex.is_empty() {
-        load_texture_with_transparency(&default_tex, &elem.transparent_color, ui_assets, game_assets, images, cfg)
+        load_texture_with_transparency(&default_tex, &img.transparent_color, ui_assets, game_assets, images, cfg)
     } else {
         None
     };
 
-    let hover_handle = elem.states.get("hover").and_then(|state| {
+    let hover_handle = img.states.get("hover").and_then(|state| {
         if state.texture.is_empty() {
             None
         } else {
-            load_texture_with_transparency(&state.texture, &elem.transparent_color, ui_assets, game_assets, images, cfg)
+            load_texture_with_transparency(&state.texture, &img.transparent_color, ui_assets, game_assets, images, cfg)
         }
     });
 
-    let has_interaction = hover_handle.is_some() || !elem.on_click.is_empty() || !elem.on_hover.is_empty();
-    let z = ZIndex(elem.z);
-    let marker = RuntimeElement { index };
+    let has_interaction = hover_handle.is_some() || !img.on_click.is_empty() || !img.on_hover.is_empty();
+    let has_pulse = img.on_hover.iter().any(|a| a.trim() == "PulseSprite()");
+    let z = ZIndex(img.z);
+    let marker = RuntimeElement { screen_id: screen_id.to_string(), index };
+    let initial_vis = if img.hidden { Visibility::Hidden } else { Visibility::Inherited };
 
     if let Some(handle) = default_handle {
-        let mut entity = commands.spawn((ImageNode::new(handle), node, z, marker, OnScreenRuntime));
+        let mut entity = commands.spawn((ImageNode::new(handle), node, z, marker, layer_tag.clone(), initial_vis));
         if has_interaction {
             entity.insert((Button, BackgroundColor(Color::NONE)));
+        }
+        if has_pulse {
+            entity.insert(Pulsable);
+        }
+        if img.hidden {
+            entity.insert(HiddenByDefault);
         }
         if let Some(h_handle) = hover_handle {
             entity.with_children(|parent| {
@@ -212,9 +540,15 @@ fn spawn_runtime_element(
             });
         }
     } else {
-        let mut entity = commands.spawn((node, z, marker, OnScreenRuntime));
+        let mut entity = commands.spawn((node, z, marker, layer_tag.clone(), initial_vis));
         if has_interaction {
             entity.insert((Button, BackgroundColor(Color::NONE)));
+        }
+        if has_pulse {
+            entity.insert(Pulsable);
+        }
+        if img.hidden {
+            entity.insert(HiddenByDefault);
         }
     }
 }
@@ -235,14 +569,49 @@ fn screen_hover(
     }
 }
 
+/// Start/stop pulsing on hover for Pulsable elements.
+fn pulse_hover(
+    mut commands: Commands,
+    query: Query<(Entity, &Interaction, Has<HiddenByDefault>), (Changed<Interaction>, With<Pulsable>)>,
+    pulsing_query: Query<&Pulsing>,
+    mut image_query: Query<&mut ImageNode>,
+) {
+    for (entity, interaction, hidden_default) in &query {
+        let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
+        if hovering && !pulsing_query.contains(entity) {
+            commands.entity(entity).insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
+        } else if !hovering && pulsing_query.contains(entity) {
+            commands.entity(entity).remove::<Pulsing>();
+            if let Ok(mut img) = image_query.get_mut(entity) {
+                img.color = img.color.with_alpha(1.0);
+            }
+            if hidden_default {
+                commands.entity(entity).insert(Visibility::Hidden);
+            }
+        }
+    }
+}
+
+/// Animate alpha on pulsing elements: smooth 0→1→0 each second via sine wave.
+fn pulse_animate(
+    time: Res<Time>,
+    mut query: Query<(&mut Pulsing, &mut ImageNode)>,
+) {
+    for (mut pulse, mut img) in &mut query {
+        pulse.elapsed += time.delta_secs();
+        // sin gives -1..1, remap to 0..1. Full cycle = 1 second (2π per second).
+        let alpha = (pulse.elapsed * std::f32::consts::TAU).sin() * 0.5 + 0.5;
+        img.color = img.color.with_alpha(alpha);
+    }
+}
+
 /// On click: hide element briefly, then fire actions after the flash.
 fn screen_click(
     mut commands: Commands,
     query: Query<(Entity, &Interaction, &RuntimeElement), (Changed<Interaction>, With<Button>)>,
-    runtime: Option<Res<RuntimeScreen>>,
+    layers: Res<ScreenLayers>,
     flash_query: Query<&ClickFlash>,
 ) {
-    let Some(runtime) = runtime else { return };
     for (entity, interaction, rt_elem) in &query {
         if *interaction != Interaction::Pressed {
             continue;
@@ -250,28 +619,125 @@ fn screen_click(
         if flash_query.contains(entity) {
             continue;
         }
-        let elem = &runtime.screen.elements[rt_elem.index];
-        if elem.on_click.is_empty() {
+        let Some(screen) = layers.screens.get(&rt_elem.screen_id) else { continue };
+        let elem = &screen.elements[rt_elem.index];
+        if elem.on_click().is_empty() {
             continue;
         }
 
-        info!("screen click [{}]", elem.id);
+        info!("screen click [{}/{}]", rt_elem.screen_id, elem.id());
         commands.entity(entity).insert((
             Visibility::Hidden,
             ClickFlash {
                 timer: Timer::from_seconds(0.15, TimerMode::Once),
-                pending_actions: elem.on_click.clone(),
+                pending_actions: elem.on_click().to_vec(),
             },
         ));
     }
 }
 
-/// Tick flash timers — when done, re-show element and dispatch actions.
+/// Check keyboard shortcuts defined in all active screens.
+fn screen_keys(
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+    layers: Res<ScreenLayers>,
+    pending: Option<Res<PendingActions>>,
+) {
+    // Don't queue keys while another action batch is pending.
+    if pending.is_some() {
+        return;
+    }
+    for screen in layers.screens.values() {
+        for (key_name, actions) in &screen.keys {
+            if let Some(code) = parse_key_code(key_name) {
+                if keys.just_pressed(code) {
+                    info!("screen key [{}]: {}", screen.id, key_name);
+                    commands.insert_resource(PendingActions {
+                        actions: actions.clone(),
+                    });
+                    return; // one key per frame
+                }
+            }
+        }
+    }
+}
+
+/// Map a key name string to a Bevy KeyCode.
+fn parse_key_code(name: &str) -> Option<KeyCode> {
+    Some(match name {
+        "Escape" => KeyCode::Escape,
+        "Return" | "Enter" => KeyCode::Enter,
+        "Space" => KeyCode::Space,
+        "Tab" => KeyCode::Tab,
+        "Backspace" => KeyCode::Backspace,
+        "Delete" => KeyCode::Delete,
+        "Up" => KeyCode::ArrowUp,
+        "Down" => KeyCode::ArrowDown,
+        "Left" => KeyCode::ArrowLeft,
+        "Right" => KeyCode::ArrowRight,
+        // Letters
+        "A" => KeyCode::KeyA,
+        "B" => KeyCode::KeyB,
+        "C" => KeyCode::KeyC,
+        "D" => KeyCode::KeyD,
+        "E" => KeyCode::KeyE,
+        "F" => KeyCode::KeyF,
+        "G" => KeyCode::KeyG,
+        "H" => KeyCode::KeyH,
+        "I" => KeyCode::KeyI,
+        "J" => KeyCode::KeyJ,
+        "K" => KeyCode::KeyK,
+        "L" => KeyCode::KeyL,
+        "M" => KeyCode::KeyM,
+        "N" => KeyCode::KeyN,
+        "O" => KeyCode::KeyO,
+        "P" => KeyCode::KeyP,
+        "Q" => KeyCode::KeyQ,
+        "R" => KeyCode::KeyR,
+        "S" => KeyCode::KeyS,
+        "T" => KeyCode::KeyT,
+        "U" => KeyCode::KeyU,
+        "V" => KeyCode::KeyV,
+        "W" => KeyCode::KeyW,
+        "X" => KeyCode::KeyX,
+        "Y" => KeyCode::KeyY,
+        "Z" => KeyCode::KeyZ,
+        // Numbers
+        "0" => KeyCode::Digit0,
+        "1" => KeyCode::Digit1,
+        "2" => KeyCode::Digit2,
+        "3" => KeyCode::Digit3,
+        "4" => KeyCode::Digit4,
+        "5" => KeyCode::Digit5,
+        "6" => KeyCode::Digit6,
+        "7" => KeyCode::Digit7,
+        "8" => KeyCode::Digit8,
+        "9" => KeyCode::Digit9,
+        // Function keys
+        "F1" => KeyCode::F1,
+        "F2" => KeyCode::F2,
+        "F3" => KeyCode::F3,
+        "F4" => KeyCode::F4,
+        "F5" => KeyCode::F5,
+        "F6" => KeyCode::F6,
+        "F7" => KeyCode::F7,
+        "F8" => KeyCode::F8,
+        "F9" => KeyCode::F9,
+        "F10" => KeyCode::F10,
+        "F11" => KeyCode::F11,
+        "F12" => KeyCode::F12,
+        other => {
+            warn!("unknown key name: '{}'", other);
+            return None;
+        }
+    })
+}
+
+/// Tick flash timers — collect actions into PendingActions for deferred processing.
 fn click_flash_tick(
     mut commands: Commands,
     time: Res<Time>,
     mut query: Query<(Entity, &mut ClickFlash, &mut Visibility)>,
-    mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
 ) {
     for (entity, mut flash, mut vis) in &mut query {
         flash.timer.tick(time.delta());
@@ -283,53 +749,43 @@ fn click_flash_tick(
         let actions: Vec<String> = flash.pending_actions.drain(..).collect();
         commands.entity(entity).remove::<ClickFlash>();
 
-        for action in &actions {
-            dispatch_action(action, &mut commands, &mut exit_writer);
+        if !actions.is_empty() {
+            commands.insert_resource(PendingActions { actions });
         }
     }
 }
 
-/// Process `PendingLoadScreen` — despawn current screen, load new one.
-fn handle_load_screen(
+/// Process queued actions with full system access (commands, layers, entities, exit).
+fn process_pending_actions(
     mut commands: Commands,
-    pending: Option<Res<PendingLoadScreen>>,
-    entities: Query<Entity, With<OnScreenRuntime>>,
+    pending: Option<Res<PendingActions>>,
+    mut layers: ResMut<ScreenLayers>,
+    layer_entities: Query<(Entity, &ScreenLayer)>,
     cfg: Res<GameConfig>,
     game_assets: Res<GameAssets>,
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
+    mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
 ) {
     let Some(pending) = pending else { return };
-    let screen_id = pending.screen_id.clone();
-    commands.remove_resource::<PendingLoadScreen>();
-    commands.remove_resource::<RuntimeScreen>();
+    let actions = pending.actions.clone();
+    commands.remove_resource::<PendingActions>();
 
-    // Despawn current screen.
-    despawn_runtime(&mut commands, &entities);
-
-    // Load new screen.
-    let screen = match load_screen(&screen_id) {
-        Ok(s) => s,
-        Err(e) => {
-            error!("LoadScreen: failed to load '{}': {}", screen_id, e);
-            return;
-        }
-    };
-
-    info!("LoadScreen: '{}' ({} elements)", screen.id, screen.elements.len());
-
-    commands.spawn((Camera2d, OnScreenRuntime));
-
-    if !screen.bg_music.is_empty() {
-        spawn_screen_music(&mut commands, &mut audio_sources, &screen.bg_music, &cfg);
+    for action in &actions {
+        dispatch_action(
+            action,
+            &mut commands,
+            &mut layers,
+            &layer_entities,
+            &mut ui_assets,
+            &game_assets,
+            &mut images,
+            &mut audio_sources,
+            &cfg,
+            &mut exit_writer,
+        );
     }
-
-    for (i, elem) in screen.elements.iter().enumerate() {
-        spawn_runtime_element(&mut commands, &mut ui_assets, &game_assets, &mut images, &cfg, elem, i);
-    }
-
-    commands.insert_resource(RuntimeScreen { screen });
 }
 
 // ── Action dispatch ─────────────────────────────────────────────────────────
@@ -337,6 +793,13 @@ fn handle_load_screen(
 fn dispatch_action(
     action: &str,
     commands: &mut Commands,
+    layers: &mut ScreenLayers,
+    layer_entities: &Query<(Entity, &ScreenLayer)>,
+    ui_assets: &mut UiAssets,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    audio_sources: &mut Assets<AudioSource>,
+    cfg: &GameConfig,
     exit_writer: &mut bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
 ) {
     let trimmed = action.trim();
@@ -353,11 +816,21 @@ fn dispatch_action(
         return;
     }
 
-    if let Some(inner) = parse_string_arg(trimmed, "LoadScreen") {
-        info!("action: LoadScreen(\"{}\")", inner);
-        commands.insert_resource(PendingLoadScreen {
-            screen_id: inner.to_string(),
-        });
+    if let Some(id) = parse_string_arg(trimmed, "LoadScreen") {
+        info!("action: LoadScreen(\"{}\")", id);
+        load_screen_replace_all(id, commands, layers, layer_entities, ui_assets, game_assets, images, audio_sources, cfg);
+        return;
+    }
+
+    if let Some(id) = parse_string_arg(trimmed, "ShowScreen") {
+        info!("action: ShowScreen(\"{}\")", id);
+        show_screen(id, commands, layers, ui_assets, game_assets, images, audio_sources, cfg);
+        return;
+    }
+
+    if let Some(id) = parse_string_arg(trimmed, "HideScreen") {
+        info!("action: HideScreen(\"{}\")", id);
+        hide_screen(id, commands, layers, layer_entities);
         return;
     }
 

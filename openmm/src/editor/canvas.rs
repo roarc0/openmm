@@ -11,9 +11,19 @@ use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::hud::UiAssets;
 use crate::screens::{
-    self, ElementState, REF_H, REF_W, Screen, ScreenElement, TRANSPARENCY_OPTIONS, load_texture_with_transparency,
-    resolve_size,
+    REF_H, REF_W, Screen, ScreenElement, TRANSPARENCY_OPTIONS,
+    load_texture_with_transparency, resolve_image_size,
 };
+
+/// Resolve element size: delegates to `resolve_image_size` for images, falls back to explicit size for videos.
+fn resolve_elem_size(elem: &ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
+    if let Some(img) = elem.as_image() {
+        resolve_image_size(img, ui_assets)
+    } else {
+        let (w, h) = elem.size();
+        if w > 0.0 && h > 0.0 { (w, h) } else { (32.0, 32.0) }
+    }
+}
 
 /// Generate a small checkerboard texture for the editor canvas background.
 fn generate_checkerboard(
@@ -41,6 +51,32 @@ fn generate_checkerboard(
             height: size,
             depth_or_array_layers: 1,
         },
+        bevy::render::render_resource::TextureDimension::D2,
+        data,
+        bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+        bevy::asset::RenderAssetUsages::RENDER_WORLD,
+    );
+    img.sampler = bevy::image::ImageSampler::nearest();
+    images.add(img)
+}
+
+/// Generate a crosshatch pattern texture for video placeholders.
+fn generate_stripes(images: &mut Assets<Image>) -> Handle<Image> {
+    let size = 128u32;
+    let cell = 32u32;
+    let bg: [u8; 4] = [40, 40, 45, 255];
+    let line: [u8; 4] = [70, 70, 80, 255];
+    let mut data = vec![0u8; (size * size * 4) as usize];
+    for y in 0..size {
+        for x in 0..size {
+            let idx = ((y * size + x) * 4) as usize;
+            let on_grid = x % cell == 0 || y % cell == 0;
+            let color = if on_grid { line } else { bg };
+            data[idx..idx + 4].copy_from_slice(&color);
+        }
+    }
+    let mut img = Image::new(
+        bevy::render::render_resource::Extent3d { width: size, height: size, depth_or_array_layers: 1 },
         bevy::render::render_resource::TextureDimension::D2,
         data,
         bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
@@ -108,9 +144,15 @@ pub fn rebuild_canvas(
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     editor.screen.elements.len().hash(&mut hasher);
     for elem in &editor.screen.elements {
-        elem.transparent_color.hash(&mut hasher);
-        // Also track default texture name so new elements trigger rebuild.
-        elem.texture_for_state("default").hash(&mut hasher);
+        match elem {
+            ScreenElement::Image(img) => {
+                img.transparent_color.hash(&mut hasher);
+                img.texture_for_state("default").hash(&mut hasher);
+            }
+            ScreenElement::Video(vid) => {
+                vid.video.hash(&mut hasher);
+            }
+        }
     }
     let fp = hasher.finish();
     if *last_fingerprint == fp {
@@ -161,39 +203,51 @@ fn spawn_element(
     elem: &ScreenElement,
     index: usize,
 ) {
-    let (w, h) = resolve_size(elem, ui_assets);
+    let (w, h) = resolve_elem_size(elem, ui_assets);
+    let pos = elem.position();
 
     let node = Node {
         position_type: PositionType::Absolute,
-        left: Val::Percent(elem.position.0 / REF_W * 100.0),
-        top: Val::Percent(elem.position.1 / REF_H * 100.0),
+        left: Val::Percent(pos.0 / REF_W * 100.0),
+        top: Val::Percent(pos.1 / REF_H * 100.0),
         width: Val::Percent(w / REF_W * 100.0),
         height: Val::Percent(h / REF_H * 100.0),
         ..default()
     };
 
-    let tex_name = elem.texture_for_state("default").unwrap_or("").to_string();
-    let maybe_handle = if !tex_name.is_empty() {
-        load_texture_with_transparency(&tex_name, &elem.transparent_color, ui_assets, game_assets, images, cfg)
-    } else {
-        None
-    };
-
-    let label = Name::new(format!("canvas_elem_{}", elem.id));
+    let label = Name::new(format!("canvas_elem_{}", elem.id()));
     let marker = CanvasElement { index };
-    let z = ZIndex(elem.z);
+    let z = ZIndex(elem.z());
 
-    if let Some(handle) = maybe_handle {
-        commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
-    } else {
-        commands.spawn((
-            label,
-            BackgroundColor(Color::srgba(1.0, 0.0, 1.0, 0.8)),
-            node,
-            z,
-            marker,
-            Pickable::IGNORE,
-        ));
+    if elem.as_video().is_some() {
+        // Video placeholder: horizontal black/white stripes.
+        let stripe_handle = generate_stripes(images);
+        let mut stripe_img = ImageNode::new(stripe_handle);
+        stripe_img.image_mode = bevy::ui::widget::NodeImageMode::Tiled {
+            tile_x: true,
+            tile_y: true,
+            stretch_value: 1.0,
+        };
+        commands.spawn((label, stripe_img, node, z, marker, Pickable::IGNORE));
+    } else if let Some(img) = elem.as_image() {
+        let tex_name = img.texture_for_state("default").unwrap_or("").to_string();
+        let maybe_handle = if !tex_name.is_empty() {
+            load_texture_with_transparency(&tex_name, &img.transparent_color, ui_assets, game_assets, images, cfg)
+        } else {
+            None
+        };
+        if let Some(handle) = maybe_handle {
+            commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
+        } else {
+            commands.spawn((
+                label,
+                BackgroundColor(Color::srgba(1.0, 0.0, 1.0, 0.8)),
+                node,
+                z,
+                marker,
+                Pickable::IGNORE,
+            ));
+        }
     }
 }
 
@@ -237,20 +291,27 @@ pub fn draw_overlays(
     ));
 
     for (i, elem) in editor.screen.elements.iter().enumerate() {
-        let (w, h) = resolve_size(elem, &ui_assets);
+        let (w, h) = resolve_elem_size(elem, &ui_assets);
+        let pos = elem.position();
 
-        let sx = elem.position.0 / REF_W * win_w;
-        let sy = elem.position.1 / REF_H * win_h;
+        let sx = pos.0 / REF_W * win_w;
+        let sy = pos.1 / REF_H * win_h;
         let sw = w / REF_W * win_w;
         let sh = h / REF_H * win_h;
 
         let rect = egui::Rect::from_min_size(egui::pos2(sx, sy), egui::vec2(sw, sh));
 
         let is_selected = selection.index == Some(i);
+        let is_video = elem.as_video().is_some();
         let (stroke, text_color) = if is_selected {
             (
                 egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 0, 255)),
                 egui::Color32::from_rgb(255, 0, 255),
+            )
+        } else if is_video {
+            (
+                egui::Stroke::new(1.5, egui::Color32::from_rgb(255, 60, 60)),
+                egui::Color32::from_rgb(255, 60, 60),
             )
         } else {
             (
@@ -265,12 +326,15 @@ pub fn draw_overlays(
 
         // Label: id[w,h]@(x,y) z=N [H]
         let mut flags = String::new();
+        if is_video {
+            flags.push_str(" [VID]");
+        }
         if is_hidden {
             flags.push_str(" [H]");
         }
         let label = format!(
             "{}[{},{}]@({},{}) z={}{}",
-            elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32, elem.z, flags,
+            elem.id(), w as i32, h as i32, pos.0 as i32, pos.1 as i32, elem.z(), flags,
         );
         painter.text(
             rect.left_top() + egui::vec2(3.0, 2.0),
@@ -281,8 +345,9 @@ pub fn draw_overlays(
         );
 
         // Status stamps at bottom-right inside the element.
-        let is_locked = editor_state.locked.contains(&elem.id);
-        let evt_count = elem.on_click.len() + elem.on_hover.len() + elem.bindings.len();
+        let is_locked = editor_state.locked.contains(elem.id());
+        let evt_count = elem.on_click().len() + elem.on_hover().len()
+            + elem.as_image().map_or(0, |img| img.bindings.len());
         let mut stamps: Vec<String> = Vec::new();
         if is_locked {
             stamps.push("LCK".into());
@@ -290,8 +355,10 @@ pub fn draw_overlays(
         if evt_count > 0 {
             stamps.push(format!("EVT({})", evt_count));
         }
-        if elem.states.len() > 1 {
-            stamps.push(format!("VAR({})", elem.states.len()));
+        if let Some(img) = elem.as_image() {
+            if img.states.len() > 1 {
+                stamps.push(format!("VAR({})", img.states.len()));
+            }
         }
         if !stamps.is_empty() {
             let text = stamps.join(" ");
@@ -317,11 +384,12 @@ pub fn draw_overlays(
     // Toolbar buttons for selected element — positioned below the element.
     if let Some(sel) = selection.index {
         if let Some(elem) = editor.screen.elements.get(sel) {
-            let (w, h) = resolve_size(elem, &ui_assets);
-            let sx = elem.position.0 / REF_W * win_w;
-            let sy = elem.position.1 / REF_H * win_h;
+            let (w, h) = resolve_elem_size(elem, &ui_assets);
+            let pos = elem.position();
+            let sx = pos.0 / REF_W * win_w;
+            let sy = pos.1 / REF_H * win_h;
             let sh = h / REF_H * win_h;
-            let sw = w / REF_W * win_w;
+            let _sw = w / REF_W * win_w;
 
             // Place toolbar inside the element, at the bottom.
             let toolbar_y = (sy + sh - 20.0).max(sy);
@@ -354,14 +422,14 @@ pub fn draw_overlays(
                         if btn(ui, vis_label) {
                             overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
                         }
-                        let is_locked = editor_state.locked.contains(&elem.id);
+                        let is_locked = editor_state.locked.contains(elem.id());
                         if btn(ui, if is_locked { "Unlk" } else { "Lock" }) {
                             overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
                         }
                         if btn(ui, "Edt") {
                             selection.edt_open = !selection.edt_open;
                         }
-                        let var_count = elem.states.len();
+                        let var_count = elem.as_image().map_or(0, |img| img.states.len());
                         let var_label = if var_count > 1 {
                             format!("Var({})", var_count)
                         } else {
@@ -373,7 +441,7 @@ pub fn draw_overlays(
                         if btn(ui, "X") {
                             overlay_action.action = Some(OverlayCmd::Remove(sel));
                         }
-                        ui.weak(format!("z={}", elem.z));
+                        ui.weak(format!("z={}", elem.z()));
                     });
                 });
         }
@@ -383,7 +451,7 @@ pub fn draw_overlays(
     if selection.edt_open {
         if let Some(sel) = selection.index {
             if sel < editor.screen.elements.len() {
-                let elem_id = editor.screen.elements[sel].id.clone();
+                let elem_id = editor.screen.elements[sel].id().to_string();
                 let mut open = true;
                 let evt_id = egui::Id::new("edt_editor");
                 let mut win = egui::Window::new("Edit")
@@ -401,145 +469,218 @@ pub fn draw_overlays(
                     ui.strong(&elem_id);
                     ui.separator();
 
-                    // Transparency color key.
-                    let current_tc = editor.screen.elements[sel].transparent_color.clone();
-                    let tc_label = if current_tc.is_empty() { "none" } else { &current_tc };
-                    ui.horizontal(|ui| {
-                        ui.label("Transparent:");
-                        egui::ComboBox::from_id_salt("edt_tc")
-                            .selected_text(tc_label)
-                            .show_ui(ui, |ui| {
-                                for &opt in TRANSPARENCY_OPTIONS {
-                                    let label = if opt.is_empty() { "none" } else { opt };
-                                    if ui.selectable_label(current_tc == opt, label).clicked() {
-                                        editor.screen.elements[sel].transparent_color = opt.to_string();
-                                        editor.dirty = true;
+                    // Video-specific properties.
+                    if let Some(vid) = editor.screen.elements[sel].as_video() {
+                        let mut video_name = vid.video.clone();
+                        ui.horizontal(|ui| {
+                            ui.label("Video:");
+                            if ui.text_edit_singleline(&mut video_name).changed() {
+                                editor.screen.elements[sel].as_video_mut().unwrap().video = video_name;
+                                editor.dirty = true;
+                            }
+                        });
+
+                        let mut vid_size = editor.screen.elements[sel].size();
+                        let mut size_changed = false;
+                        ui.horizontal(|ui| {
+                            ui.label("Size:");
+                            size_changed |= ui.add(egui::DragValue::new(&mut vid_size.0).prefix("w: ").speed(1.0)).changed();
+                            size_changed |= ui.add(egui::DragValue::new(&mut vid_size.1).prefix("h: ").speed(1.0)).changed();
+                        });
+                        if size_changed {
+                            editor.screen.elements[sel].set_size(vid_size);
+                            editor.dirty = true;
+                        }
+
+                        let mut looping = editor.screen.elements[sel].as_video().unwrap().looping;
+                        let mut skippable = editor.screen.elements[sel].as_video().unwrap().skippable;
+                        let mut hidden = editor.screen.elements[sel].hidden();
+                        let mut flags_changed = false;
+                        ui.horizontal(|ui| {
+                            flags_changed |= ui.checkbox(&mut looping, "Loop").changed();
+                            flags_changed |= ui.checkbox(&mut skippable, "Skip").changed();
+                            flags_changed |= ui.checkbox(&mut hidden, "Hidden").changed();
+                        });
+                        if flags_changed {
+                            let v = editor.screen.elements[sel].as_video_mut().unwrap();
+                            v.looping = looping;
+                            v.skippable = skippable;
+                            v.hidden = hidden;
+                            editor.dirty = true;
+                        }
+
+                        ui.separator();
+                    }
+
+                    // Image-specific: transparency, bindings.
+                    let is_image = editor.screen.elements[sel].as_image().is_some();
+
+                    if is_image {
+                        // Transparency color key.
+                        let current_tc = editor.screen.elements[sel]
+                            .as_image().unwrap().transparent_color.clone();
+                        let tc_label = if current_tc.is_empty() { "none" } else { &current_tc };
+                        ui.horizontal(|ui| {
+                            ui.label("Transparent:");
+                            egui::ComboBox::from_id_salt("edt_tc")
+                                .selected_text(tc_label)
+                                .show_ui(ui, |ui| {
+                                    for &opt in TRANSPARENCY_OPTIONS {
+                                        let label = if opt.is_empty() { "none" } else { opt };
+                                        if ui.selectable_label(current_tc == opt, label).clicked() {
+                                            editor.screen.elements[sel]
+                                                .as_image_mut().unwrap().transparent_color = opt.to_string();
+                                            editor.dirty = true;
+                                        }
                                     }
+                                });
+                        });
+
+                        ui.separator();
+                    }
+
+                    // on_click / on_hover / bindings (image-only)
+                    if let Some(img_ref) = editor.screen.elements[sel].as_image() {
+                        let click_count = img_ref.on_click.len();
+                        let hover_count = img_ref.on_hover.len();
+
+                        ui.heading("on_click");
+                        let mut click_remove: Option<usize> = None;
+                        for i in 0..click_count {
+                            let mut action = editor.screen.elements[sel].as_image().unwrap().on_click[i].clone();
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}:", i));
+                                if ui.text_edit_singleline(&mut action).changed() {
+                                    editor.screen.elements[sel].as_image_mut().unwrap().on_click[i] = action;
+                                    editor.dirty = true;
+                                }
+                                if ui.small_button("\u{2715}").clicked() {
+                                    click_remove = Some(i);
                                 }
                             });
-                    });
+                        }
+                        if let Some(i) = click_remove {
+                            editor.screen.elements[sel].as_image_mut().unwrap().on_click.remove(i);
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ Add on_click").clicked() {
+                            editor.screen.elements[sel].as_image_mut().unwrap().on_click.push(String::new());
+                            editor.dirty = true;
+                        }
 
-                    ui.separator();
+                        ui.separator();
 
-                    // on_click
-                    ui.heading("on_click");
-                    let click_count = editor.screen.elements[sel].on_click.len();
-                    let mut click_remove: Option<usize> = None;
-                    for i in 0..click_count {
-                        let mut action = editor.screen.elements[sel].on_click[i].clone();
+                        ui.heading("on_hover");
+                        let mut hover_remove: Option<usize> = None;
+                        for i in 0..hover_count {
+                            let mut action = editor.screen.elements[sel].as_image().unwrap().on_hover[i].clone();
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}:", i));
+                                if ui.text_edit_singleline(&mut action).changed() {
+                                    editor.screen.elements[sel].as_image_mut().unwrap().on_hover[i] = action;
+                                    editor.dirty = true;
+                                }
+                                if ui.small_button("\u{2715}").clicked() {
+                                    hover_remove = Some(i);
+                                }
+                            });
+                        }
+                        if let Some(i) = hover_remove {
+                            editor.screen.elements[sel].as_image_mut().unwrap().on_hover.remove(i);
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ Add on_hover").clicked() {
+                            editor.screen.elements[sel].as_image_mut().unwrap().on_hover.push(String::new());
+                            editor.dirty = true;
+                        }
+                    }
+
+                    // on_end (video-only)
+                    if let Some(vid_ref) = editor.screen.elements[sel].as_video() {
+                        ui.heading("on_end");
+                        let end_count = vid_ref.on_end.len();
+                        let mut end_remove: Option<usize> = None;
+                        for i in 0..end_count {
+                            let mut action = editor.screen.elements[sel].as_video().unwrap().on_end[i].clone();
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}:", i));
+                                if ui.text_edit_singleline(&mut action).changed() {
+                                    editor.screen.elements[sel].as_video_mut().unwrap().on_end[i] = action;
+                                    editor.dirty = true;
+                                }
+                                if ui.small_button("\u{2715}").clicked() {
+                                    end_remove = Some(i);
+                                }
+                            });
+                        }
+                        if let Some(i) = end_remove {
+                            editor.screen.elements[sel].as_video_mut().unwrap().on_end.remove(i);
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ Add on_end").clicked() {
+                            editor.screen.elements[sel].as_video_mut().unwrap().on_end.push(String::new());
+                            editor.dirty = true;
+                        }
+                    }
+
+                    // bindings (image-only)
+                    if is_image {
+                        ui.separator();
+                        ui.heading("bindings");
+                        ui.small("property \u{2192} variable (e.g. scroll_x \u{2192} player.compass_yaw)");
+                        let bind_keys: Vec<String> = editor.screen.elements[sel]
+                            .as_image().unwrap().bindings.keys().cloned().collect();
+                        let mut bind_remove: Option<String> = None;
+                        for key in &bind_keys {
+                            let mut val = editor.screen.elements[sel]
+                                .as_image().unwrap()
+                                .bindings
+                                .get(key)
+                                .cloned()
+                                .unwrap_or_default();
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}:", key));
+                                if ui.text_edit_singleline(&mut val).changed() {
+                                    editor.screen.elements[sel]
+                                        .as_image_mut().unwrap()
+                                        .bindings.insert(key.clone(), val);
+                                    editor.dirty = true;
+                                }
+                                if ui.small_button("\u{2715}").clicked() {
+                                    bind_remove = Some(key.clone());
+                                }
+                            });
+                        }
+                        if let Some(k) = bind_remove {
+                            editor.screen.elements[sel]
+                                .as_image_mut().unwrap().bindings.remove(&k);
+                            editor.dirty = true;
+                        }
+                        let mut add_binding: Option<&str> = None;
                         ui.horizontal(|ui| {
-                            ui.label(format!("{}:", i));
-                            if ui.text_edit_singleline(&mut action).changed() {
-                                editor.screen.elements[sel].on_click[i] = action;
-                                editor.dirty = true;
+                            if ui.small_button("+ texture").clicked() {
+                                add_binding = Some("texture");
                             }
-                            if ui.small_button("\u{2715}").clicked() {
-                                click_remove = Some(i);
+                            if ui.small_button("+ text").clicked() {
+                                add_binding = Some("text");
+                            }
+                            if ui.small_button("+ scroll_x").clicked() {
+                                add_binding = Some("scroll_x");
+                            }
+                            if ui.small_button("+ scroll_y").clicked() {
+                                add_binding = Some("scroll_y");
+                            }
+                            if ui.small_button("+ visible").clicked() {
+                                add_binding = Some("visible");
                             }
                         });
-                    }
-                    if let Some(i) = click_remove {
-                        editor.screen.elements[sel].on_click.remove(i);
-                        editor.dirty = true;
-                    }
-                    if ui.small_button("+ Add on_click").clicked() {
-                        editor.screen.elements[sel].on_click.push(String::new());
-                        editor.dirty = true;
-                    }
-
-                    ui.separator();
-
-                    // on_hover
-                    ui.heading("on_hover");
-                    let hover_count = editor.screen.elements[sel].on_hover.len();
-                    let mut hover_remove: Option<usize> = None;
-                    for i in 0..hover_count {
-                        let mut action = editor.screen.elements[sel].on_hover[i].clone();
-                        ui.horizontal(|ui| {
-                            ui.label(format!("{}:", i));
-                            if ui.text_edit_singleline(&mut action).changed() {
-                                editor.screen.elements[sel].on_hover[i] = action;
-                                editor.dirty = true;
-                            }
-                            if ui.small_button("\u{2715}").clicked() {
-                                hover_remove = Some(i);
-                            }
-                        });
-                    }
-                    if let Some(i) = hover_remove {
-                        editor.screen.elements[sel].on_hover.remove(i);
-                        editor.dirty = true;
-                    }
-                    if ui.small_button("+ Add on_hover").clicked() {
-                        editor.screen.elements[sel].on_hover.push(String::new());
-                        editor.dirty = true;
-                    }
-
-                    ui.separator();
-
-                    // bindings
-                    ui.heading("bindings");
-                    ui.small("property → variable (e.g. scroll_x → player.compass_yaw)");
-                    let bind_keys: Vec<String> = editor.screen.elements[sel].bindings.keys().cloned().collect();
-                    let mut bind_remove: Option<String> = None;
-                    for key in &bind_keys {
-                        let mut val = editor.screen.elements[sel]
-                            .bindings
-                            .get(key)
-                            .cloned()
-                            .unwrap_or_default();
-                        ui.horizontal(|ui| {
-                            ui.label(format!("{}:", key));
-                            if ui.text_edit_singleline(&mut val).changed() {
-                                editor.screen.elements[sel].bindings.insert(key.clone(), val);
-                                editor.dirty = true;
-                            }
-                            if ui.small_button("\u{2715}").clicked() {
-                                bind_remove = Some(key.clone());
-                            }
-                        });
-                    }
-                    if let Some(k) = bind_remove {
-                        editor.screen.elements[sel].bindings.remove(&k);
-                        editor.dirty = true;
-                    }
-                    ui.horizontal(|ui| {
-                        if ui.small_button("+ texture").clicked() {
+                        if let Some(key) = add_binding {
                             editor.screen.elements[sel]
-                                .bindings
-                                .entry("texture".to_string())
-                                .or_default();
+                                .as_image_mut().unwrap()
+                                .bindings.entry(key.to_string()).or_default();
                             editor.dirty = true;
                         }
-                        if ui.small_button("+ text").clicked() {
-                            editor.screen.elements[sel]
-                                .bindings
-                                .entry("text".to_string())
-                                .or_default();
-                            editor.dirty = true;
-                        }
-                        if ui.small_button("+ scroll_x").clicked() {
-                            editor.screen.elements[sel]
-                                .bindings
-                                .entry("scroll_x".to_string())
-                                .or_default();
-                            editor.dirty = true;
-                        }
-                        if ui.small_button("+ scroll_y").clicked() {
-                            editor.screen.elements[sel]
-                                .bindings
-                                .entry("scroll_y".to_string())
-                                .or_default();
-                            editor.dirty = true;
-                        }
-                        if ui.small_button("+ visible").clicked() {
-                            editor.screen.elements[sel]
-                                .bindings
-                                .entry("visible".to_string())
-                                .or_default();
-                            editor.dirty = true;
-                        }
-                    });
+                    }
                 });
                 if !open {
                     selection.edt_open = false;
@@ -560,8 +701,8 @@ pub fn draw_overlays(
     // Variant editor window.
     if selection.var_open {
         if let Some(sel) = selection.index {
-            if sel < editor.screen.elements.len() {
-                let elem_id = editor.screen.elements[sel].id.clone();
+            if sel < editor.screen.elements.len() && editor.screen.elements[sel].as_image().is_some() {
+                let _elem_id = editor.screen.elements[sel].id().to_string();
                 let mut open = true;
                 egui::Window::new("Variants")
                     .id(egui::Id::new("var_editor"))
@@ -570,7 +711,8 @@ pub fn draw_overlays(
                     .default_width(350.0)
                     .open(&mut open)
                     .show(ctx, |ui| {
-                        let state_keys: Vec<String> = editor.screen.elements[sel].states.keys().cloned().collect();
+                        let state_keys: Vec<String> = editor.screen.elements[sel]
+                            .as_image().unwrap().states.keys().cloned().collect();
                         let mut to_remove: Option<String> = None;
 
                         for key in &state_keys {
@@ -586,30 +728,34 @@ pub fn draw_overlays(
                                     }
                                 });
 
-                                let mut tex = editor.screen.elements[sel]
-                                    .states
+                                let img = editor.screen.elements[sel].as_image().unwrap();
+                                let mut tex = img.states
                                     .get(key)
                                     .map(|s| s.texture.clone())
                                     .unwrap_or_default();
                                 ui.horizontal(|ui| {
                                     ui.label("texture:");
                                     if ui.text_edit_singleline(&mut tex).changed() {
-                                        if let Some(state) = editor.screen.elements[sel].states.get_mut(key) {
+                                        if let Some(state) = editor.screen.elements[sel]
+                                            .as_image_mut().unwrap().states.get_mut(key)
+                                        {
                                             state.texture = tex;
                                             editor.dirty = true;
                                         }
                                     }
                                 });
 
-                                let mut cond = editor.screen.elements[sel]
-                                    .states
+                                let img = editor.screen.elements[sel].as_image().unwrap();
+                                let mut cond = img.states
                                     .get(key)
                                     .map(|s| s.condition.clone())
                                     .unwrap_or_default();
                                 ui.horizontal(|ui| {
                                     ui.label("condition:");
                                     if ui.text_edit_singleline(&mut cond).changed() {
-                                        if let Some(state) = editor.screen.elements[sel].states.get_mut(key) {
+                                        if let Some(state) = editor.screen.elements[sel]
+                                            .as_image_mut().unwrap().states.get_mut(key)
+                                        {
                                             state.condition = cond;
                                             editor.dirty = true;
                                         }
@@ -619,7 +765,8 @@ pub fn draw_overlays(
                         }
 
                         if let Some(k) = to_remove {
-                            editor.screen.elements[sel].states.remove(&k);
+                            editor.screen.elements[sel]
+                                .as_image_mut().unwrap().states.remove(&k);
                             if selection.preview_state.as_deref() == Some(&k) {
                                 selection.preview_state = None;
                             }
@@ -627,8 +774,9 @@ pub fn draw_overlays(
                         }
 
                         if ui.button("+ Add variant").clicked() {
-                            let name = format!("state_{}", editor.screen.elements[sel].states.len());
-                            editor.screen.elements[sel].states.insert(
+                            let img = editor.screen.elements[sel].as_image_mut().unwrap();
+                            let name = format!("state_{}", img.states.len());
+                            img.states.insert(
                                 name,
                                 super::format::ElementState {
                                     texture: String::new(),
@@ -672,7 +820,7 @@ pub fn apply_overlay_actions(
         }
         OverlayCmd::ToggleLock(idx) => {
             if let Some(elem) = editor.screen.elements.get(idx) {
-                let id = elem.id.clone();
+                let id = elem.id().to_string();
                 if !editor_state.locked.remove(&id) {
                     editor_state.locked.insert(id);
                 }
@@ -681,19 +829,19 @@ pub fn apply_overlay_actions(
             }
         }
         OverlayCmd::BringToTop(idx) => {
-            let new_z = editor.screen.elements.iter().map(|e| e.z).max().unwrap_or(0) + 1;
+            let new_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0) + 1;
             set_z(&mut editor, idx, new_z, &mut elem_q);
         }
         OverlayCmd::SendToBottom(idx) => {
-            let new_z = editor.screen.elements.iter().map(|e| e.z).min().unwrap_or(0) - 1;
+            let new_z = editor.screen.elements.iter().map(|e| e.z()).min().unwrap_or(0) - 1;
             set_z(&mut editor, idx, new_z, &mut elem_q);
         }
         OverlayCmd::MoveUp(idx) => {
-            let new_z = editor.screen.elements.get(idx).map(|e| e.z + 1).unwrap_or(0);
+            let new_z = editor.screen.elements.get(idx).map(|e| e.z() + 1).unwrap_or(0);
             set_z(&mut editor, idx, new_z, &mut elem_q);
         }
         OverlayCmd::MoveDown(idx) => {
-            let new_z = editor.screen.elements.get(idx).map(|e| e.z - 1).unwrap_or(0);
+            let new_z = editor.screen.elements.get(idx).map(|e| e.z() - 1).unwrap_or(0);
             set_z(&mut editor, idx, new_z, &mut elem_q);
         }
     }
@@ -702,7 +850,7 @@ pub fn apply_overlay_actions(
 fn set_z(editor: &mut EditorScreen, idx: usize, new_z: i32, elem_q: &mut Query<(&CanvasElement, &mut ZIndex)>) {
     let clamped = new_z.max(0);
     if let Some(elem) = editor.screen.elements.get_mut(idx) {
-        elem.z = clamped;
+        elem.set_z(clamped);
     }
     editor.dirty = true;
     for (ce, mut z) in elem_q.iter_mut() {
@@ -742,11 +890,11 @@ pub fn selection_system(
     // Hit test against elements (last = topmost due to z-order).
     let mut best: Option<(usize, i32)> = None;
     for (i, elem) in editor.screen.elements.iter().enumerate() {
-        let (w, h) = resolve_size(elem, &ui_assets);
-        let (ex, ey) = elem.position;
+        let (w, h) = resolve_elem_size(elem, &ui_assets);
+        let (ex, ey) = elem.position();
         if cx >= ex && cx <= ex + w && cy >= ey && cy <= ey + h {
-            if best.map_or(true, |(_, bz)| elem.z > bz) {
-                best = Some((i, elem.z));
+            if best.map_or(true, |(_, bz)| elem.z() > bz) {
+                best = Some((i, elem.z()));
             }
         }
     }
@@ -771,7 +919,13 @@ pub fn drag_system(
     mut editor: ResMut<EditorScreen>,
     ui_assets: Res<UiAssets>,
     editor_state: Res<ElementEditorState>,
+    egui_input: Option<Res<EguiWantsInput>>,
 ) {
+    // Don't drag canvas elements while interacting with egui windows.
+    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
+        selection.drag_offset = None;
+        return;
+    }
     let Ok(window) = windows.single() else { return };
     let Some(cursor) = window.cursor_position() else { return };
     let win_w = window.width();
@@ -784,14 +938,15 @@ pub fn drag_system(
         .screen
         .elements
         .get(sel_idx)
-        .is_some_and(|e| editor_state.locked.contains(&e.id))
+        .is_some_and(|e| editor_state.locked.contains(e.id()))
     {
         return;
     }
 
     if mouse.just_pressed(MouseButton::Left) {
         if let Some(elem) = editor.screen.elements.get(sel_idx) {
-            let elem_pos = Vec2::new(elem.position.0, elem.position.1);
+            let pos = elem.position();
+            let elem_pos = Vec2::new(pos.0, pos.1);
             selection.drag_offset = Some(cursor_ref - elem_pos);
         }
     }
@@ -800,10 +955,10 @@ pub fn drag_system(
         if let Some(offset) = selection.drag_offset {
             let new_pos = cursor_ref - offset;
             if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-                let (w, h) = resolve_size(elem, &ui_assets);
+                let (w, h) = resolve_elem_size(elem, &ui_assets);
                 let x = new_pos.x.round().clamp(0.0, (REF_W - w).max(0.0));
                 let y = new_pos.y.round().clamp(0.0, (REF_H - h).max(0.0));
-                elem.position = (x, y);
+                elem.set_position((x, y));
                 editor.dirty = true;
             }
         }
@@ -831,28 +986,34 @@ pub fn sync_element_positions(
         let Some(elem) = editor.screen.elements.get(ce.index) else {
             continue;
         };
-        node.left = Val::Percent(elem.position.0 / REF_W * 100.0);
-        node.top = Val::Percent(elem.position.1 / REF_H * 100.0);
+        let pos = elem.position();
+        let (w, h) = resolve_elem_size(elem, &ui_assets);
+        node.left = Val::Percent(pos.0 / REF_W * 100.0);
+        node.top = Val::Percent(pos.1 / REF_H * 100.0);
+        node.width = Val::Percent(w / REF_W * 100.0);
+        node.height = Val::Percent(h / REF_H * 100.0);
         *vis = if editor_state.hidden.contains(&ce.index) {
             Visibility::Hidden
         } else {
             Visibility::Inherited
         };
 
-        // Swap texture for preview state (only on the selected element).
+        // Swap texture for preview state (only on selected image elements).
         if selection.index == Some(ce.index) {
             if let Some(ref state_name) = selection.preview_state {
-                if let Some(mut img) = image_node {
-                    let tex_name = elem.states.get(state_name).map(|s| s.texture.as_str()).unwrap_or("");
-                    if let Some(handle) = load_texture_with_transparency(
-                        tex_name,
-                        &elem.transparent_color,
-                        &mut ui_assets,
-                        &game_assets,
-                        &mut images,
-                        &cfg,
-                    ) {
-                        img.image = handle;
+                if let Some(img_elem) = elem.as_image() {
+                    if let Some(mut img) = image_node {
+                        let tex_name = img_elem.states.get(state_name).map(|s| s.texture.as_str()).unwrap_or("");
+                        if let Some(handle) = load_texture_with_transparency(
+                            tex_name,
+                            &img_elem.transparent_color,
+                            &mut ui_assets,
+                            &game_assets,
+                            &mut images,
+                            &cfg,
+                        ) {
+                            img.image = handle;
+                        }
                     }
                 }
             }
@@ -878,8 +1039,9 @@ pub fn z_order_system(
     let delta = if delta > 0.0 { 1i32 } else { -1 };
 
     let new_z = if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-        elem.z = (elem.z + delta).max(0);
-        Some(elem.z)
+        let z = (elem.z() + delta).max(0);
+        elem.set_z(z);
+        Some(z)
     } else {
         None
     };
@@ -908,7 +1070,7 @@ pub fn arrow_nudge_system(
         .screen
         .elements
         .get(sel_idx)
-        .is_some_and(|e| editor_state.locked.contains(&e.id))
+        .is_some_and(|e| editor_state.locked.contains(e.id()))
     {
         return;
     }
@@ -931,9 +1093,11 @@ pub fn arrow_nudge_system(
     }
 
     if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-        let (w, h) = resolve_size(elem, &ui_assets);
-        elem.position.0 = (elem.position.0 + dx).clamp(0.0, (REF_W - w).max(0.0));
-        elem.position.1 = (elem.position.1 + dy).clamp(0.0, (REF_H - h).max(0.0));
+        let (w, h) = resolve_elem_size(elem, &ui_assets);
+        let pos = elem.position();
+        let x = (pos.0 + dx).clamp(0.0, (REF_W - w).max(0.0));
+        let y = (pos.1 + dy).clamp(0.0, (REF_H - h).max(0.0));
+        elem.set_position((x, y));
         editor.dirty = true;
     }
 }
@@ -955,7 +1119,7 @@ pub fn delete_system(
         .screen
         .elements
         .get(idx)
-        .is_some_and(|e| editor_state.locked.contains(&e.id))
+        .is_some_and(|e| editor_state.locked.contains(e.id()))
     {
         return;
     }

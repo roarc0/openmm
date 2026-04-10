@@ -1,0 +1,15 @@
+(
+    id: "logo",
+    elements: [
+        Video((
+            id: "vid_3dologo",
+            position: (0.0, 0.0),
+            size: (640.0, 480.0),
+            z: 1,
+            video: "3dologo",
+            on_end: [
+                "LoadScreen(\"menu\")",
+            ],
+        )),
+    ],
+)

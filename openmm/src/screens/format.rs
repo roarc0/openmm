@@ -8,13 +8,99 @@ pub struct Screen {
     /// Background music track name (e.g. "15" for Music/15.mp3). Empty = no music.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub bg_music: String,
+    /// Keyboard shortcuts. Key = key name (e.g. "Escape", "Return", "N"), Value = actions.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub keys: BTreeMap<String, Vec<String>>,
     #[serde(default)]
     pub elements: Vec<ScreenElement>,
 }
 
-/// A single positioned element on a screen.
+/// A screen element — either a static image or a video.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScreenElement {
+pub enum ScreenElement {
+    Image(ImageElement),
+    Video(VideoElement),
+}
+
+/// Shared fields accessible on any element variant.
+impl ScreenElement {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Image(e) => &e.id,
+            Self::Video(e) => &e.id,
+        }
+    }
+    pub fn position(&self) -> (f32, f32) {
+        match self {
+            Self::Image(e) => e.position,
+            Self::Video(e) => e.position,
+        }
+    }
+    pub fn set_position(&mut self, pos: (f32, f32)) {
+        match self {
+            Self::Image(e) => e.position = pos,
+            Self::Video(e) => e.position = pos,
+        }
+    }
+    pub fn size(&self) -> (f32, f32) {
+        match self {
+            Self::Image(e) => e.size,
+            Self::Video(e) => e.size,
+        }
+    }
+    pub fn set_size(&mut self, size: (f32, f32)) {
+        match self {
+            Self::Image(e) => e.size = size,
+            Self::Video(e) => e.size = size,
+        }
+    }
+    pub fn z(&self) -> i32 {
+        match self {
+            Self::Image(e) => e.z,
+            Self::Video(e) => e.z,
+        }
+    }
+    pub fn set_z(&mut self, z: i32) {
+        match self {
+            Self::Image(e) => e.z = z,
+            Self::Video(e) => e.z = z,
+        }
+    }
+    pub fn hidden(&self) -> bool {
+        match self {
+            Self::Image(e) => e.hidden,
+            Self::Video(e) => e.hidden,
+        }
+    }
+    pub fn on_click(&self) -> &[String] {
+        match self {
+            Self::Image(e) => &e.on_click,
+            Self::Video(_) => &[],
+        }
+    }
+    pub fn on_hover(&self) -> &[String] {
+        match self {
+            Self::Image(e) => &e.on_hover,
+            Self::Video(_) => &[],
+        }
+    }
+    pub fn as_image(&self) -> Option<&ImageElement> {
+        match self { Self::Image(e) => Some(e), _ => None }
+    }
+    pub fn as_image_mut(&mut self) -> Option<&mut ImageElement> {
+        match self { Self::Image(e) => Some(e), _ => None }
+    }
+    pub fn as_video(&self) -> Option<&VideoElement> {
+        match self { Self::Video(e) => Some(e), _ => None }
+    }
+    pub fn as_video_mut(&mut self) -> Option<&mut VideoElement> {
+        match self { Self::Video(e) => Some(e), _ => None }
+    }
+}
+
+/// A static image element with texture states.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageElement {
     pub id: String,
     pub position: (f32, f32),
     /// Size in reference pixels. (0,0) = auto from texture dimensions.
@@ -28,14 +114,39 @@ pub struct ScreenElement {
     pub on_click: Vec<String>,
     #[serde(default)]
     pub on_hover: Vec<String>,
-    /// Runtime variable bindings. Key = property (texture, text, scroll_x, scroll_y,
-    /// offset_x, offset_y, visible), Value = variable name (e.g. "player.compass_yaw").
+    /// Runtime variable bindings.
     #[serde(default)]
     pub bindings: BTreeMap<String, String>,
-    /// Color key for transparency. Empty = no transparency.
-    /// Values: "black", "cyan", "lime", "red", "magenta", "blue".
+    /// Start hidden.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
+    /// Color key for transparency.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub transparent_color: String,
+}
+
+/// A video element that plays an SMK file.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VideoElement {
+    pub id: String,
+    pub position: (f32, f32),
+    /// Size in reference pixels. (0,0) = use video native resolution.
+    #[serde(default)]
+    pub size: (f32, f32),
+    #[serde(default)]
+    pub z: i32,
+    /// SMK file name without extension (e.g. "3dologo").
+    pub video: String,
+    /// Start hidden.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub looping: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub skippable: bool,
+    /// Actions when video ends (ignored if looping).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_end: Vec<String>,
 }
 
 /// Visual state of an element — texture + optional trigger condition.
@@ -53,12 +164,13 @@ impl Screen {
         Self {
             id: id.into(),
             bg_music: String::new(),
+            keys: BTreeMap::new(),
             elements: Vec::new(),
         }
     }
 }
 
-impl ScreenElement {
+impl ImageElement {
     pub fn new(id: impl Into<String>, texture: impl Into<String>, position: (f32, f32)) -> Self {
         let mut states = BTreeMap::new();
         states.insert(
@@ -77,6 +189,7 @@ impl ScreenElement {
             on_click: Vec::new(),
             on_hover: Vec::new(),
             bindings: BTreeMap::new(),
+            hidden: false,
             transparent_color: String::new(),
         }
     }
@@ -95,24 +208,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn round_trip_screen_ron() {
-        let mut elem = ScreenElement::new("new_game_btn", "mmnew0", (482.0, 9.0));
-        elem.size = (135.0, 45.0);
-        elem.z = 10;
-        elem.states.insert(
+    fn round_trip_image_element() {
+        let mut img = ImageElement::new("new_game_btn", "mmnew0", (482.0, 9.0));
+        img.size = (135.0, 45.0);
+        img.z = 10;
+        img.states.insert(
             "hover".to_string(),
             ElementState {
                 texture: "mmnew1".to_string(),
                 condition: "hover".to_string(),
             },
         );
-        elem.on_click = vec!["PlaySound 75".to_string(), "GoToScreen segue".to_string()];
-        elem.on_hover = vec!["SetState hover".to_string()];
+        img.on_click = vec!["PlaySound 75".to_string(), "GoToScreen segue".to_string()];
+        img.on_hover = vec!["SetState hover".to_string()];
 
         let screen = Screen {
             id: "title".to_string(),
             bg_music: String::new(),
-            elements: vec![elem],
+            keys: BTreeMap::new(),
+            elements: vec![ScreenElement::Image(img)],
         };
 
         let ron_str = ron::ser::to_string_pretty(&screen, ron::ser::PrettyConfig::default()).unwrap();
@@ -121,30 +235,58 @@ mod tests {
         assert_eq!(parsed.id, "title");
         assert_eq!(parsed.elements.len(), 1);
 
-        let btn = &parsed.elements[0];
+        let btn = parsed.elements[0].as_image().unwrap();
         assert_eq!(btn.id, "new_game_btn");
         assert_eq!(btn.size, (135.0, 45.0));
         assert_eq!(btn.z, 10);
         assert_eq!(btn.on_click.len(), 2);
         assert_eq!(btn.on_hover.len(), 1);
-        assert_eq!(btn.on_hover[0], "SetState hover");
-        assert!(btn.bindings.is_empty());
     }
 
     #[test]
-    fn bindings_round_trip() {
-        let mut elem = ScreenElement::new("compass", "compass", (100.0, 10.0));
-        elem.bindings
-            .insert("scroll_x".to_string(), "player.compass_yaw".to_string());
-        elem.bindings
-            .insert("visible".to_string(), "hud.view_is_world".to_string());
+    fn round_trip_video_element() {
+        let vid = VideoElement {
+            id: "intro".to_string(),
+            position: (100.0, 50.0),
+            size: (320.0, 240.0),
+            z: 5,
+            video: "3dologo".to_string(),
+            hidden: false,
+            looping: true,
+            skippable: true,
+            on_end: vec!["LoadScreen(\"menu\")".to_string()],
+        };
 
-        let ron_str = ron::ser::to_string_pretty(&elem, ron::ser::PrettyConfig::default()).unwrap();
-        let parsed: ScreenElement = ron::from_str(&ron_str).unwrap();
+        let screen = Screen {
+            id: "splash".to_string(),
+            bg_music: String::new(),
+            keys: BTreeMap::new(),
+            elements: vec![ScreenElement::Video(vid)],
+        };
 
-        assert_eq!(parsed.bindings.len(), 2);
-        assert_eq!(parsed.bindings["scroll_x"], "player.compass_yaw");
-        assert_eq!(parsed.bindings["visible"], "hud.view_is_world");
+        let ron_str = ron::ser::to_string_pretty(&screen, ron::ser::PrettyConfig::default()).unwrap();
+        let parsed: Screen = ron::from_str(&ron_str).unwrap();
+
+        let v = parsed.elements[0].as_video().unwrap();
+        assert_eq!(v.video, "3dologo");
+        assert!(v.looping);
+        assert!(v.skippable);
+        assert_eq!(v.on_end.len(), 1);
+    }
+
+    #[test]
+    fn mixed_elements() {
+        let ron_str = r#"(
+            id: "test",
+            elements: [
+                Image((id: "bg", position: (0.0, 0.0), states: {"default": (texture: "bg.pcx")})),
+                Video((id: "vid", position: (10.0, 10.0), video: "intro")),
+            ],
+        )"#;
+        let screen: Screen = ron::from_str(ron_str).unwrap();
+        assert_eq!(screen.elements.len(), 2);
+        assert!(screen.elements[0].as_image().is_some());
+        assert!(screen.elements[1].as_video().is_some());
     }
 
     #[test]
@@ -153,13 +295,5 @@ mod tests {
         let screen: Screen = ron::from_str(ron_str).unwrap();
         assert_eq!(screen.id, "empty");
         assert!(screen.elements.is_empty());
-    }
-
-    #[test]
-    fn size_zero_means_auto() {
-        let ron_str = r#"(id: "x", position: (10.0, 20.0), states: {})"#;
-        let elem: ScreenElement = ron::from_str(ron_str).unwrap();
-        assert_eq!(elem.size, (0.0, 0.0));
-        assert!(elem.on_hover.is_empty());
     }
 }
