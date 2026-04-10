@@ -68,6 +68,41 @@ fn load_texture_with_transparency(
     })
 }
 
+/// Generate a small checkerboard texture for the editor canvas background.
+fn generate_checkerboard(
+    images: &mut Assets<Image>,
+    cell_size: u32,
+    color_a: [u8; 4],
+    color_b: [u8; 4],
+) -> Handle<Image> {
+    let size = cell_size * 2;
+    let mut data = vec![0u8; (size * size * 4) as usize];
+    for y in 0..size {
+        for x in 0..size {
+            let idx = ((y * size + x) * 4) as usize;
+            let color = if ((x / cell_size) + (y / cell_size)) % 2 == 0 {
+                color_a
+            } else {
+                color_b
+            };
+            data[idx..idx + 4].copy_from_slice(&color);
+        }
+    }
+    let mut img = Image::new(
+        bevy::render::render_resource::Extent3d {
+            width: size,
+            height: size,
+            depth_or_array_layers: 1,
+        },
+        bevy::render::render_resource::TextureDimension::D2,
+        data,
+        bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
+        bevy::asset::RenderAssetUsages::RENDER_WORLD,
+    );
+    img.sampler = bevy::image::ImageSampler::nearest();
+    images.add(img)
+}
+
 /// Runtime state of the screen being edited.
 #[derive(Resource)]
 pub struct EditorScreen {
@@ -141,6 +176,30 @@ pub fn rebuild_canvas(
     for e in old_bg.iter().chain(old_elems.iter()) {
         commands.entity(e).despawn();
     }
+
+    // Checkerboard background (always present behind everything).
+    let checker_handle = generate_checkerboard(&mut images, 16, [40, 40, 40, 255], [50, 50, 50, 255]);
+    let mut checker_img = ImageNode::new(checker_handle);
+    checker_img.image_mode = bevy::ui::widget::NodeImageMode::Tiled {
+        tile_x: true,
+        tile_y: true,
+        stretch_value: 1.0,
+    };
+    commands.spawn((
+        Name::new("canvas_checker"),
+        checker_img,
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(0.0),
+            top: Val::Percent(0.0),
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
+            ..default()
+        },
+        Pickable::IGNORE,
+        ZIndex(-2),
+        CanvasBackground,
+    ));
 
     // Background.
     if let Some(ref bg_name) = editor.screen.background {
