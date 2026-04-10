@@ -462,7 +462,7 @@ pub fn draw_overlays(
                 let elem_id = editor.screen.elements[sel].id.clone();
                 let mut open = true;
                 let evt_id = egui::Id::new("edt_editor");
-                let mut win = egui::Window::new(format!("Edit: {}", elem_id))
+                let mut win = egui::Window::new("Edit")
                     .id(evt_id)
                     .resizable(true)
                     .collapsible(false)
@@ -474,6 +474,9 @@ pub fn draw_overlays(
                     win = win.default_pos(egui::pos2(x, y));
                 }
                 win.show(ctx, |ui| {
+                    ui.strong(&elem_id);
+                    ui.separator();
+
                     // Transparency color key.
                     let current_tc = editor.screen.elements[sel].transparent_color.clone();
                     let tc_label = if current_tc.is_empty() { "none" } else { &current_tc };
@@ -636,7 +639,7 @@ pub fn draw_overlays(
             if sel < editor.screen.elements.len() {
                 let elem_id = editor.screen.elements[sel].id.clone();
                 let mut open = true;
-                egui::Window::new(format!("Variants: {}", elem_id))
+                egui::Window::new("Variants")
                     .id(egui::Id::new("var_editor"))
                     .resizable(true)
                     .collapsible(false)
