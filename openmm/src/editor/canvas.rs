@@ -282,8 +282,8 @@ pub fn drag_system(
             let new_pos = cursor_ref - offset;
             if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
                 let (w, h) = elem.size.unwrap_or((32.0, 32.0));
-                let x = new_pos.x.round().clamp(0.0, REF_W - w);
-                let y = new_pos.y.round().clamp(0.0, REF_H - h);
+                let x = new_pos.x.round().clamp(0.0, (REF_W - w).max(0.0));
+                let y = new_pos.y.round().clamp(0.0, (REF_H - h).max(0.0));
                 elem.position = (x, y);
                 editor.dirty = true;
             }
