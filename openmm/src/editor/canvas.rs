@@ -28,12 +28,6 @@ pub struct CanvasElement {
     pub index: usize,
 }
 
-/// Marker component on label entities (debug gizmos use index for selection highlight).
-#[derive(Component)]
-pub struct ElementLabel {
-    pub index: usize,
-}
-
 /// Marker component for the background image node.
 #[derive(Component)]
 pub struct CanvasBackground;

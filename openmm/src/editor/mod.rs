@@ -9,7 +9,7 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, egui};
 
 use crate::GameState;
 
-pub use format::{Screen, ScreenElement};
+pub use format::Screen;
 
 /// Marker for all editor entities — despawned on editor exit.
 #[derive(Component)]
