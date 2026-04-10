@@ -79,24 +79,47 @@ pub fn load_last_screen() -> Screen {
     Screen::new("untitled")
 }
 
-/// Save locked element IDs for a screen.
-pub fn save_locks(screen_id: &str, locked: &std::collections::HashSet<String>) {
+/// Per-element editor-only properties, stored alongside the screen RON.
+/// File: `{screen_id}.editor.ron`. Extensible for future per-element metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ScreenEditorData {
+    #[serde(default)]
+    pub locked: Vec<String>,
+}
+
+fn editor_data_path(screen_id: &str) -> PathBuf {
+    Path::new(SCREENS_DIR).join(format!("{}.editor.ron", screen_id))
+}
+
+/// Save editor-only data for a screen.
+pub fn save_editor_data(screen_id: &str, data: &ScreenEditorData) {
     ensure_dir();
-    let path = Path::new(SCREENS_DIR).join(format!("{}.locks.json", screen_id));
-    let ids: Vec<&String> = locked.iter().collect();
-    if let Ok(json) = serde_json::to_string_pretty(&ids) {
-        let _ = fs::write(&path, json);
+    let path = editor_data_path(screen_id);
+    if let Ok(s) = ron::ser::to_string_pretty(data, ron::ser::PrettyConfig::default()) {
+        let _ = fs::write(&path, s);
     }
 }
 
-/// Load locked element IDs for a screen.
-pub fn load_locks(screen_id: &str) -> std::collections::HashSet<String> {
-    let path = Path::new(SCREENS_DIR).join(format!("{}.locks.json", screen_id));
+/// Load editor-only data for a screen.
+pub fn load_editor_data(screen_id: &str) -> ScreenEditorData {
+    let path = editor_data_path(screen_id);
     fs::read_to_string(&path)
         .ok()
-        .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
-        .map(|v| v.into_iter().collect())
+        .and_then(|s| ron::from_str(&s).ok())
         .unwrap_or_default()
+}
+
+/// Save locked element IDs (convenience wrapper).
+pub fn save_locks(screen_id: &str, locked: &std::collections::HashSet<String>) {
+    let data = ScreenEditorData {
+        locked: locked.iter().cloned().collect(),
+    };
+    save_editor_data(screen_id, &data);
+}
+
+/// Load locked element IDs (convenience wrapper).
+pub fn load_locks(screen_id: &str) -> std::collections::HashSet<String> {
+    load_editor_data(screen_id).locked.into_iter().collect()
 }
 
 pub fn load_screen(id: &str) -> Result<Screen, String> {
