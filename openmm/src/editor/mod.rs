@@ -36,6 +36,7 @@ impl Plugin for EditorPlugin {
                     canvas::sync_element_positions,
                     canvas::z_order_system,
                     canvas::delete_system,
+                    canvas::tab_cycle_system,
                     canvas::save_shortcut_system,
                     browser::init_browser,
                     browser::toggle_browser,
@@ -119,7 +120,7 @@ fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorS
 
             ui.separator();
 
-            ui.weak("Tab: browser | Click: select | Drag: move | Scroll: z-order | Del: remove");
+            ui.weak("Tab: cycle | F2: browser | Click: select | Drag: move | Scroll: z | Del: remove");
         });
     });
 }

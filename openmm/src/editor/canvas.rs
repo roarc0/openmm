@@ -368,6 +368,40 @@ pub fn delete_system(
     }
 }
 
+// ─── Tab cycle ─────────────────────────────────────────────────────────
+
+/// Tab cycles forward through elements, Shift+Tab cycles backward.
+pub fn tab_cycle_system(
+    keys: Res<ButtonInput<KeyCode>>,
+    editor: Res<EditorScreen>,
+    mut selection: ResMut<Selection>,
+    egui_input: Option<Res<EguiWantsInput>>,
+) {
+    if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
+        return;
+    }
+    if !keys.just_pressed(KeyCode::Tab) {
+        return;
+    }
+    let count = editor.screen.elements.len();
+    if count == 0 {
+        return;
+    }
+    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
+    selection.index = Some(match selection.index {
+        Some(i) if shift => {
+            if i == 0 {
+                count - 1
+            } else {
+                i - 1
+            }
+        }
+        Some(i) => (i + 1) % count,
+        None => 0,
+    });
+    selection.drag_offset = None;
+}
+
 // ─── Save ──────────────────────────────────────────────────────────────────
 
 /// Ctrl+S saves the current screen to disk.

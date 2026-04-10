@@ -49,19 +49,17 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
     browser.open = cfg.browser_open;
 }
 
-/// Tab key toggles the browser open/closed.
+/// F2 toggles the browser open/closed.
 pub fn toggle_browser(
     keys: Res<ButtonInput<KeyCode>>,
     mut browser: ResMut<BrowserState>,
     egui_input: Option<Res<EguiWantsInput>>,
 ) {
-    // Don't toggle when egui has keyboard focus (e.g. user typing in a text field).
     if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
         return;
     }
-    if keys.just_pressed(KeyCode::Tab) {
+    if keys.just_pressed(KeyCode::F2) {
         browser.open = !browser.open;
-        // Persist open state.
         let mut cfg = super::io::EditorConfig::load();
         cfg.browser_open = browser.open;
         cfg.save();
