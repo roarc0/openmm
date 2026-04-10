@@ -57,6 +57,13 @@ pub fn save_screen(screen: &Screen) -> Result<(), String> {
     Ok(())
 }
 
+/// Update the last_screen field in the editor config.
+pub fn set_last_screen(id: &str) {
+    let mut cfg = EditorConfig::load();
+    cfg.last_screen = Some(id.to_string());
+    cfg.save();
+}
+
 /// Load the last-edited screen from editor config, or return a blank screen.
 pub fn load_last_screen() -> Screen {
     let cfg = EditorConfig::load();

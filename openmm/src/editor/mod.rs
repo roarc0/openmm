@@ -106,6 +106,7 @@ fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorS
             if ui.button("New").clicked() {
                 editor.screen = Screen::new("untitled");
                 editor.dirty = false;
+                io::set_last_screen("untitled");
             }
 
             let screens = io::list_screens();
@@ -119,6 +120,7 @@ fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorS
                                     Ok(s) => {
                                         editor.screen = s;
                                         editor.dirty = false;
+                                        io::set_last_screen(name);
                                         info!("loaded screen '{name}'");
                                     }
                                     Err(e) => error!("load failed: {e}"),
