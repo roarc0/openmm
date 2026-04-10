@@ -45,6 +45,7 @@ impl Plugin for EditorPlugin {
                     (canvas::selection_system, canvas::drag_system).chain(),
                     canvas::sync_element_positions,
                     canvas::z_order_system,
+                    canvas::arrow_nudge_system,
                     canvas::delete_system,
                     canvas::tab_cycle_system,
                     canvas::save_shortcut_system,

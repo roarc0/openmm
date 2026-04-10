@@ -340,6 +340,42 @@ pub fn z_order_system(
     }
 }
 
+// ─── Arrow nudge ──────────────────────────────────────────────────────────
+
+/// Arrow keys move the selected element by 1 reference pixel.
+pub fn arrow_nudge_system(
+    keys: Res<ButtonInput<KeyCode>>,
+    selection: Res<Selection>,
+    mut editor: ResMut<EditorScreen>,
+    ui_assets: Res<UiAssets>,
+) {
+    let Some(sel_idx) = selection.index else { return };
+    let mut dx: f32 = 0.0;
+    let mut dy: f32 = 0.0;
+    if keys.just_pressed(KeyCode::ArrowLeft) {
+        dx -= 1.0;
+    }
+    if keys.just_pressed(KeyCode::ArrowRight) {
+        dx += 1.0;
+    }
+    if keys.just_pressed(KeyCode::ArrowUp) {
+        dy -= 1.0;
+    }
+    if keys.just_pressed(KeyCode::ArrowDown) {
+        dy += 1.0;
+    }
+    if dx == 0.0 && dy == 0.0 {
+        return;
+    }
+
+    if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
+        let (w, h) = resolve_size(elem, &ui_assets);
+        elem.position.0 = (elem.position.0 + dx).clamp(0.0, (REF_W - w).max(0.0));
+        elem.position.1 = (elem.position.1 + dy).clamp(0.0, (REF_H - h).max(0.0));
+        editor.dirty = true;
+    }
+}
+
 // ─── Delete ────────────────────────────────────────────────────────────────
 
 /// Delete/Backspace removes the selected element.
