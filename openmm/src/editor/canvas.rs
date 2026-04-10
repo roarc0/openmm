@@ -1,6 +1,7 @@
 //! Canvas rendering: element spawning, selection, drag-move, z-order, debug labels.
 
 use bevy::input::mouse::AccumulatedMouseScroll;
+use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
@@ -89,6 +90,7 @@ pub fn rebuild_canvas(
                     height: Val::Percent(100.0),
                     ..default()
                 },
+                Pickable::IGNORE,
                 ZIndex(-1),
                 CanvasBackground,
             ));
@@ -104,6 +106,7 @@ pub fn rebuild_canvas(
                     ..default()
                 },
                 color,
+                Pickable::IGNORE,
                 ZIndex(-1),
                 CanvasBackground,
             ));
@@ -164,7 +167,7 @@ fn spawn_element(
     let z = ZIndex(elem.z);
 
     if let Some(handle) = maybe_handle {
-        commands.spawn((label, ImageNode::new(handle), node, z, marker));
+        commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
     } else {
         // Magenta placeholder for missing textures.
         commands.spawn((
@@ -173,6 +176,7 @@ fn spawn_element(
             node,
             z,
             marker,
+            Pickable::IGNORE,
         ));
     }
 }

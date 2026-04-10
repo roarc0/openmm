@@ -5,7 +5,7 @@ mod inspector;
 mod io;
 
 use bevy::prelude::*;
-use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, egui};
+use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiGlobalSettings, EguiPlugin, egui};
 
 use crate::GameState;
 
@@ -22,6 +22,11 @@ impl Plugin for EditorPlugin {
         if !app.is_plugin_added::<EguiPlugin>() {
             app.add_plugins(EguiPlugin::default());
         }
+
+        // Enable egui input absorption so our canvas systems don't steal pointer/keyboard from egui.
+        app.world_mut()
+            .resource_mut::<EguiGlobalSettings>()
+            .enable_absorb_bevy_input_system = true;
 
         app.init_resource::<canvas::Selection>()
             .init_resource::<browser::BrowserState>()
