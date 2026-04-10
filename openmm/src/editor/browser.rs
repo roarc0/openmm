@@ -18,7 +18,6 @@ fn lod_archive_names(assets: &openmm_data::Assets, all: Vec<String>) -> Vec<Stri
             known.iter().any(|k| lower == *k) || assets.files_in(name).is_some_and(|f| !f.is_empty())
         })
         .filter(|name| {
-            // Exclude sound/video archives by checking file extensions.
             let lower = name.to_lowercase();
             !lower.contains("snd") && !lower.contains("smk") && !lower.contains("vid")
         })
@@ -36,13 +35,9 @@ struct LodFolder {
 pub struct BrowserState {
     pub open: bool,
     pub search: String,
-    /// All LOD folders with their files, prefixed as "folder/file".
     folders: Vec<LodFolder>,
-    /// Currently selected folder index (None = show all folders).
     current_folder: Option<usize>,
-    /// Filtered file names for current view.
     filtered: Vec<String>,
-    /// Saved window position from config.
     default_pos: Option<[f32; 2]>,
     /// Currently hovered file for preview.
     pub hovered_file: Option<String>,
@@ -62,7 +57,6 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
     let mut archive_names = assets.archives();
     archive_names.sort();
 
-    // Only LOD archives (icons, bitmaps, sprites). Filter out SND and SMK.
     let lod_archives: Vec<String> = lod_archive_names(&assets, archive_names);
 
     for archive in &lod_archives {
@@ -75,7 +69,6 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
         });
     }
 
-    // Start showing folder list.
     browser.filtered.clear();
 
     let cfg = super::io::EditorConfig::load();
@@ -139,14 +132,13 @@ pub fn browser_ui(
     let mut win = egui::Window::new("LOD Browser")
         .id(egui::Id::new("lod_browser"))
         .resizable(true)
-        .default_width(280.0);
+        .default_width(480.0);
     if let Some([x, y]) = browser.default_pos.take() {
         win = win.default_pos(egui::pos2(x, y));
     }
     let response = win.show(ctx, |ui| {
         match browser.current_folder {
             None => {
-                // Show folder list.
                 ui.heading("LOD Archives");
                 ui.separator();
                 let folder_count = browser.folders.len();
@@ -166,7 +158,6 @@ pub fn browser_ui(
             Some(folder_idx) => {
                 let folder_name = browser.folders[folder_idx].name.clone();
 
-                // Back button + folder name.
                 ui.horizontal(|ui| {
                     if ui.button("<- Back").clicked() {
                         browser.current_folder = None;
@@ -176,7 +167,6 @@ pub fn browser_ui(
                     ui.strong(&folder_name);
                 });
 
-                // Search within folder.
                 ui.horizontal(|ui| {
                     ui.label("Search:");
                     ui.text_edit_singleline(&mut browser.search);
@@ -197,41 +187,64 @@ pub fn browser_ui(
                 ui.label(format!("{} files", browser.filtered.len()));
                 ui.separator();
 
-                // File list.
+                // File list (left) + preview (right).
                 let mut new_hover: Option<String> = None;
-                egui::ScrollArea::vertical().max_height(350.0).show(ui, |ui| {
-                    let show: Vec<String> = browser.filtered.iter().take(200).cloned().collect();
-                    for full_name in show {
-                        let short = full_name
-                            .strip_prefix(&format!("{}/", folder_name))
-                            .unwrap_or(&full_name);
-                        let resp = ui.button(short);
-                        if resp.clicked() {
-                            place_element(&full_name, &mut editor, &mut ui_assets, &game_assets, &mut images, &cfg);
-                        }
-                        if resp.hovered() {
-                            new_hover = Some(full_name.clone());
-                        }
-                    }
-                    if browser.filtered.len() > 200 {
-                        ui.label(format!("... {} more (refine search)", browser.filtered.len() - 200));
-                    }
-                });
+                ui.horizontal_top(|ui| {
+                    // Left: scrollable file list.
+                    ui.vertical(|ui| {
+                        ui.set_min_width(200.0);
+                        egui::ScrollArea::vertical()
+                            .id_salt("browser_files")
+                            .max_height(350.0)
+                            .show(ui, |ui| {
+                                let show: Vec<String> = browser.filtered.iter().take(200).cloned().collect();
+                                for full_name in show {
+                                    let short = full_name
+                                        .strip_prefix(&format!("{}/", folder_name))
+                                        .unwrap_or(&full_name);
+                                    let resp = ui.button(short);
+                                    if resp.clicked() {
+                                        place_element(
+                                            &full_name,
+                                            &mut editor,
+                                            &mut ui_assets,
+                                            &game_assets,
+                                            &mut images,
+                                            &cfg,
+                                        );
+                                    }
+                                    if resp.hovered() {
+                                        new_hover = Some(full_name.clone());
+                                    }
+                                }
+                                if browser.filtered.len() > 200 {
+                                    ui.label(format!("... {} more", browser.filtered.len() - 200));
+                                }
+                            });
+                    });
 
-                // Preview area — show cached preview from last frame's hover.
-                if let Some((ref name, tex_id, (pw, ph))) = browser.preview_tex {
-                    if new_hover.is_some() {
-                        ui.separator();
-                        let short = name.split('/').last().unwrap_or(name);
-                        ui.label(format!("{} ({}x{})", short, pw, ph));
-                        if pw > 0 && ph > 0 {
-                            let scale = (200.0 / pw as f32).min(1.0);
-                            let w = pw as f32 * scale;
-                            let h = ph as f32 * scale;
-                            ui.image(egui::load::SizedTexture::new(tex_id, egui::vec2(w, h)));
+                    ui.separator();
+
+                    // Right: preview of hovered file.
+                    ui.vertical(|ui| {
+                        ui.set_min_width(200.0);
+                        if let Some((ref name, tex_id, (pw, ph))) = browser.preview_tex {
+                            if new_hover.is_some() {
+                                let short = name.split('/').last().unwrap_or(name);
+                                ui.label(short);
+                                ui.weak(format!("{}x{}", pw, ph));
+                                if pw > 0 && ph > 0 {
+                                    let scale = (200.0 / pw as f32).min(1.0);
+                                    let w = pw as f32 * scale;
+                                    let h = ph as f32 * scale;
+                                    ui.image(egui::load::SizedTexture::new(tex_id, egui::vec2(w, h)));
+                                }
+                            }
+                        } else {
+                            ui.weak("Hover a file to preview");
                         }
-                    }
-                }
+                    });
+                });
                 browser.hovered_file = new_hover;
             }
         }
@@ -253,7 +266,6 @@ pub fn browser_ui(
 }
 
 /// Create a new element at canvas center and push it to the screen.
-/// `name` is the full "archive/filename" path (e.g. "bitmaps/wtrtyl", "icons/mmnew0").
 fn place_element(
     name: &str,
     editor: &mut EditorScreen,
@@ -267,16 +279,12 @@ fn place_element(
     let mut elem = ScreenElement::new(name, name, (REF_W / 2.0, REF_H / 2.0));
     elem.z = max_z + 1;
 
-    // Try loading via UiAssets (icons). The full name is stored as the texture key.
-    // For non-icon archives, UiAssets won't find it by the prefixed name, so also try
-    // the bare filename via the LOD decoder.
     let bare = name.split('/').last().unwrap_or(name);
     let handle = ui_assets
         .get_or_load(name, game_assets, images, cfg)
         .or_else(|| ui_assets.get_or_load(bare, game_assets, images, cfg));
 
     if handle.is_some() {
-        // Try bare name for dimensions since UiAssets caches by the name passed to get_or_load.
         let dims = ui_assets.dimensions(name).or_else(|| ui_assets.dimensions(bare));
         if let Some((w, h)) = dims {
             elem.size = (w as f32, h as f32);
