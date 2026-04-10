@@ -101,9 +101,14 @@ fn editor_setup(mut commands: Commands) {
 }
 
 /// Esc toggles all egui UI visibility.
-fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>) {
+fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>, time: Res<Time>) {
+    // Skip first second to avoid spurious Esc from window manager.
+    if time.elapsed_secs() < 1.0 {
+        return;
+    }
     if keys.just_pressed(KeyCode::Escape) {
         visible.0 = !visible.0;
+        info!("UI visible: {}", visible.0);
     }
 }
 
