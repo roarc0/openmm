@@ -5,7 +5,7 @@ mod inspector;
 mod io;
 
 use bevy::prelude::*;
-use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, egui};
+use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 use crate::GameState;
 
@@ -26,6 +26,7 @@ impl Plugin for EditorPlugin {
         app.init_resource::<canvas::Selection>()
             .init_resource::<browser::BrowserState>()
             .add_systems(OnEnter(GameState::Editor), editor_setup)
+            // Canvas systems (non-egui) run in Update.
             .add_systems(
                 Update,
                 (
@@ -39,11 +40,13 @@ impl Plugin for EditorPlugin {
                     canvas::save_shortcut_system,
                     browser::init_browser,
                     browser::toggle_browser,
-                    browser::browser_ui,
-                    inspector::inspector_ui,
-                    editor_toolbar,
                 )
                     .run_if(in_state(GameState::Editor)),
+            )
+            // Egui UI systems run in EguiPrimaryContextPass (between begin_pass and end_pass).
+            .add_systems(
+                EguiPrimaryContextPass,
+                (browser::browser_ui, inspector::inspector_ui, editor_toolbar).run_if(in_state(GameState::Editor)),
             );
     }
 }
@@ -64,28 +67,21 @@ fn editor_setup(mut commands: Commands) {
 }
 
 /// Top toolbar: name indicator, New/Open/Save buttons, help text.
-fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorScreen>, mut ready: Local<u32>) {
-    if *ready < 2 {
-        *ready += 1;
-        return;
-    }
+fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorScreen>) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
     egui::TopBottomPanel::top("editor_toolbar").show(ctx, |ui| {
         ui.horizontal(|ui| {
-            // Screen name + dirty indicator.
             let dirty_mark = if editor.dirty { "*" } else { "" };
             ui.strong(format!("Screen: {}{}", editor.screen.id, dirty_mark));
 
             ui.separator();
 
-            // New button.
             if ui.button("New").clicked() {
                 editor.screen = Screen::new("untitled");
                 editor.dirty = false;
             }
 
-            // Open ComboBox — lists saved screens.
             let screens = io::list_screens();
             if !screens.is_empty() {
                 egui::ComboBox::from_label("Open")
@@ -108,7 +104,6 @@ fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorS
                 ui.label("(no saved screens)");
             }
 
-            // Save button.
             if ui.button("Save").clicked() {
                 match io::save_screen(&editor.screen) {
                     Ok(()) => {
