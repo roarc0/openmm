@@ -61,6 +61,8 @@ pub struct ElementEditorState {
 pub struct Selection {
     pub index: Option<usize>,
     pub drag_offset: Option<Vec2>,
+    /// Whether the event editor window is open for the selected element.
+    pub evt_open: bool,
 }
 
 // ─── Rebuild canvas ─────────────────────────────────────────────────────────
@@ -185,8 +187,8 @@ pub enum OverlayCmd {
 /// Draw selection borders, labels, and z-order toolbar via egui. Runs in EguiPrimaryContextPass.
 pub fn draw_overlays(
     mut contexts: EguiContexts,
-    editor: Res<EditorScreen>,
-    selection: Res<Selection>,
+    mut editor: ResMut<EditorScreen>,
+    mut selection: ResMut<Selection>,
     windows: Query<&Window, With<PrimaryWindow>>,
     ui_assets: Res<UiAssets>,
     mut overlay_action: ResMut<OverlayAction>,
@@ -316,12 +318,89 @@ pub fn draw_overlays(
                         if btn(ui, if is_locked { "Unlk" } else { "Lock" }) {
                             overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
                         }
+                        if btn(ui, "Evt") {
+                            selection.evt_open = !selection.evt_open;
+                        }
                         if btn(ui, "X") {
                             overlay_action.action = Some(OverlayCmd::Remove(sel));
                         }
                         ui.weak(format!("z={}", elem.z));
                     });
                 });
+        }
+    }
+
+    // Event editor window — one at a time, for the selected element.
+    if selection.evt_open {
+        if let Some(sel) = selection.index {
+            if sel < editor.screen.elements.len() {
+                let elem_id = editor.screen.elements[sel].id.clone();
+                let mut open = true;
+                egui::Window::new(format!("Events: {}", elem_id))
+                    .id(egui::Id::new("evt_editor"))
+                    .resizable(true)
+                    .collapsible(false)
+                    .default_width(320.0)
+                    .open(&mut open)
+                    .show(ctx, |ui| {
+                        // on_click
+                        ui.heading("on_click");
+                        let click_count = editor.screen.elements[sel].on_click.len();
+                        let mut click_remove: Option<usize> = None;
+                        for i in 0..click_count {
+                            let mut action = editor.screen.elements[sel].on_click[i].clone();
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}:", i));
+                                if ui.text_edit_singleline(&mut action).changed() {
+                                    editor.screen.elements[sel].on_click[i] = action;
+                                    editor.dirty = true;
+                                }
+                                if ui.small_button("\u{2715}").clicked() {
+                                    click_remove = Some(i);
+                                }
+                            });
+                        }
+                        if let Some(i) = click_remove {
+                            editor.screen.elements[sel].on_click.remove(i);
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ Add on_click").clicked() {
+                            editor.screen.elements[sel].on_click.push(String::new());
+                            editor.dirty = true;
+                        }
+
+                        ui.separator();
+
+                        // on_hover
+                        ui.heading("on_hover");
+                        let hover_count = editor.screen.elements[sel].on_hover.len();
+                        let mut hover_remove: Option<usize> = None;
+                        for i in 0..hover_count {
+                            let mut action = editor.screen.elements[sel].on_hover[i].clone();
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{}:", i));
+                                if ui.text_edit_singleline(&mut action).changed() {
+                                    editor.screen.elements[sel].on_hover[i] = action;
+                                    editor.dirty = true;
+                                }
+                                if ui.small_button("\u{2715}").clicked() {
+                                    hover_remove = Some(i);
+                                }
+                            });
+                        }
+                        if let Some(i) = hover_remove {
+                            editor.screen.elements[sel].on_hover.remove(i);
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ Add on_hover").clicked() {
+                            editor.screen.elements[sel].on_hover.push(String::new());
+                            editor.dirty = true;
+                        }
+                    });
+                if !open {
+                    selection.evt_open = false;
+                }
+            }
         }
     }
 }
@@ -424,7 +503,11 @@ pub fn selection_system(
         }
     }
 
-    selection.index = best.map(|(idx, _)| idx);
+    let new_sel = best.map(|(idx, _)| idx);
+    if new_sel != selection.index {
+        selection.evt_open = false;
+    }
+    selection.index = new_sel;
     selection.drag_offset = None;
 }
 
@@ -614,10 +697,14 @@ pub fn delete_system(
 /// T=top, U=up, D=down, B=bottom, V=toggle visibility on selected element.
 pub fn z_shortcut_system(
     keys: Res<ButtonInput<KeyCode>>,
-    selection: Res<Selection>,
+    mut selection: ResMut<Selection>,
     mut overlay_action: ResMut<OverlayAction>,
 ) {
     let Some(sel) = selection.index else { return };
+    if keys.just_pressed(KeyCode::KeyE) {
+        selection.evt_open = !selection.evt_open;
+        return;
+    }
     if overlay_action.action.is_some() {
         return;
     }
