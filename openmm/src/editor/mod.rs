@@ -38,7 +38,7 @@ impl Plugin for EditorPlugin {
             .init_resource::<browser::BrowserState>()
             .init_resource::<UiVisible>()
             .init_resource::<canvas::OverlayAction>()
-            .init_resource::<canvas::ElementVisibility>()
+            .init_resource::<canvas::ElementEditorState>()
             .add_systems(OnEnter(GameState::Editor), editor_setup)
             .add_systems(
                 Update,
@@ -82,7 +82,12 @@ fn editor_setup(mut commands: Commands) {
     ));
     let screen = io::load_last_screen();
     let name = screen.id.clone();
+    let locked = io::load_locks(&name);
     commands.insert_resource(canvas::EditorScreen { screen, dirty: false });
+    commands.insert_resource(canvas::ElementEditorState {
+        locked,
+        ..Default::default()
+    });
     info!("screen editor started — editing '{name}'");
 }
 
@@ -97,7 +102,11 @@ fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>, eg
 }
 
 /// Top toolbar: name indicator, New/Open/Save buttons, help text.
-fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorScreen>) {
+fn editor_toolbar(
+    mut contexts: EguiContexts,
+    mut editor: ResMut<canvas::EditorScreen>,
+    mut editor_state: ResMut<canvas::ElementEditorState>,
+) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
     egui::TopBottomPanel::top("editor_toolbar").show(ctx, |ui| {
@@ -124,6 +133,8 @@ fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorS
                                     Ok(s) => {
                                         editor.screen = s;
                                         editor.dirty = false;
+                                        editor_state.locked = io::load_locks(name);
+                                        editor_state.hidden.clear();
                                         io::set_last_screen(name);
                                         info!("loaded screen '{name}'");
                                     }

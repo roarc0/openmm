@@ -47,11 +47,13 @@ pub struct CanvasElement {
 #[derive(Component)]
 pub struct CanvasBackground;
 
-/// Per-element editor-only visibility (not saved to RON).
+/// Per-element editor-only state (not saved to RON).
 #[derive(Resource, Default)]
-pub struct ElementVisibility {
-    /// Hidden element indices. Elements not in this set are visible.
+pub struct ElementEditorState {
+    /// Hidden element indices (texture hidden, gizmo remains).
     pub hidden: std::collections::HashSet<usize>,
+    /// Locked element IDs (by element id string, persisted across sessions).
+    pub locked: std::collections::HashSet<String>,
 }
 
 /// Current selection state.
@@ -178,6 +180,7 @@ pub enum OverlayCmd {
     Remove(usize),
     ToggleVisibility(usize),
     ToggleHoverOnly(usize),
+    ToggleLock(usize),
 }
 
 /// Draw selection borders, labels, and z-order toolbar via egui. Runs in EguiPrimaryContextPass.
@@ -188,7 +191,7 @@ pub fn draw_overlays(
     windows: Query<&Window, With<PrimaryWindow>>,
     ui_assets: Res<UiAssets>,
     mut overlay_action: ResMut<OverlayAction>,
-    visibility: Res<ElementVisibility>,
+    editor_state: Res<ElementEditorState>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     let Ok(window) = windows.single() else { return };
@@ -231,7 +234,7 @@ pub fn draw_overlays(
 
         painter.rect_stroke(rect, 0.0, stroke, egui::StrokeKind::Inside);
 
-        let is_hidden = visibility.hidden.contains(&i);
+        let is_hidden = editor_state.hidden.contains(&i);
 
         // Label: id[w,h]@(x,y) z=N [H]
         let mut flags = String::new();
@@ -252,6 +255,25 @@ pub fn draw_overlays(
             egui::FontId::proportional(13.0),
             text_color,
         );
+
+        // Status icons at bottom-right inside the element.
+        let mut icons = String::new();
+        if elem.hover_only {
+            icons.push_str("\u{1F441}"); // eye icon for hover-only
+        }
+        let is_locked = editor_state.locked.contains(&elem.id);
+        if is_locked {
+            icons.push_str("\u{1F512}"); // locked padlock
+        }
+        if !icons.is_empty() {
+            painter.text(
+                rect.right_bottom() + egui::vec2(-3.0, -2.0),
+                egui::Align2::RIGHT_BOTTOM,
+                icons,
+                egui::FontId::proportional(14.0),
+                egui::Color32::WHITE,
+            );
+        }
     }
 
     // Toolbar buttons for selected element — positioned below the element.
@@ -285,7 +307,7 @@ pub fn draw_overlays(
                         if btn(ui, "Bot") {
                             overlay_action.action = Some(OverlayCmd::SendToBottom(sel));
                         }
-                        let vis_label = if visibility.hidden.contains(&sel) {
+                        let vis_label = if editor_state.hidden.contains(&sel) {
                             "Show"
                         } else {
                             "Vis"
@@ -300,6 +322,10 @@ pub fn draw_overlays(
                         };
                         if btn(ui, hvr_label) {
                             overlay_action.action = Some(OverlayCmd::ToggleHoverOnly(sel));
+                        }
+                        let is_locked = editor_state.locked.contains(&elem.id);
+                        if btn(ui, if is_locked { "Unlk" } else { "Lock" }) {
+                            overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
                         }
                         if btn(ui, "X") {
                             overlay_action.action = Some(OverlayCmd::Remove(sel));
@@ -317,7 +343,7 @@ pub fn apply_overlay_actions(
     mut editor: ResMut<EditorScreen>,
     mut selection: ResMut<Selection>,
     mut elem_q: Query<(&CanvasElement, &mut ZIndex)>,
-    mut visibility: ResMut<ElementVisibility>,
+    mut editor_state: ResMut<ElementEditorState>,
 ) {
     let Some(cmd) = action.action.take() else { return };
     match cmd {
@@ -326,12 +352,12 @@ pub fn apply_overlay_actions(
                 editor.screen.elements.remove(idx);
                 editor.dirty = true;
                 selection.index = None;
-                visibility.hidden.remove(&idx);
+                editor_state.hidden.remove(&idx);
             }
         }
         OverlayCmd::ToggleVisibility(idx) => {
-            if !visibility.hidden.remove(&idx) {
-                visibility.hidden.insert(idx);
+            if !editor_state.hidden.remove(&idx) {
+                editor_state.hidden.insert(idx);
             }
         }
         OverlayCmd::ToggleHoverOnly(idx) => {
@@ -339,6 +365,16 @@ pub fn apply_overlay_actions(
                 elem.hover_only = !elem.hover_only;
             }
             editor.dirty = true;
+        }
+        OverlayCmd::ToggleLock(idx) => {
+            if let Some(elem) = editor.screen.elements.get(idx) {
+                let id = elem.id.clone();
+                if !editor_state.locked.remove(&id) {
+                    editor_state.locked.insert(id);
+                }
+                // Persist lock state.
+                super::io::save_locks(&editor.screen.id, &editor_state.locked);
+            }
         }
         OverlayCmd::BringToTop(idx) => {
             let new_z = editor.screen.elements.iter().map(|e| e.z).max().unwrap_or(0) + 1;
@@ -418,6 +454,7 @@ pub fn drag_system(
     mut selection: ResMut<Selection>,
     mut editor: ResMut<EditorScreen>,
     ui_assets: Res<UiAssets>,
+    editor_state: Res<ElementEditorState>,
 ) {
     let Ok(window) = windows.single() else { return };
     let Some(cursor) = window.cursor_position() else { return };
@@ -426,6 +463,15 @@ pub fn drag_system(
 
     let cursor_ref = Vec2::new(cursor.x / win_w * REF_W, cursor.y / win_h * REF_H);
     let Some(sel_idx) = selection.index else { return };
+    // Locked elements can't be dragged.
+    if editor
+        .screen
+        .elements
+        .get(sel_idx)
+        .is_some_and(|e| editor_state.locked.contains(&e.id))
+    {
+        return;
+    }
 
     if mouse.just_pressed(MouseButton::Left) {
         if let Some(elem) = editor.screen.elements.get(sel_idx) {
@@ -457,7 +503,7 @@ pub fn drag_system(
 /// Syncs Bevy `Node` positions from `EditorScreen` data every frame.
 pub fn sync_element_positions(
     editor: Res<EditorScreen>,
-    visibility: Res<ElementVisibility>,
+    editor_state: Res<ElementEditorState>,
     mut elem_q: Query<(&CanvasElement, &mut Node, &mut Visibility)>,
 ) {
     for (ce, mut node, mut vis) in &mut elem_q {
@@ -466,7 +512,7 @@ pub fn sync_element_positions(
         };
         node.left = Val::Percent(elem.position.0 / REF_W * 100.0);
         node.top = Val::Percent(elem.position.1 / REF_H * 100.0);
-        *vis = if visibility.hidden.contains(&ce.index) {
+        *vis = if editor_state.hidden.contains(&ce.index) {
             Visibility::Hidden
         } else {
             Visibility::Inherited
@@ -515,8 +561,17 @@ pub fn arrow_nudge_system(
     selection: Res<Selection>,
     mut editor: ResMut<EditorScreen>,
     ui_assets: Res<UiAssets>,
+    editor_state: Res<ElementEditorState>,
 ) {
     let Some(sel_idx) = selection.index else { return };
+    if editor
+        .screen
+        .elements
+        .get(sel_idx)
+        .is_some_and(|e| editor_state.locked.contains(&e.id))
+    {
+        return;
+    }
     let mut dx: f32 = 0.0;
     let mut dy: f32 = 0.0;
     if keys.just_pressed(KeyCode::ArrowLeft) {
@@ -550,11 +605,20 @@ pub fn delete_system(
     keys: Res<ButtonInput<KeyCode>>,
     mut selection: ResMut<Selection>,
     mut editor: ResMut<EditorScreen>,
+    editor_state: Res<ElementEditorState>,
 ) {
     if !keys.just_pressed(KeyCode::Delete) && !keys.just_pressed(KeyCode::Backspace) {
         return;
     }
     let Some(idx) = selection.index else { return };
+    if editor
+        .screen
+        .elements
+        .get(idx)
+        .is_some_and(|e| editor_state.locked.contains(&e.id))
+    {
+        return;
+    }
     if idx < editor.screen.elements.len() {
         editor.screen.elements.remove(idx);
         editor.dirty = true;
@@ -586,6 +650,8 @@ pub fn z_shortcut_system(
         overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
     } else if keys.just_pressed(KeyCode::KeyH) {
         overlay_action.action = Some(OverlayCmd::ToggleHoverOnly(sel));
+    } else if keys.just_pressed(KeyCode::KeyL) {
+        overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
     }
 }
 

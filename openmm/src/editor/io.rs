@@ -79,6 +79,26 @@ pub fn load_last_screen() -> Screen {
     Screen::new("untitled")
 }
 
+/// Save locked element IDs for a screen.
+pub fn save_locks(screen_id: &str, locked: &std::collections::HashSet<String>) {
+    ensure_dir();
+    let path = Path::new(SCREENS_DIR).join(format!("{}.locks.json", screen_id));
+    let ids: Vec<&String> = locked.iter().collect();
+    if let Ok(json) = serde_json::to_string_pretty(&ids) {
+        let _ = fs::write(&path, json);
+    }
+}
+
+/// Load locked element IDs for a screen.
+pub fn load_locks(screen_id: &str) -> std::collections::HashSet<String> {
+    let path = Path::new(SCREENS_DIR).join(format!("{}.locks.json", screen_id));
+    fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
+        .map(|v| v.into_iter().collect())
+        .unwrap_or_default()
+}
+
 pub fn load_screen(id: &str) -> Result<Screen, String> {
     let path = screen_path(id);
     let contents = fs::read_to_string(&path).map_err(|e| format!("Read error {}: {e}", path.display()))?;
