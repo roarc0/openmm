@@ -16,14 +16,22 @@ pub struct Screen {
 pub struct ScreenElement {
     pub id: String,
     pub position: (f32, f32),
+    /// Size in reference pixels. (0,0) = auto from texture dimensions.
     #[serde(default)]
-    pub size: Option<(f32, f32)>,
+    pub size: (f32, f32),
     #[serde(default)]
     pub z: i32,
+    /// When true, element is invisible by default and only shows on mouse hover.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub hover_only: bool,
     #[serde(default)]
     pub states: BTreeMap<String, ElementState>,
     #[serde(default)]
     pub on_click: Vec<String>,
+}
+
+fn is_false(v: &bool) -> bool {
+    !v
 }
 
 /// Visual state of an element — currently just a texture name.
@@ -54,8 +62,9 @@ impl ScreenElement {
         Self {
             id: id.into(),
             position,
-            size: None,
+            size: (0.0, 0.0),
             z: 0,
+            hover_only: false,
             states,
             on_click: Vec::new(),
         }
@@ -82,8 +91,9 @@ mod tests {
             elements: vec![ScreenElement {
                 id: "new_game_btn".to_string(),
                 position: (482.0, 9.0),
-                size: Some((135.0, 45.0)),
+                size: (135.0, 45.0),
                 z: 10,
+                hover_only: false,
                 states: BTreeMap::from([
                     (
                         "default".to_string(),
@@ -112,13 +122,25 @@ mod tests {
         let btn = &parsed.elements[0];
         assert_eq!(btn.id, "new_game_btn");
         assert_eq!(btn.position, (482.0, 9.0));
-        assert_eq!(btn.size, Some((135.0, 45.0)));
+        assert_eq!(btn.size, (135.0, 45.0));
         assert_eq!(btn.z, 10);
+        assert!(!btn.hover_only);
         assert_eq!(btn.states.len(), 2);
         assert_eq!(btn.texture_for_state("hover"), Some("mmnew1"));
         assert_eq!(btn.texture_for_state("missing"), Some("mmnew0"));
         assert_eq!(btn.on_click.len(), 2);
         assert_eq!(btn.on_click[0], "PlaySound 75");
+
+        // hover_only=false should not appear in output
+        assert!(!ron_str.contains("hover_only"));
+    }
+
+    #[test]
+    fn hover_only_serializes_when_true() {
+        let mut elem = ScreenElement::new("btn", "tex", (0.0, 0.0));
+        elem.hover_only = true;
+        let ron_str = ron::ser::to_string_pretty(&elem, ron::ser::PrettyConfig::default()).unwrap();
+        assert!(ron_str.contains("hover_only: true"));
     }
 
     #[test]
@@ -128,5 +150,13 @@ mod tests {
         assert_eq!(screen.id, "empty");
         assert!(screen.background.is_none());
         assert!(screen.elements.is_empty());
+    }
+
+    #[test]
+    fn size_zero_means_auto() {
+        let ron_str = r#"(id: "x", position: (10.0, 20.0), states: {})"#;
+        let elem: ScreenElement = ron::from_str(ron_str).unwrap();
+        assert_eq!(elem.size, (0.0, 0.0));
+        assert!(!elem.hover_only);
     }
 }

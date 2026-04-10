@@ -234,7 +234,7 @@ fn place_element(
         // Try bare name for dimensions since UiAssets caches by the name passed to get_or_load.
         let dims = ui_assets.dimensions(name).or_else(|| ui_assets.dimensions(bare));
         if let Some((w, h)) = dims {
-            elem.size = Some((w as f32, h as f32));
+            elem.size = (w as f32, h as f32);
         }
     }
 

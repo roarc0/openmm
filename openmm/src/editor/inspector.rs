@@ -56,7 +56,7 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
             // Clone fields to avoid holding the mutable borrow across closures.
             let mut elem_id = editor.screen.elements[sel_idx].id.clone();
             let mut pos = editor.screen.elements[sel_idx].position;
-            let mut size = editor.screen.elements[sel_idx].size.unwrap_or((64.0, 64.0));
+            let mut size = editor.screen.elements[sel_idx].size;
             let mut z = editor.screen.elements[sel_idx].z;
             let state_keys: Vec<String> = editor.screen.elements[sel_idx].states.keys().cloned().collect();
             let actions_count = editor.screen.elements[sel_idx].on_click.len();
@@ -98,7 +98,7 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                     .changed();
             });
             if size_changed {
-                editor.screen.elements[sel_idx].size = Some(size);
+                editor.screen.elements[sel_idx].size = size;
                 editor.dirty = true;
             }
 
@@ -110,6 +110,13 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                     editor.dirty = true;
                 }
             });
+
+            // Hover only
+            let mut hover_only = editor.screen.elements[sel_idx].hover_only;
+            if ui.checkbox(&mut hover_only, "Hover only").changed() {
+                editor.screen.elements[sel_idx].hover_only = hover_only;
+                editor.dirty = true;
+            }
 
             ui.separator();
 
@@ -187,7 +194,7 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
 
             // Debug label.
             let elem = &editor.screen.elements[sel_idx];
-            let (w, h) = elem.size.unwrap_or((0.0, 0.0));
+            let (w, h) = elem.size;
             let (px, py) = elem.position;
             ui.small(format!("{}[{w:.0},{h:.0}]@({px:.0},{py:.0})", elem.id));
         });

@@ -18,12 +18,15 @@ pub const REF_H: f32 = 480.0;
 
 /// Resolve element size: explicit size > texture dimensions > 32x32 fallback.
 fn resolve_size(elem: &ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
-    elem.size.unwrap_or_else(|| {
-        elem.texture_for_state("default")
-            .and_then(|name| ui_assets.dimensions(name))
-            .map(|(w, h)| (w as f32, h as f32))
-            .unwrap_or((32.0, 32.0))
-    })
+    let (w, h) = elem.size;
+    if w > 0.0 && h > 0.0 {
+        return (w, h);
+    }
+    // Auto-resolve from texture dimensions.
+    elem.texture_for_state("default")
+        .and_then(|name| ui_assets.dimensions(name))
+        .map(|(w, h)| (w as f32, h as f32))
+        .unwrap_or((32.0, 32.0))
 }
 
 /// Runtime state of the screen being edited.
@@ -212,6 +215,12 @@ pub fn draw_overlays(
                 egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 0, 255)),
                 egui::Color32::from_rgb(255, 0, 255),
             )
+        } else if elem.hover_only {
+            // Cyan for hover-only elements.
+            (
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 200, 255)),
+                egui::Color32::from_rgb(0, 200, 255),
+            )
         } else {
             (
                 egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 255, 0)),
@@ -224,10 +233,16 @@ pub fn draw_overlays(
         let is_hidden = visibility.hidden.contains(&i);
 
         // Label: id[w,h]@(x,y) z=N [H]
-        let hidden_mark = if is_hidden { " [H]" } else { "" };
+        let mut flags = String::new();
+        if is_hidden {
+            flags.push_str(" [H]");
+        }
+        if elem.hover_only {
+            flags.push_str(" [HOVER]");
+        }
         let label = format!(
             "{}[{},{}]@({},{}) z={}{}",
-            elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32, elem.z, hidden_mark,
+            elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32, elem.z, flags,
         );
         painter.text(
             rect.left_top() + egui::vec2(3.0, 2.0),
