@@ -256,21 +256,31 @@ pub fn draw_overlays(
             text_color,
         );
 
-        // Status icons at bottom-right inside the element.
-        let mut icons = String::new();
-        if elem.hover_only {
-            icons.push_str("\u{1F441}"); // eye icon for hover-only
-        }
+        // Status stamps at bottom-right inside the element.
         let is_locked = editor_state.locked.contains(&elem.id);
-        if is_locked {
-            icons.push_str("\u{1F512}"); // locked padlock
+        let mut stamps: Vec<&str> = Vec::new();
+        if elem.hover_only {
+            stamps.push("HVR");
         }
-        if !icons.is_empty() {
+        if is_locked {
+            stamps.push("LCK");
+        }
+        if !stamps.is_empty() {
+            let text = stamps.join(" ");
+            // Draw background pill for readability.
+            let font = egui::FontId::monospace(13.0);
+            let galley = painter.layout_no_wrap(text.clone(), font.clone(), egui::Color32::WHITE);
+            let text_size = galley.size();
+            let pad = egui::vec2(4.0, 2.0);
+            let text_pos = rect.right_bottom() - egui::vec2(text_size.x + pad.x * 2.0, text_size.y + pad.y * 2.0)
+                + egui::vec2(-2.0, -2.0);
+            let bg_rect = egui::Rect::from_min_size(text_pos, text_size + pad * 2.0);
+            painter.rect_filled(bg_rect, 3.0, egui::Color32::from_rgba_unmultiplied(120, 0, 200, 180));
             painter.text(
-                rect.right_bottom() + egui::vec2(-3.0, -2.0),
-                egui::Align2::RIGHT_BOTTOM,
-                icons,
-                egui::FontId::proportional(14.0),
+                bg_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                text,
+                font,
                 egui::Color32::WHITE,
             );
         }
