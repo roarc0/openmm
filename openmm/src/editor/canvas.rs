@@ -254,6 +254,9 @@ pub fn draw_overlays(
         if is_locked {
             stamps.push("LCK");
         }
+        if !elem.bindings.is_empty() {
+            stamps.push("BND");
+        }
         if !stamps.is_empty() {
             let text = stamps.join(" ");
             // Draw background pill for readability.
@@ -402,6 +405,72 @@ pub fn draw_overlays(
                         editor.screen.elements[sel].on_hover.push(String::new());
                         editor.dirty = true;
                     }
+
+                    ui.separator();
+
+                    // bindings
+                    ui.heading("bindings");
+                    ui.small("property → variable (e.g. scroll_x → player.compass_yaw)");
+                    let bind_keys: Vec<String> = editor.screen.elements[sel].bindings.keys().cloned().collect();
+                    let mut bind_remove: Option<String> = None;
+                    for key in &bind_keys {
+                        let mut val = editor.screen.elements[sel]
+                            .bindings
+                            .get(key)
+                            .cloned()
+                            .unwrap_or_default();
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}:", key));
+                            if ui.text_edit_singleline(&mut val).changed() {
+                                editor.screen.elements[sel].bindings.insert(key.clone(), val);
+                                editor.dirty = true;
+                            }
+                            if ui.small_button("\u{2715}").clicked() {
+                                bind_remove = Some(key.clone());
+                            }
+                        });
+                    }
+                    if let Some(k) = bind_remove {
+                        editor.screen.elements[sel].bindings.remove(&k);
+                        editor.dirty = true;
+                    }
+                    ui.horizontal(|ui| {
+                        if ui.small_button("+ texture").clicked() {
+                            editor.screen.elements[sel]
+                                .bindings
+                                .entry("texture".to_string())
+                                .or_default();
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ text").clicked() {
+                            editor.screen.elements[sel]
+                                .bindings
+                                .entry("text".to_string())
+                                .or_default();
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ scroll_x").clicked() {
+                            editor.screen.elements[sel]
+                                .bindings
+                                .entry("scroll_x".to_string())
+                                .or_default();
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ scroll_y").clicked() {
+                            editor.screen.elements[sel]
+                                .bindings
+                                .entry("scroll_y".to_string())
+                                .or_default();
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("+ visible").clicked() {
+                            editor.screen.elements[sel]
+                                .bindings
+                                .entry("visible".to_string())
+                                .or_default();
+                            editor.dirty = true;
+                        }
+                    });
                 });
                 if !open {
                     selection.evt_open = false;

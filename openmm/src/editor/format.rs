@@ -27,6 +27,10 @@ pub struct ScreenElement {
     pub on_click: Vec<String>,
     #[serde(default)]
     pub on_hover: Vec<String>,
+    /// Runtime variable bindings. Key = property (texture, text, scroll_x, scroll_y,
+    /// offset_x, offset_y, visible), Value = variable name (e.g. "player.compass_yaw").
+    #[serde(default)]
+    pub bindings: BTreeMap<String, String>,
 }
 
 /// Visual state of an element — currently just a texture name.
@@ -62,6 +66,7 @@ impl ScreenElement {
             states,
             on_click: Vec::new(),
             on_hover: Vec::new(),
+            bindings: BTreeMap::new(),
         }
     }
 
@@ -111,6 +116,23 @@ mod tests {
         assert_eq!(btn.on_click.len(), 2);
         assert_eq!(btn.on_hover.len(), 1);
         assert_eq!(btn.on_hover[0], "SetState hover");
+        assert!(btn.bindings.is_empty());
+    }
+
+    #[test]
+    fn bindings_round_trip() {
+        let mut elem = ScreenElement::new("compass", "compass", (100.0, 10.0));
+        elem.bindings
+            .insert("scroll_x".to_string(), "player.compass_yaw".to_string());
+        elem.bindings
+            .insert("visible".to_string(), "hud.view_is_world".to_string());
+
+        let ron_str = ron::ser::to_string_pretty(&elem, ron::ser::PrettyConfig::default()).unwrap();
+        let parsed: ScreenElement = ron::from_str(&ron_str).unwrap();
+
+        assert_eq!(parsed.bindings.len(), 2);
+        assert_eq!(parsed.bindings["scroll_x"], "player.compass_yaw");
+        assert_eq!(parsed.bindings["visible"], "hud.view_is_world");
     }
 
     #[test]
