@@ -5,6 +5,7 @@ use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
+use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
 use super::format::{Screen, ScreenElement};
 use super::io;
@@ -38,16 +39,12 @@ pub struct CanvasBackground;
 #[derive(Resource, Default)]
 pub struct Selection {
     pub index: Option<usize>,
-    /// Offset from element top-left to cursor at drag start (in reference coords).
     pub drag_offset: Option<Vec2>,
 }
 
-// ─── Rebuild ─────────────────────────────────────────────────────────────────
+// ─── Rebuild canvas ─────────────────────────────────────────────────────────
 
-/// Despawns and re-spawns all canvas entities when the element count or background changes.
-///
-/// Position-only changes during drag are handled by `sync_element_positions` to
-/// avoid an expensive full rebuild every frame.
+/// Rebuild canvas entities when structure changes (element count, background).
 pub fn rebuild_canvas(
     mut commands: Commands,
     editor: Res<EditorScreen>,
@@ -63,21 +60,18 @@ pub fn rebuild_canvas(
     let current_count = editor.screen.elements.len();
     let current_bg = editor.screen.background.clone();
 
-    // Only rebuild when structure changes — not on every position update.
     if *last_count == current_count && *last_bg == current_bg {
         return;
     }
     *last_count = current_count;
     *last_bg = current_bg.clone();
 
-    // Despawn old entities.
     for e in old_bg.iter().chain(old_elems.iter()) {
         commands.entity(e).despawn();
     }
 
-    // Spawn background.
+    // Background.
     if let Some(ref bg_name) = editor.screen.background {
-        let color = BackgroundColor(Color::srgba(0.1, 0.1, 0.1, 1.0));
         if let Some(handle) = ui_assets.get_or_load(bg_name, &game_assets, &mut images, &cfg) {
             commands.spawn((
                 Name::new("canvas_background"),
@@ -94,26 +88,10 @@ pub fn rebuild_canvas(
                 ZIndex(-1),
                 CanvasBackground,
             ));
-        } else {
-            commands.spawn((
-                Name::new("canvas_background"),
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Percent(0.0),
-                    top: Val::Percent(0.0),
-                    width: Val::Percent(100.0),
-                    height: Val::Percent(100.0),
-                    ..default()
-                },
-                color,
-                Pickable::IGNORE,
-                ZIndex(-1),
-                CanvasBackground,
-            ));
         }
     }
 
-    // Spawn each element.
+    // Elements.
     for (i, elem) in editor.screen.elements.iter().enumerate() {
         spawn_element(&mut commands, &mut ui_assets, &game_assets, &mut images, &cfg, elem, i);
     }
@@ -128,30 +106,19 @@ fn spawn_element(
     elem: &ScreenElement,
     index: usize,
 ) {
-    let left = elem.position.0 / REF_W * 100.0;
-    let top = elem.position.1 / REF_H * 100.0;
-
-    let (width, height) = if let Some((w, h)) = elem.size {
-        (Val::Percent(w / REF_W * 100.0), Val::Percent(h / REF_H * 100.0))
-    } else {
-        // Try to get natural size from the loaded texture.
-        let tex_name = elem.texture_for_state("default").unwrap_or("");
-        if let Some((w, h)) = ui_assets.dimensions(tex_name) {
-            (
-                Val::Percent(w as f32 / REF_W * 100.0),
-                Val::Percent(h as f32 / REF_H * 100.0),
-            )
-        } else {
-            (Val::Percent(5.0), Val::Percent(5.0))
-        }
-    };
+    let (w, h) = elem.size.unwrap_or_else(|| {
+        elem.texture_for_state("default")
+            .and_then(|name| ui_assets.dimensions(name))
+            .map(|(w, h)| (w as f32, h as f32))
+            .unwrap_or((32.0, 32.0))
+    });
 
     let node = Node {
         position_type: PositionType::Absolute,
-        left: Val::Percent(left),
-        top: Val::Percent(top),
-        width,
-        height,
+        left: Val::Percent(elem.position.0 / REF_W * 100.0),
+        top: Val::Percent(elem.position.1 / REF_H * 100.0),
+        width: Val::Percent(w / REF_W * 100.0),
+        height: Val::Percent(h / REF_H * 100.0),
         ..default()
     };
 
@@ -169,7 +136,6 @@ fn spawn_element(
     if let Some(handle) = maybe_handle {
         commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
     } else {
-        // Magenta placeholder for missing textures.
         commands.spawn((
             label,
             BackgroundColor(Color::srgba(1.0, 0.0, 1.0, 0.8)),
@@ -181,37 +147,72 @@ fn spawn_element(
     }
 }
 
-// ─── Update labels (gizmo borders) ───────────────────────────────────────────
+// ─── Debug overlays (egui painter) ──────────────────────────────────────────
 
-/// Draws gizmo rect borders around each element — yellow for selected, grey for unselected.
-pub fn update_labels(
-    mut gizmos: Gizmos,
+/// Draw selection borders and labels via egui painter. Runs in EguiPrimaryContextPass.
+pub fn draw_overlays(
+    mut contexts: EguiContexts,
+    editor: Res<EditorScreen>,
     selection: Res<Selection>,
-    elem_q: Query<(&GlobalTransform, &ComputedNode, &CanvasElement)>,
+    windows: Query<&Window, With<PrimaryWindow>>,
 ) {
-    for (gt, cn, ce) in &elem_q {
-        let pos = gt.translation().truncate();
-        let size = cn.size();
-        if size == Vec2::ZERO {
-            continue;
-        }
-        let center = pos + Vec2::new(size.x * 0.5, -size.y * 0.5);
-        let color = if selection.index == Some(ce.index) {
-            Color::srgba(1.0, 1.0, 0.0, 1.0)
+    let Ok(ctx) = contexts.ctx_mut() else { return };
+    let Ok(window) = windows.single() else { return };
+    let win_w = window.width();
+    let win_h = window.height();
+
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Foreground,
+        egui::Id::new("canvas_overlays"),
+    ));
+
+    for (i, elem) in editor.screen.elements.iter().enumerate() {
+        let (w, h) = elem.size.unwrap_or((32.0, 32.0));
+
+        // Convert reference coords to screen coords.
+        let sx = elem.position.0 / REF_W * win_w;
+        let sy = elem.position.1 / REF_H * win_h;
+        let sw = w / REF_W * win_w;
+        let sh = h / REF_H * win_h;
+
+        let rect = egui::Rect::from_min_size(egui::pos2(sx, sy), egui::vec2(sw, sh));
+
+        let is_selected = selection.index == Some(i);
+        let stroke = if is_selected {
+            egui::Stroke::new(2.0, egui::Color32::YELLOW)
         } else {
-            Color::srgba(0.4, 0.4, 0.4, 0.6)
+            egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(128, 128, 128, 100))
         };
-        gizmos.rect_2d(Isometry2d::from_translation(center), size, color);
+
+        painter.rect_stroke(rect, 0.0, stroke, egui::StrokeKind::Outside);
+
+        // Label: id[w,h]@(x,y)
+        let label = format!(
+            "{}[{},{}]@({},{})",
+            elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32,
+        );
+        let text_color = if is_selected {
+            egui::Color32::YELLOW
+        } else {
+            egui::Color32::from_rgba_unmultiplied(200, 200, 200, 150)
+        };
+        painter.text(
+            rect.left_top() + egui::vec2(2.0, -14.0),
+            egui::Align2::LEFT_TOP,
+            label,
+            egui::FontId::proportional(11.0),
+            text_color,
+        );
     }
 }
 
-// ─── Selection ───────────────────────────────────────────────────────────────
+// ─── Selection ──────────────────────────────────────────────────────────────
 
 /// On left click, selects the topmost element under the cursor.
 pub fn selection_system(
     mouse: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    elem_q: Query<(&GlobalTransform, &ComputedNode, &CanvasElement)>,
+    editor: Res<EditorScreen>,
     mut selection: ResMut<Selection>,
     egui_input: Option<Res<EguiWantsInput>>,
 ) {
@@ -223,32 +224,35 @@ pub fn selection_system(
     }
     let Ok(window) = windows.single() else { return };
     let Some(cursor) = window.cursor_position() else { return };
+    let win_w = window.width();
+    let win_h = window.height();
 
-    // Find topmost (highest ZIndex) element containing cursor.
+    // Convert cursor to reference coords.
+    let cx = cursor.x / win_w * REF_W;
+    let cy = cursor.y / win_h * REF_H;
+
+    // Hit test against elements (last = topmost due to z-order).
     let mut best: Option<(usize, i32)> = None;
-    for (gt, cn, ce) in &elem_q {
-        let pos = gt.translation().truncate();
-        let size = cn.size();
-        // UI nodes: origin at top-left, y increases downward in screen space.
-        let rect = Rect::from_corners(pos, pos + Vec2::new(size.x, size.y));
-        if rect.contains(cursor) {
-            let z = ce.index as i32; // use index as tiebreaker; z_order tracked separately
-            if best.map_or(true, |(_, bz)| z > bz) {
-                best = Some((ce.index, z));
+    for (i, elem) in editor.screen.elements.iter().enumerate() {
+        let (w, h) = elem.size.unwrap_or((32.0, 32.0));
+        let (ex, ey) = elem.position;
+        if cx >= ex && cx <= ex + w && cy >= ey && cy <= ey + h {
+            if best.map_or(true, |(_, bz)| elem.z > bz) {
+                best = Some((i, elem.z));
             }
         }
     }
 
     selection.index = best.map(|(idx, _)| idx);
+    selection.drag_offset = None;
 }
 
-// ─── Drag ────────────────────────────────────────────────────────────────────
+// ─── Drag ───────────────────────────────────────────────────────────────────
 
-/// Records drag offset on press, updates element position while held, clears on release.
+/// Drag selected element with mouse.
 pub fn drag_system(
     mouse: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    elem_q: Query<(&GlobalTransform, &ComputedNode, &CanvasElement)>,
     mut selection: ResMut<Selection>,
     mut editor: ResMut<EditorScreen>,
     egui_input: Option<Res<EguiWantsInput>>,
@@ -258,23 +262,16 @@ pub fn drag_system(
     }
     let Ok(window) = windows.single() else { return };
     let Some(cursor) = window.cursor_position() else { return };
-    let win_size = Vec2::new(window.width(), window.height());
+    let win_w = window.width();
+    let win_h = window.height();
 
-    // Convert cursor screen pos to reference coords.
-    let cursor_ref = Vec2::new(cursor.x / win_size.x * REF_W, cursor.y / win_size.y * REF_H);
-
+    let cursor_ref = Vec2::new(cursor.x / win_w * REF_W, cursor.y / win_h * REF_H);
     let Some(sel_idx) = selection.index else { return };
 
     if mouse.just_pressed(MouseButton::Left) {
-        // Record offset between element position and cursor (in ref coords).
-        for (gt, _cn, ce) in &elem_q {
-            if ce.index != sel_idx {
-                continue;
-            }
-            let pos = gt.translation().truncate();
-            let elem_ref = Vec2::new(pos.x / win_size.x * REF_W, pos.y / win_size.y * REF_H);
-            selection.drag_offset = Some(cursor_ref - elem_ref);
-            break;
+        if let Some(elem) = editor.screen.elements.get(sel_idx) {
+            let elem_pos = Vec2::new(elem.position.0, elem.position.1);
+            selection.drag_offset = Some(cursor_ref - elem_pos);
         }
     }
 
@@ -282,7 +279,7 @@ pub fn drag_system(
         if let Some(offset) = selection.drag_offset {
             let new_pos = cursor_ref - offset;
             if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-                elem.position = (new_pos.x, new_pos.y);
+                elem.position = (new_pos.x.round(), new_pos.y.round());
                 editor.dirty = true;
             }
         }
@@ -293,10 +290,9 @@ pub fn drag_system(
     }
 }
 
-// ─── Sync positions ───────────────────────────────────────────────────────────
+// ─── Sync positions ────────────────────────────────────────────────────────
 
 /// Syncs Bevy `Node` positions from `EditorScreen` data every frame.
-/// Handles position changes from drag and inspector edits without a full rebuild.
 pub fn sync_element_positions(editor: Res<EditorScreen>, mut elem_q: Query<(&CanvasElement, &mut Node)>) {
     for (ce, mut node) in &mut elem_q {
         let Some(elem) = editor.screen.elements.get(ce.index) else {
@@ -307,7 +303,7 @@ pub fn sync_element_positions(editor: Res<EditorScreen>, mut elem_q: Query<(&Can
     }
 }
 
-// ─── Z-order ─────────────────────────────────────────────────────────────────
+// ─── Z-order ───────────────────────────────────────────────────────────────
 
 /// Scroll wheel on selected element increments/decrements z.
 pub fn z_order_system(
@@ -336,7 +332,6 @@ pub fn z_order_system(
     };
     if let Some(z_val) = new_z {
         editor.dirty = true;
-        // Update the ZIndex component directly to avoid a full rebuild.
         for (ce, mut z) in &mut elem_q {
             if ce.index == sel_idx {
                 *z = ZIndex(z_val);
@@ -345,7 +340,7 @@ pub fn z_order_system(
     }
 }
 
-// ─── Delete ───────────────────────────────────────────────────────────────────
+// ─── Delete ────────────────────────────────────────────────────────────────
 
 /// Delete/Backspace removes the selected element.
 pub fn delete_system(
@@ -365,11 +360,10 @@ pub fn delete_system(
         editor.screen.elements.remove(idx);
         editor.dirty = true;
         selection.index = None;
-        // Rebuild triggered automatically via resource_changed.
     }
 }
 
-// ─── Save ────────────────────────────────────────────────────────────────────
+// ─── Save ──────────────────────────────────────────────────────────────────
 
 /// Ctrl+S saves the current screen to disk.
 pub fn save_shortcut_system(keys: Res<ButtonInput<KeyCode>>, mut editor: ResMut<EditorScreen>) {

@@ -34,7 +34,6 @@ impl Plugin for EditorPlugin {
                     canvas::selection_system,
                     canvas::drag_system,
                     canvas::sync_element_positions,
-                    canvas::update_labels,
                     canvas::z_order_system,
                     canvas::delete_system,
                     canvas::save_shortcut_system,
@@ -46,7 +45,13 @@ impl Plugin for EditorPlugin {
             // Egui UI systems run in EguiPrimaryContextPass (between begin_pass and end_pass).
             .add_systems(
                 EguiPrimaryContextPass,
-                (browser::browser_ui, inspector::inspector_ui, editor_toolbar).run_if(in_state(GameState::Editor)),
+                (
+                    browser::browser_ui,
+                    inspector::inspector_ui,
+                    editor_toolbar,
+                    canvas::draw_overlays,
+                )
+                    .run_if(in_state(GameState::Editor)),
             );
     }
 }
