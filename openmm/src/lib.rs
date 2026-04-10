@@ -10,6 +10,8 @@ use states::{loading::LoadingPlugin, menu::MenuPlugin, video::VideoPlugin};
 
 pub(crate) mod assets;
 pub mod config;
+#[cfg(feature = "editor")]
+pub(crate) mod editor;
 pub(crate) mod engine;
 pub(crate) mod fonts;
 pub(crate) mod game;
@@ -25,6 +27,8 @@ pub(crate) enum GameState {
     Menu,
     Loading,
     Game,
+    #[cfg(feature = "editor")]
+    Editor,
 }
 
 pub struct GamePlugin;
@@ -36,7 +40,18 @@ impl Plugin for GamePlugin {
         let game_fonts = fonts::GameFonts::load(&game_assets);
         let save_data = GameSave::load_or_default();
 
-        let initial_state = if cfg.map.is_some() {
+        let editor_mode = cfg.editor;
+        let initial_state = if editor_mode {
+            #[cfg(feature = "editor")]
+            {
+                GameState::Editor
+            }
+            #[cfg(not(feature = "editor"))]
+            {
+                bevy::log::warn!("--editor requires the 'editor' feature; starting normally");
+                GameState::Menu
+            }
+        } else if cfg.map.is_some() {
             GameState::Loading
         } else if cfg.skip_intro {
             GameState::Menu
@@ -55,8 +70,14 @@ impl Plugin for GamePlugin {
                 skippable: false,
                 next: GameState::Menu,
             })
-            .add_plugins((EngineConfigPlugin, VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
-            .insert_state(initial_state);
+            .add_plugins((EngineConfigPlugin, VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin));
+
+        #[cfg(feature = "editor")]
+        if editor_mode {
+            app.add_plugins(editor::EditorPlugin);
+        }
+
+        app.insert_state(initial_state);
     }
 }
 

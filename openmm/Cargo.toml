@@ -7,8 +7,10 @@ publish = false
 
 [features]
 dev = ["bevy/dynamic_linking"]
+editor = []
 
 [dependencies]
+ron = "0.10"
 openmm-data = { path = "../openmm-data" }
 bevy = { version = "0.18", default-features = false, features = [
     # App core

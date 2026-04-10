@@ -196,6 +196,10 @@ struct Cli {
     #[arg(long)]
     world_inspector: Option<bool>,
 
+    /// Launch the screen editor instead of the game
+    #[arg(long)]
+    editor: bool,
+
     /// Path to config file
     /// Path to config file (default: ./openmm.toml, fallback: data/openmm.toml)
     #[arg(long)]
@@ -251,6 +255,7 @@ struct ConfigFile {
     motion_blur: Option<bool>,
     exposure: Option<f32>,
     world_inspector: Option<bool>,
+    editor: Option<bool>,
 }
 
 /// Resolved game configuration — available as a Bevy resource.
@@ -342,6 +347,9 @@ pub struct GameConfig {
     /// because egui's render node interacts badly with `Fxaa` (blanks the
     /// scene) and walking every entity each frame is expensive.
     pub world_inspector: bool,
+    /// Launch screen editor mode instead of the game (runtime-only, not saved to config).
+    #[serde(skip)]
+    pub editor: bool,
 }
 
 impl Default for GameConfig {
@@ -394,6 +402,7 @@ impl Default for GameConfig {
             motion_blur: false,
             exposure: 0.0,
             world_inspector: false,
+            editor: false,
         }
     }
 }
@@ -513,6 +522,7 @@ impl GameConfig {
             motion_blur: resolve!(cli.motion_blur, file_cfg.motion_blur, d.motion_blur),
             exposure: resolve!(cli.exposure, file_cfg.exposure, d.exposure),
             world_inspector: resolve!(cli.world_inspector, file_cfg.world_inspector, d.world_inspector),
+            editor: cli.editor || file_cfg.editor.unwrap_or(d.editor),
         };
         resolved.validate();
         resolved

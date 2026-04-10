@@ -1,4 +1,4 @@
-.PHONY: build run release release-native run-release run-release-native check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci profile-chrome profile-tracy
+.PHONY: build run editor release release-native run-release run-release-native check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci profile-chrome profile-tracy
 
 # --- Build ---
 
@@ -17,6 +17,9 @@ ifdef map
 else
 	cargo run -p openmm --features openmm/dev
 endif
+
+editor:
+	cargo run -p openmm --features "openmm/dev,openmm/editor" -- --editor --skip-intro true
 
 run-release:
 	cargo run --release -p openmm
