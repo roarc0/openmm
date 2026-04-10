@@ -60,6 +60,7 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
             let mut z = editor.screen.elements[sel_idx].z;
             let state_keys: Vec<String> = editor.screen.elements[sel_idx].states.keys().cloned().collect();
             let actions_count = editor.screen.elements[sel_idx].on_click.len();
+            let hover_count = editor.screen.elements[sel_idx].on_hover.len();
 
             // ID
             ui.horizontal(|ui| {
@@ -110,13 +111,6 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                     editor.dirty = true;
                 }
             });
-
-            // Hover only
-            let mut hover_only = editor.screen.elements[sel_idx].hover_only;
-            if ui.checkbox(&mut hover_only, "Hover only").changed() {
-                editor.screen.elements[sel_idx].hover_only = hover_only;
-                editor.dirty = true;
-            }
 
             ui.separator();
 
@@ -186,6 +180,35 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                 }
                 if to_add {
                     editor.screen.elements[sel_idx].on_click.push(String::new());
+                    editor.dirty = true;
+                }
+            });
+
+            ui.collapsing("on_hover actions", |ui| {
+                let mut to_remove: Option<usize> = None;
+                let mut to_add = false;
+
+                for i in 0..hover_count {
+                    let mut action = editor.screen.elements[sel_idx].on_hover[i].clone();
+                    ui.horizontal(|ui| {
+                        if ui.text_edit_singleline(&mut action).changed() {
+                            editor.screen.elements[sel_idx].on_hover[i] = action;
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("\u{2715}").clicked() {
+                            to_remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = to_remove {
+                    editor.screen.elements[sel_idx].on_hover.remove(i);
+                    editor.dirty = true;
+                }
+                if ui.small_button("+ Add action").clicked() {
+                    to_add = true;
+                }
+                if to_add {
+                    editor.screen.elements[sel_idx].on_hover.push(String::new());
                     editor.dirty = true;
                 }
             });

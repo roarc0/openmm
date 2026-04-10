@@ -179,7 +179,6 @@ pub enum OverlayCmd {
     MoveDown(usize),
     Remove(usize),
     ToggleVisibility(usize),
-    ToggleHoverOnly(usize),
     ToggleLock(usize),
 }
 
@@ -214,16 +213,10 @@ pub fn draw_overlays(
         let rect = egui::Rect::from_min_size(egui::pos2(sx, sy), egui::vec2(sw, sh));
 
         let is_selected = selection.index == Some(i);
-        // Selected = magenta (thick), hover-only = cyan, normal = green.
         let (stroke, text_color) = if is_selected {
             (
                 egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 0, 255)),
                 egui::Color32::from_rgb(255, 0, 255),
-            )
-        } else if elem.hover_only {
-            (
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 200, 255)),
-                egui::Color32::from_rgb(0, 200, 255),
             )
         } else {
             (
@@ -241,9 +234,6 @@ pub fn draw_overlays(
         if is_hidden {
             flags.push_str(" [H]");
         }
-        if elem.hover_only {
-            flags.push_str(" [HOVER]");
-        }
         let label = format!(
             "{}[{},{}]@({},{}) z={}{}",
             elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32, elem.z, flags,
@@ -259,9 +249,6 @@ pub fn draw_overlays(
         // Status stamps at bottom-right inside the element.
         let is_locked = editor_state.locked.contains(&elem.id);
         let mut stamps: Vec<&str> = Vec::new();
-        if elem.hover_only {
-            stamps.push("HVR");
-        }
         if is_locked {
             stamps.push("LCK");
         }
@@ -325,14 +312,6 @@ pub fn draw_overlays(
                         if btn(ui, vis_label) {
                             overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
                         }
-                        let hvr_label = if editor.screen.elements.get(sel).is_some_and(|e| e.hover_only) {
-                            "Hvr*"
-                        } else {
-                            "Hvr"
-                        };
-                        if btn(ui, hvr_label) {
-                            overlay_action.action = Some(OverlayCmd::ToggleHoverOnly(sel));
-                        }
                         let is_locked = editor_state.locked.contains(&elem.id);
                         if btn(ui, if is_locked { "Unlk" } else { "Lock" }) {
                             overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
@@ -369,12 +348,6 @@ pub fn apply_overlay_actions(
             if !editor_state.hidden.remove(&idx) {
                 editor_state.hidden.insert(idx);
             }
-        }
-        OverlayCmd::ToggleHoverOnly(idx) => {
-            if let Some(elem) = editor.screen.elements.get_mut(idx) {
-                elem.hover_only = !elem.hover_only;
-            }
-            editor.dirty = true;
         }
         OverlayCmd::ToggleLock(idx) => {
             if let Some(elem) = editor.screen.elements.get(idx) {
@@ -658,8 +631,6 @@ pub fn z_shortcut_system(
         overlay_action.action = Some(OverlayCmd::SendToBottom(sel));
     } else if keys.just_pressed(KeyCode::KeyV) {
         overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
-    } else if keys.just_pressed(KeyCode::KeyH) {
-        overlay_action.action = Some(OverlayCmd::ToggleHoverOnly(sel));
     } else if keys.just_pressed(KeyCode::KeyL) {
         overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
     }
