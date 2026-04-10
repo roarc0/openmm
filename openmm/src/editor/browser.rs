@@ -195,17 +195,16 @@ pub fn browser_ui(
                         ui.set_min_width(200.0);
                         egui::ScrollArea::vertical()
                             .id_salt("browser_files")
-                            .max_height(350.0)
+                            .max_height(600.0)
                             .show(ui, |ui| {
-                                let show: Vec<String> = browser.filtered.iter().take(200).cloned().collect();
-                                for full_name in show {
+                                for full_name in &browser.filtered {
                                     let short = full_name
                                         .strip_prefix(&format!("{}/", folder_name))
-                                        .unwrap_or(&full_name);
+                                        .unwrap_or(full_name);
                                     let resp = ui.button(short);
                                     if resp.clicked() {
                                         place_element(
-                                            &full_name,
+                                            full_name,
                                             &mut editor,
                                             &mut ui_assets,
                                             &game_assets,
@@ -216,9 +215,6 @@ pub fn browser_ui(
                                     if resp.hovered() {
                                         new_hover = Some(full_name.clone());
                                     }
-                                }
-                                if browser.filtered.len() > 200 {
-                                    ui.label(format!("... {} more", browser.filtered.len() - 200));
                                 }
                             });
                     });
