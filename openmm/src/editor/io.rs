@@ -67,10 +67,13 @@ pub fn set_last_screen(id: &str) {
 /// Load the last-edited screen from editor config, or return a blank screen.
 pub fn load_last_screen() -> Screen {
     let cfg = EditorConfig::load();
-    cfg.last_screen
-        .as_deref()
-        .and_then(|id| load_screen(id).ok())
-        .unwrap_or_else(|| Screen::new("untitled"))
+    if let Some(id) = &cfg.last_screen {
+        match load_screen(id) {
+            Ok(screen) => return screen,
+            Err(e) => bevy::log::warn!("failed to load last screen '{}': {}", id, e),
+        }
+    }
+    Screen::new("untitled")
 }
 
 pub fn load_screen(id: &str) -> Result<Screen, String> {
