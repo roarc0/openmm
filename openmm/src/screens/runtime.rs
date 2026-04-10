@@ -15,24 +15,42 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use openmm_data::Archive;
 use openmm_data::assets::{SmkArchive as Vid, SmkDecoder};
 
-use super::{REF_H, REF_W, Screen, ScreenElement, ImageElement, VideoElement, load_screen, load_texture_with_transparency, resolve_image_size};
+use super::{
+    ImageElement, REF_H, REF_W, Screen, ScreenElement, TextElement, VideoElement, load_screen,
+    load_texture_with_transparency, resolve_image_size,
+};
+use crate::GameState;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use crate::game::hud::UiAssets;
-use crate::GameState;
+use crate::fonts::GameFonts;
+use crate::game::hud::{FooterText, UiAssets};
 
 pub struct ScreenRuntimePlugin;
 
 impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ScreenLayers>()
-            .add_systems(OnEnter(GameState::Menu), screen_setup)
+            // Menu state: load "menu" screen.
+            .add_systems(OnEnter(GameState::Menu), menu_screen_setup)
             .add_systems(OnExit(GameState::Menu), screen_teardown)
+            // Game state: load "ingame" screen as HUD overlay (no extra camera).
+            .add_systems(OnEnter(GameState::Game), game_screen_setup)
+            .add_systems(OnExit(GameState::Game), screen_teardown)
+            // Interaction systems run in both Menu and Game states.
             .add_systems(
                 Update,
-                (screen_hover, pulse_hover, pulse_animate, screen_click, screen_keys,
-                 video_tick, click_flash_tick, process_pending_actions)
-                    .run_if(in_state(GameState::Menu)),
+                (
+                    screen_hover,
+                    pulse_hover,
+                    pulse_animate,
+                    screen_click,
+                    screen_keys,
+                    video_tick,
+                    text_update,
+                    click_flash_tick,
+                    process_pending_actions,
+                )
+                    .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
             );
     }
 }
@@ -60,6 +78,19 @@ struct ScreenMusic(String);
 struct ClickFlash {
     timer: Timer,
     pending_actions: Vec<String>,
+}
+
+/// Marks a text element with its data source binding.
+#[derive(Component)]
+struct RuntimeText {
+    source: String,
+    font: String,
+    color: [u8; 4],
+    align: String,
+    /// Bounding box in reference pixels: (x, y, w, h).
+    bounds: (f32, f32, f32, f32),
+    /// Last rendered text — skip re-render if unchanged.
+    last_text: String,
 }
 
 /// Element starts hidden (from `hidden: true` in RON). Restored to Hidden on unhover.
@@ -104,7 +135,8 @@ struct PendingActions {
 
 // ── Setup & teardown ────────────────────────────────────────────────────────
 
-fn screen_setup(
+/// Menu state: spawn Camera2d + load "menu" screen.
+fn menu_screen_setup(
     mut commands: Commands,
     cfg: Res<GameConfig>,
     game_assets: Res<GameAssets>,
@@ -113,13 +145,52 @@ fn screen_setup(
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
 ) {
-    let Some(ref screen_id) = cfg.screens else { return };
+    if !cfg.screens {
+        return;
+    }
 
-    // Camera shared across all layers.
     commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
 
     show_screen(
-        screen_id,
+        "logo",
+        &mut commands,
+        &mut layers,
+        &mut ui_assets,
+        &game_assets,
+        &mut images,
+        &mut audio_sources,
+        &cfg,
+    );
+}
+
+/// Game state: spawn UI camera + load "ingame" screen as HUD overlay.
+fn game_screen_setup(
+    mut commands: Commands,
+    cfg: Res<GameConfig>,
+    game_assets: Res<GameAssets>,
+    mut ui_assets: ResMut<UiAssets>,
+    mut images: ResMut<Assets<Image>>,
+    mut audio_sources: ResMut<Assets<AudioSource>>,
+    mut layers: ResMut<ScreenLayers>,
+) {
+    if !cfg.screens {
+        return;
+    }
+
+    // UI camera renders on top of the 3D scene (order=1, no clear).
+    commands.spawn((
+        Camera2d,
+        Camera {
+            order: 1,
+            clear_color: ClearColorConfig::None,
+            ..default()
+        },
+        bevy::ui::IsDefaultUiCamera,
+        ScreenLayer("__camera__".into()),
+    ));
+
+    show_screen(
+        "ingame",
         &mut commands,
         &mut layers,
         &mut ui_assets,
@@ -174,7 +245,18 @@ fn show_screen(
 
     let layer_tag = ScreenLayer(screen_id.to_string());
     for (i, elem) in screen.elements.iter().enumerate() {
-        spawn_runtime_element(commands, ui_assets, game_assets, images, cfg, elem, i, screen_id, &layer_tag, audio_sources);
+        spawn_runtime_element(
+            commands,
+            ui_assets,
+            game_assets,
+            images,
+            cfg,
+            elem,
+            i,
+            screen_id,
+            &layer_tag,
+            audio_sources,
+        );
     }
 
     layers.screens.insert(screen_id.to_string(), screen);
@@ -218,7 +300,16 @@ fn load_screen_replace_all(
     }
     layers.screens.clear();
 
-    show_screen(screen_id, commands, layers, ui_assets, game_assets, images, audio_sources, cfg);
+    show_screen(
+        screen_id,
+        commands,
+        layers,
+        ui_assets,
+        game_assets,
+        images,
+        audio_sources,
+        cfg,
+    );
 }
 
 // ── Music ───────────────────────────────────────────────────────────────────
@@ -306,7 +397,10 @@ fn spawn_video_element(
     layer_tag: &ScreenLayer,
 ) {
     let Some(bytes) = load_smk_bytes(&vid.video) else {
-        warn!("video element '{}': '{}' not found in Anims VID archives", vid.id, vid.video);
+        warn!(
+            "video element '{}': '{}' not found in Anims VID archives",
+            vid.id, vid.video
+        );
         return;
     };
 
@@ -320,7 +414,11 @@ fn spawn_video_element(
 
     let native_w = decoder.width;
     let native_h = decoder.height;
-    let spf = if decoder.fps > 0.0 { 1.0 / decoder.fps } else { 1.0 / 15.0 };
+    let spf = if decoder.fps > 0.0 {
+        1.0 / decoder.fps
+    } else {
+        1.0 / 15.0
+    };
 
     if let Some(audio_info) = decoder.audio
         && let Ok(mut audio_dec) = SmkDecoder::new(bytes.clone())
@@ -337,12 +435,20 @@ fn spawn_video_element(
             } else {
                 bevy::audio::PlaybackMode::Despawn
             };
-            commands.spawn((AudioPlayer(handle), PlaybackSettings { mode, ..default() }, layer_tag.clone()));
+            commands.spawn((
+                AudioPlayer(handle),
+                PlaybackSettings { mode, ..default() },
+                layer_tag.clone(),
+            ));
         }
     }
 
     let mut image = Image::new_fill(
-        Extent3d { width: native_w, height: native_h, depth_or_array_layers: 1 },
+        Extent3d {
+            width: native_w,
+            height: native_h,
+            depth_or_array_layers: 1,
+        },
         TextureDimension::D2,
         &[0, 0, 0, 255],
         TextureFormat::Rgba8UnormSrgb,
@@ -359,7 +465,11 @@ fn spawn_video_element(
         (native_w as f32, native_h as f32)
     };
 
-    let initial_vis = if vid.hidden { Visibility::Hidden } else { Visibility::Inherited };
+    let initial_vis = if vid.hidden {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    };
 
     commands.spawn((
         ImageNode::new(image_handle.clone()),
@@ -387,7 +497,15 @@ fn spawn_video_element(
         },
     ));
 
-    info!("video element '{}': '{}' ({}x{}, {:.1}fps, loop={})", vid.id, vid.video, native_w, native_h, 1.0/spf, vid.looping);
+    info!(
+        "video element '{}': '{}' ({}x{}, {:.1}fps, loop={})",
+        vid.id,
+        vid.video,
+        native_w,
+        native_h,
+        1.0 / spf,
+        vid.looping
+    );
 }
 
 /// Advance inline video frames and dispatch on_end actions.
@@ -408,7 +526,9 @@ fn video_tick(
         if vid.skippable && keys.just_pressed(KeyCode::Escape) {
             vid.finished = true;
             if !vid.on_end.is_empty() && pending.is_none() {
-                commands.insert_resource(PendingActions { actions: vid.on_end.clone() });
+                commands.insert_resource(PendingActions {
+                    actions: vid.on_end.clone(),
+                });
             }
             commands.entity(entity).despawn();
             continue;
@@ -438,7 +558,9 @@ fn video_tick(
                 } else {
                     vid.finished = true;
                     if !vid.on_end.is_empty() && pending.is_none() {
-                        commands.insert_resource(PendingActions { actions: vid.on_end.clone() });
+                        commands.insert_resource(PendingActions {
+                            actions: vid.on_end.clone(),
+                        });
                     }
                     commands.entity(entity).despawn();
                 }
@@ -463,10 +585,23 @@ fn spawn_runtime_element(
 ) {
     match elem {
         ScreenElement::Image(img) => {
-            spawn_image_element(commands, ui_assets, game_assets, images, cfg, img, index, screen_id, layer_tag);
+            spawn_image_element(
+                commands,
+                ui_assets,
+                game_assets,
+                images,
+                cfg,
+                img,
+                index,
+                screen_id,
+                layer_tag,
+            );
         }
         ScreenElement::Video(vid) => {
             spawn_video_element(commands, images, audio_sources, vid, layer_tag);
+        }
+        ScreenElement::Text(txt) => {
+            spawn_text_element(commands, txt, layer_tag);
         }
     }
 }
@@ -495,7 +630,14 @@ fn spawn_image_element(
 
     let default_tex = img.texture_for_state("default").unwrap_or("").to_string();
     let default_handle = if !default_tex.is_empty() {
-        load_texture_with_transparency(&default_tex, &img.transparent_color, ui_assets, game_assets, images, cfg)
+        load_texture_with_transparency(
+            &default_tex,
+            &img.transparent_color,
+            ui_assets,
+            game_assets,
+            images,
+            cfg,
+        )
     } else {
         None
     };
@@ -504,15 +646,29 @@ fn spawn_image_element(
         if state.texture.is_empty() {
             None
         } else {
-            load_texture_with_transparency(&state.texture, &img.transparent_color, ui_assets, game_assets, images, cfg)
+            load_texture_with_transparency(
+                &state.texture,
+                &img.transparent_color,
+                ui_assets,
+                game_assets,
+                images,
+                cfg,
+            )
         }
     });
 
     let has_interaction = hover_handle.is_some() || !img.on_click.is_empty() || !img.on_hover.is_empty();
     let has_pulse = img.on_hover.iter().any(|a| a.trim() == "PulseSprite()");
     let z = ZIndex(img.z);
-    let marker = RuntimeElement { screen_id: screen_id.to_string(), index };
-    let initial_vis = if img.hidden { Visibility::Hidden } else { Visibility::Inherited };
+    let marker = RuntimeElement {
+        screen_id: screen_id.to_string(),
+        index,
+    };
+    let initial_vis = if img.hidden {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    };
 
     if let Some(handle) = default_handle {
         let mut entity = commands.spawn((ImageNode::new(handle), node, z, marker, layer_tag.clone(), initial_vis));
@@ -553,6 +709,125 @@ fn spawn_image_element(
     }
 }
 
+// ── Text elements ───────────────────────────────────────────────────────────
+
+fn spawn_text_element(
+    commands: &mut Commands,
+    txt: &TextElement,
+    layer_tag: &ScreenLayer,
+) {
+    // Text starts hidden. Width/position set dynamically by text_update.
+    let node = Node {
+        position_type: PositionType::Absolute,
+        top: Val::Percent(txt.position.1 / REF_H * 100.0),
+        // Store the reference height as percent; text_update converts to Px for rendering.
+        height: Val::Percent(txt.size.1 / REF_H * 100.0),
+        width: Val::Auto,
+        ..default()
+    };
+
+    commands.spawn((
+        ImageNode::new(Handle::default()),
+        node,
+        ZIndex(txt.z),
+        Visibility::Hidden,
+        layer_tag.clone(),
+        RuntimeText {
+            source: txt.source.clone(),
+            font: txt.font.clone(),
+            color: txt.color_rgba(),
+            align: txt.align.clone(),
+            bounds: (txt.position.0, txt.position.1, txt.size.0, txt.size.1),
+            last_text: "\x00".to_string(), // sentinel — forces first update
+        },
+    ));
+}
+
+/// Read data sources, re-render text when content changes, reposition every frame.
+fn text_update(
+    footer: Res<FooterText>,
+    world_state: Option<Res<crate::game::world::WorldState>>,
+    game_fonts: Res<GameFonts>,
+    mut images: ResMut<Assets<Image>>,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    mut query: Query<(&mut RuntimeText, &mut ImageNode, &mut Visibility, &mut Node)>,
+) {
+    let Ok(window) = windows.single() else { return };
+    let win_w = window.width();
+    let win_h = window.height();
+    let sx = win_w / REF_W;
+    let sy = win_h / REF_H;
+
+    for (mut rt, mut img_node, mut vis, mut node) in &mut query {
+        let current = match rt.source.as_str() {
+            "footer_text" => footer.text().to_string(),
+            "gold" => world_state.as_ref().map_or(String::new(), |ws| ws.game_vars.gold.to_string()),
+            "food" => world_state.as_ref().map_or(String::new(), |ws| ws.game_vars.food.to_string()),
+            _ => String::new(),
+        };
+
+        // Re-render only when text changed.
+        if current != rt.last_text {
+            rt.last_text = current.clone();
+
+            if current.is_empty() {
+                *vis = Visibility::Hidden;
+                continue;
+            }
+
+            if let Some(handle) = game_fonts.render(&current, &rt.font, rt.color, &mut images) {
+                img_node.image = handle;
+                *vis = Visibility::Inherited;
+            } else {
+                *vis = Visibility::Hidden;
+                continue;
+            }
+        }
+
+        // Skip positioning if hidden.
+        if rt.last_text.is_empty() {
+            continue;
+        }
+
+        // Bounding box in screen pixels.
+        let (bx, by, bw, bh) = rt.bounds;
+        let box_x = bx * sx;
+        let box_w = bw * sx;
+        let display_h = bh * sy;
+
+        // Compute rendered text width in screen pixels.
+        let text_px_w = game_fonts.measure(&rt.last_text, &rt.font) as f32;
+        let display_w = if let Some(font) = game_fonts.get(&rt.font) {
+            text_px_w * (display_h / font.height as f32)
+        } else {
+            text_px_w * sx
+        };
+
+        // Position text within bounding box based on alignment.
+        node.width = Val::Auto;
+        node.height = Val::Px(display_h);
+        node.top = Val::Px(by * sy);
+        node.left = Val::Auto;
+        node.right = Val::Auto;
+
+        match rt.align.as_str() {
+            "right" => {
+                // Right edge of text at right edge of bounding box.
+                let right_edge = box_x + box_w;
+                node.left = Val::Px(right_edge - display_w);
+            }
+            "center" => {
+                // Center text within bounding box.
+                let center_x = box_x + box_w / 2.0;
+                node.left = Val::Px(center_x - display_w / 2.0);
+            }
+            _ => {
+                node.left = Val::Px(box_x);
+            }
+        }
+    }
+}
+
 // ── Interaction systems ─────────────────────────────────────────────────────
 
 fn screen_hover(
@@ -563,7 +838,11 @@ fn screen_hover(
         let show = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
         for child in children.iter() {
             if let Ok(mut vis) = hover_query.get_mut(child) {
-                *vis = if show { Visibility::Inherited } else { Visibility::Hidden };
+                *vis = if show {
+                    Visibility::Inherited
+                } else {
+                    Visibility::Hidden
+                };
             }
         }
     }
@@ -579,7 +858,9 @@ fn pulse_hover(
     for (entity, interaction, hidden_default) in &query {
         let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
         if hovering && !pulsing_query.contains(entity) {
-            commands.entity(entity).insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
+            commands
+                .entity(entity)
+                .insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
         } else if !hovering && pulsing_query.contains(entity) {
             commands.entity(entity).remove::<Pulsing>();
             if let Ok(mut img) = image_query.get_mut(entity) {
@@ -593,10 +874,7 @@ fn pulse_hover(
 }
 
 /// Animate alpha on pulsing elements: smooth 0→1→0 each second via sine wave.
-fn pulse_animate(
-    time: Res<Time>,
-    mut query: Query<(&mut Pulsing, &mut ImageNode)>,
-) {
+fn pulse_animate(time: Res<Time>, mut query: Query<(&mut Pulsing, &mut ImageNode)>) {
     for (mut pulse, mut img) in &mut query {
         pulse.elapsed += time.delta_secs();
         // sin gives -1..1, remap to 0..1. Full cycle = 1 second (2π per second).
@@ -619,7 +897,9 @@ fn screen_click(
         if flash_query.contains(entity) {
             continue;
         }
-        let Some(screen) = layers.screens.get(&rt_elem.screen_id) else { continue };
+        let Some(screen) = layers.screens.get(&rt_elem.screen_id) else {
+            continue;
+        };
         let elem = &screen.elements[rt_elem.index];
         if elem.on_click().is_empty() {
             continue;
@@ -818,7 +1098,17 @@ fn dispatch_action(
 
     if let Some(id) = parse_string_arg(trimmed, "LoadScreen") {
         info!("action: LoadScreen(\"{}\")", id);
-        load_screen_replace_all(id, commands, layers, layer_entities, ui_assets, game_assets, images, audio_sources, cfg);
+        load_screen_replace_all(
+            id,
+            commands,
+            layers,
+            layer_entities,
+            ui_assets,
+            game_assets,
+            images,
+            audio_sources,
+            cfg,
+        );
         return;
     }
 

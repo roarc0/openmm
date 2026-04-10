@@ -200,9 +200,9 @@ struct Cli {
     #[arg(long)]
     editor: bool,
 
-    /// Run a screen .ron file standalone (e.g. --screens=menu_screen)
+    /// Use screen-based UI (RON screens) instead of hardcoded menus/HUD
     #[arg(long)]
-    screens: Option<String>,
+    screens: bool,
 
     /// Path to config file
     /// Path to config file (default: ./openmm.toml, fallback: data/openmm.toml)
@@ -354,9 +354,9 @@ pub struct GameConfig {
     /// Launch screen editor mode instead of the game (runtime-only, not saved to config).
     #[serde(skip)]
     pub editor: bool,
-    /// Run a screen .ron file standalone (runtime-only).
+    /// Use screen-based UI instead of hardcoded menus/HUD (runtime-only).
     #[serde(skip)]
-    pub screens: Option<String>,
+    pub screens: bool,
 }
 
 impl Default for GameConfig {
@@ -410,7 +410,7 @@ impl Default for GameConfig {
             exposure: 0.0,
             world_inspector: false,
             editor: false,
-            screens: None,
+            screens: false,
         }
     }
 }

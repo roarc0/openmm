@@ -40,6 +40,22 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                 }
             });
 
+            if ui.small_button("+ Add Text").clicked() {
+                let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
+                editor.screen.elements.push(ScreenElement::Text(crate::screens::TextElement {
+                    id: "new_text".to_string(),
+                    position: (crate::screens::REF_W / 2.0, crate::screens::REF_H / 2.0),
+                    size: (200.0, 12.0),
+                    z: max_z + 1,
+                    hidden: false,
+                    source: "footer_text".to_string(),
+                    font: "smallnum".to_string(),
+                    color: "white".to_string(),
+                    align: "center".to_string(),
+                }));
+                editor.dirty = true;
+            }
+
             ui.separator();
 
             // ── Element ──────────────────────────────────────────────
@@ -76,6 +92,7 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                     match &mut editor.screen.elements[sel_idx] {
                         ScreenElement::Image(img) => img.id = elem_id.clone(),
                         ScreenElement::Video(vid) => vid.id = elem_id.clone(),
+                        ScreenElement::Text(txt) => txt.id = elem_id.clone(),
                     }
                     editor.dirty = true;
                 }
@@ -152,6 +169,68 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                         vid.skippable = skippable;
                         editor.dirty = true;
                     }
+                }
+            }
+
+            // Text (only for Text variant)
+            if let Some(txt) = editor.screen.elements[sel_idx].as_text() {
+                let mut source = txt.source.clone();
+                let mut font = txt.font.clone();
+                let mut color = txt.color.clone();
+                let mut align = txt.align.clone();
+                let mut changed = false;
+
+                ui.horizontal(|ui| {
+                    ui.label("Source:");
+                    egui::ComboBox::from_id_salt("txt_source")
+                        .selected_text(&source)
+                        .show_ui(ui, |ui| {
+                            for &s in crate::screens::TEXT_SOURCES {
+                                if ui.selectable_label(source == s, s).clicked() {
+                                    source = s.to_string();
+                                    changed = true;
+                                }
+                            }
+                        });
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Font:");
+                    if ui.text_edit_singleline(&mut font).changed() { changed = true; }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Color:");
+                    egui::ComboBox::from_id_salt("txt_color")
+                        .selected_text(&color)
+                        .show_ui(ui, |ui| {
+                            for &c in crate::screens::TEXT_COLORS {
+                                if ui.selectable_label(color == c, c).clicked() {
+                                    color = c.to_string();
+                                    changed = true;
+                                }
+                            }
+                        });
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Align:");
+                    egui::ComboBox::from_id_salt("txt_align")
+                        .selected_text(&align)
+                        .show_ui(ui, |ui| {
+                            for &a in crate::screens::TEXT_ALIGNS {
+                                if ui.selectable_label(align == a, a).clicked() {
+                                    align = a.to_string();
+                                    changed = true;
+                                }
+                            }
+                        });
+                });
+
+                if changed {
+                    let t = editor.screen.elements[sel_idx].as_text_mut().unwrap();
+                    t.source = source;
+                    t.font = font;
+                    t.color = color;
+                    t.align = align;
+                    editor.dirty = true;
                 }
             }
 

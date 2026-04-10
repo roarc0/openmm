@@ -74,20 +74,16 @@ pub struct MapOverviewImage(pub Option<Handle<Image>>);
 
 pub struct HudPlugin;
 
+/// Run condition: true when screen-based UI is NOT active.
+fn hud_enabled(cfg: Res<crate::config::GameConfig>) -> bool {
+    !cfg.screens
+}
+
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(debug_hud::DebugHudCoordsPlugin)
-            .add_systems(OnEnter(GameState::Game), spawn_hud)
-            .add_systems(Update, close_ui_system.run_if(in_state(GameState::Game)))
-            // These HUD systems are either independent (minimap, footer,
-            // stats, close_ui, freeze) or touch disjoint UI trees (overlay vs
-            // map_overlay). Bevy's `.chain()` only orders code execution — it
-            // does not flush commands — so the former blanket chain was
-            // serialising unrelated work without any data-visibility benefit.
-            //
-            // The one real dependency is `update_hud_layout` before
-            // `update_viewport`: viewport sizing reads the node values written
-            // by the layout pass. Everything else runs in parallel.
+            .add_systems(OnEnter(GameState::Game), spawn_hud.run_if(hud_enabled))
+            .add_systems(Update, close_ui_system.run_if(in_state(GameState::Game).and(hud_enabled)))
             .add_systems(
                 Update,
                 (
@@ -107,7 +103,7 @@ impl Plugin for HudPlugin {
                     map_overlay::update_map_overlay_layout,
                     freeze_system,
                 )
-                    .run_if(in_state(GameState::Game)),
+                    .run_if(in_state(GameState::Game).and(hud_enabled)),
             );
     }
 }

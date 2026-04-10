@@ -3,7 +3,7 @@
     elements: [
         Image((
             id: "BORDER4",
-            position: (0.0, 8.0),
+            position: (-0.0, 8.0),
             size: (8.0, 344.0),
             z: 0,
             states: {
@@ -136,7 +136,7 @@
             id: "icons/BUTTMENU",
             position: (594.0, 399.0),
             size: (29.0, 61.0),
-            z: -29,
+            z: 4,
             states: {
                 "default": (
                     texture: "icons/BUTTMENU",
@@ -178,6 +178,36 @@
             on_hover: [],
             bindings: {},
             transparent_color: "lime",
+        )),
+        Text((
+            id: "footer",
+            position: (0.0, 357.0),
+            size: (483.0, 12.0),
+            z: 5,
+            source: "footer_text",
+            font: "smallnum",
+            color: "white",
+            align: "center",
+        )),
+        Text((
+            id: "food",
+            position: (511.0, 357.0),
+            size: (35.0, 12.0),
+            z: 6,
+            source: "food",
+            font: "smallnum",
+            color: "yellow",
+            align: "right",
+        )),
+        Text((
+            id: "gold",
+            position: (551.0, 357.0),
+            size: (60.0, 12.0),
+            z: 7,
+            source: "gold",
+            font: "smallnum",
+            color: "yellow",
+            align: "right",
         )),
     ],
 )

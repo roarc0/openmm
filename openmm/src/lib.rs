@@ -42,7 +42,7 @@ impl Plugin for GamePlugin {
         let save_data = GameSave::load_or_default();
 
         let editor_mode = cfg.editor;
-        let screen_mode = cfg.screens.is_some();
+        let screen_mode = cfg.screens;
         let initial_state = if editor_mode {
             #[cfg(feature = "editor")]
             {
@@ -79,19 +79,21 @@ impl Plugin for GamePlugin {
         }
 
         // Game-only plugins — not loaded in editor mode.
+        // Loading + InGame always present. Screen runtime replaces Menu + Video + HUD.
+        app.add_plugins((LoadingPlugin, InGamePlugin));
+
         if screen_mode {
-            // Screen runtime replaces menu; loading + game still needed for NewGame().
-            app.add_plugins((screens::runtime::ScreenRuntimePlugin, LoadingPlugin, InGamePlugin))
-                .insert_state(initial_state);
+            app.add_plugins(screens::runtime::ScreenRuntimePlugin);
         } else {
             app.insert_resource(VideoRequest {
                 name: "3dologo".into(),
                 skippable: false,
                 next: GameState::Menu,
             })
-            .add_plugins((VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
-            .insert_state(initial_state);
+            .add_plugins((VideoPlugin, MenuPlugin));
         }
+
+        app.insert_state(initial_state);
     }
 }
 

@@ -152,6 +152,10 @@ pub fn rebuild_canvas(
             ScreenElement::Video(vid) => {
                 vid.video.hash(&mut hasher);
             }
+            ScreenElement::Text(txt) => {
+                txt.source.hash(&mut hasher);
+                txt.font.hash(&mut hasher);
+            }
         }
     }
     let fp = hasher.finish();
@@ -219,7 +223,17 @@ fn spawn_element(
     let marker = CanvasElement { index };
     let z = ZIndex(elem.z());
 
-    if elem.as_video().is_some() {
+    if elem.as_text().is_some() {
+        // Text placeholder: semi-transparent dark background.
+        commands.spawn((
+            label,
+            BackgroundColor(Color::srgba(0.1, 0.1, 0.3, 0.6)),
+            node,
+            z,
+            marker,
+            Pickable::IGNORE,
+        ));
+    } else if elem.as_video().is_some() {
         // Video placeholder: horizontal black/white stripes.
         let stripe_handle = generate_stripes(images);
         let mut stripe_img = ImageNode::new(stripe_handle);
@@ -303,6 +317,7 @@ pub fn draw_overlays(
 
         let is_selected = selection.index == Some(i);
         let is_video = elem.as_video().is_some();
+        let is_text = elem.as_text().is_some();
         let (stroke, text_color) = if is_selected {
             (
                 egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 0, 255)),
@@ -312,6 +327,11 @@ pub fn draw_overlays(
             (
                 egui::Stroke::new(1.5, egui::Color32::from_rgb(255, 60, 60)),
                 egui::Color32::from_rgb(255, 60, 60),
+            )
+        } else if is_text {
+            (
+                egui::Stroke::new(1.5, egui::Color32::from_rgb(100, 180, 255)),
+                egui::Color32::from_rgb(100, 180, 255),
             )
         } else {
             (
@@ -324,10 +344,13 @@ pub fn draw_overlays(
 
         let is_hidden = editor_state.hidden.contains(&i);
 
-        // Label: id[w,h]@(x,y) z=N [H]
+        // Label: id[w,h]@(x,y) z=N [TYPE] [H]
         let mut flags = String::new();
         if is_video {
             flags.push_str(" [VID]");
+        }
+        if is_text {
+            flags.push_str(" [TXT]");
         }
         if is_hidden {
             flags.push_str(" [H]");

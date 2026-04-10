@@ -15,11 +15,12 @@ pub struct Screen {
     pub elements: Vec<ScreenElement>,
 }
 
-/// A screen element — either a static image or a video.
+/// A screen element — image, video, or dynamic text.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ScreenElement {
     Image(ImageElement),
     Video(VideoElement),
+    Text(TextElement),
 }
 
 /// Shared fields accessible on any element variant.
@@ -28,60 +29,68 @@ impl ScreenElement {
         match self {
             Self::Image(e) => &e.id,
             Self::Video(e) => &e.id,
+            Self::Text(e) => &e.id,
         }
     }
     pub fn position(&self) -> (f32, f32) {
         match self {
             Self::Image(e) => e.position,
             Self::Video(e) => e.position,
+            Self::Text(e) => e.position,
         }
     }
     pub fn set_position(&mut self, pos: (f32, f32)) {
         match self {
             Self::Image(e) => e.position = pos,
             Self::Video(e) => e.position = pos,
+            Self::Text(e) => e.position = pos,
         }
     }
     pub fn size(&self) -> (f32, f32) {
         match self {
             Self::Image(e) => e.size,
             Self::Video(e) => e.size,
+            Self::Text(e) => e.size,
         }
     }
     pub fn set_size(&mut self, size: (f32, f32)) {
         match self {
             Self::Image(e) => e.size = size,
             Self::Video(e) => e.size = size,
+            Self::Text(e) => e.size = size,
         }
     }
     pub fn z(&self) -> i32 {
         match self {
             Self::Image(e) => e.z,
             Self::Video(e) => e.z,
+            Self::Text(e) => e.z,
         }
     }
     pub fn set_z(&mut self, z: i32) {
         match self {
             Self::Image(e) => e.z = z,
             Self::Video(e) => e.z = z,
+            Self::Text(e) => e.z = z,
         }
     }
     pub fn hidden(&self) -> bool {
         match self {
             Self::Image(e) => e.hidden,
             Self::Video(e) => e.hidden,
+            Self::Text(e) => e.hidden,
         }
     }
     pub fn on_click(&self) -> &[String] {
         match self {
             Self::Image(e) => &e.on_click,
-            Self::Video(_) => &[],
+            Self::Video(_) | Self::Text(_) => &[],
         }
     }
     pub fn on_hover(&self) -> &[String] {
         match self {
             Self::Image(e) => &e.on_hover,
-            Self::Video(_) => &[],
+            Self::Video(_) | Self::Text(_) => &[],
         }
     }
     pub fn as_image(&self) -> Option<&ImageElement> {
@@ -95,6 +104,12 @@ impl ScreenElement {
     }
     pub fn as_video_mut(&mut self) -> Option<&mut VideoElement> {
         match self { Self::Video(e) => Some(e), _ => None }
+    }
+    pub fn as_text(&self) -> Option<&TextElement> {
+        match self { Self::Text(e) => Some(e), _ => None }
+    }
+    pub fn as_text_mut(&mut self) -> Option<&mut TextElement> {
+        match self { Self::Text(e) => Some(e), _ => None }
     }
 }
 
@@ -147,6 +162,58 @@ pub struct VideoElement {
     /// Actions when video ends (ignored if looping).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_end: Vec<String>,
+}
+
+/// A dynamic text element bound to a runtime data source.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TextElement {
+    pub id: String,
+    pub position: (f32, f32),
+    /// Size in reference pixels.
+    #[serde(default)]
+    pub size: (f32, f32),
+    #[serde(default)]
+    pub z: i32,
+    /// Start hidden.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hidden: bool,
+    /// Data source binding (e.g. "footer_text", "gold", "food").
+    #[serde(default)]
+    pub source: String,
+    /// MM6 font name (e.g. "smallnum", "arrus", "book").
+    #[serde(default = "TextElement::default_font")]
+    pub font: String,
+    /// Text color: "white", "yellow", "red", "green".
+    #[serde(default = "TextElement::default_color")]
+    pub color: String,
+    /// Text alignment: "left", "center", "right".
+    /// - "left": position is the left edge, text grows right (default)
+    /// - "center": position is the center point, text grows both ways
+    /// - "right": position is the right edge, text grows left (gold/food)
+    #[serde(default = "TextElement::default_align")]
+    pub align: String,
+}
+
+/// Valid text sources for the source dropdown.
+pub const TEXT_SOURCES: &[&str] = &["footer_text", "gold", "food"];
+/// Valid text alignments.
+pub const TEXT_ALIGNS: &[&str] = &["left", "center", "right"];
+/// Valid text colors.
+pub const TEXT_COLORS: &[&str] = &["white", "yellow", "red", "green"];
+
+impl TextElement {
+    fn default_font() -> String { "smallnum".into() }
+    fn default_color() -> String { "white".into() }
+    fn default_align() -> String { "left".into() }
+
+    pub fn color_rgba(&self) -> [u8; 4] {
+        match self.color.as_str() {
+            "yellow" => crate::fonts::YELLOW,
+            "red" => crate::fonts::RED,
+            "green" => crate::fonts::GREEN,
+            _ => crate::fonts::WHITE,
+        }
+    }
 }
 
 /// Visual state of an element — texture + optional trigger condition.
