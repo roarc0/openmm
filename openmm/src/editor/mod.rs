@@ -5,6 +5,7 @@ mod inspector;
 mod io;
 
 use bevy::prelude::*;
+use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 use crate::GameState;
@@ -14,6 +15,16 @@ pub use format::Screen;
 /// Marker for all editor entities — despawned on editor exit.
 #[derive(Component)]
 struct InEditor;
+
+/// Whether all egui UI is visible. F3 toggles.
+#[derive(Resource)]
+pub struct UiVisible(pub bool);
+
+impl Default for UiVisible {
+    fn default() -> Self {
+        Self(true)
+    }
+}
 
 pub struct EditorPlugin;
 
@@ -25,8 +36,8 @@ impl Plugin for EditorPlugin {
 
         app.init_resource::<canvas::Selection>()
             .init_resource::<browser::BrowserState>()
+            .init_resource::<UiVisible>()
             .add_systems(OnEnter(GameState::Editor), editor_setup)
-            // Canvas systems (non-egui) run in Update.
             .add_systems(
                 Update,
                 (
@@ -40,10 +51,10 @@ impl Plugin for EditorPlugin {
                     canvas::save_shortcut_system,
                     browser::init_browser,
                     browser::toggle_browser,
+                    toggle_ui,
                 )
                     .run_if(in_state(GameState::Editor)),
             )
-            // Egui UI systems run in EguiPrimaryContextPass (between begin_pass and end_pass).
             .add_systems(
                 EguiPrimaryContextPass,
                 (
@@ -52,7 +63,8 @@ impl Plugin for EditorPlugin {
                     editor_toolbar,
                     canvas::draw_overlays,
                 )
-                    .run_if(in_state(GameState::Editor)),
+                    .run_if(in_state(GameState::Editor))
+                    .run_if(|vis: Res<UiVisible>| vis.0),
             );
     }
 }
@@ -68,6 +80,16 @@ fn editor_setup(mut commands: Commands) {
     let name = screen.id.clone();
     commands.insert_resource(canvas::EditorScreen { screen, dirty: false });
     info!("screen editor started — editing '{name}'");
+}
+
+/// F3 toggles all egui UI visibility.
+fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>, egui_input: Option<Res<EguiWantsInput>>) {
+    if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
+        return;
+    }
+    if keys.just_pressed(KeyCode::F3) {
+        visible.0 = !visible.0;
+    }
 }
 
 /// Top toolbar: name indicator, New/Open/Save buttons, help text.
@@ -120,7 +142,7 @@ fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorS
 
             ui.separator();
 
-            ui.weak("Tab: cycle | F2: browser | Click: select | Drag: move | Scroll: z | Del: remove");
+            ui.weak("Tab: cycle | F2: browser | F3: hide UI | Drag: move | Scroll: z | Del: remove");
         });
     });
 }
