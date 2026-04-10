@@ -61,12 +61,17 @@ pub fn browser_ui(
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     cfg: Res<GameConfig>,
+    mut ready: Local<bool>,
 ) {
     if !browser.open {
         return;
     }
 
     let Ok(ctx) = contexts.ctx_mut() else { return };
+    if !*ready {
+        *ready = true;
+        return;
+    }
     egui::Window::new("Bitmap Browser")
         .resizable(true)
         .default_width(260.0)

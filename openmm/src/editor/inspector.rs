@@ -8,8 +8,18 @@ use super::canvas::Selection;
 use super::format::ElementState;
 
 /// Draw the inspector egui window (always visible, anchored top-right).
-pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>, selection: Res<Selection>) {
+pub fn inspector_ui(
+    mut contexts: EguiContexts,
+    mut editor: ResMut<EditorScreen>,
+    selection: Res<Selection>,
+    mut ready: Local<bool>,
+) {
+    // Skip until egui has run at least one begin-frame pass.
     let Ok(ctx) = contexts.ctx_mut() else { return };
+    if !*ready {
+        *ready = true;
+        return;
+    }
 
     egui::Window::new("Inspector")
         .anchor(egui::Align2::RIGHT_TOP, egui::Vec2::new(-10.0, 10.0))
