@@ -121,57 +121,62 @@ fn editor_toolbar(
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
-    egui::TopBottomPanel::top("editor_toolbar").show(ctx, |ui| {
-        ui.horizontal(|ui| {
-            let dirty_mark = if editor.dirty { "*" } else { "" };
-            ui.strong(format!("Screen: {}{}", editor.screen.id, dirty_mark));
+    egui::Window::new("Toolbar")
+        .id(egui::Id::new("editor_toolbar"))
+        .title_bar(false)
+        .resizable(false)
+        .anchor(egui::Align2::LEFT_TOP, egui::vec2(4.0, 4.0))
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                let dirty_mark = if editor.dirty { "*" } else { "" };
+                ui.strong(format!("Screen: {}{}", editor.screen.id, dirty_mark));
 
-            ui.separator();
+                ui.separator();
 
-            if ui.button("New").clicked() {
-                editor.screen = Screen::new("untitled");
-                editor.dirty = false;
-                io::set_last_screen("untitled");
-            }
+                if ui.button("New").clicked() {
+                    editor.screen = Screen::new("untitled");
+                    editor.dirty = false;
+                    io::set_last_screen("untitled");
+                }
 
-            let screens = io::list_screens();
-            if !screens.is_empty() {
-                egui::ComboBox::from_label("Open")
-                    .selected_text(&editor.screen.id)
-                    .show_ui(ui, |ui| {
-                        for name in &screens {
-                            if ui.selectable_label(false, name).clicked() {
-                                match io::load_screen(name) {
-                                    Ok(s) => {
-                                        editor.screen = s;
-                                        editor.dirty = false;
-                                        editor_state.locked = io::load_locks(name);
-                                        editor_state.hidden.clear();
-                                        io::set_last_screen(name);
-                                        info!("loaded screen '{name}'");
+                let screens = io::list_screens();
+                if !screens.is_empty() {
+                    egui::ComboBox::from_label("Open")
+                        .selected_text(&editor.screen.id)
+                        .show_ui(ui, |ui| {
+                            for name in &screens {
+                                if ui.selectable_label(false, name).clicked() {
+                                    match io::load_screen(name) {
+                                        Ok(s) => {
+                                            editor.screen = s;
+                                            editor.dirty = false;
+                                            editor_state.locked = io::load_locks(name);
+                                            editor_state.hidden.clear();
+                                            io::set_last_screen(name);
+                                            info!("loaded screen '{name}'");
+                                        }
+                                        Err(e) => error!("load failed: {e}"),
                                     }
-                                    Err(e) => error!("load failed: {e}"),
                                 }
                             }
-                        }
-                    });
-            } else {
-                ui.label("(no saved screens)");
-            }
-
-            if ui.button("Save").clicked() {
-                match io::save_screen(&editor.screen) {
-                    Ok(()) => {
-                        editor.dirty = false;
-                        info!("screen '{}' saved", editor.screen.id);
-                    }
-                    Err(e) => error!("save failed: {e}"),
+                        });
+                } else {
+                    ui.label("(no saved screens)");
                 }
-            }
 
-            ui.separator();
+                if ui.button("Save").clicked() {
+                    match io::save_screen(&editor.screen) {
+                        Ok(()) => {
+                            editor.dirty = false;
+                            info!("screen '{}' saved", editor.screen.id);
+                        }
+                        Err(e) => error!("save failed: {e}"),
+                    }
+                }
 
-            ui.weak("Tab: cycle | F2: browser | Esc: hide UI | Drag: move | Scroll: z | Del: remove");
+                ui.separator();
+
+                ui.weak("Tab: cycle | F2: browser | Esc: hide UI | Drag: move | Scroll: z | Del: remove");
+            });
         });
-    });
 }
