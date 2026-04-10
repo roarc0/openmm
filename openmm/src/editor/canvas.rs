@@ -250,12 +250,13 @@ pub fn draw_overlays(
 
         // Status stamps at bottom-right inside the element.
         let is_locked = editor_state.locked.contains(&elem.id);
-        let mut stamps: Vec<&str> = Vec::new();
+        let evt_count = elem.on_click.len() + elem.on_hover.len() + elem.bindings.len();
+        let mut stamps: Vec<String> = Vec::new();
         if is_locked {
-            stamps.push("LCK");
+            stamps.push("LCK".into());
         }
-        if !elem.bindings.is_empty() {
-            stamps.push("BND");
+        if evt_count > 0 {
+            stamps.push(format!("EVT({})", evt_count));
         }
         if !stamps.is_empty() {
             let text = stamps.join(" ");
