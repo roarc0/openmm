@@ -59,12 +59,12 @@ fn editor_setup(mut commands: Commands) {
 }
 
 /// Top toolbar: name indicator, New/Open/Save buttons, help text.
-fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorScreen>, mut ready: Local<bool>) {
-    let Ok(ctx) = contexts.ctx_mut() else { return };
-    if !*ready {
-        *ready = true;
+fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorScreen>, mut ready: Local<u32>) {
+    if *ready < 2 {
+        *ready += 1;
         return;
     }
+    let Ok(ctx) = contexts.ctx_mut() else { return };
 
     egui::TopBottomPanel::top("editor_toolbar").show(ctx, |ui| {
         ui.horizontal(|ui| {

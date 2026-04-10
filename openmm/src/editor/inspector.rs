@@ -12,14 +12,14 @@ pub fn inspector_ui(
     mut contexts: EguiContexts,
     mut editor: ResMut<EditorScreen>,
     selection: Res<Selection>,
-    mut ready: Local<bool>,
+    mut ready: Local<u32>,
 ) {
-    // Skip until egui has run at least one begin-frame pass.
-    let Ok(ctx) = contexts.ctx_mut() else { return };
-    if !*ready {
-        *ready = true;
+    // Skip first two frames so egui's begin_pass has run for this window.
+    if *ready < 2 {
+        *ready += 1;
         return;
     }
+    let Ok(ctx) = contexts.ctx_mut() else { return };
 
     egui::Window::new("Inspector")
         .anchor(egui::Align2::RIGHT_TOP, egui::Vec2::new(-10.0, 10.0))
