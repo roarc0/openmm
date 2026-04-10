@@ -152,21 +152,22 @@ pub fn browser_ui(
                 });
 
                 // Search within folder.
-                let prev = browser.search.clone();
                 ui.horizontal(|ui| {
                     ui.label("Search:");
                     ui.text_edit_singleline(&mut browser.search);
                 });
 
-                if browser.search != prev {
-                    let needle = browser.search.to_lowercase();
-                    browser.filtered = browser.folders[folder_idx]
+                let needle = browser.search.to_lowercase();
+                browser.filtered = if needle.is_empty() {
+                    browser.folders[folder_idx].files.clone()
+                } else {
+                    browser.folders[folder_idx]
                         .files
                         .iter()
                         .filter(|n| n.to_lowercase().contains(&needle))
                         .cloned()
-                        .collect();
-                }
+                        .collect()
+                };
 
                 ui.label(format!("{} files", browser.filtered.len()));
                 ui.separator();
