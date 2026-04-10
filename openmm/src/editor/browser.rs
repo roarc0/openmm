@@ -42,6 +42,8 @@ pub struct BrowserState {
     current_folder: Option<usize>,
     /// Filtered file names for current view.
     filtered: Vec<String>,
+    /// Saved window position from config.
+    default_pos: Option<[f32; 2]>,
     initialized: bool,
 }
 
@@ -74,6 +76,7 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
 
     let cfg = super::io::EditorConfig::load();
     browser.open = cfg.browser_open;
+    browser.default_pos = cfg.browser_pos;
 }
 
 /// F2 toggles the browser open/closed.
@@ -108,81 +111,99 @@ pub fn browser_ui(
     }
 
     let Ok(ctx) = contexts.ctx_mut() else { return };
-    egui::Window::new("Bitmap Browser")
+    let mut win = egui::Window::new("LOD Browser")
+        .id(egui::Id::new("lod_browser"))
         .resizable(true)
-        .default_width(280.0)
-        .show(ctx, |ui| {
-            match browser.current_folder {
-                None => {
-                    // Show folder list.
-                    ui.heading("LOD Archives");
-                    ui.separator();
-                    let folder_count = browser.folders.len();
-                    for i in 0..folder_count {
-                        let label = format!(
-                            "{}/  ({} files)",
-                            browser.folders[i].name,
-                            browser.folders[i].files.len()
-                        );
-                        if ui.button(&label).clicked() {
-                            browser.current_folder = Some(i);
-                            browser.search.clear();
-                            browser.filtered = browser.folders[i].files.clone();
-                        }
+        .default_width(280.0);
+    if let Some([x, y]) = browser.default_pos.take() {
+        win = win.default_pos(egui::pos2(x, y));
+    }
+    let response = win.show(ctx, |ui| {
+        match browser.current_folder {
+            None => {
+                // Show folder list.
+                ui.heading("LOD Archives");
+                ui.separator();
+                let folder_count = browser.folders.len();
+                for i in 0..folder_count {
+                    let label = format!(
+                        "{}/  ({} files)",
+                        browser.folders[i].name,
+                        browser.folders[i].files.len()
+                    );
+                    if ui.button(&label).clicked() {
+                        browser.current_folder = Some(i);
+                        browser.search.clear();
+                        browser.filtered = browser.folders[i].files.clone();
                     }
-                }
-                Some(folder_idx) => {
-                    let folder_name = browser.folders[folder_idx].name.clone();
-
-                    // Back button + folder name.
-                    ui.horizontal(|ui| {
-                        if ui.button("<- Back").clicked() {
-                            browser.current_folder = None;
-                            browser.search.clear();
-                            browser.filtered.clear();
-                        }
-                        ui.strong(&folder_name);
-                    });
-
-                    // Search within folder.
-                    let prev = browser.search.clone();
-                    ui.horizontal(|ui| {
-                        ui.label("Search:");
-                        ui.text_edit_singleline(&mut browser.search);
-                    });
-
-                    if browser.search != prev {
-                        let needle = browser.search.to_lowercase();
-                        browser.filtered = browser.folders[folder_idx]
-                            .files
-                            .iter()
-                            .filter(|n| n.to_lowercase().contains(&needle))
-                            .cloned()
-                            .collect();
-                    }
-
-                    ui.label(format!("{} files", browser.filtered.len()));
-                    ui.separator();
-
-                    // File list.
-                    egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-                        let show: Vec<String> = browser.filtered.iter().take(200).cloned().collect();
-                        for full_name in show {
-                            // Show just the filename part in the button, but use full path for placement.
-                            let short = full_name
-                                .strip_prefix(&format!("{}/", folder_name))
-                                .unwrap_or(&full_name);
-                            if ui.button(short).clicked() {
-                                place_element(&full_name, &mut editor, &mut ui_assets, &game_assets, &mut images, &cfg);
-                            }
-                        }
-                        if browser.filtered.len() > 200 {
-                            ui.label(format!("... {} more (refine search)", browser.filtered.len() - 200));
-                        }
-                    });
                 }
             }
-        });
+            Some(folder_idx) => {
+                let folder_name = browser.folders[folder_idx].name.clone();
+
+                // Back button + folder name.
+                ui.horizontal(|ui| {
+                    if ui.button("<- Back").clicked() {
+                        browser.current_folder = None;
+                        browser.search.clear();
+                        browser.filtered.clear();
+                    }
+                    ui.strong(&folder_name);
+                });
+
+                // Search within folder.
+                let prev = browser.search.clone();
+                ui.horizontal(|ui| {
+                    ui.label("Search:");
+                    ui.text_edit_singleline(&mut browser.search);
+                });
+
+                if browser.search != prev {
+                    let needle = browser.search.to_lowercase();
+                    browser.filtered = browser.folders[folder_idx]
+                        .files
+                        .iter()
+                        .filter(|n| n.to_lowercase().contains(&needle))
+                        .cloned()
+                        .collect();
+                }
+
+                ui.label(format!("{} files", browser.filtered.len()));
+                ui.separator();
+
+                // File list.
+                egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                    let show: Vec<String> = browser.filtered.iter().take(200).cloned().collect();
+                    for full_name in show {
+                        // Show just the filename part in the button, but use full path for placement.
+                        let short = full_name
+                            .strip_prefix(&format!("{}/", folder_name))
+                            .unwrap_or(&full_name);
+                        if ui.button(short).clicked() {
+                            place_element(&full_name, &mut editor, &mut ui_assets, &game_assets, &mut images, &cfg);
+                        }
+                    }
+                    if browser.filtered.len() > 200 {
+                        ui.label(format!("... {} more (refine search)", browser.filtered.len() - 200));
+                    }
+                });
+            }
+        }
+    });
+
+    // Save window position when dragged.
+    if let Some(inner) = response {
+        let resp = inner.response;
+        if resp.drag_stopped() {
+            let id = egui::Id::new("lod_browser");
+            if let Some(rect) = resp.ctx.memory(|m: &egui::Memory| m.area_rect(id)) {
+                let pos = rect.left_top();
+                let mut cfg = super::io::EditorConfig::load();
+                cfg.browser_pos = Some([pos.x, pos.y]);
+                cfg.save();
+            }
+        }
+    }
 }
 
 /// Create a new element at canvas center and push it to the screen.

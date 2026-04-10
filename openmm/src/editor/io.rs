@@ -15,9 +15,12 @@ const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";
 pub struct EditorConfig {
     /// Last screen that was open, auto-loaded on startup.
     pub last_screen: Option<String>,
-    /// Whether the bitmap browser was open.
+    /// Whether the LOD browser was open.
     #[serde(default)]
     pub browser_open: bool,
+    /// LOD browser window position [x, y].
+    #[serde(default)]
+    pub browser_pos: Option<[f32; 2]>,
 }
 
 impl EditorConfig {
