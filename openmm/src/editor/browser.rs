@@ -1,4 +1,4 @@
-//! egui bitmap browser panel: search LOD icons, click-to-place.
+//! egui bitmap browser panel: LOD folder navigation with search and click-to-place.
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui, input::EguiWantsInput};
@@ -9,42 +9,69 @@ use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::hud::UiAssets;
 
+/// Filter to only LOD image archives (icons, bitmaps, sprites).
+fn lod_archive_names(assets: &openmm_data::Assets, all: Vec<String>) -> Vec<String> {
+    let known = ["icons", "bitmaps", "sprites"];
+    all.into_iter()
+        .filter(|name| {
+            let lower = name.to_lowercase();
+            known.iter().any(|k| lower == *k) || assets.files_in(name).is_some_and(|f| !f.is_empty())
+        })
+        .filter(|name| {
+            // Exclude sound/video archives by checking file extensions.
+            let lower = name.to_lowercase();
+            !lower.contains("snd") && !lower.contains("smk") && !lower.contains("vid")
+        })
+        .collect()
+}
+
+/// One LOD archive and its file list.
+struct LodFolder {
+    name: String,
+    files: Vec<String>,
+}
+
 /// Browser panel state.
 #[derive(Resource, Default)]
 pub struct BrowserState {
     pub open: bool,
     pub search: String,
-    pub all_icons: Vec<String>,
-    pub filtered: Vec<String>,
+    /// All LOD folders with their files, prefixed as "folder/file".
+    folders: Vec<LodFolder>,
+    /// Currently selected folder index (None = show all folders).
+    current_folder: Option<usize>,
+    /// Filtered file names for current view.
+    filtered: Vec<String>,
     initialized: bool,
 }
 
-/// Load icon names from LOD once and restore browser state from config.
+/// Load LOD archive structure once and restore browser state from config.
 pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserState>) {
     if browser.initialized {
         return;
     }
     browser.initialized = true;
 
-    let mut names: Vec<String> = game_assets.assets().files_in("icons").unwrap_or_default();
+    let assets = game_assets.assets();
+    let mut archive_names = assets.archives();
+    archive_names.sort();
 
-    // Also include bitmaps with a prefix so users can search "bitmaps/".
-    let bitmaps: Vec<String> = game_assets
-        .assets()
-        .files_in("bitmaps")
-        .unwrap_or_default()
-        .into_iter()
-        .map(|n| format!("bitmaps/{n}"))
-        .collect();
+    // Only LOD archives (icons, bitmaps, sprites). Filter out SND and SMK.
+    let lod_archives: Vec<String> = lod_archive_names(&assets, archive_names);
 
-    names.extend(bitmaps);
-    names.sort();
+    for archive in &lod_archives {
+        let mut files = assets.files_in(archive).unwrap_or_default();
+        files.sort();
+        let prefixed: Vec<String> = files.into_iter().map(|f| format!("{}/{}", archive, f)).collect();
+        browser.folders.push(LodFolder {
+            name: archive.clone(),
+            files: prefixed,
+        });
+    }
 
-    let filtered = names.clone();
-    browser.all_icons = names;
-    browser.filtered = filtered;
+    // Start showing folder list.
+    browser.filtered.clear();
 
-    // Restore open state from editor config.
     let cfg = super::io::EditorConfig::load();
     browser.open = cfg.browser_open;
 }
@@ -83,42 +110,83 @@ pub fn browser_ui(
     let Ok(ctx) = contexts.ctx_mut() else { return };
     egui::Window::new("Bitmap Browser")
         .resizable(true)
-        .default_width(260.0)
+        .default_width(280.0)
         .show(ctx, |ui| {
-            // Search input.
-            let prev = browser.search.clone();
-            ui.horizontal(|ui| {
-                ui.label("Search:");
-                ui.text_edit_singleline(&mut browser.search);
-            });
-
-            // Re-filter when search string changes.
-            if browser.search != prev {
-                let needle = browser.search.to_lowercase();
-                browser.filtered = browser
-                    .all_icons
-                    .iter()
-                    .filter(|n| n.to_lowercase().contains(&needle))
-                    .cloned()
-                    .collect();
-            }
-
-            ui.label(format!("{} results", browser.filtered.len()));
-            ui.separator();
-
-            // Show up to 200 results in a scrollable list.
-            egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-                let show: Vec<String> = browser.filtered.iter().take(200).cloned().collect();
-                for name in show {
-                    if ui.button(&name).clicked() {
-                        place_element(&name, &mut editor, &mut ui_assets, &game_assets, &mut images, &cfg);
+            match browser.current_folder {
+                None => {
+                    // Show folder list.
+                    ui.heading("LOD Archives");
+                    ui.separator();
+                    let folder_count = browser.folders.len();
+                    for i in 0..folder_count {
+                        let label = format!(
+                            "{}/  ({} files)",
+                            browser.folders[i].name,
+                            browser.folders[i].files.len()
+                        );
+                        if ui.button(&label).clicked() {
+                            browser.current_folder = Some(i);
+                            browser.search.clear();
+                            browser.filtered = browser.folders[i].files.clone();
+                        }
                     }
                 }
-            });
+                Some(folder_idx) => {
+                    let folder_name = browser.folders[folder_idx].name.clone();
+
+                    // Back button + folder name.
+                    ui.horizontal(|ui| {
+                        if ui.button("<- Back").clicked() {
+                            browser.current_folder = None;
+                            browser.search.clear();
+                            browser.filtered.clear();
+                        }
+                        ui.strong(&folder_name);
+                    });
+
+                    // Search within folder.
+                    let prev = browser.search.clone();
+                    ui.horizontal(|ui| {
+                        ui.label("Search:");
+                        ui.text_edit_singleline(&mut browser.search);
+                    });
+
+                    if browser.search != prev {
+                        let needle = browser.search.to_lowercase();
+                        browser.filtered = browser.folders[folder_idx]
+                            .files
+                            .iter()
+                            .filter(|n| n.to_lowercase().contains(&needle))
+                            .cloned()
+                            .collect();
+                    }
+
+                    ui.label(format!("{} files", browser.filtered.len()));
+                    ui.separator();
+
+                    // File list.
+                    egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                        let show: Vec<String> = browser.filtered.iter().take(200).cloned().collect();
+                        for full_name in show {
+                            // Show just the filename part in the button, but use full path for placement.
+                            let short = full_name
+                                .strip_prefix(&format!("{}/", folder_name))
+                                .unwrap_or(&full_name);
+                            if ui.button(short).clicked() {
+                                place_element(&full_name, &mut editor, &mut ui_assets, &game_assets, &mut images, &cfg);
+                            }
+                        }
+                        if browser.filtered.len() > 200 {
+                            ui.label(format!("... {} more (refine search)", browser.filtered.len() - 200));
+                        }
+                    });
+                }
+            }
         });
 }
 
 /// Create a new element at canvas center and push it to the screen.
+/// `name` is the full "archive/filename" path (e.g. "bitmaps/wtrtyl", "icons/mmnew0").
 fn place_element(
     name: &str,
     editor: &mut EditorScreen,
@@ -127,21 +195,25 @@ fn place_element(
     images: &mut Assets<Image>,
     cfg: &GameConfig,
 ) {
-    // Resolve the icon name — strip "bitmaps/" prefix for the lookup key.
-    let icon_name = name.strip_prefix("bitmaps/").unwrap_or(name);
-
-    // Z above all existing elements.
     let max_z = editor.screen.elements.iter().map(|e| e.z).max().unwrap_or(0);
 
-    let mut elem = ScreenElement::new(icon_name, icon_name, (REF_W / 2.0, REF_H / 2.0));
+    let mut elem = ScreenElement::new(name, name, (REF_W / 2.0, REF_H / 2.0));
     elem.z = max_z + 1;
 
-    // Try to get dimensions from the loaded texture.
-    if let Some(handle) = ui_assets.get_or_load(icon_name, game_assets, images, cfg) {
-        let _ = handle;
-    }
-    if let Some((w, h)) = ui_assets.dimensions(icon_name) {
-        elem.size = Some((w as f32, h as f32));
+    // Try loading via UiAssets (icons). The full name is stored as the texture key.
+    // For non-icon archives, UiAssets won't find it by the prefixed name, so also try
+    // the bare filename via the LOD decoder.
+    let bare = name.split('/').last().unwrap_or(name);
+    let handle = ui_assets
+        .get_or_load(name, game_assets, images, cfg)
+        .or_else(|| ui_assets.get_or_load(bare, game_assets, images, cfg));
+
+    if handle.is_some() {
+        // Try bare name for dimensions since UiAssets caches by the name passed to get_or_load.
+        let dims = ui_assets.dimensions(name).or_else(|| ui_assets.dimensions(bare));
+        if let Some((w, h)) = dims {
+            elem.size = Some((w as f32, h as f32));
+        }
     }
 
     editor.screen.elements.push(elem);
