@@ -89,7 +89,7 @@ fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>, eg
     if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
         return;
     }
-    if keys.just_pressed(KeyCode::F3) {
+    if keys.just_pressed(KeyCode::F3) || keys.just_pressed(KeyCode::Escape) {
         visible.0 = !visible.0;
     }
 }
