@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::format::Screen;
 
-const SCREENS_DIR: &str = "data/screens";
+const SCREENS_DIR: &str = "openmm/assets";
 const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";
 
 /// Persisted editor settings.
@@ -40,7 +40,7 @@ fn ensure_dir() {
 }
 
 pub fn screen_path(id: &str) -> PathBuf {
-    Path::new(SCREENS_DIR).join(format!("{}.screen.ron", id))
+    Path::new(SCREENS_DIR).join(format!("{}.ron", id))
 }
 
 pub fn save_screen(screen: &Screen) -> Result<(), String> {
@@ -90,7 +90,7 @@ pub fn list_screens() -> Vec<String> {
         .filter_map(|e| e.ok())
         .filter_map(|e| {
             let name = e.file_name().to_string_lossy().to_string();
-            name.strip_suffix(".screen.ron").map(str::to_string)
+            name.strip_suffix(".ron").map(str::to_string)
         })
         .collect();
     names.sort();
