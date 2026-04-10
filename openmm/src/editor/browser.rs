@@ -44,6 +44,10 @@ pub struct BrowserState {
     filtered: Vec<String>,
     /// Saved window position from config.
     default_pos: Option<[f32; 2]>,
+    /// Currently hovered file for preview.
+    pub hovered_file: Option<String>,
+    /// Cached preview egui texture id.
+    preview_tex: Option<(String, egui::TextureId, (u32, u32))>,
     initialized: bool,
 }
 
@@ -101,6 +105,34 @@ pub fn browser_ui(
 ) {
     if !browser.open {
         return;
+    }
+
+    // Pre-load preview for the last hovered file (before borrowing ctx).
+    if let Some(ref hovered) = browser.hovered_file {
+        let need_load = browser
+            .preview_tex
+            .as_ref()
+            .map_or(true, |(name, _, _)| name != hovered);
+        if need_load {
+            let bare = hovered.split('/').last().unwrap_or(hovered);
+            let handle = ui_assets
+                .get_or_load(hovered, &game_assets, &mut images, &cfg)
+                .or_else(|| ui_assets.get_or_load(bare, &game_assets, &mut images, &cfg));
+            if let Some(h) = handle {
+                let dims = ui_assets
+                    .dimensions(hovered)
+                    .or_else(|| ui_assets.dimensions(bare))
+                    .unwrap_or((0, 0));
+                let tex_id = contexts.image_id(&h).unwrap_or_else(|| {
+                    contexts.add_image(bevy_inspector_egui::bevy_egui::EguiTextureHandle::Weak(h.id()))
+                });
+                browser.preview_tex = Some((hovered.clone(), tex_id, dims));
+            } else {
+                browser.preview_tex = None;
+            }
+        }
+    } else {
+        browser.preview_tex = None;
     }
 
     let Ok(ctx) = contexts.ctx_mut() else { return };
@@ -166,21 +198,41 @@ pub fn browser_ui(
                 ui.separator();
 
                 // File list.
-                egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                let mut new_hover: Option<String> = None;
+                egui::ScrollArea::vertical().max_height(350.0).show(ui, |ui| {
                     let show: Vec<String> = browser.filtered.iter().take(200).cloned().collect();
                     for full_name in show {
-                        // Show just the filename part in the button, but use full path for placement.
                         let short = full_name
                             .strip_prefix(&format!("{}/", folder_name))
                             .unwrap_or(&full_name);
-                        if ui.button(short).clicked() {
+                        let resp = ui.button(short);
+                        if resp.clicked() {
                             place_element(&full_name, &mut editor, &mut ui_assets, &game_assets, &mut images, &cfg);
+                        }
+                        if resp.hovered() {
+                            new_hover = Some(full_name.clone());
                         }
                     }
                     if browser.filtered.len() > 200 {
                         ui.label(format!("... {} more (refine search)", browser.filtered.len() - 200));
                     }
                 });
+
+                // Preview area — show cached preview from last frame's hover.
+                if let Some((ref name, tex_id, (pw, ph))) = browser.preview_tex {
+                    if new_hover.is_some() {
+                        ui.separator();
+                        let short = name.split('/').last().unwrap_or(name);
+                        ui.label(format!("{} ({}x{})", short, pw, ph));
+                        if pw > 0 && ph > 0 {
+                            let scale = (200.0 / pw as f32).min(1.0);
+                            let w = pw as f32 * scale;
+                            let h = ph as f32 * scale;
+                            ui.image(egui::load::SizedTexture::new(tex_id, egui::vec2(w, h)));
+                        }
+                    }
+                }
+                browser.hovered_file = new_hover;
             }
         }
     });
