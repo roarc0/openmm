@@ -1,0 +1,51 @@
+(
+    id: "segue",
+    elements: [
+        (
+            id: "icons/Segue_bg.pcx",
+            position: (0.0, 0.0),
+            size: (640.0, 480.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/Segue_bg.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        ),
+        (
+            id: "icons/CREAT_DN",
+            position: (74.0, 434.0),
+            size: (218.0, 40.0),
+            z: 2,
+            states: {
+                "default": (
+                    texture: "icons/CREAT_DN",
+                ),
+            },
+            on_click: [
+                "LoadScreen(\"create_party\")",
+            ],
+            on_hover: [],
+            bindings: {},
+        ),
+        (
+            id: "icons/QUICK_DN",
+            position: (349.0, 434.0),
+            size: (218.0, 40.0),
+            z: 3,
+            states: {
+                "default": (
+                    texture: "icons/QUICK_DN",
+                ),
+            },
+            on_click: [
+                "NewGame()",
+            ],
+            on_hover: [],
+            bindings: {},
+        ),
+    ],
+)

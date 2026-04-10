@@ -1,6 +1,5 @@
 (
-    id: "ingame_screen",
-    background: None,
+    id: "ingame",
     elements: [
         (
             id: "BORDER4",
@@ -13,6 +12,8 @@
                 ),
             },
             on_click: [],
+            on_hover: [],
+            bindings: {},
         ),
         (
             id: "BORDER5",
@@ -25,18 +26,22 @@
                 ),
             },
             on_click: [],
+            on_hover: [],
+            bindings: {},
         ),
         (
             id: "BORDER6",
             position: (461.0, 8.0),
             size: (7.0, 21.0),
-            z: 0,
+            z: -93,
             states: {
                 "default": (
                     texture: "BORDER6",
                 ),
             },
             on_click: [],
+            on_hover: [],
+            bindings: {},
         ),
         (
             id: "BORDER3",
@@ -49,6 +54,8 @@
                 ),
             },
             on_click: [],
+            on_hover: [],
+            bindings: {},
         ),
         (
             id: "FOOTER",
@@ -61,32 +68,40 @@
                 ),
             },
             on_click: [],
+            on_hover: [],
+            bindings: {},
         ),
         (
             id: "BUTTCAMP",
             position: (525.0, 399.0),
             size: (29.0, 61.0),
             z: 0,
-            hover_only: true,
             states: {
                 "default": (
                     texture: "BUTTCAMP",
                 ),
             },
             on_click: [],
+            on_hover: [
+                "Hint(\"HELLLOO\")",
+            ],
+            bindings: {},
         ),
         (
             id: "BUTTBK1",
             position: (496.0, 270.0),
             size: (31.0, 72.0),
             z: 0,
-            hover_only: true,
             states: {
                 "default": (
                     texture: "BUTTBK1",
                 ),
             },
             on_click: [],
+            on_hover: [
+                "Hint(\"Hello\")",
+            ],
+            bindings: {},
         ),
         (
             id: "icons/Border2.pcx",
@@ -99,18 +114,69 @@
                 ),
             },
             on_click: [],
+            on_hover: [],
+            bindings: {},
         ),
         (
             id: "icons/Border1.pcx",
             position: (468.0, 141.0),
             size: (172.0, 339.0),
-            z: -3,
+            z: 0,
             states: {
                 "default": (
                     texture: "icons/Border1.pcx",
                 ),
             },
             on_click: [],
+            on_hover: [],
+            bindings: {},
+        ),
+        (
+            id: "icons/BUTTMENU",
+            position: (594.0, 399.0),
+            size: (29.0, 61.0),
+            z: -29,
+            states: {
+                "default": (
+                    texture: "icons/BUTTMENU",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "Hint(\"Save\")",
+            ],
+            bindings: {},
+        ),
+        (
+            id: "icons/BUTTCAST",
+            position: (491.0, 399.0),
+            size: (29.0, 61.0),
+            z: 2,
+            states: {
+                "default": (
+                    texture: "icons/BUTTCAST",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "Hint(\"Cast a Spell\")",
+            ],
+            bindings: {},
+        ),
+        (
+            id: "icons/TAP1",
+            position: (468.0, 0.0),
+            size: (172.0, 142.0),
+            z: 3,
+            states: {
+                "default": (
+                    texture: "icons/TAP1",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "lime",
         ),
     ],
 )

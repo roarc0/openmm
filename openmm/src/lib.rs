@@ -42,6 +42,7 @@ impl Plugin for GamePlugin {
         let save_data = GameSave::load_or_default();
 
         let editor_mode = cfg.editor;
+        let screen_mode = cfg.screens.is_some();
         let initial_state = if editor_mode {
             #[cfg(feature = "editor")]
             {
@@ -52,6 +53,8 @@ impl Plugin for GamePlugin {
                 bevy::log::warn!("--editor requires the 'editor' feature; starting normally");
                 GameState::Menu
             }
+        } else if screen_mode {
+            GameState::Menu
         } else if cfg.map.is_some() {
             GameState::Loading
         } else if cfg.skip_intro {
@@ -76,13 +79,19 @@ impl Plugin for GamePlugin {
         }
 
         // Game-only plugins — not loaded in editor mode.
-        app.insert_resource(VideoRequest {
-            name: "3dologo".into(),
-            skippable: false,
-            next: GameState::Menu,
-        })
-        .add_plugins((VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
-        .insert_state(initial_state);
+        if screen_mode {
+            // Screen runtime replaces menu; loading + game still needed for NewGame().
+            app.add_plugins((screens::runtime::ScreenRuntimePlugin, LoadingPlugin, InGamePlugin))
+                .insert_state(initial_state);
+        } else {
+            app.insert_resource(VideoRequest {
+                name: "3dologo".into(),
+                skippable: false,
+                next: GameState::Menu,
+            })
+            .add_plugins((VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
+            .insert_state(initial_state);
+        }
     }
 }
 

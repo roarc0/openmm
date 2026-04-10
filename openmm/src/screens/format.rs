@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Screen {
     pub id: String,
-    #[serde(default)]
-    pub background: Option<String>,
+    /// Background music track name (e.g. "15" for Music/15.mp3). Empty = no music.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub bg_music: String,
     #[serde(default)]
     pub elements: Vec<ScreenElement>,
 }
@@ -51,7 +52,7 @@ impl Screen {
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),
-            background: None,
+            bg_music: String::new(),
             elements: Vec::new(),
         }
     }
@@ -110,7 +111,7 @@ mod tests {
 
         let screen = Screen {
             id: "title".to_string(),
-            background: Some("title.pcx".to_string()),
+            bg_music: String::new(),
             elements: vec![elem],
         };
 

@@ -1,0 +1,80 @@
+(
+    id: "menu",
+    bg_music: "15",
+    elements: [
+        (
+            id: "icons/Title.pcx",
+            position: (0.0, 0.0),
+            size: (640.0, 480.0),
+            z: 0,
+            states: {
+                "default": (
+                    texture: "icons/Title.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        ),
+        (
+            id: "icons/MMCRE1",
+            position: (482.0, 133.0),
+            size: (135.0, 45.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/MMCRE1",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        ),
+        (
+            id: "icons/MMESC1",
+            position: (482.0, 195.0),
+            size: (135.0, 45.0),
+            z: 2,
+            states: {
+                "default": (
+                    texture: "icons/MMESC1",
+                ),
+            },
+            on_click: [
+                "Quit()",
+            ],
+            on_hover: [],
+            bindings: {},
+        ),
+        (
+            id: "icons/MMLOA1",
+            position: (482.0, 71.0),
+            size: (135.0, 45.0),
+            z: 3,
+            states: {
+                "default": (
+                    texture: "icons/MMLOA1",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        ),
+        (
+            id: "icons/MMNEW1",
+            position: (481.0, 9.0),
+            size: (135.0, 45.0),
+            z: 4,
+            states: {
+                "default": (
+                    texture: "icons/MMNEW1",
+                ),
+            },
+            on_click: [
+                "LoadScreen(\"segue\")",
+            ],
+            on_hover: [],
+            bindings: {},
+        ),
+    ],
+)

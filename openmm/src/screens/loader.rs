@@ -14,7 +14,7 @@ use crate::game::hud::UiAssets;
 pub const REF_W: f32 = 640.0;
 pub const REF_H: f32 = 480.0;
 
-const SCREENS_DIR: &str = "openmm/assets";
+const SCREENS_DIR: &str = "openmm/assets/screens";
 
 /// Color key transparency options.
 pub const TRANSPARENCY_OPTIONS: &[&str] = &["", "black", "cyan", "lime", "red", "magenta", "blue"];

@@ -107,7 +107,6 @@ pub fn rebuild_canvas(
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     editor.screen.elements.len().hash(&mut hasher);
-    editor.screen.background.hash(&mut hasher);
     for elem in &editor.screen.elements {
         elem.transparent_color.hash(&mut hasher);
         // Also track default texture name so new elements trigger rebuild.
@@ -146,27 +145,6 @@ pub fn rebuild_canvas(
         ZIndex(-2),
         CanvasBackground,
     ));
-
-    // Background.
-    if let Some(ref bg_name) = editor.screen.background {
-        if let Some(handle) = ui_assets.get_or_load(bg_name, &game_assets, &mut images, &cfg) {
-            commands.spawn((
-                Name::new("canvas_background"),
-                ImageNode::new(handle),
-                Node {
-                    position_type: PositionType::Absolute,
-                    left: Val::Percent(0.0),
-                    top: Val::Percent(0.0),
-                    width: Val::Percent(100.0),
-                    height: Val::Percent(100.0),
-                    ..default()
-                },
-                Pickable::IGNORE,
-                ZIndex(-1),
-                CanvasBackground,
-            ));
-        }
-    }
 
     // Elements.
     for (i, elem) in editor.screen.elements.iter().enumerate() {

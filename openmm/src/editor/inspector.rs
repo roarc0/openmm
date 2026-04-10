@@ -30,11 +30,11 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                 }
             });
 
-            let mut bg = editor.screen.background.clone().unwrap_or_default();
+            let mut music = editor.screen.bg_music.clone();
             ui.horizontal(|ui| {
-                ui.label("Background:");
-                if ui.text_edit_singleline(&mut bg).changed() {
-                    editor.screen.background = if bg.is_empty() { None } else { Some(bg.clone()) };
+                ui.label("Music:");
+                if ui.text_edit_singleline(&mut music).changed() {
+                    editor.screen.bg_music = music;
                     editor.dirty = true;
                 }
             });

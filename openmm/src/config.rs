@@ -200,9 +200,9 @@ struct Cli {
     #[arg(long)]
     editor: bool,
 
-    /// Run a screen .ron file standalone (e.g. --screen=title)
+    /// Run a screen .ron file standalone (e.g. --screens=menu_screen)
     #[arg(long)]
-    screen: Option<String>,
+    screens: Option<String>,
 
     /// Path to config file
     /// Path to config file (default: ./openmm.toml, fallback: data/openmm.toml)
@@ -356,7 +356,7 @@ pub struct GameConfig {
     pub editor: bool,
     /// Run a screen .ron file standalone (runtime-only).
     #[serde(skip)]
-    pub screen: Option<String>,
+    pub screens: Option<String>,
 }
 
 impl Default for GameConfig {
@@ -410,7 +410,7 @@ impl Default for GameConfig {
             exposure: 0.0,
             world_inspector: false,
             editor: false,
-            screen: None,
+            screens: None,
         }
     }
 }
@@ -531,7 +531,7 @@ impl GameConfig {
             exposure: resolve!(cli.exposure, file_cfg.exposure, d.exposure),
             world_inspector: resolve!(cli.world_inspector, file_cfg.world_inspector, d.world_inspector),
             editor: cli.editor || file_cfg.editor.unwrap_or(d.editor),
-            screen: cli.screen,
+            screens: cli.screens,
         };
         resolved.validate();
         resolved
