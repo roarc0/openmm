@@ -190,8 +190,8 @@ pub fn draw_overlays(
             )
         } else {
             (
-                egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(128, 128, 128, 100)),
-                egui::Color32::from_rgba_unmultiplied(200, 200, 200, 150),
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 255, 0)),
+                egui::Color32::from_rgb(0, 255, 0),
             )
         };
 
