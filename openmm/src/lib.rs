@@ -65,19 +65,23 @@ impl Plugin for GamePlugin {
             .insert_resource(game_fonts)
             .insert_resource(save_data)
             .init_resource::<game::hud::UiAssets>()
-            .insert_resource(VideoRequest {
-                name: "3dologo".into(),
-                skippable: false,
-                next: GameState::Menu,
-            })
-            .add_plugins((EngineConfigPlugin, VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin));
+            .add_plugins(EngineConfigPlugin);
 
         #[cfg(feature = "editor")]
         if editor_mode {
             app.add_plugins(editor::EditorPlugin);
+            app.insert_state(initial_state);
+            return;
         }
 
-        app.insert_state(initial_state);
+        // Game-only plugins — not loaded in editor mode.
+        app.insert_resource(VideoRequest {
+            name: "3dologo".into(),
+            skippable: false,
+            next: GameState::Menu,
+        })
+        .add_plugins((VideoPlugin, MenuPlugin, LoadingPlugin, InGamePlugin))
+        .insert_state(initial_state);
     }
 }
 
