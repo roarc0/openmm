@@ -334,8 +334,9 @@ pub fn draw_overlays(
             let sh = h / REF_H * win_h;
             let sw = w / REF_W * win_w;
 
-            let toolbar_y = sy + sh + 2.0;
-            let toolbar_x = sx;
+            // Place toolbar inside the element, at the bottom.
+            let toolbar_y = (sy + sh - 20.0).max(sy);
+            let toolbar_x = sx + 2.0;
 
             egui::Area::new(egui::Id::new("elem_toolbar"))
                 .fixed_pos(egui::pos2(toolbar_x, toolbar_y))
