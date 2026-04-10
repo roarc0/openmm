@@ -120,17 +120,23 @@ pub fn rebuild_canvas(
     cfg: Res<GameConfig>,
     old_bg: Query<Entity, With<CanvasBackground>>,
     old_elems: Query<Entity, With<CanvasElement>>,
-    mut last_count: Local<usize>,
-    mut last_bg: Local<Option<String>>,
+    mut last_fingerprint: Local<u64>,
 ) {
-    let current_count = editor.screen.elements.len();
-    let current_bg = editor.screen.background.clone();
-
-    if *last_count == current_count && *last_bg == current_bg {
+    // Fingerprint: element count + background + all transparency settings.
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    editor.screen.elements.len().hash(&mut hasher);
+    editor.screen.background.hash(&mut hasher);
+    for elem in &editor.screen.elements {
+        elem.transparent_color.hash(&mut hasher);
+        // Also track default texture name so new elements trigger rebuild.
+        elem.texture_for_state("default").hash(&mut hasher);
+    }
+    let fp = hasher.finish();
+    if *last_fingerprint == fp {
         return;
     }
-    *last_count = current_count;
-    *last_bg = current_bg.clone();
+    *last_fingerprint = fp;
 
     for e in old_bg.iter().chain(old_elems.iter()) {
         commands.entity(e).despawn();
