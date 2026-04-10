@@ -39,11 +39,21 @@ impl Plugin for EditorPlugin {
             app.add_plugins(EguiPlugin::default());
         }
 
+        // Load screen and editor state eagerly so resources exist from frame 0.
+        let screen = io::load_last_screen();
+        let name = screen.id.clone();
+        let locked = io::load_locks(&name);
+        info!("screen editor — editing '{name}'");
+
         app.init_resource::<canvas::Selection>()
             .init_resource::<browser::BrowserState>()
             .init_resource::<UiVisible>()
             .init_resource::<canvas::OverlayAction>()
-            .init_resource::<canvas::ElementEditorState>()
+            .insert_resource(canvas::EditorScreen { screen, dirty: false })
+            .insert_resource(canvas::ElementEditorState {
+                locked,
+                ..Default::default()
+            })
             .add_systems(OnEnter(GameState::Editor), editor_setup)
             .add_systems(
                 Update,
@@ -89,15 +99,6 @@ fn editor_setup(mut commands: Commands) {
         bevy::picking::Pickable::IGNORE,
         InEditor,
     ));
-    let screen = io::load_last_screen();
-    let name = screen.id.clone();
-    let locked = io::load_locks(&name);
-    commands.insert_resource(canvas::EditorScreen { screen, dirty: false });
-    commands.insert_resource(canvas::ElementEditorState {
-        locked,
-        ..Default::default()
-    });
-    info!("screen editor started — editing '{name}'");
 }
 
 /// Esc toggles all egui UI visibility.

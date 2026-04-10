@@ -107,7 +107,6 @@ fn generate_checkerboard(
 #[derive(Resource)]
 pub struct EditorScreen {
     pub screen: Screen,
-    /// Set to true when the screen has unsaved changes.
     pub dirty: bool,
 }
 
@@ -197,7 +196,7 @@ pub fn rebuild_canvas(
             ..default()
         },
         Pickable::IGNORE,
-        ZIndex(i32::MIN),
+        ZIndex(-2),
         CanvasBackground,
     ));
 
@@ -216,7 +215,7 @@ pub fn rebuild_canvas(
                     ..default()
                 },
                 Pickable::IGNORE,
-                ZIndex(i32::MIN + 1),
+                ZIndex(-1),
                 CanvasBackground,
             ));
         }
@@ -776,8 +775,9 @@ pub fn apply_overlay_actions(
 }
 
 fn set_z(editor: &mut EditorScreen, idx: usize, new_z: i32, elem_q: &mut Query<(&CanvasElement, &mut ZIndex)>) {
+    let clamped = new_z.max(0);
     if let Some(elem) = editor.screen.elements.get_mut(idx) {
-        elem.z = new_z;
+        elem.z = clamped;
     }
     editor.dirty = true;
     for (ce, mut z) in elem_q.iter_mut() {
@@ -953,7 +953,7 @@ pub fn z_order_system(
     let delta = if delta > 0.0 { 1i32 } else { -1 };
 
     let new_z = if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-        elem.z += delta;
+        elem.z = (elem.z + delta).max(0);
         Some(elem.z)
     } else {
         None
