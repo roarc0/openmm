@@ -16,7 +16,7 @@ pub use format::Screen;
 #[derive(Component)]
 struct InEditor;
 
-/// Whether all egui UI is visible. F3 toggles.
+/// Whether all egui UI is visible. Esc toggles.
 #[derive(Resource)]
 pub struct UiVisible(pub bool);
 
@@ -84,12 +84,12 @@ fn editor_setup(mut commands: Commands) {
     info!("screen editor started — editing '{name}'");
 }
 
-/// F3 toggles all egui UI visibility.
+/// Esc toggles all egui UI visibility.
 fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>, egui_input: Option<Res<EguiWantsInput>>) {
     if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
         return;
     }
-    if keys.just_pressed(KeyCode::F3) || keys.just_pressed(KeyCode::Escape) {
+    if keys.just_pressed(KeyCode::Escape) {
         visible.0 = !visible.0;
     }
 }
@@ -146,7 +146,7 @@ fn editor_toolbar(mut contexts: EguiContexts, mut editor: ResMut<canvas::EditorS
 
             ui.separator();
 
-            ui.weak("Tab: cycle | F2: browser | F3: hide UI | Drag: move | Scroll: z | Del: remove");
+            ui.weak("Tab: cycle | F2: browser | Esc: hide UI | Drag: move | Scroll: z | Del: remove");
         });
     });
 }

@@ -15,6 +15,8 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
         .anchor(egui::Align2::RIGHT_TOP, egui::Vec2::new(-10.0, 10.0))
         .resizable(true)
         .default_width(240.0)
+        .collapsible(true)
+        .default_open(false)
         .show(ctx, |ui| {
             // ── Screen-level ─────────────────────────────────────────
             ui.heading("Screen");
