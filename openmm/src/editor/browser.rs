@@ -1,7 +1,7 @@
 //! egui bitmap browser panel: LOD folder navigation with search and click-to-place.
 
 use bevy::prelude::*;
-use bevy_inspector_egui::bevy_egui::{EguiContexts, egui, input::EguiWantsInput};
+use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
 use super::canvas::{EditorScreen, REF_H, REF_W};
 use super::format::ScreenElement;
@@ -80,14 +80,7 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
 }
 
 /// F2 toggles the browser open/closed.
-pub fn toggle_browser(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut browser: ResMut<BrowserState>,
-    egui_input: Option<Res<EguiWantsInput>>,
-) {
-    if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
-        return;
-    }
+pub fn toggle_browser(keys: Res<ButtonInput<KeyCode>>, mut browser: ResMut<BrowserState>) {
     if keys.just_pressed(KeyCode::F2) {
         browser.open = !browser.open;
         let mut cfg = super::io::EditorConfig::load();

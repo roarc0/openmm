@@ -10,6 +10,11 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContex
 
 use crate::GameState;
 
+/// Run condition: true when egui wants keyboard input (user typing in a text field).
+fn egui_wants_keyboard(egui_input: Option<Res<EguiWantsInput>>) -> bool {
+    egui_input.is_some_and(|e| e.wants_keyboard_input())
+}
+
 pub use format::Screen;
 
 /// Marker for all editor entities — despawned on editor exit.
@@ -46,16 +51,20 @@ impl Plugin for EditorPlugin {
                     canvas::rebuild_canvas,
                     (canvas::selection_system, canvas::drag_system).chain(),
                     canvas::sync_element_positions,
-                    canvas::z_order_system,
-                    canvas::arrow_nudge_system,
-                    canvas::z_shortcut_system,
-                    canvas::delete_system,
-                    canvas::tab_cycle_system,
-                    canvas::save_shortcut_system,
                     canvas::apply_overlay_actions,
+                    canvas::save_shortcut_system,
                     browser::init_browser,
-                    browser::toggle_browser,
-                    toggle_ui,
+                    // Keyboard systems — disabled when typing in egui text fields.
+                    (
+                        canvas::z_order_system,
+                        canvas::arrow_nudge_system,
+                        canvas::z_shortcut_system,
+                        canvas::delete_system,
+                        canvas::tab_cycle_system,
+                        browser::toggle_browser,
+                        toggle_ui,
+                    )
+                        .run_if(not(egui_wants_keyboard)),
                 )
                     .run_if(in_state(GameState::Editor)),
             )
@@ -92,10 +101,7 @@ fn editor_setup(mut commands: Commands) {
 }
 
 /// Esc toggles all egui UI visibility.
-fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>, egui_input: Option<Res<EguiWantsInput>>) {
-    if egui_input.is_some_and(|e| e.wants_keyboard_input()) {
-        return;
-    }
+fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>) {
     if keys.just_pressed(KeyCode::Escape) {
         visible.0 = !visible.0;
     }
