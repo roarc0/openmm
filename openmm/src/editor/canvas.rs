@@ -63,6 +63,10 @@ pub struct Selection {
     pub drag_offset: Option<Vec2>,
     /// Whether the event editor window is open for the selected element.
     pub evt_open: bool,
+    /// Whether the variant editor window is open for the selected element.
+    pub var_open: bool,
+    /// Which state to preview on canvas (None = default).
+    pub preview_state: Option<String>,
 }
 
 // ─── Rebuild canvas ─────────────────────────────────────────────────────────
@@ -258,6 +262,9 @@ pub fn draw_overlays(
         if evt_count > 0 {
             stamps.push(format!("EVT({})", evt_count));
         }
+        if elem.states.len() > 1 {
+            stamps.push(format!("VAR({})", elem.states.len()));
+        }
         if !stamps.is_empty() {
             let text = stamps.join(" ");
             // Draw background pill for readability.
@@ -324,6 +331,15 @@ pub fn draw_overlays(
                         }
                         if btn(ui, "Evt") {
                             selection.evt_open = !selection.evt_open;
+                        }
+                        let var_count = elem.states.len();
+                        let var_label = if var_count > 1 {
+                            format!("Var({})", var_count)
+                        } else {
+                            "Var".to_string()
+                        };
+                        if btn(ui, &var_label) {
+                            selection.var_open = !selection.var_open;
                         }
                         if btn(ui, "X") {
                             overlay_action.action = Some(OverlayCmd::Remove(sel));
@@ -489,6 +505,94 @@ pub fn draw_overlays(
             }
         }
     }
+    // Variant editor window.
+    if selection.var_open {
+        if let Some(sel) = selection.index {
+            if sel < editor.screen.elements.len() {
+                let elem_id = editor.screen.elements[sel].id.clone();
+                let mut open = true;
+                egui::Window::new(format!("Variants: {}", elem_id))
+                    .id(egui::Id::new("var_editor"))
+                    .resizable(true)
+                    .collapsible(false)
+                    .default_width(350.0)
+                    .open(&mut open)
+                    .show(ctx, |ui| {
+                        let state_keys: Vec<String> = editor.screen.elements[sel].states.keys().cloned().collect();
+                        let mut to_remove: Option<String> = None;
+
+                        for key in &state_keys {
+                            let is_previewing = selection.preview_state.as_deref() == Some(key.as_str());
+                            ui.group(|ui| {
+                                ui.horizontal(|ui| {
+                                    let prefix = if is_previewing { ">> " } else { "" };
+                                    if ui.button(format!("{}[{}]", prefix, key)).clicked() {
+                                        selection.preview_state = if is_previewing { None } else { Some(key.clone()) };
+                                    }
+                                    if key != "default" && ui.small_button("\u{2715}").clicked() {
+                                        to_remove = Some(key.clone());
+                                    }
+                                });
+
+                                let mut tex = editor.screen.elements[sel]
+                                    .states
+                                    .get(key)
+                                    .map(|s| s.texture.clone())
+                                    .unwrap_or_default();
+                                ui.horizontal(|ui| {
+                                    ui.label("texture:");
+                                    if ui.text_edit_singleline(&mut tex).changed() {
+                                        if let Some(state) = editor.screen.elements[sel].states.get_mut(key) {
+                                            state.texture = tex;
+                                            editor.dirty = true;
+                                        }
+                                    }
+                                });
+
+                                let mut cond = editor.screen.elements[sel]
+                                    .states
+                                    .get(key)
+                                    .map(|s| s.condition.clone())
+                                    .unwrap_or_default();
+                                ui.horizontal(|ui| {
+                                    ui.label("condition:");
+                                    if ui.text_edit_singleline(&mut cond).changed() {
+                                        if let Some(state) = editor.screen.elements[sel].states.get_mut(key) {
+                                            state.condition = cond;
+                                            editor.dirty = true;
+                                        }
+                                    }
+                                });
+                            });
+                        }
+
+                        if let Some(k) = to_remove {
+                            editor.screen.elements[sel].states.remove(&k);
+                            if selection.preview_state.as_deref() == Some(&k) {
+                                selection.preview_state = None;
+                            }
+                            editor.dirty = true;
+                        }
+
+                        if ui.button("+ Add variant").clicked() {
+                            let name = format!("state_{}", editor.screen.elements[sel].states.len());
+                            editor.screen.elements[sel].states.insert(
+                                name,
+                                super::format::ElementState {
+                                    texture: String::new(),
+                                    condition: String::new(),
+                                },
+                            );
+                            editor.dirty = true;
+                        }
+                    });
+                if !open {
+                    selection.var_open = false;
+                    selection.preview_state = None;
+                }
+            }
+        }
+    }
 }
 
 /// Apply pending overlay actions (runs in Update, after egui pass).
@@ -597,6 +701,8 @@ pub fn selection_system(
     let new_sel = best.map(|(idx, _)| idx);
     if new_sel != selection.index {
         selection.evt_open = false;
+        selection.var_open = false;
+        selection.preview_state = None;
     }
     selection.index = new_sel;
     selection.drag_offset = None;
@@ -661,9 +767,14 @@ pub fn drag_system(
 pub fn sync_element_positions(
     editor: Res<EditorScreen>,
     editor_state: Res<ElementEditorState>,
-    mut elem_q: Query<(&CanvasElement, &mut Node, &mut Visibility)>,
+    selection: Res<Selection>,
+    mut ui_assets: ResMut<UiAssets>,
+    game_assets: Res<GameAssets>,
+    mut images: ResMut<Assets<Image>>,
+    cfg: Res<GameConfig>,
+    mut elem_q: Query<(&CanvasElement, &mut Node, &mut Visibility, Option<&mut ImageNode>)>,
 ) {
-    for (ce, mut node, mut vis) in &mut elem_q {
+    for (ce, mut node, mut vis, image_node) in &mut elem_q {
         let Some(elem) = editor.screen.elements.get(ce.index) else {
             continue;
         };
@@ -674,6 +785,22 @@ pub fn sync_element_positions(
         } else {
             Visibility::Inherited
         };
+
+        // Swap texture for preview state (only on the selected element).
+        if selection.index == Some(ce.index) {
+            if let Some(ref state_name) = selection.preview_state {
+                if let Some(mut img) = image_node {
+                    let tex_name = elem.states.get(state_name).map(|s| s.texture.as_str()).unwrap_or("");
+                    let bare = tex_name.split('/').last().unwrap_or(tex_name);
+                    if let Some(handle) = ui_assets
+                        .get_or_load(tex_name, &game_assets, &mut images, &cfg)
+                        .or_else(|| ui_assets.get_or_load(bare, &game_assets, &mut images, &cfg))
+                    {
+                        img.image = handle;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -794,6 +921,13 @@ pub fn z_shortcut_system(
     let Some(sel) = selection.index else { return };
     if keys.just_pressed(KeyCode::KeyE) {
         selection.evt_open = !selection.evt_open;
+        return;
+    }
+    if keys.just_pressed(KeyCode::KeyW) {
+        selection.var_open = !selection.var_open;
+        if !selection.var_open {
+            selection.preview_state = None;
+        }
         return;
     }
     if overlay_action.action.is_some() {

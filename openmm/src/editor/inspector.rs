@@ -147,9 +147,13 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                 }
                 if to_add {
                     let new_key = format!("state{}", editor.screen.elements[sel_idx].states.len());
-                    editor.screen.elements[sel_idx]
-                        .states
-                        .insert(new_key, ElementState { texture: String::new() });
+                    editor.screen.elements[sel_idx].states.insert(
+                        new_key,
+                        ElementState {
+                            texture: String::new(),
+                            condition: String::new(),
+                        },
+                    );
                     editor.dirty = true;
                 }
             });

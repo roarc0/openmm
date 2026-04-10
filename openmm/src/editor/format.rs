@@ -33,10 +33,14 @@ pub struct ScreenElement {
     pub bindings: BTreeMap<String, String>,
 }
 
-/// Visual state of an element — currently just a texture name.
+/// Visual state of an element — texture + optional trigger condition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElementState {
     pub texture: String,
+    /// Condition that activates this state (e.g. "hover", "time_of_day > 0.75").
+    /// Empty = default state (always active as fallback).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub condition: String,
 }
 
 impl Screen {
@@ -56,6 +60,7 @@ impl ScreenElement {
             "default".to_string(),
             ElementState {
                 texture: texture.into(),
+                condition: String::new(),
             },
         );
         Self {
@@ -92,6 +97,7 @@ mod tests {
             "hover".to_string(),
             ElementState {
                 texture: "mmnew1".to_string(),
+                condition: "hover".to_string(),
             },
         );
         elem.on_click = vec!["PlaySound 75".to_string(), "GoToScreen segue".to_string()];
