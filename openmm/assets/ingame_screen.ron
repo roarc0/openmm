@@ -1,0 +1,116 @@
+(
+    id: "ingame_screen",
+    background: None,
+    elements: [
+        (
+            id: "BORDER4",
+            position: (0.0, 8.0),
+            size: (8.0, 344.0),
+            z: 0,
+            states: {
+                "default": (
+                    texture: "BORDER4",
+                ),
+            },
+            on_click: [],
+        ),
+        (
+            id: "BORDER5",
+            position: (8.0, 8.0),
+            size: (8.0, 20.0),
+            z: 0,
+            states: {
+                "default": (
+                    texture: "BORDER5",
+                ),
+            },
+            on_click: [],
+        ),
+        (
+            id: "BORDER6",
+            position: (461.0, 8.0),
+            size: (7.0, 21.0),
+            z: 0,
+            states: {
+                "default": (
+                    texture: "BORDER6",
+                ),
+            },
+            on_click: [],
+        ),
+        (
+            id: "BORDER3",
+            position: (0.0, 0.0),
+            size: (468.0, 8.0),
+            z: 0,
+            states: {
+                "default": (
+                    texture: "BORDER3",
+                ),
+            },
+            on_click: [],
+        ),
+        (
+            id: "FOOTER",
+            position: (0.0, 352.0),
+            size: (483.0, 24.0),
+            z: 0,
+            states: {
+                "default": (
+                    texture: "FOOTER",
+                ),
+            },
+            on_click: [],
+        ),
+        (
+            id: "BUTTCAMP",
+            position: (525.0, 399.0),
+            size: (29.0, 61.0),
+            z: 0,
+            hover_only: true,
+            states: {
+                "default": (
+                    texture: "BUTTCAMP",
+                ),
+            },
+            on_click: [],
+        ),
+        (
+            id: "BUTTBK1",
+            position: (496.0, 270.0),
+            size: (31.0, 72.0),
+            z: 0,
+            hover_only: true,
+            states: {
+                "default": (
+                    texture: "BUTTBK1",
+                ),
+            },
+            on_click: [],
+        ),
+        (
+            id: "icons/Border2.pcx",
+            position: (0.0, 371.0),
+            size: (469.0, 109.0),
+            z: -2,
+            states: {
+                "default": (
+                    texture: "icons/Border2.pcx",
+                ),
+            },
+            on_click: [],
+        ),
+        (
+            id: "icons/Border1.pcx",
+            position: (468.0, 141.0),
+            size: (172.0, 339.0),
+            z: -3,
+            states: {
+                "default": (
+                    texture: "icons/Border1.pcx",
+                ),
+            },
+            on_click: [],
+        ),
+    ],
+)
