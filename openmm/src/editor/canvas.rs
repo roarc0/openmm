@@ -4,7 +4,7 @@ use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
-use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
+use bevy_inspector_egui::bevy_egui::{EguiContexts, egui, input::EguiWantsInput};
 
 use super::format::{Screen, ScreenElement};
 use super::io;
@@ -336,69 +336,85 @@ pub fn draw_overlays(
             if sel < editor.screen.elements.len() {
                 let elem_id = editor.screen.elements[sel].id.clone();
                 let mut open = true;
-                egui::Window::new(format!("Events: {}", elem_id))
-                    .id(egui::Id::new("evt_editor"))
+                let evt_id = egui::Id::new("evt_editor");
+                let mut win = egui::Window::new(format!("Events: {}", elem_id))
+                    .id(evt_id)
                     .resizable(true)
                     .collapsible(false)
                     .default_width(320.0)
-                    .open(&mut open)
-                    .show(ctx, |ui| {
-                        // on_click
-                        ui.heading("on_click");
-                        let click_count = editor.screen.elements[sel].on_click.len();
-                        let mut click_remove: Option<usize> = None;
-                        for i in 0..click_count {
-                            let mut action = editor.screen.elements[sel].on_click[i].clone();
-                            ui.horizontal(|ui| {
-                                ui.label(format!("{}:", i));
-                                if ui.text_edit_singleline(&mut action).changed() {
-                                    editor.screen.elements[sel].on_click[i] = action;
-                                    editor.dirty = true;
-                                }
-                                if ui.small_button("\u{2715}").clicked() {
-                                    click_remove = Some(i);
-                                }
-                            });
-                        }
-                        if let Some(i) = click_remove {
-                            editor.screen.elements[sel].on_click.remove(i);
-                            editor.dirty = true;
-                        }
-                        if ui.small_button("+ Add on_click").clicked() {
-                            editor.screen.elements[sel].on_click.push(String::new());
-                            editor.dirty = true;
-                        }
+                    .open(&mut open);
+                // Restore position from config on first open.
+                let cfg = super::io::EditorConfig::load();
+                if let Some([x, y]) = cfg.evt_pos {
+                    win = win.default_pos(egui::pos2(x, y));
+                }
+                win.show(ctx, |ui| {
+                    // on_click
+                    ui.heading("on_click");
+                    let click_count = editor.screen.elements[sel].on_click.len();
+                    let mut click_remove: Option<usize> = None;
+                    for i in 0..click_count {
+                        let mut action = editor.screen.elements[sel].on_click[i].clone();
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}:", i));
+                            if ui.text_edit_singleline(&mut action).changed() {
+                                editor.screen.elements[sel].on_click[i] = action;
+                                editor.dirty = true;
+                            }
+                            if ui.small_button("\u{2715}").clicked() {
+                                click_remove = Some(i);
+                            }
+                        });
+                    }
+                    if let Some(i) = click_remove {
+                        editor.screen.elements[sel].on_click.remove(i);
+                        editor.dirty = true;
+                    }
+                    if ui.small_button("+ Add on_click").clicked() {
+                        editor.screen.elements[sel].on_click.push(String::new());
+                        editor.dirty = true;
+                    }
 
-                        ui.separator();
+                    ui.separator();
 
-                        // on_hover
-                        ui.heading("on_hover");
-                        let hover_count = editor.screen.elements[sel].on_hover.len();
-                        let mut hover_remove: Option<usize> = None;
-                        for i in 0..hover_count {
-                            let mut action = editor.screen.elements[sel].on_hover[i].clone();
-                            ui.horizontal(|ui| {
-                                ui.label(format!("{}:", i));
-                                if ui.text_edit_singleline(&mut action).changed() {
-                                    editor.screen.elements[sel].on_hover[i] = action;
-                                    editor.dirty = true;
-                                }
-                                if ui.small_button("\u{2715}").clicked() {
-                                    hover_remove = Some(i);
-                                }
-                            });
-                        }
-                        if let Some(i) = hover_remove {
-                            editor.screen.elements[sel].on_hover.remove(i);
-                            editor.dirty = true;
-                        }
-                        if ui.small_button("+ Add on_hover").clicked() {
-                            editor.screen.elements[sel].on_hover.push(String::new());
-                            editor.dirty = true;
-                        }
-                    });
+                    // on_hover
+                    ui.heading("on_hover");
+                    let hover_count = editor.screen.elements[sel].on_hover.len();
+                    let mut hover_remove: Option<usize> = None;
+                    for i in 0..hover_count {
+                        let mut action = editor.screen.elements[sel].on_hover[i].clone();
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}:", i));
+                            if ui.text_edit_singleline(&mut action).changed() {
+                                editor.screen.elements[sel].on_hover[i] = action;
+                                editor.dirty = true;
+                            }
+                            if ui.small_button("\u{2715}").clicked() {
+                                hover_remove = Some(i);
+                            }
+                        });
+                    }
+                    if let Some(i) = hover_remove {
+                        editor.screen.elements[sel].on_hover.remove(i);
+                        editor.dirty = true;
+                    }
+                    if ui.small_button("+ Add on_hover").clicked() {
+                        editor.screen.elements[sel].on_hover.push(String::new());
+                        editor.dirty = true;
+                    }
+                });
                 if !open {
                     selection.evt_open = false;
+                }
+                // Save position on drag.
+                if let Some(rect) = ctx.memory(|m: &egui::Memory| m.area_rect(evt_id)) {
+                    let pos = rect.left_top();
+                    let mut cfg = super::io::EditorConfig::load();
+                    let new_pos = [pos.x, pos.y];
+                    if cfg.evt_pos != Some(new_pos) {
+                        cfg.evt_pos = Some(new_pos);
+                        cfg.save();
+                    }
                 }
             }
         }
@@ -478,7 +494,12 @@ pub fn selection_system(
     editor: Res<EditorScreen>,
     mut selection: ResMut<Selection>,
     ui_assets: Res<UiAssets>,
+    egui_input: Option<Res<EguiWantsInput>>,
 ) {
+    // Don't change selection when clicking on egui windows (browser, evt editor, etc.)
+    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
+        return;
+    }
     if !mouse.just_pressed(MouseButton::Left) {
         return;
     }

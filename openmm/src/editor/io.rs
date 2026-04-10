@@ -21,6 +21,9 @@ pub struct EditorConfig {
     /// LOD browser window position [x, y].
     #[serde(default)]
     pub browser_pos: Option<[f32; 2]>,
+    /// Event editor window position [x, y].
+    #[serde(default)]
+    pub evt_pos: Option<[f32; 2]>,
 }
 
 impl EditorConfig {
