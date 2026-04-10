@@ -154,12 +154,28 @@ fn spawn_element(
 // ─── Debug overlays (egui painter) ──────────────────────────────────────────
 
 /// Draw selection borders and labels via egui painter. Runs in EguiPrimaryContextPass.
+/// Pending action from overlay buttons, applied next frame.
+#[derive(Resource, Default)]
+pub struct OverlayAction {
+    pub action: Option<OverlayCmd>,
+}
+
+pub enum OverlayCmd {
+    BringToTop(usize),
+    SendToBottom(usize),
+    MoveUp(usize),
+    MoveDown(usize),
+    Remove(usize),
+}
+
+/// Draw selection borders, labels, and z-order toolbar via egui. Runs in EguiPrimaryContextPass.
 pub fn draw_overlays(
     mut contexts: EguiContexts,
     editor: Res<EditorScreen>,
     selection: Res<Selection>,
     windows: Query<&Window, With<PrimaryWindow>>,
     ui_assets: Res<UiAssets>,
+    mut overlay_action: ResMut<OverlayAction>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     let Ok(window) = windows.single() else { return };
@@ -174,7 +190,6 @@ pub fn draw_overlays(
     for (i, elem) in editor.screen.elements.iter().enumerate() {
         let (w, h) = resolve_size(elem, &ui_assets);
 
-        // Convert reference coords to screen coords.
         let sx = elem.position.0 / REF_W * win_w;
         let sy = elem.position.1 / REF_H * win_h;
         let sw = w / REF_W * win_w;
@@ -195,13 +210,12 @@ pub fn draw_overlays(
             )
         };
 
-        // Border drawn inside the sprite rect.
         painter.rect_stroke(rect, 0.0, stroke, egui::StrokeKind::Inside);
 
-        // Label inside the sprite, top-left corner.
+        // Label: id[w,h]@(x,y) z=N
         let label = format!(
-            "{}[{},{}]@({},{})",
-            elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32,
+            "{}[{},{}]@({},{}) z={}",
+            elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32, elem.z,
         );
         painter.text(
             rect.left_top() + egui::vec2(3.0, 2.0),
@@ -210,6 +224,94 @@ pub fn draw_overlays(
             egui::FontId::proportional(13.0),
             text_color,
         );
+    }
+
+    // Toolbar buttons for selected element — positioned below the element.
+    if let Some(sel) = selection.index {
+        if let Some(elem) = editor.screen.elements.get(sel) {
+            let (w, h) = resolve_size(elem, &ui_assets);
+            let sx = elem.position.0 / REF_W * win_w;
+            let sy = elem.position.1 / REF_H * win_h;
+            let sh = h / REF_H * win_h;
+            let sw = w / REF_W * win_w;
+
+            let toolbar_y = sy + sh + 2.0;
+            let toolbar_x = sx;
+
+            egui::Area::new(egui::Id::new("elem_toolbar"))
+                .fixed_pos(egui::pos2(toolbar_x, toolbar_y))
+                .order(egui::Order::Foreground)
+                .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
+                        let btn = |ui: &mut egui::Ui, text: &str| -> bool { ui.small_button(text).clicked() };
+                        if btn(ui, "Top") {
+                            overlay_action.action = Some(OverlayCmd::BringToTop(sel));
+                        }
+                        if btn(ui, "Up") {
+                            overlay_action.action = Some(OverlayCmd::MoveUp(sel));
+                        }
+                        if btn(ui, "Dn") {
+                            overlay_action.action = Some(OverlayCmd::MoveDown(sel));
+                        }
+                        if btn(ui, "Bot") {
+                            overlay_action.action = Some(OverlayCmd::SendToBottom(sel));
+                        }
+                        if btn(ui, "X") {
+                            overlay_action.action = Some(OverlayCmd::Remove(sel));
+                        }
+                        // Show current z value.
+                        ui.weak(format!("z={}", elem.z));
+                    });
+                });
+        }
+    }
+}
+
+/// Apply pending overlay actions (runs in Update, after egui pass).
+pub fn apply_overlay_actions(
+    mut action: ResMut<OverlayAction>,
+    mut editor: ResMut<EditorScreen>,
+    mut selection: ResMut<Selection>,
+    mut elem_q: Query<(&CanvasElement, &mut ZIndex)>,
+) {
+    let Some(cmd) = action.action.take() else { return };
+    match cmd {
+        OverlayCmd::Remove(idx) => {
+            if idx < editor.screen.elements.len() {
+                editor.screen.elements.remove(idx);
+                editor.dirty = true;
+                selection.index = None;
+            }
+        }
+        OverlayCmd::BringToTop(idx) => {
+            let new_z = editor.screen.elements.iter().map(|e| e.z).max().unwrap_or(0) + 1;
+            set_z(&mut editor, idx, new_z, &mut elem_q);
+        }
+        OverlayCmd::SendToBottom(idx) => {
+            let new_z = editor.screen.elements.iter().map(|e| e.z).min().unwrap_or(0) - 1;
+            set_z(&mut editor, idx, new_z, &mut elem_q);
+        }
+        OverlayCmd::MoveUp(idx) => {
+            let new_z = editor.screen.elements.get(idx).map(|e| e.z + 1).unwrap_or(0);
+            set_z(&mut editor, idx, new_z, &mut elem_q);
+        }
+        OverlayCmd::MoveDown(idx) => {
+            let new_z = editor.screen.elements.get(idx).map(|e| e.z - 1).unwrap_or(0);
+            set_z(&mut editor, idx, new_z, &mut elem_q);
+        }
+    }
+}
+
+fn set_z(editor: &mut EditorScreen, idx: usize, new_z: i32, elem_q: &mut Query<(&CanvasElement, &mut ZIndex)>) {
+    if let Some(elem) = editor.screen.elements.get_mut(idx) {
+        elem.z = new_z;
+    }
+    editor.dirty = true;
+    for (ce, mut z) in elem_q.iter_mut() {
+        if ce.index == idx {
+            *z = ZIndex(new_z);
+        }
     }
 }
 

@@ -37,6 +37,7 @@ impl Plugin for EditorPlugin {
         app.init_resource::<canvas::Selection>()
             .init_resource::<browser::BrowserState>()
             .init_resource::<UiVisible>()
+            .init_resource::<canvas::OverlayAction>()
             .add_systems(OnEnter(GameState::Editor), editor_setup)
             .add_systems(
                 Update,
@@ -49,6 +50,7 @@ impl Plugin for EditorPlugin {
                     canvas::delete_system,
                     canvas::tab_cycle_system,
                     canvas::save_shortcut_system,
+                    canvas::apply_overlay_actions,
                     browser::init_browser,
                     browser::toggle_browser,
                     toggle_ui,
