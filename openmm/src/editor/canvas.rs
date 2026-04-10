@@ -101,7 +101,7 @@ pub struct Selection {
     pub index: Option<usize>,
     pub drag_offset: Option<Vec2>,
     /// Whether the event editor window is open for the selected element.
-    pub evt_open: bool,
+    pub edt_open: bool,
     /// Whether the variant editor window is open for the selected element.
     pub var_open: bool,
     /// Which state to preview on canvas (None = default).
@@ -368,8 +368,8 @@ pub fn draw_overlays(
                         if btn(ui, if is_locked { "Unlk" } else { "Lock" }) {
                             overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
                         }
-                        if btn(ui, "Evt") {
-                            selection.evt_open = !selection.evt_open;
+                        if btn(ui, "Edt") {
+                            selection.edt_open = !selection.edt_open;
                         }
                         let var_count = elem.states.len();
                         let var_label = if var_count > 1 {
@@ -390,13 +390,13 @@ pub fn draw_overlays(
     }
 
     // Event editor window — one at a time, for the selected element.
-    if selection.evt_open {
+    if selection.edt_open {
         if let Some(sel) = selection.index {
             if sel < editor.screen.elements.len() {
                 let elem_id = editor.screen.elements[sel].id.clone();
                 let mut open = true;
-                let evt_id = egui::Id::new("evt_editor");
-                let mut win = egui::Window::new(format!("Events: {}", elem_id))
+                let evt_id = egui::Id::new("edt_editor");
+                let mut win = egui::Window::new(format!("Edit: {}", elem_id))
                     .id(evt_id)
                     .resizable(true)
                     .collapsible(false)
@@ -404,10 +404,30 @@ pub fn draw_overlays(
                     .open(&mut open);
                 // Restore position from config on first open.
                 let cfg = super::io::EditorConfig::load();
-                if let Some([x, y]) = cfg.evt_pos {
+                if let Some([x, y]) = cfg.edt_pos {
                     win = win.default_pos(egui::pos2(x, y));
                 }
                 win.show(ctx, |ui| {
+                    // Transparency color key.
+                    let current_tc = editor.screen.elements[sel].transparent_color.clone();
+                    let tc_label = if current_tc.is_empty() { "none" } else { &current_tc };
+                    ui.horizontal(|ui| {
+                        ui.label("Transparent:");
+                        egui::ComboBox::from_id_salt("edt_tc")
+                            .selected_text(tc_label)
+                            .show_ui(ui, |ui| {
+                                for &opt in TRANSPARENCY_OPTIONS {
+                                    let label = if opt.is_empty() { "none" } else { opt };
+                                    if ui.selectable_label(current_tc == opt, label).clicked() {
+                                        editor.screen.elements[sel].transparent_color = opt.to_string();
+                                        editor.dirty = true;
+                                    }
+                                }
+                            });
+                    });
+
+                    ui.separator();
+
                     // on_click
                     ui.heading("on_click");
                     let click_count = editor.screen.elements[sel].on_click.len();
@@ -529,15 +549,15 @@ pub fn draw_overlays(
                     });
                 });
                 if !open {
-                    selection.evt_open = false;
+                    selection.edt_open = false;
                 }
                 // Save position on drag.
                 if let Some(rect) = ctx.memory(|m: &egui::Memory| m.area_rect(evt_id)) {
                     let pos = rect.left_top();
                     let mut cfg = super::io::EditorConfig::load();
                     let new_pos = [pos.x, pos.y];
-                    if cfg.evt_pos != Some(new_pos) {
-                        cfg.evt_pos = Some(new_pos);
+                    if cfg.edt_pos != Some(new_pos) {
+                        cfg.edt_pos = Some(new_pos);
                         cfg.save();
                     }
                 }
@@ -739,7 +759,7 @@ pub fn selection_system(
 
     let new_sel = best.map(|(idx, _)| idx);
     if new_sel != selection.index {
-        selection.evt_open = false;
+        selection.edt_open = false;
         selection.var_open = false;
         selection.preview_state = None;
     }
@@ -962,7 +982,7 @@ pub fn z_shortcut_system(
 ) {
     let Some(sel) = selection.index else { return };
     if keys.just_pressed(KeyCode::KeyE) {
-        selection.evt_open = !selection.evt_open;
+        selection.edt_open = !selection.edt_open;
         return;
     }
     if keys.just_pressed(KeyCode::KeyW) {
