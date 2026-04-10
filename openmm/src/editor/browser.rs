@@ -3,8 +3,8 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
-use super::canvas::{EditorScreen, REF_H, REF_W};
-use super::format::ScreenElement;
+use super::canvas::EditorScreen;
+use crate::screens::{REF_H, REF_W, ScreenElement};
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::hud::UiAssets;

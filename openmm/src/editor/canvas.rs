@@ -6,67 +6,14 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui, input::EguiWantsInput};
 
-use super::format::{Screen, ScreenElement};
 use super::io;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::hud::UiAssets;
-
-/// Reference resolution (MM6 UI coordinate space).
-pub const REF_W: f32 = 640.0;
-pub const REF_H: f32 = 480.0;
-
-/// Resolve element size: explicit size > texture dimensions > 32x32 fallback.
-fn resolve_size(elem: &ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
-    let (w, h) = elem.size;
-    if w > 0.0 && h > 0.0 {
-        return (w, h);
-    }
-    // Auto-resolve from texture dimensions.
-    elem.texture_for_state("default")
-        .and_then(|name| ui_assets.dimensions(name))
-        .map(|(w, h)| (w as f32, h as f32))
-        .unwrap_or((32.0, 32.0))
-}
-
-/// Color key transparency options.
-pub const TRANSPARENCY_OPTIONS: &[&str] = &["", "black", "cyan", "lime", "red", "magenta", "blue"];
-
-/// Load a texture with optional color-key transparency applied.
-fn load_texture_with_transparency(
-    tex_name: &str,
-    transparent_color: &str,
-    ui_assets: &mut UiAssets,
-    game_assets: &GameAssets,
-    images: &mut Assets<Image>,
-    cfg: &GameConfig,
-) -> Option<Handle<Image>> {
-    let bare = tex_name.split('/').last().unwrap_or(tex_name);
-    if transparent_color.is_empty() {
-        return ui_assets
-            .get_or_load(tex_name, game_assets, images, cfg)
-            .or_else(|| ui_assets.get_or_load(bare, game_assets, images, cfg));
-    }
-    // Use a cache key that includes the transparency mode.
-    let cache_key = format!("{}@t_{}", tex_name, transparent_color);
-    let source = if ui_assets.get_or_load(tex_name, game_assets, images, cfg).is_some() {
-        tex_name
-    } else {
-        bare
-    };
-    let tc = transparent_color.to_string();
-    ui_assets.get_or_load_transformed(source, &cache_key, game_assets, images, cfg, move |img| {
-        crate::game::hud::make_transparent_where(img, |r, g, b| match tc.as_str() {
-            "black" => r < 30 && g < 30 && b < 30,
-            "cyan" => r < 30 && g > 200 && b > 200,
-            "lime" => r < 30 && g > 200 && b < 30,
-            "red" => r > 200 && g < 30 && b < 30,
-            "magenta" => r > 200 && g < 30 && b > 200,
-            "blue" => r < 30 && g < 30 && b > 200,
-            _ => false,
-        });
-    })
-}
+use crate::screens::{
+    self, ElementState, REF_H, REF_W, Screen, ScreenElement, TRANSPARENCY_OPTIONS, load_texture_with_transparency,
+    resolve_size,
+};
 
 /// Generate a small checkerboard texture for the editor canvas background.
 fn generate_checkerboard(

@@ -1,11 +1,13 @@
-//! Load/save .screen.ron files from data/screens/ and editor config.
+//! Editor-specific IO: config persistence, lock state, last screen.
+//! Screen loading/saving delegated to crate::screens.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use super::format::Screen;
+// Re-export shared functions so existing editor code doesn't break.
+pub use crate::screens::{Screen, list_screens, load_screen, save_screen, screen_path};
 
 const SCREENS_DIR: &str = "openmm/assets";
 const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";
@@ -13,15 +15,11 @@ const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";
 /// Persisted editor settings.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EditorConfig {
-    /// Last screen that was open, auto-loaded on startup.
     pub last_screen: Option<String>,
-    /// Whether the LOD browser was open.
     #[serde(default)]
     pub browser_open: bool,
-    /// LOD browser window position [x, y].
     #[serde(default)]
     pub browser_pos: Option<[f32; 2]>,
-    /// Event editor window position [x, y].
     #[serde(default)]
     pub edt_pos: Option<[f32; 2]>,
 }
@@ -39,28 +37,6 @@ impl EditorConfig {
             let _ = fs::write(EDITOR_CONFIG_PATH, s);
         }
     }
-}
-
-fn ensure_dir() {
-    let _ = fs::create_dir_all(SCREENS_DIR);
-}
-
-pub fn screen_path(id: &str) -> PathBuf {
-    Path::new(SCREENS_DIR).join(format!("{}.ron", id))
-}
-
-pub fn save_screen(screen: &Screen) -> Result<(), String> {
-    ensure_dir();
-    let path = screen_path(&screen.id);
-    let ron_str = ron::ser::to_string_pretty(screen, ron::ser::PrettyConfig::default())
-        .map_err(|e| format!("RON serialize error: {e}"))?;
-    fs::write(&path, &ron_str).map_err(|e| format!("Write error {}: {e}", path.display()))?;
-    // Remember last screen in editor config.
-    let mut cfg = EditorConfig::load();
-    cfg.last_screen = Some(screen.id.clone());
-    cfg.save();
-    bevy::log::info!("saved screen to {}", path.display());
-    Ok(())
 }
 
 /// Update the last_screen field in the editor config.
@@ -82,8 +58,16 @@ pub fn load_last_screen() -> Screen {
     Screen::new("untitled")
 }
 
+/// Save screen and update last_screen in editor config.
+pub fn save_screen_with_config(screen: &Screen) -> Result<(), String> {
+    save_screen(screen)?;
+    let mut cfg = EditorConfig::load();
+    cfg.last_screen = Some(screen.id.clone());
+    cfg.save();
+    Ok(())
+}
+
 /// Per-element editor-only properties, stored alongside the screen RON.
-/// File: `{screen_id}.editor.ron`. Extensible for future per-element metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ScreenEditorData {
     #[serde(default)]
@@ -94,16 +78,14 @@ fn editor_data_path(screen_id: &str) -> PathBuf {
     Path::new(SCREENS_DIR).join(format!("{}.editor.ron", screen_id))
 }
 
-/// Save editor-only data for a screen.
 pub fn save_editor_data(screen_id: &str, data: &ScreenEditorData) {
-    ensure_dir();
+    let _ = fs::create_dir_all(SCREENS_DIR);
     let path = editor_data_path(screen_id);
     if let Ok(s) = ron::ser::to_string_pretty(data, ron::ser::PrettyConfig::default()) {
         let _ = fs::write(&path, s);
     }
 }
 
-/// Load editor-only data for a screen.
 pub fn load_editor_data(screen_id: &str) -> ScreenEditorData {
     let path = editor_data_path(screen_id);
     fs::read_to_string(&path)
@@ -112,7 +94,6 @@ pub fn load_editor_data(screen_id: &str) -> ScreenEditorData {
         .unwrap_or_default()
 }
 
-/// Save locked element IDs (convenience wrapper).
 pub fn save_locks(screen_id: &str, locked: &std::collections::HashSet<String>) {
     let data = ScreenEditorData {
         locked: locked.iter().cloned().collect(),
@@ -120,39 +101,13 @@ pub fn save_locks(screen_id: &str, locked: &std::collections::HashSet<String>) {
     save_editor_data(screen_id, &data);
 }
 
-/// Load locked element IDs (convenience wrapper).
 pub fn load_locks(screen_id: &str) -> std::collections::HashSet<String> {
     load_editor_data(screen_id).locked.into_iter().collect()
-}
-
-pub fn load_screen(id: &str) -> Result<Screen, String> {
-    let path = screen_path(id);
-    let contents = fs::read_to_string(&path).map_err(|e| format!("Read error {}: {e}", path.display()))?;
-    ron::from_str(&contents).map_err(|e| format!("RON parse error {}: {e}", path.display()))
-}
-
-pub fn list_screens() -> Vec<String> {
-    let dir = Path::new(SCREENS_DIR);
-    if !dir.exists() {
-        return Vec::new();
-    }
-    let mut names: Vec<String> = fs::read_dir(dir)
-        .into_iter()
-        .flatten()
-        .filter_map(|e| e.ok())
-        .filter_map(|e| {
-            let name = e.file_name().to_string_lossy().to_string();
-            name.strip_suffix(".ron").map(str::to_string)
-        })
-        .collect();
-    names.sort();
-    names
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::format::Screen;
 
     #[test]
     fn save_and_load_round_trip() {

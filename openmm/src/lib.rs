@@ -16,6 +16,7 @@ pub(crate) mod engine;
 pub(crate) mod fonts;
 pub(crate) mod game;
 pub(crate) mod save;
+pub(crate) mod screens;
 pub(crate) mod states;
 
 const APP_NAME: &str = "openmm";

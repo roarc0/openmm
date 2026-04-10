@@ -1,8 +1,8 @@
 mod browser;
 pub mod canvas;
-mod format;
+pub mod format;
 mod inspector;
-mod io;
+pub mod io;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
