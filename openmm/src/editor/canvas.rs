@@ -197,7 +197,7 @@ pub fn rebuild_canvas(
             ..default()
         },
         Pickable::IGNORE,
-        ZIndex(-2),
+        ZIndex(i32::MIN),
         CanvasBackground,
     ));
 
@@ -216,7 +216,7 @@ pub fn rebuild_canvas(
                     ..default()
                 },
                 Pickable::IGNORE,
-                ZIndex(-1),
+                ZIndex(i32::MIN + 1),
                 CanvasBackground,
             ));
         }
