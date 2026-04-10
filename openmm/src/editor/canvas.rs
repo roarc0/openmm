@@ -44,6 +44,13 @@ pub struct CanvasElement {
 #[derive(Component)]
 pub struct CanvasBackground;
 
+/// Per-element editor-only visibility (not saved to RON).
+#[derive(Resource, Default)]
+pub struct ElementVisibility {
+    /// Hidden element indices. Elements not in this set are visible.
+    pub hidden: std::collections::HashSet<usize>,
+}
+
 /// Current selection state.
 #[derive(Resource, Default)]
 pub struct Selection {
@@ -166,6 +173,7 @@ pub enum OverlayCmd {
     MoveUp(usize),
     MoveDown(usize),
     Remove(usize),
+    ToggleVisibility(usize),
 }
 
 /// Draw selection borders, labels, and z-order toolbar via egui. Runs in EguiPrimaryContextPass.
@@ -176,6 +184,7 @@ pub fn draw_overlays(
     windows: Query<&Window, With<PrimaryWindow>>,
     ui_assets: Res<UiAssets>,
     mut overlay_action: ResMut<OverlayAction>,
+    visibility: Res<ElementVisibility>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     let Ok(window) = windows.single() else { return };
@@ -212,10 +221,13 @@ pub fn draw_overlays(
 
         painter.rect_stroke(rect, 0.0, stroke, egui::StrokeKind::Inside);
 
-        // Label: id[w,h]@(x,y) z=N
+        let is_hidden = visibility.hidden.contains(&i);
+
+        // Label: id[w,h]@(x,y) z=N [H]
+        let hidden_mark = if is_hidden { " [H]" } else { "" };
         let label = format!(
-            "{}[{},{}]@({},{}) z={}",
-            elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32, elem.z,
+            "{}[{},{}]@({},{}) z={}{}",
+            elem.id, w as i32, h as i32, elem.position.0 as i32, elem.position.1 as i32, elem.z, hidden_mark,
         );
         painter.text(
             rect.left_top() + egui::vec2(3.0, 2.0),
@@ -257,10 +269,17 @@ pub fn draw_overlays(
                         if btn(ui, "Bot") {
                             overlay_action.action = Some(OverlayCmd::SendToBottom(sel));
                         }
+                        let vis_label = if visibility.hidden.contains(&sel) {
+                            "Show"
+                        } else {
+                            "Vis"
+                        };
+                        if btn(ui, vis_label) {
+                            overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
+                        }
                         if btn(ui, "X") {
                             overlay_action.action = Some(OverlayCmd::Remove(sel));
                         }
-                        // Show current z value.
                         ui.weak(format!("z={}", elem.z));
                     });
                 });
@@ -274,6 +293,7 @@ pub fn apply_overlay_actions(
     mut editor: ResMut<EditorScreen>,
     mut selection: ResMut<Selection>,
     mut elem_q: Query<(&CanvasElement, &mut ZIndex)>,
+    mut visibility: ResMut<ElementVisibility>,
 ) {
     let Some(cmd) = action.action.take() else { return };
     match cmd {
@@ -282,6 +302,12 @@ pub fn apply_overlay_actions(
                 editor.screen.elements.remove(idx);
                 editor.dirty = true;
                 selection.index = None;
+                visibility.hidden.remove(&idx);
+            }
+        }
+        OverlayCmd::ToggleVisibility(idx) => {
+            if !visibility.hidden.remove(&idx) {
+                visibility.hidden.insert(idx);
             }
         }
         OverlayCmd::BringToTop(idx) => {
@@ -399,13 +425,22 @@ pub fn drag_system(
 // ─── Sync positions ────────────────────────────────────────────────────────
 
 /// Syncs Bevy `Node` positions from `EditorScreen` data every frame.
-pub fn sync_element_positions(editor: Res<EditorScreen>, mut elem_q: Query<(&CanvasElement, &mut Node)>) {
-    for (ce, mut node) in &mut elem_q {
+pub fn sync_element_positions(
+    editor: Res<EditorScreen>,
+    visibility: Res<ElementVisibility>,
+    mut elem_q: Query<(&CanvasElement, &mut Node, &mut Visibility)>,
+) {
+    for (ce, mut node, mut vis) in &mut elem_q {
         let Some(elem) = editor.screen.elements.get(ce.index) else {
             continue;
         };
         node.left = Val::Percent(elem.position.0 / REF_W * 100.0);
         node.top = Val::Percent(elem.position.1 / REF_H * 100.0);
+        *vis = if visibility.hidden.contains(&ce.index) {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        };
     }
 }
 
@@ -494,6 +529,31 @@ pub fn delete_system(
         editor.screen.elements.remove(idx);
         editor.dirty = true;
         selection.index = None;
+    }
+}
+
+// ─── Keyboard shortcuts for z-order and visibility ────────────────────
+
+/// T=top, U=up, D=down, B=bottom, V=toggle visibility on selected element.
+pub fn z_shortcut_system(
+    keys: Res<ButtonInput<KeyCode>>,
+    selection: Res<Selection>,
+    mut overlay_action: ResMut<OverlayAction>,
+) {
+    let Some(sel) = selection.index else { return };
+    if overlay_action.action.is_some() {
+        return;
+    }
+    if keys.just_pressed(KeyCode::KeyT) {
+        overlay_action.action = Some(OverlayCmd::BringToTop(sel));
+    } else if keys.just_pressed(KeyCode::KeyU) {
+        overlay_action.action = Some(OverlayCmd::MoveUp(sel));
+    } else if keys.just_pressed(KeyCode::KeyD) {
+        overlay_action.action = Some(OverlayCmd::MoveDown(sel));
+    } else if keys.just_pressed(KeyCode::KeyB) {
+        overlay_action.action = Some(OverlayCmd::SendToBottom(sel));
+    } else if keys.just_pressed(KeyCode::KeyV) {
+        overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
     }
 }
 

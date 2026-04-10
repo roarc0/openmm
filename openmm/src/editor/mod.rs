@@ -38,6 +38,7 @@ impl Plugin for EditorPlugin {
             .init_resource::<browser::BrowserState>()
             .init_resource::<UiVisible>()
             .init_resource::<canvas::OverlayAction>()
+            .init_resource::<canvas::ElementVisibility>()
             .add_systems(OnEnter(GameState::Editor), editor_setup)
             .add_systems(
                 Update,
@@ -47,6 +48,7 @@ impl Plugin for EditorPlugin {
                     canvas::sync_element_positions,
                     canvas::z_order_system,
                     canvas::arrow_nudge_system,
+                    canvas::z_shortcut_system,
                     canvas::delete_system,
                     canvas::tab_cycle_system,
                     canvas::save_shortcut_system,
