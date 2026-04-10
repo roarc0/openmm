@@ -177,6 +177,7 @@ pub enum OverlayCmd {
     MoveDown(usize),
     Remove(usize),
     ToggleVisibility(usize),
+    ToggleHoverOnly(usize),
 }
 
 /// Draw selection borders, labels, and z-order toolbar via egui. Runs in EguiPrimaryContextPass.
@@ -210,13 +211,13 @@ pub fn draw_overlays(
         let rect = egui::Rect::from_min_size(egui::pos2(sx, sy), egui::vec2(sw, sh));
 
         let is_selected = selection.index == Some(i);
+        // Selected = magenta (thick), hover-only = cyan, normal = green.
         let (stroke, text_color) = if is_selected {
             (
                 egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 0, 255)),
                 egui::Color32::from_rgb(255, 0, 255),
             )
         } else if elem.hover_only {
-            // Cyan for hover-only elements.
             (
                 egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 200, 255)),
                 egui::Color32::from_rgb(0, 200, 255),
@@ -292,6 +293,14 @@ pub fn draw_overlays(
                         if btn(ui, vis_label) {
                             overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
                         }
+                        let hvr_label = if editor.screen.elements.get(sel).is_some_and(|e| e.hover_only) {
+                            "Hvr*"
+                        } else {
+                            "Hvr"
+                        };
+                        if btn(ui, hvr_label) {
+                            overlay_action.action = Some(OverlayCmd::ToggleHoverOnly(sel));
+                        }
                         if btn(ui, "X") {
                             overlay_action.action = Some(OverlayCmd::Remove(sel));
                         }
@@ -324,6 +333,12 @@ pub fn apply_overlay_actions(
             if !visibility.hidden.remove(&idx) {
                 visibility.hidden.insert(idx);
             }
+        }
+        OverlayCmd::ToggleHoverOnly(idx) => {
+            if let Some(elem) = editor.screen.elements.get_mut(idx) {
+                elem.hover_only = !elem.hover_only;
+            }
+            editor.dirty = true;
         }
         OverlayCmd::BringToTop(idx) => {
             let new_z = editor.screen.elements.iter().map(|e| e.z).max().unwrap_or(0) + 1;
@@ -569,6 +584,8 @@ pub fn z_shortcut_system(
         overlay_action.action = Some(OverlayCmd::SendToBottom(sel));
     } else if keys.just_pressed(KeyCode::KeyV) {
         overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
+    } else if keys.just_pressed(KeyCode::KeyH) {
+        overlay_action.action = Some(OverlayCmd::ToggleHoverOnly(sel));
     }
 }
 
