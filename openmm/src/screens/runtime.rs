@@ -24,6 +24,7 @@ use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::fonts::GameFonts;
 use crate::game::hud::{FooterText, UiAssets};
+use crate::game::player::Player;
 
 pub struct ScreenRuntimePlugin;
 
@@ -52,6 +53,7 @@ impl Plugin for ScreenRuntimePlugin {
                     click_flash_tick,
                     process_pending_actions,
                     update_screen_crosshair,
+                    compass_scroll,
                 )
                     .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
             );
@@ -126,6 +128,13 @@ struct Pulsable;
 #[derive(Component)]
 struct Pulsing {
     elapsed: f32,
+}
+
+/// Inner compass strip image — scrolls horizontally inside a clip container.
+#[derive(Component)]
+struct CompassStrip {
+    /// Clip window width in reference pixels.
+    clip_w: f32,
 }
 
 /// All active screen layers, keyed by screen id.
@@ -743,6 +752,50 @@ fn spawn_image_element(
         }
     });
 
+    // Compass strip: spawn as clip container + scrollable inner strip.
+    if img.bindings.get("source").map(|s| s.as_str()) == Some("compass") {
+        if let Some(handle) = default_handle {
+            let clip_w = w;   // element size = visible window
+            let clip_h = h;
+            // Get actual strip dimensions from the texture.
+            let strip_w = ui_assets
+                .dimensions("compass")
+                .map(|(sw, _)| sw as f32)
+                .unwrap_or(325.0);
+
+            let clip_node = Node {
+                position_type: PositionType::Absolute,
+                left: Val::Percent(img.position.0 / REF_W * 100.0),
+                top: Val::Percent(img.position.1 / REF_H * 100.0),
+                width: Val::Percent(clip_w / REF_W * 100.0),
+                height: Val::Percent(clip_h / REF_H * 100.0),
+                overflow: Overflow::clip(),
+                ..default()
+            };
+            let marker = RuntimeElement {
+                screen_id: screen_id.to_string(),
+                index,
+            };
+            commands
+                .spawn((clip_node, ZIndex(img.z), marker, layer_tag.clone()))
+                .with_children(|clip| {
+                    clip.spawn((
+                        ImageNode::new(handle),
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(0.0),
+                            top: Val::Px(0.0),
+                            width: Val::Percent(strip_w / clip_w * 100.0),
+                            height: Val::Percent(100.0),
+                            ..default()
+                        },
+                        CompassStrip { clip_w },
+                    ));
+                });
+        }
+        return;
+    }
+
     let has_interaction = hover_handle.is_some() || !img.on_click.is_empty() || !img.on_hover.is_empty();
     let has_pulse = img.on_hover.iter().any(|a| a.trim() == "PulseSprite()");
     let z = ZIndex(img.z);
@@ -911,6 +964,36 @@ fn text_update(
                 node.left = Val::Px(box_x);
             }
         }
+    }
+}
+
+// ── Compass scroll ─────────────────────────────────────────────────────────
+
+/// Scroll the compass strip based on player yaw.
+/// Strip layout: E(9)..SE(36)..S(68)..SW(98)..W(130)..NW(157)..N(190)..NE(216)..E(249)..SE(276)
+/// First E at pixel ~28, cycle = 240px = 360 degrees.
+fn compass_scroll(
+    player_q: Query<&Transform, With<Player>>,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    mut strip_q: Query<(&CompassStrip, &mut Node)>,
+) {
+    let Ok(player_tf) = player_q.single() else { return };
+    let Ok(window) = windows.single() else { return };
+
+    let (yaw, _, _) = player_tf.rotation.to_euler(EulerRot::YXZ);
+    let cw_angle = (-yaw).rem_euclid(std::f32::consts::TAU);
+
+    // Scale from reference pixels to screen pixels.
+    let sx = window.width() / REF_W;
+
+    let e_start = 28.0 * sx;
+    let cycle_w = 240.0 * sx;
+    let angle_from_east = (cw_angle - std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
+    let pixel_pos = e_start + (angle_from_east / std::f32::consts::TAU) * cycle_w;
+
+    for (strip, mut node) in &mut strip_q {
+        let clip_w = strip.clip_w * sx;
+        node.left = Val::Px(clip_w / 2.0 - pixel_pos);
     }
 }
 
