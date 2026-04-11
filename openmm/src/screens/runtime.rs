@@ -1050,7 +1050,6 @@ fn process_pending_actions(
     mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
     world_state: Option<Res<crate::game::world::WorldState>>,
     mut event_queue: Option<ResMut<crate::game::world::scripting::EventQueue>>,
-    mut footer: Option<ResMut<FooterText>>,
     _time: Res<Time>,
 ) {
     use super::scripting::Action;
@@ -1114,11 +1113,6 @@ fn process_pending_actions(
             }
             Action::HideSprite(_) => {
                 info!("action: HideSprite (not yet wired)");
-            }
-            Action::Hint(text) => {
-                if let Some(ref mut ft) = footer {
-                    ft.set(&text);
-                }
             }
             Action::PulseSprite => {} // handled at spawn time
             Action::EvtProxy(evt_str) => {

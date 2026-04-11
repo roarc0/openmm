@@ -13,7 +13,6 @@ pub enum Action {
     HideScreen(String),
     ShowSprite(String),
     HideSprite(String),
-    Hint(String),
     PulseSprite,
     NewGame,
     Quit,
@@ -75,10 +74,6 @@ pub fn parse_action(input: &str) -> Action {
     if let Some(id) = parse_string_arg(s, "HideSprite") {
         return Action::HideSprite(id.to_string());
     }
-    if let Some(text) = parse_string_arg(s, "Hint") {
-        return Action::Hint(text.to_string());
-    }
-
     Action::Unknown(s.to_string())
 }
 
@@ -223,10 +218,8 @@ mod tests {
             parse_action("HideSprite(\"icon\")"),
             Action::HideSprite("icon".into())
         );
-        assert_eq!(
-            parse_action("Hint(\"Cast Spell\")"),
-            Action::Hint("Cast Spell".into())
-        );
+        // Bare Hint is unknown — use evt:Hint instead
+        assert!(matches!(parse_action("Hint(\"Cast Spell\")"), Action::Unknown(_)));
         assert_eq!(parse_action("PulseSprite()"), Action::PulseSprite);
     }
 
@@ -317,12 +310,12 @@ mod tests {
 
     #[test]
     fn execute_unconditional() {
-        let actions = vec!["Hint(\"hello\")".into(), "Hint(\"world\")".into()];
+        let actions = vec!["evt:Hint(\"hello\")".into(), "evt:Hint(\"world\")".into()];
         let vars = GameVariables::default();
         let result = execute_actions(&actions, &vars);
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0], Action::Hint("hello".into()));
-        assert_eq!(result[1], Action::Hint("world".into()));
+        assert_eq!(result[0], Action::EvtProxy("Hint(\"hello\")".into()));
+        assert_eq!(result[1], Action::EvtProxy("Hint(\"world\")".into()));
     }
 
     #[test]
@@ -331,14 +324,14 @@ mod tests {
         vars.set_qbit(12);
         let actions = vec![
             "Compare(\"quest_bit(12)\")".into(),
-            "Hint(\"yes\")".into(),
+            "evt:Hint(\"yes\")".into(),
             "End()".into(),
-            "Hint(\"always\")".into(),
+            "evt:Hint(\"always\")".into(),
         ];
         let result = execute_actions(&actions, &vars);
         assert_eq!(result.len(), 2);
-        assert_eq!(result[0], Action::Hint("yes".into()));
-        assert_eq!(result[1], Action::Hint("always".into()));
+        assert_eq!(result[0], Action::EvtProxy("Hint(\"yes\")".into()));
+        assert_eq!(result[1], Action::EvtProxy("Hint(\"always\")".into()));
     }
 
     #[test]
@@ -346,13 +339,13 @@ mod tests {
         let vars = GameVariables::default();
         let actions = vec![
             "Compare(\"quest_bit(12)\")".into(),
-            "Hint(\"yes\")".into(),
+            "evt:Hint(\"yes\")".into(),
             "End()".into(),
-            "Hint(\"always\")".into(),
+            "evt:Hint(\"always\")".into(),
         ];
         let result = execute_actions(&actions, &vars);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], Action::Hint("always".into()));
+        assert_eq!(result[0], Action::EvtProxy("Hint(\"always\")".into()));
     }
 
     #[test]
@@ -361,19 +354,19 @@ mod tests {
         vars.set_qbit(5);
         let actions = vec![
             "Compare(\"quest_bit(5)\")".into(),
-            "Hint(\"yes\")".into(),
+            "evt:Hint(\"yes\")".into(),
             "Else()".into(),
-            "Hint(\"no\")".into(),
+            "evt:Hint(\"no\")".into(),
             "End()".into(),
         ];
         let result = execute_actions(&actions, &vars);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0], Action::Hint("yes".into()));
+        assert_eq!(result[0], Action::EvtProxy("Hint(\"yes\")".into()));
 
         let vars2 = GameVariables::default();
         let result2 = execute_actions(&actions, &vars2);
         assert_eq!(result2.len(), 1);
-        assert_eq!(result2[0], Action::Hint("no".into()));
+        assert_eq!(result2[0], Action::EvtProxy("Hint(\"no\")".into()));
     }
 
     #[test]
