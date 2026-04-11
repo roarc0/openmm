@@ -1137,14 +1137,14 @@ fn pulse_hover(
         if hovering && !pulsing_query.contains(entity) {
             commands
                 .entity(entity)
-                .insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
+                .try_insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
         } else if !hovering && pulsing_query.contains(entity) {
             commands.entity(entity).remove::<Pulsing>();
             if let Ok(mut img) = image_query.get_mut(entity) {
                 img.color = img.color.with_alpha(1.0);
             }
             if hidden_default {
-                commands.entity(entity).insert(Visibility::Hidden);
+                commands.entity(entity).try_insert(Visibility::Hidden);
             }
         }
     }
