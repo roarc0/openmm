@@ -863,6 +863,7 @@ fn screen_hover(
 pub struct ScreenUiHovered(pub bool);
 
 /// Dispatch on_hover actions via PendingActions on hover start.
+/// Only active when the cursor is free (not grabbed by gameplay crosshair).
 /// Maintains ScreenUiHovered flag every frame (not just on change)
 /// so the world interaction system doesn't clear the footer while hovering.
 fn hover_actions(
@@ -872,7 +873,17 @@ fn hover_actions(
     layers: Res<ScreenLayers>,
     pending: Option<Res<PendingActions>>,
     mut ui_hovered: ResMut<ScreenUiHovered>,
+    cursor_query: Query<&bevy::window::CursorOptions, With<bevy::window::PrimaryWindow>>,
 ) {
+    // Skip screen hover when cursor is grabbed (crosshair mode).
+    let cursor_free = cursor_query
+        .single()
+        .is_ok_and(|c| matches!(c.grab_mode, bevy::window::CursorGrabMode::None));
+    if !cursor_free {
+        ui_hovered.0 = false;
+        return;
+    }
+
     // Check ALL hovered elements (not just changed) to keep the flag stable.
     let any_hovered = all_query.iter().any(|(interaction, rt_elem)| {
         matches!(interaction, Interaction::Hovered | Interaction::Pressed)
