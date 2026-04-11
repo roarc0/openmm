@@ -24,13 +24,15 @@ use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::fonts::GameFonts;
 use crate::game::hud::{FooterText, UiAssets};
-use crate::game::player::Player;
+
+use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, TapBinding};
 
 pub struct ScreenRuntimePlugin;
 
 impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ScreenLayers>()
+        app.add_plugins(super::bindings::BindingsPlugin)
+            .init_resource::<ScreenLayers>()
             .init_resource::<ScreenUiHovered>()
             // Menu state: load "menu" screen.
             .add_systems(OnEnter(GameState::Menu), menu_screen_setup)
@@ -53,9 +55,6 @@ impl Plugin for ScreenRuntimePlugin {
                     click_flash_tick,
                     process_pending_actions,
                     update_screen_crosshair,
-                    compass_scroll,
-                    minimap_scroll,
-                    arrow_update,
                 )
                     .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
             );
@@ -131,32 +130,6 @@ struct Pulsable;
 struct Pulsing {
     elapsed: f32,
 }
-
-/// Inner image inside a crop viewport — scrollable within its clip container.
-#[derive(Component)]
-struct CroppedImage {
-    /// Crop viewport size in reference pixels.
-    crop_w: f32,
-    crop_h: f32,
-}
-
-/// Marks a cropped image as a compass strip (scrolls by player yaw).
-#[derive(Component)]
-struct CompassBinding;
-
-/// Marks a cropped image as a minimap (scrolls by player position).
-#[derive(Component)]
-struct MinimapBinding {
-    zoom: f32,
-}
-
-/// Marks an image as a direction arrow (swaps texture by player yaw).
-#[derive(Component)]
-struct ArrowBinding;
-
-/// Cached arrow texture handles (mapdir1-8 with black transparency).
-#[derive(Resource)]
-struct ArrowHandles(Vec<Handle<Image>>);
 
 /// All active screen layers, keyed by screen id.
 #[derive(Resource, Default)]
@@ -859,8 +832,10 @@ fn spawn_image_element(
         if img.hidden {
             entity.insert(HiddenByDefault);
         }
-        if img.bindings.get("source").map(|s| s.as_str()) == Some("arrow") {
-            entity.insert(ArrowBinding);
+        match img.bindings.get("source").map(|s| s.as_str()) {
+            Some("arrow") => { entity.insert(ArrowBinding); }
+            Some("tap") => { entity.insert(TapBinding); }
+            _ => {}
         }
         if let Some(h_handle) = hover_handle {
             entity.with_children(|parent| {
@@ -1006,155 +981,6 @@ fn text_update(
                 node.left = Val::Px(box_x);
             }
         }
-    }
-}
-
-// ── Compass scroll ─────────────────────────────────────────────────────────
-
-/// Scroll the compass strip based on player yaw.
-/// Strip layout: E(9)..SE(36)..S(68)..SW(98)..W(130)..NW(157)..N(190)..NE(216)..E(249)..SE(276)
-/// First E at pixel ~28, cycle = 240px = 360 degrees.
-fn compass_scroll(
-    player_q: Query<&Transform, With<Player>>,
-    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
-    mut strip_q: Query<(&CroppedImage, &mut Node), With<CompassBinding>>,
-) {
-    let Ok(player_tf) = player_q.single() else { return };
-    let Ok(window) = windows.single() else { return };
-
-    let (yaw, _, _) = player_tf.rotation.to_euler(EulerRot::YXZ);
-    let cw_angle = (-yaw).rem_euclid(std::f32::consts::TAU);
-
-    let sx = window.width() / REF_W;
-
-    let e_start = 28.0 * sx;
-    let cycle_w = 240.0 * sx;
-    let angle_from_east = (cw_angle - std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
-    let pixel_pos = e_start + (angle_from_east / std::f32::consts::TAU) * cycle_w;
-
-    for (crop, mut node) in &mut strip_q {
-        let clip_w = crop.crop_w * sx;
-        node.left = Val::Px(clip_w / 2.0 - pixel_pos);
-    }
-}
-
-// ── Minimap scroll ─────────────────────────────────────────────────────────
-
-/// Load minimap texture and scroll based on player position.
-fn minimap_scroll(
-    player_q: Query<&Transform, With<Player>>,
-    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
-    world_state: Option<Res<crate::game::world::WorldState>>,
-    game_assets: Res<GameAssets>,
-    mut images: ResMut<Assets<Image>>,
-    cfg: Res<GameConfig>,
-    mut query: Query<(&CroppedImage, &MinimapBinding, &mut Node, &mut ImageNode)>,
-    mut last_map: Local<String>,
-    mut map_handle: Local<Option<Handle<Image>>>,
-) {
-    let Ok(window) = windows.single() else { return };
-    let sx = window.width() / REF_W;
-    let sy = window.height() / REF_H;
-
-    // Resolve map overview texture (changes when map changes).
-    let map_name = world_state.as_ref().map(|ws| {
-        match &ws.map.name {
-            openmm_data::utils::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
-            openmm_data::utils::MapName::Indoor(_) => String::new(),
-        }
-    }).unwrap_or_default();
-
-    if map_name != *last_map {
-        *last_map = map_name.clone();
-        *map_handle = if map_name.is_empty() {
-            None
-        } else {
-            crate::game::hud::minimap::load_map_overview(&map_name, &game_assets, &mut images, &cfg)
-        };
-    }
-
-    let Some(handle) = map_handle.as_ref() else {
-        // Indoor or no map — hide the minimap.
-        for (_, _, mut node, _) in &mut query {
-            node.left = Val::Px(-9999.0);
-        }
-        return;
-    };
-
-    // Get player position for scrolling.
-    let Ok(player_tf) = player_q.single() else { return };
-
-    use openmm_data::odm::ODM_TILE_SCALE;
-    let terrain_size = 128.0 * ODM_TILE_SCALE;
-    let half = terrain_size / 2.0;
-    let nx = (player_tf.translation.x + half) / terrain_size;
-    let nz = (player_tf.translation.z + half) / terrain_size;
-
-    for (crop, minimap, mut node, mut img_node) in &mut query {
-        let crop_w_px = crop.crop_w * sx;
-        let crop_h_px = crop.crop_h * sy;
-        // Square map image sized to crop width (matches original HUD behavior).
-        let map_img_size = crop_w_px * minimap.zoom;
-
-        // Center player in viewport, offset to match TAP transparent window.
-        let offset_x = 3.0 * sx;
-        let offset_y = 20.0 * sy;
-        node.left = Val::Px(crop_w_px / 2.0 + offset_x - nx * map_img_size);
-        node.top = Val::Px(crop_h_px / 2.0 + offset_y - nz * map_img_size);
-        node.width = Val::Px(map_img_size);
-        node.height = Val::Px(map_img_size);
-
-        img_node.image = handle.clone();
-    }
-}
-
-// ── Arrow direction ────────────────────────────────────────────────────────
-
-/// Swap arrow texture based on player yaw direction.
-/// mapdir assets: 1=NE, 2=N, 3=NW, 4=W, 5=SW, 6=S, 7=SE, 8=E (counterclockwise)
-fn arrow_update(
-    player_q: Query<&Transform, With<Player>>,
-    mut query: Query<&mut ImageNode, With<ArrowBinding>>,
-    arrow_handles: Option<Res<ArrowHandles>>,
-    game_assets: Res<GameAssets>,
-    mut ui_assets: ResMut<UiAssets>,
-    mut images: ResMut<Assets<Image>>,
-    cfg: Res<GameConfig>,
-    mut commands: Commands,
-    mut initialized: Local<bool>,
-) {
-    // Load arrow textures once (mapdir1-8 with black transparency).
-    if !*initialized {
-        *initialized = true;
-        let make_black_transparent = |img: &mut image::DynamicImage| {
-            crate::game::hud::make_transparent_where(img, |r, g, b| r < 30 && g < 30 && b < 30);
-        };
-        let handles: Vec<Handle<Image>> = (1..=8)
-            .filter_map(|i| {
-                let name = format!("mapdir{}", i);
-                let key = format!("{}_transparent", name);
-                ui_assets.get_or_load_transformed(&name, &key, &game_assets, &mut images, &cfg, make_black_transparent)
-            })
-            .collect();
-        if handles.len() == 8 {
-            commands.insert_resource(ArrowHandles(handles));
-        }
-        return;
-    }
-
-    let Some(arrows) = arrow_handles else { return };
-    if arrows.0.len() != 8 { return; }
-    let Ok(player_tf) = player_q.single() else { return };
-
-    let (yaw, _, _) = player_tf.rotation.to_euler(EulerRot::YXZ);
-    let cw_angle = (-yaw).rem_euclid(std::f32::consts::TAU);
-
-    // Map clockwise sector (0=N,1=NE,2=E...) to counterclockwise mapdir index
-    let sector = ((cw_angle / (std::f32::consts::TAU / 8.0) + 0.5) as usize) % 8;
-    let idx = (9 - sector) % 8;
-
-    for mut img in &mut query {
-        img.image = arrows.0[idx].clone();
     }
 }
 

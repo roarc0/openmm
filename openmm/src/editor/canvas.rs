@@ -15,9 +15,14 @@ use crate::screens::{
     load_texture_with_transparency, resolve_image_size,
 };
 
-/// Resolve element size: delegates to `resolve_image_size` for images, falls back to explicit size for videos.
+/// Resolve element size: uses crop dimensions when present, otherwise
+/// delegates to `resolve_image_size` for images, falls back to explicit size for videos.
 fn resolve_elem_size(elem: &ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
     if let Some(img) = elem.as_image() {
+        // Crop dimensions override — editor shows the clipped viewport size.
+        if img.crop_w > 0.0 && img.crop_h > 0.0 {
+            return (img.crop_w, img.crop_h);
+        }
         resolve_image_size(img, ui_assets)
     } else {
         let (w, h) = elem.size();
@@ -815,6 +820,7 @@ pub fn draw_overlays(
                                 super::format::ElementState {
                                     texture: String::new(),
                                     condition: String::new(),
+                                    transparent_color: String::new(),
                                 },
                             );
                             editor.dirty = true;

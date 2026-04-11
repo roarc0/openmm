@@ -305,6 +305,7 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                             ElementState {
                                 texture: String::new(),
                                 condition: String::new(),
+                                transparent_color: String::new(),
                             },
                         );
                         editor.dirty = true;

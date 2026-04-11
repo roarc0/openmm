@@ -177,7 +177,9 @@
             },
             on_click: [],
             on_hover: [],
-            bindings: {},
+            bindings: {
+                "source": "tap",
+            },
             transparent_color: "lime",
         )),
         Text((

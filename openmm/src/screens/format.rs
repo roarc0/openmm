@@ -252,6 +252,9 @@ pub struct ElementState {
     /// Empty = default state (always active as fallback).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub condition: String,
+    /// Per-state transparency color key. Overrides the element-level `transparent_color`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub transparent_color: String,
 }
 
 impl Screen {
@@ -275,6 +278,7 @@ impl ImageElement {
             ElementState {
                 texture: texture.into(),
                 condition: String::new(),
+                transparent_color: String::new(),
             },
         );
         Self {
