@@ -1,5 +1,21 @@
 (
     id: "ingame",
+    editor: (
+        locked: [
+            "BORDER3",
+            "icons/BUTTMENU",
+            "BORDER6",
+            "icons/BUTTCAST",
+            "footer",
+            "icons/Border2.pcx",
+            "BUTTBK1",
+            "FOOTER",
+            "BORDER4",
+            "icons/TAP1",
+            "BUTTCAMP",
+            "icons/Border1.pcx",
+        ],
+    ),
     elements: [
         Image((
             id: "BORDER4",
@@ -84,7 +100,7 @@
             },
             on_click: [],
             on_hover: [
-                "Hint(\"HELLLOO\")",
+                "evt:Hint(\"HELLLOO\")",
             ],
             bindings: {},
         )),
@@ -100,7 +116,7 @@
             },
             on_click: [],
             on_hover: [
-                "Hint(\"Hello\")",
+                "evt:Hint(\"Hello\")",
             ],
             bindings: {},
         )),
@@ -144,7 +160,7 @@
             },
             on_click: [],
             on_hover: [
-                "Hint(\"Save\")",
+                "evt:Hint(\"Save\")",
             ],
             bindings: {},
         )),
@@ -160,7 +176,7 @@
             },
             on_click: [],
             on_hover: [
-                "Hint(\"Cast a Spell\")",
+                "evt:Hint(\"Cast a Spell\")",
             ],
             bindings: {},
         )),
