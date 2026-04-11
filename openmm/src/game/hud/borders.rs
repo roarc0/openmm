@@ -11,32 +11,7 @@ pub(super) const REF_H: f32 = 480.0;
 pub(super) const REF_W: f32 = 640.0;
 
 // Footer layout constants (reference pixels at 640x480)
-pub(super) const FOOTER_H: f32 = 24.0;
-pub(super) const FOOTER_OVERLAP: f32 = 10.0;
-pub(super) const FOOTER_LIFT: f32 = 5.0;
-pub(super) const FOOTER_EXPOSED_H: f32 = FOOTER_H - FOOTER_OVERLAP + FOOTER_LIFT;
-
-// Border markers for dynamic layout
-#[derive(Component)]
-pub(super) struct HudBorder1;
-#[derive(Component)]
-pub(super) struct HudBorder2;
-#[derive(Component)]
-pub(super) struct HudBorder3;
-#[derive(Component)]
-pub(super) struct HudBorder4;
-#[derive(Component)]
-pub(super) struct HudBorder5;
-#[derive(Component)]
-pub(super) struct HudBorder6;
-#[derive(Component)]
-pub(super) struct HudCorner;
-#[derive(Component)]
-pub(super) struct HudMapback;
-#[derive(Component)]
-pub(super) struct HudRoot;
-#[derive(Component)]
-pub(super) struct HudCamera;
+pub(super) const FOOTER_EXPOSED_H: f32 = 19.0; // FOOTER_H(24) - FOOTER_OVERLAP(10) + FOOTER_LIFT(5)
 
 pub(super) struct HudDimensions {
     pub scale_x: f32,
@@ -48,58 +23,44 @@ pub(super) struct HudDimensions {
     pub border3_w: f32,
     pub border3_h: f32,
     pub border4_w: f32,
-    pub border4_h: f32,
-    pub border5_w: f32,
-    pub border5_h: f32,
-    pub border6_w: f32,
-    pub border6_h: f32,
     pub tap_w: f32,
     pub tap_h: f32,
     pub footer_w: f32,
     pub footer_h: f32,
     pub compass_w: f32,
     pub compass_h: f32,
-    pub corner_h: f32,
 }
 
 impl HudDimensions {
-    /// Scale a reference Y value (height or vertical position).
     pub fn scale_h(&self, ref_px: f32) -> f32 {
         ref_px * self.scale_y
     }
 
-    /// Scale a reference X value (width or horizontal position).
     pub fn scale_w(&self, ref_px: f32) -> f32 {
         ref_px * self.scale_x
     }
 }
 
 /// Compute all HUD dimensions from letterboxed logical size and actual asset dimensions.
-/// Widths scale by `scale_x` (width / 640), heights by `scale_y` (height / 480).
-/// Asset sizes are read dynamically from `UiAssets` -- no hardcoded pixel values.
 pub(super) fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimensions {
     let scale_x = width / REF_W;
     let scale_y = height / REF_H;
 
-    // Read true pixel dimensions from loaded assets (fallback to 0 if not loaded yet)
+    let dim_or = |name: &str, fw: f32, fh: f32| -> (f32, f32) {
+        ui.dimensions(name)
+            .map(|(w, h)| (w as f32, h as f32))
+            .unwrap_or((fw, fh))
+    };
     let dim = |name: &str| -> (f32, f32) {
         ui.dimensions(name)
             .map(|(w, h)| (w as f32, h as f32))
             .unwrap_or((0.0, 0.0))
     };
 
-    // Fall back to MM6 reference sizes when textures aren't loaded
-    // (e.g. screens mode where they're loaded under different names).
-    let dim_or = |name: &str, fw: f32, fh: f32| -> (f32, f32) {
-        let d = dim(name);
-        if d.0 > 0.0 { d } else { (fw, fh) }
-    };
     let border1 = dim_or("border1.pcx", 172.0, 339.0);
     let border2 = dim_or("border2.pcx", 469.0, 109.0);
     let border3 = dim_or("border3", 468.0, 8.0);
     let border4 = dim_or("border4", 8.0, 344.0);
-    let border5 = dim("border5");
-    let border6 = dim("border6");
     let tap1 = dim_or("tap1", 172.0, 142.0);
     let footer = dim_or("footer", 483.0, 24.0);
     let compass = dim("compass");
@@ -114,35 +75,13 @@ pub(super) fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimen
         border3_w: border3.0 * scale_x,
         border3_h: border3.1 * scale_y,
         border4_w: border4.0 * scale_x,
-        border4_h: border4.1 * scale_y,
-        border5_w: border5.0 * scale_x,
-        border5_h: border5.1 * scale_y,
-        border6_w: border6.0 * scale_x,
-        border6_h: border6.1 * scale_y,
         tap_w: tap1.0 * scale_x,
         tap_h: tap1.1 * scale_y,
         footer_w: footer.0 * scale_x,
         footer_h: footer.1 * scale_y,
         compass_w: compass.0 * scale_x,
         compass_h: compass.1 * scale_y,
-        corner_h: height - border1.1 * scale_y - tap1.1 * scale_y,
     }
-}
-
-/// Full HUD canvas reference dimensions: (width, height) in original image pixels.
-///   width  = border1.w + border2.w - 1   (1-pixel overlap between right sidebar and bottom panel)
-///   height = border1.h
-pub fn hud_canvas_dims(ui: &UiAssets) -> (f32, f32) {
-    let (b1w, b1h) = ui.dimensions("border1.pcx").unwrap_or((640, 480));
-    let (b2w, _) = ui.dimensions("border2.pcx").unwrap_or((0, 0));
-    ((b1w + b2w).saturating_sub(1) as f32, b1h as f32)
-}
-
-/// Convert a MM6 UI reference coordinate to HudRoot-local logical pixels (left, top).
-/// `(ref_x, ref_y)` are pixel positions in the full HUD canvas (see `hud_canvas_dims`).
-/// `(lw, lh)` are the letterboxed logical dimensions.
-pub fn hud_ref_to_local(ref_x: f32, ref_y: f32, lw: f32, lh: f32, ref_w: f32, ref_h: f32) -> (f32, f32) {
-    (ref_x * lw / ref_w, ref_y * lh / ref_h)
 }
 
 /// Parse aspect ratio string like "4:3" into a float (width/height).
@@ -165,15 +104,12 @@ pub(super) fn letterbox_rect(window: &Window, cfg: &GameConfig) -> (u32, u32, u3
     if let Some(target) = parse_aspect_ratio(&cfg.aspect_ratio) {
         let current = pw as f32 / ph as f32;
         if (current - target).abs() < 0.01 {
-            // Close enough -- no bars needed
             (0, 0, pw, ph)
         } else if current > target {
-            // Too wide -- pillarbox
             let w = (ph as f32 * target) as u32;
             let ox = (pw - w) / 2;
             (ox, 0, w, ph)
         } else {
-            // Too tall -- letterbox
             let h = (pw as f32 / target) as u32;
             let oy = (ph - h) / 2;
             (0, oy, pw, h)
@@ -183,15 +119,8 @@ pub(super) fn letterbox_rect(window: &Window, cfg: &GameConfig) -> (u32, u32, u3
     }
 }
 
-/// Compute the logical letterboxed size (what the HUD camera sees).
-pub(super) fn logical_size(window: &Window, cfg: &GameConfig) -> (f32, f32) {
-    let sf = window.scale_factor();
-    let (_, _, pw, ph) = letterbox_rect(window, cfg);
-    (pw as f32 / sf, ph as f32 / sf)
-}
-
 /// Compute the 3D viewport rect in logical (CSS) pixels: (left, top, width, height).
-/// This is the playable area -- letterboxed region minus HUD borders (matches camera viewport).
+/// This is the playable area — letterboxed region minus HUD borders.
 pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, f32, f32, f32) {
     let sf = window.scale_factor();
     let (_, _, lpw, lph) = letterbox_rect(window, cfg);
@@ -209,7 +138,6 @@ pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, 
 }
 
 /// Update the 3D camera viewport to the letterboxed area minus HUD borders.
-/// The HUD camera has no viewport (full window) and clears to black for letterbox bars.
 pub(crate) fn update_viewport(
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
