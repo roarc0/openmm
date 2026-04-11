@@ -248,7 +248,7 @@
         )),
         Image((
             id: "icons/MAPDIR2",
-            position: (553.0, 91.0),
+            position: (553.5, 87.5),
             size: (7.0, 7.0),
             z: 9,
             states: {
@@ -258,7 +258,9 @@
             },
             on_click: [],
             on_hover: [],
-            bindings: {},
+            bindings: {
+                "source": "arrow",
+            },
             transparent_color: "black",
         )),
     ],

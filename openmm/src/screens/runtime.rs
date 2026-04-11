@@ -55,6 +55,7 @@ impl Plugin for ScreenRuntimePlugin {
                     update_screen_crosshair,
                     compass_scroll,
                     minimap_scroll,
+                    arrow_update,
                 )
                     .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
             );
@@ -148,6 +149,14 @@ struct CompassBinding;
 struct MinimapBinding {
     zoom: f32,
 }
+
+/// Marks an image as a direction arrow (swaps texture by player yaw).
+#[derive(Component)]
+struct ArrowBinding;
+
+/// Cached arrow texture handles (mapdir1-8 with black transparency).
+#[derive(Resource)]
+struct ArrowHandles(Vec<Handle<Image>>);
 
 /// All active screen layers, keyed by screen id.
 #[derive(Resource, Default)]
@@ -850,6 +859,9 @@ fn spawn_image_element(
         if img.hidden {
             entity.insert(HiddenByDefault);
         }
+        if img.bindings.get("source").map(|s| s.as_str()) == Some("arrow") {
+            entity.insert(ArrowBinding);
+        }
         if let Some(h_handle) = hover_handle {
             entity.with_children(|parent| {
                 parent.spawn((
@@ -1081,15 +1093,68 @@ fn minimap_scroll(
     for (crop, minimap, mut node, mut img_node) in &mut query {
         let crop_w_px = crop.crop_w * sx;
         let crop_h_px = crop.crop_h * sy;
-        let map_img_size = crop_w_px.max(crop_h_px) * minimap.zoom;
+        // Square map image sized to crop width (matches original HUD behavior).
+        let map_img_size = crop_w_px * minimap.zoom;
 
-        // Center player in viewport.
-        node.left = Val::Px(crop_w_px / 2.0 - nx * map_img_size);
-        node.top = Val::Px(crop_h_px / 2.0 - nz * map_img_size);
+        // Center player in viewport, offset to match TAP transparent window.
+        let offset_x = 3.0 * sx;
+        let offset_y = 20.0 * sy;
+        node.left = Val::Px(crop_w_px / 2.0 + offset_x - nx * map_img_size);
+        node.top = Val::Px(crop_h_px / 2.0 + offset_y - nz * map_img_size);
         node.width = Val::Px(map_img_size);
         node.height = Val::Px(map_img_size);
 
         img_node.image = handle.clone();
+    }
+}
+
+// ── Arrow direction ────────────────────────────────────────────────────────
+
+/// Swap arrow texture based on player yaw direction.
+/// mapdir assets: 1=NE, 2=N, 3=NW, 4=W, 5=SW, 6=S, 7=SE, 8=E (counterclockwise)
+fn arrow_update(
+    player_q: Query<&Transform, With<Player>>,
+    mut query: Query<&mut ImageNode, With<ArrowBinding>>,
+    arrow_handles: Option<Res<ArrowHandles>>,
+    game_assets: Res<GameAssets>,
+    mut ui_assets: ResMut<UiAssets>,
+    mut images: ResMut<Assets<Image>>,
+    cfg: Res<GameConfig>,
+    mut commands: Commands,
+    mut initialized: Local<bool>,
+) {
+    // Load arrow textures once (mapdir1-8 with black transparency).
+    if !*initialized {
+        *initialized = true;
+        let make_black_transparent = |img: &mut image::DynamicImage| {
+            crate::game::hud::make_transparent_where(img, |r, g, b| r < 30 && g < 30 && b < 30);
+        };
+        let handles: Vec<Handle<Image>> = (1..=8)
+            .filter_map(|i| {
+                let name = format!("mapdir{}", i);
+                let key = format!("{}_transparent", name);
+                ui_assets.get_or_load_transformed(&name, &key, &game_assets, &mut images, &cfg, make_black_transparent)
+            })
+            .collect();
+        if handles.len() == 8 {
+            commands.insert_resource(ArrowHandles(handles));
+        }
+        return;
+    }
+
+    let Some(arrows) = arrow_handles else { return };
+    if arrows.0.len() != 8 { return; }
+    let Ok(player_tf) = player_q.single() else { return };
+
+    let (yaw, _, _) = player_tf.rotation.to_euler(EulerRot::YXZ);
+    let cw_angle = (-yaw).rem_euclid(std::f32::consts::TAU);
+
+    // Map clockwise sector (0=N,1=NE,2=E...) to counterclockwise mapdir index
+    let sector = ((cw_angle / (std::f32::consts::TAU / 8.0) + 0.5) as usize) % 8;
+    let idx = (9 - sector) % 8;
+
+    for mut img in &mut query {
+        img.image = arrows.0[idx].clone();
     }
 }
 
