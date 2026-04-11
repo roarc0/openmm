@@ -100,8 +100,7 @@ impl Plugin for UiPlugin {
             debug::console::ConsolePlugin,
             interaction::InteractionPlugin,
         ))
-        // Viewport clipping and debug coords — the only bits needed from the old HUD.
-        .add_plugins(hud::debug_hud::DebugHudCoordsPlugin)
+        // Viewport clipping — the only bit needed from the old HUD.
         .add_systems(
             Update,
             hud::borders::update_viewport.run_if(in_state(crate::GameState::Game)),
