@@ -11,8 +11,8 @@ use super::REF_H;
 use super::REF_W;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use crate::game::hud::UiAssets;
 use crate::game::player::Player;
+use crate::game::ui_assets::UiAssets;
 
 // ── Components ─────────────────────────────────────────────────────────────
 
@@ -147,7 +147,7 @@ fn minimap_scroll(
         *map_handle = if map_name.is_empty() {
             None
         } else {
-            crate::game::hud::minimap::load_map_overview(&map_name, &game_assets, &mut images, &cfg)
+            crate::game::ui_assets::load_map_overview(&map_name, &game_assets, &mut images, &cfg)
         };
     }
 
@@ -203,9 +203,7 @@ fn arrow_update(
     // Load arrow textures once (mapdir1-8 with black transparency).
     if !*initialized {
         *initialized = true;
-        let make_black_transparent = |img: &mut image::DynamicImage| {
-            crate::game::hud::make_transparent_where(img, |r, g, b| r < 30 && g < 30 && b < 30);
-        };
+        let make_black_transparent = crate::game::ui_assets::make_black_transparent;
         let handles: Vec<Handle<Image>> = (1..=8)
             .filter_map(|i| {
                 let name = format!("mapdir{}", i);
@@ -264,7 +262,7 @@ fn tap_update(
                     &game_assets,
                     &mut images,
                     &cfg,
-                    crate::game::hud::minimap::make_tap_key_transparent,
+                    crate::game::ui_assets::make_tap_key_transparent,
                 )
             })
             .collect();

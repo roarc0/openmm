@@ -52,10 +52,7 @@ impl Plugin for SkyPlugin {
             .add_plugins(MaterialPlugin::<SkyMaterial>::default())
             .add_systems(
                 OnEnter(GameState::Game),
-                (
-                    spawn_sky.run_if(is_outdoor),
-                    set_indoor_clear_color.run_if(is_indoor),
-                ),
+                (spawn_sky.run_if(is_outdoor), set_indoor_clear_color.run_if(is_indoor)),
             )
             .add_systems(
                 Update,

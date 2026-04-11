@@ -385,7 +385,7 @@ pub(super) fn cmd_aspect(state: &mut ConsoleState, cfg: &mut GameConfig, arg: &s
     } else if arg == "auto" {
         cfg.aspect_ratio = "".into();
         state.push_output("Aspect ratio: auto (uses window size)".to_string());
-    } else if arg.contains(':') && crate::game::hud::parse_aspect_ratio(arg).is_some() {
+    } else if arg.contains(':') && crate::game::viewport::parse_aspect_ratio(arg).is_some() {
         cfg.aspect_ratio = arg.to_string();
         state.push_output(format!("Aspect ratio: {}", arg));
     } else {

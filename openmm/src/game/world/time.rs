@@ -108,7 +108,7 @@ impl Plugin for GameTimePlugin {
             Update,
             advance_game_time
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(crate::game::hud::HudView::World)),
+                .run_if(resource_equals(crate::game::hud_view::HudView::World)),
         );
     }
 }

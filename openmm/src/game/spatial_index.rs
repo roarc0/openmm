@@ -23,7 +23,7 @@ use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::hud::HudView;
+use crate::game::hud_view::HudView;
 use crate::game::player::Player;
 use crate::game::sprites::WorldEntity;
 

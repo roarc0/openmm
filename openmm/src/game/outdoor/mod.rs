@@ -10,8 +10,8 @@
 
 use bevy::prelude::*;
 
-use crate::game::world::is_outdoor;
 use crate::GameState;
+use crate::game::world::is_outdoor;
 
 mod boundary;
 mod bsp;
@@ -37,10 +37,7 @@ impl Plugin for OdmPlugin {
         app.init_resource::<SpawnProgress>()
             .init_resource::<texture_swap::SwapMaterialCache>()
             .add_message::<ApplyTextureOutdoors>()
-            .add_systems(
-                OnEnter(GameState::Game),
-                spawn::spawn_world.run_if(is_outdoor),
-            )
+            .add_systems(OnEnter(GameState::Game), spawn::spawn_world.run_if(is_outdoor))
             .add_systems(
                 Update,
                 (
@@ -49,7 +46,7 @@ impl Plugin for OdmPlugin {
                     texture_swap::apply_texture_outdoors,
                 )
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(crate::game::hud::HudView::World))
+                    .run_if(resource_equals(crate::game::hud_view::HudView::World))
                     .run_if(is_outdoor),
             );
     }

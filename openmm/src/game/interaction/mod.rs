@@ -5,7 +5,8 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::game::actors::KillActorEvent;
-use crate::game::hud::{FooterText, HudView, OverlayImage};
+use crate::game::footer::FooterText;
+use crate::game::hud_view::{HudView, OverlayImage};
 use crate::game::indoor::OccluderFaces;
 use crate::game::player::{Player, PlayerCamera};
 use crate::game::spatial_index::{EntitySpatialIndex, SpatialIndexSet};
@@ -90,7 +91,7 @@ impl Plugin for InteractionPlugin {
                 .chain()
                 .after(SpatialIndexSet)
                 .run_if(in_state(GameState::Game))
-                .run_if(crate::game::hud::game_input_active),
+                .run_if(crate::game::hud_view::game_input_active),
         )
         .add_systems(
             Update,
@@ -161,8 +162,8 @@ fn interaction_input(
     if check_exit_input(&keys, &gamepads) {
         event_queue.clear();
         commands.remove_resource::<OverlayImage>();
-        commands.remove_resource::<crate::game::hud::NpcPortrait>();
-        commands.remove_resource::<crate::game::hud::NpcProfile>();
+        commands.remove_resource::<crate::game::world::npc_dialogue::NpcPortrait>();
+        commands.remove_resource::<crate::game::world::npc_dialogue::NpcProfile>();
         *view = HudView::World;
         if let Ok(mut cursor) = cursor_query.single_mut() {
             cursor.grab_mode = CursorGrabMode::Confined;

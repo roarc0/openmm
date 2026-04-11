@@ -8,7 +8,7 @@ use bevy::prelude::*;
 
 use crate::GameState;
 use crate::game::coords::mm6_position_to_bevy;
-use crate::game::hud::HudView;
+use crate::game::hud_view::HudView;
 use crate::game::world::{GameTime, is_outdoor};
 use crate::states::loading::PreparedWorld;
 

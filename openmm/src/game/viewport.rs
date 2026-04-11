@@ -3,8 +3,8 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
 use crate::config::GameConfig;
-use crate::game::hud::UiAssets;
 use crate::game::player::PlayerCamera;
+use crate::game::ui_assets::UiAssets;
 
 // MM6 reference dimensions — all HUD dimensions scale relative to these
 pub(super) const REF_H: f32 = 480.0;
@@ -86,14 +86,10 @@ pub(super) fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimen
 
 /// Parse aspect ratio string like "4:3" into a float (width/height).
 pub fn parse_aspect_ratio(s: &str) -> Option<f32> {
-    let parts: Vec<&str> = s.split(':').collect();
-    if parts.len() == 2 {
-        let w: f32 = parts[0].trim().parse().ok()?;
-        let h: f32 = parts[1].trim().parse().ok()?;
-        if h > 0.0 { Some(w / h) } else { None }
-    } else {
-        None
-    }
+    let (lhs, rhs) = s.split_once(':')?;
+    let w: f32 = lhs.trim().parse().ok()?;
+    let h: f32 = rhs.trim().parse().ok()?;
+    if h > 0.0 { Some(w / h) } else { None }
 }
 
 /// Compute the letterboxed region within the physical window.
@@ -119,9 +115,9 @@ pub(super) fn letterbox_rect(window: &Window, cfg: &GameConfig) -> (u32, u32, u3
     }
 }
 
-/// Compute the 3D viewport rect in logical (CSS) pixels: (left, top, width, height).
-/// This is the playable area — letterboxed region minus HUD borders.
-pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, f32, f32, f32) {
+/// Shared preamble for viewport calculations: letterbox, scale, offsets, dimensions.
+/// Returns (bar_x, bar_y, lw, lh, dims).
+fn viewport_base(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, f32, f32, f32, HudDimensions) {
     let sf = window.scale_factor();
     let (_, _, lpw, lph) = letterbox_rect(window, cfg);
     let lw = lpw as f32 / sf;
@@ -129,12 +125,33 @@ pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, 
     let d = hud_dimensions(lw, lh, ui);
     let bar_x = (window.width() - lw) / 2.0;
     let bar_y = (window.height() - lh) / 2.0;
+    (bar_x, bar_y, lw, lh, d)
+}
+
+/// Compute the 3D viewport rect in logical pixels: (left, top, width, height).
+/// This is the playable area — letterboxed region minus HUD borders.
+pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, f32, f32, f32) {
+    let (bar_x, bar_y, lw, lh, d) = viewport_base(window, cfg, ui);
     let footer_exposed = d.scale_h(FOOTER_EXPOSED_H);
-    let vp_left = bar_x;
-    let vp_top = bar_y + d.border3_h;
-    let vp_w = lw - d.border1_w;
-    let vp_h = lh - d.border3_h - d.border2_h - footer_exposed;
-    (vp_left, vp_top, vp_w, vp_h)
+    (
+        bar_x,
+        bar_y + d.border3_h,
+        lw - d.border1_w,
+        lh - d.border3_h - d.border2_h - footer_exposed,
+    )
+}
+
+/// Compute the inner viewport rect (excluding left border4) in logical pixels.
+/// Returns (left, top, width, height).
+pub fn viewport_inner_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, f32, f32, f32) {
+    let (bar_x, bar_y, lw, lh, d) = viewport_base(window, cfg, ui);
+    let footer_exposed = d.scale_h(FOOTER_EXPOSED_H);
+    (
+        bar_x + d.border4_w,
+        bar_y + d.border3_h,
+        lw - d.border1_w - d.border4_w,
+        lh - d.border3_h - d.border2_h - footer_exposed,
+    )
 }
 
 /// Update the 3D camera viewport to the letterboxed area minus HUD borders.
@@ -164,11 +181,19 @@ pub(crate) fn update_viewport(
     let vp_w = lw.saturating_sub(sidebar_w).max(1);
     let vp_h = lh.saturating_sub(top_h + bottom_h).max(1);
 
+    let pos = UVec2::new(vp_x, vp_y);
+    let size = UVec2::new(vp_w, vp_h);
     for mut camera in player_cameras.iter_mut() {
-        camera.viewport = Some(Viewport {
-            physical_position: UVec2::new(vp_x, vp_y),
-            physical_size: UVec2::new(vp_w, vp_h),
-            ..default()
-        });
+        let changed = camera
+            .viewport
+            .as_ref()
+            .is_none_or(|v| v.physical_position != pos || v.physical_size != size);
+        if changed {
+            camera.viewport = Some(Viewport {
+                physical_position: pos,
+                physical_size: size,
+                ..default()
+            });
+        }
     }
 }

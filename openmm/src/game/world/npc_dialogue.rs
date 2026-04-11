@@ -1,18 +1,7 @@
 use bevy::prelude::*;
 
-use super::UiAssets;
 use crate::assets::GameAssets;
-use crate::config::GameConfig;
 use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
-
-use super::borders::{FOOTER_EXPOSED_H, hud_dimensions, letterbox_rect};
-
-/// Resource holding the image to display as a fullscreen overlay in the viewport area.
-/// Insert this resource (and set HudView to a non-World variant) to show an overlay.
-#[derive(Resource)]
-pub struct OverlayImage {
-    pub image: Handle<Image>,
-}
 
 /// Resource holding an NPC portrait image to display at actual size.
 #[derive(Resource)]
@@ -139,8 +128,16 @@ pub fn prepare_npc_dialogue(
     let (day_topic, day_text) = (|| -> Option<(String, String)> {
         let pid = profession_id?;
         let day = game_assets.proftext()?.get(pid)?.day(day_of_week as usize)?;
-        let topic = if day.topic.is_empty() { None } else { Some(day.topic.clone()) }?;
-        let text = if day.text.is_empty() { None } else { Some(day.text.clone()) }?;
+        let topic = if day.topic.is_empty() {
+            None
+        } else {
+            Some(day.topic.clone())
+        }?;
+        let text = if day.text.is_empty() {
+            None
+        } else {
+            Some(day.text.clone())
+        }?;
         Some((topic, text))
     })()
     .map_or((None, None), |(t, d)| (Some(t), Some(d)));
@@ -164,22 +161,4 @@ pub fn prepare_npc_dialogue(
     };
 
     Some((portrait, profile))
-}
-
-/// Compute the inner viewport rect (excluding left border4) in logical pixels.
-/// Returns (left, top, width, height).
-pub fn viewport_inner_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, f32, f32, f32) {
-    let sf = window.scale_factor();
-    let (_, _, lpw, lph) = letterbox_rect(window, cfg);
-    let lw = lpw as f32 / sf;
-    let lh = lph as f32 / sf;
-    let d = hud_dimensions(lw, lh, ui);
-    let bar_x = (window.width() - lw) / 2.0;
-    let bar_y = (window.height() - lh) / 2.0;
-    let footer_exposed = d.scale_h(FOOTER_EXPOSED_H);
-    let left = bar_x + d.border4_w;
-    let top = bar_y + d.border3_h;
-    let width = lw - d.border1_w - d.border4_w;
-    let height = lh - d.border3_h - d.border2_h - footer_exposed;
-    (left, top, width, height)
 }

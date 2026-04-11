@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use super::Screen;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use crate::game::hud::UiAssets;
+use crate::game::ui_assets::UiAssets;
 
 /// Reference resolution for MM6 UI screens.
 pub const REF_W: f32 = 640.0;
@@ -97,7 +97,7 @@ pub fn load_texture_with_transparency(
     };
     let tc = transparent_color.to_string();
     ui_assets.get_or_load_transformed(source, &cache_key, game_assets, images, cfg, move |img| {
-        crate::game::hud::make_transparent_where(img, |r, g, b| match tc.as_str() {
+        crate::game::ui_assets::make_transparent_where(img, |r, g, b| match tc.as_str() {
             "black" => r < 30 && g < 30 && b < 30,
             "cyan" => r < 30 && g > 200 && b > 200,
             "lime" => r < 30 && g > 200 && b < 30,

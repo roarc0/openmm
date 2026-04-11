@@ -23,7 +23,8 @@ struct TransitionParams<'w> {
 use super::events::MapEvents;
 use super::state::GameVariables;
 use crate::game::actors::Actor;
-use crate::game::hud::{FooterText, HudView, OverlayImage};
+use crate::game::footer::FooterText;
+use crate::game::hud_view::{HudView, OverlayImage};
 use crate::game::interaction::DecorationInfo;
 use crate::game::optional::OptionalWrite;
 use crate::game::outdoor::ApplyTextureOutdoors;
@@ -540,7 +541,7 @@ fn process_events(
                 if let Some(image) = image {
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Building;
-                    crate::game::hud::grab_cursor(&mut cursor_query, false);
+                    crate::game::hud_view::grab_cursor(&mut cursor_query, false);
                 }
             }
             GameEvent::OpenChest { id } => {
@@ -555,7 +556,7 @@ fn process_events(
                     }
                     commands.insert_resource(OverlayImage { image });
                     *hud_view = HudView::Chest;
-                    crate::game::hud::grab_cursor(&mut cursor_query, false);
+                    crate::game::hud_view::grab_cursor(&mut cursor_query, false);
                 }
             }
             GameEvent::MoveToMap {
@@ -882,7 +883,7 @@ fn process_events(
                     .as_ref()
                     .map(|gt| (gt.day_of_week() + 6) % 7)
                     .unwrap_or(0);
-                if let Some((portrait, profile)) = crate::game::hud::overlay::prepare_npc_dialogue(
+                if let Some((portrait, profile)) = super::npc_dialogue::prepare_npc_dialogue(
                     *npc_id,
                     &map_events,
                     &game_assets,
@@ -893,7 +894,7 @@ fn process_events(
                     commands.insert_resource(portrait);
                     commands.insert_resource(profile);
                     *hud_view = HudView::NpcDialogue;
-                    crate::game::hud::grab_cursor(&mut cursor_query, false);
+                    crate::game::hud_view::grab_cursor(&mut cursor_query, false);
                 }
             }
             GameEvent::ChangeEvent { target, new_event_id } => {

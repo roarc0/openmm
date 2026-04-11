@@ -5,7 +5,7 @@ use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
 use crate::game::actors::Actor;
-use crate::game::hud::HudView;
+use crate::game::hud_view::HudView;
 use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;

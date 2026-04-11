@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::actors::Actor;
 use crate::game::collision::{BuildingColliders, MAX_STEP_UP, TerrainHeightMap, WaterMap, sample_terrain_height};
-use crate::game::hud::HudView;
+use crate::game::hud_view::HudView;
 
 /// Gravity acceleration for actors (world units/sec²). Matches player gravity.
 pub const ACTOR_GRAVITY: f32 = 9800.0;

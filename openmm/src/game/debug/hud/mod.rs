@@ -13,7 +13,7 @@ pub mod player;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::world::{is_outdoor};
+use crate::game::world::is_outdoor;
 use crate::states::loading::PreparedWorld;
 
 use self::chart::*;
@@ -68,7 +68,7 @@ fn debug_setup(
     mut wireframe_config: ResMut<WireframeConfig>,
     mut world_state: ResMut<crate::game::world::WorldState>,
     cfg: Res<GameConfig>,
-    ui_assets: Res<crate::game::hud::UiAssets>,
+    ui_assets: Res<crate::game::ui_assets::UiAssets>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
 ) {
     wireframe_config.global = cfg.wireframe;
@@ -79,7 +79,7 @@ fn debug_setup(
     let (vp_left, vp_top) = windows
         .single()
         .map(|w| {
-            let (l, t, _, _) = crate::game::hud::viewport_rect(w, &cfg, &ui_assets);
+            let (l, t, _, _) = crate::game::viewport::viewport_rect(w, &cfg, &ui_assets);
             (l, t)
         })
         .unwrap_or((0.0, 0.0));

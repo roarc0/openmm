@@ -4,7 +4,8 @@ pub(crate) mod actors;
 pub(crate) mod collision;
 pub mod coords;
 pub(crate) mod debug;
-pub(crate) mod hud;
+pub(crate) mod footer;
+pub(crate) mod hud_view;
 pub(crate) mod indoor;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
@@ -17,6 +18,8 @@ pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod spatial_index;
 pub(crate) mod sprites;
+pub(crate) mod ui_assets;
+pub(crate) mod viewport;
 pub(crate) mod world;
 
 /// Marker component for all entities spawned during the Game state.
@@ -34,11 +37,10 @@ pub struct InGamePlugin;
 
 impl Plugin for InGamePlugin {
     fn build(&self, app: &mut App) {
-        // HudView / FooterText are initialised at the top level so optional
-        // systems that read them via `Res<HudView>` (e.g. ODM run conditions)
-        // don't fail if HudPlugin is disabled.
-        app.init_resource::<hud::HudView>()
-            .init_resource::<hud::FooterText>()
+        // HudView / FooterText initialised at top level so run conditions
+        // like `resource_equals(HudView::World)` never fail.
+        app.init_resource::<hud_view::HudView>()
+            .init_resource::<footer::FooterText>()
             .add_plugins((
                 RenderingPlugin,
                 MapPlugin,
@@ -100,10 +102,10 @@ impl Plugin for UiPlugin {
             debug::console::ConsolePlugin,
             interaction::InteractionPlugin,
         ))
-        // Viewport clipping — the only bit needed from the old HUD.
+        // Viewport clipping — keeps the 3D camera inside the HUD frame.
         .add_systems(
             Update,
-            hud::borders::update_viewport.run_if(in_state(crate::GameState::Game)),
+            viewport::update_viewport.run_if(in_state(crate::GameState::Game)),
         );
     }
 }

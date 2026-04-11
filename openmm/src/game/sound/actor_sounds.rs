@@ -4,7 +4,7 @@ use openmm_data::ActorSoundSlot;
 use super::effects::PlayOnceSoundEvent;
 use crate::GameState;
 use crate::game::actors::Actor;
-use crate::game::hud::HudView;
+use crate::game::hud_view::HudView;
 use crate::game::player::Player;
 
 /// Hear actor fidget sounds within this radius (Bevy units).

@@ -17,6 +17,7 @@ pub fn is_indoor(current: Option<Res<CurrentMap>>) -> bool {
 }
 
 pub mod events;
+pub mod npc_dialogue;
 pub mod scripting;
 pub mod state;
 pub mod time;

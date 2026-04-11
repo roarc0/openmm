@@ -8,11 +8,7 @@ use crate::screens::TRANSPARENCY_OPTIONS;
 
 /// Draw the event editor window for the selected element.
 /// Returns true if the window was closed this frame.
-pub fn draw_event_editor(
-    ctx: &egui::Context,
-    editor: &mut EditorScreen,
-    selection: &mut Selection,
-) {
+pub fn draw_event_editor(ctx: &egui::Context, editor: &mut EditorScreen, selection: &mut Selection) {
     let Some(sel) = selection.index else { return };
     if sel >= editor.screen.elements.len() {
         return;
@@ -58,11 +54,7 @@ pub fn draw_event_editor(
 }
 
 /// Draw the variant (states) editor window for the selected image element.
-pub fn draw_variant_editor(
-    ctx: &egui::Context,
-    editor: &mut EditorScreen,
-    selection: &mut Selection,
-) {
+pub fn draw_variant_editor(ctx: &egui::Context, editor: &mut EditorScreen, selection: &mut Selection) {
     let Some(sel) = selection.index else { return };
     if sel >= editor.screen.elements.len() || editor.screen.elements[sel].as_image().is_none() {
         return;
@@ -103,8 +95,7 @@ pub fn draw_variant_editor(
                     ui.horizontal(|ui| {
                         ui.label("texture:");
                         if ui.text_edit_singleline(&mut tex).changed() {
-                            if let Some(state) =
-                                editor.screen.elements[sel].as_image_mut().unwrap().states.get_mut(key)
+                            if let Some(state) = editor.screen.elements[sel].as_image_mut().unwrap().states.get_mut(key)
                             {
                                 state.texture = tex;
                                 editor.dirty = true;
@@ -117,8 +108,7 @@ pub fn draw_variant_editor(
                     ui.horizontal(|ui| {
                         ui.label("condition:");
                         if ui.text_edit_singleline(&mut cond).changed() {
-                            if let Some(state) =
-                                editor.screen.elements[sel].as_image_mut().unwrap().states.get_mut(key)
+                            if let Some(state) = editor.screen.elements[sel].as_image_mut().unwrap().states.get_mut(key)
                             {
                                 state.condition = cond;
                                 editor.dirty = true;
@@ -159,7 +149,9 @@ pub fn draw_variant_editor(
 // ── Private helpers ──────────────────────────────────────────────────────────
 
 fn draw_video_properties(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
-    let Some(vid) = editor.screen.elements[sel].as_video() else { return };
+    let Some(vid) = editor.screen.elements[sel].as_video() else {
+        return;
+    };
 
     let mut video_name = vid.video.clone();
     ui.horizontal(|ui| {
@@ -207,7 +199,9 @@ fn draw_video_properties(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usiz
 }
 
 fn draw_image_transparency(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
-    let Some(img) = editor.screen.elements[sel].as_image() else { return };
+    let Some(img) = editor.screen.elements[sel].as_image() else {
+        return;
+    };
 
     let current_tc = img.transparent_color.clone();
     let tc_label = if current_tc.is_empty() { "none" } else { &current_tc };
@@ -230,7 +224,9 @@ fn draw_image_transparency(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: us
 }
 
 fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
-    let Some(img_ref) = editor.screen.elements[sel].as_image() else { return };
+    let Some(img_ref) = editor.screen.elements[sel].as_image() else {
+        return;
+    };
     let click_count = img_ref.on_click.len();
     let hover_count = img_ref.on_hover.len();
 
@@ -254,7 +250,11 @@ fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         editor.dirty = true;
     }
     if ui.small_button("+ Add on_click").clicked() {
-        editor.screen.elements[sel].as_image_mut().unwrap().on_click.push(String::new());
+        editor.screen.elements[sel]
+            .as_image_mut()
+            .unwrap()
+            .on_click
+            .push(String::new());
         editor.dirty = true;
     }
 
@@ -280,13 +280,19 @@ fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         editor.dirty = true;
     }
     if ui.small_button("+ Add on_hover").clicked() {
-        editor.screen.elements[sel].as_image_mut().unwrap().on_hover.push(String::new());
+        editor.screen.elements[sel]
+            .as_image_mut()
+            .unwrap()
+            .on_hover
+            .push(String::new());
         editor.dirty = true;
     }
 }
 
 fn draw_video_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
-    let Some(vid_ref) = editor.screen.elements[sel].as_video() else { return };
+    let Some(vid_ref) = editor.screen.elements[sel].as_video() else {
+        return;
+    };
 
     ui.heading("on_end");
     let end_count = vid_ref.on_end.len();
@@ -309,7 +315,11 @@ fn draw_video_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         editor.dirty = true;
     }
     if ui.small_button("+ Add on_end").clicked() {
-        editor.screen.elements[sel].as_video_mut().unwrap().on_end.push(String::new());
+        editor.screen.elements[sel]
+            .as_video_mut()
+            .unwrap()
+            .on_end
+            .push(String::new());
         editor.dirty = true;
     }
 }

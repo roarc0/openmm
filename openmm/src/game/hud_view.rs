@@ -1,15 +1,3 @@
-mod assets;
-pub(crate) mod borders;
-mod footer;
-pub(crate) mod minimap;
-pub mod overlay;
-
-pub use assets::*;
-
-pub use borders::{parse_aspect_ratio, viewport_rect};
-pub use footer::FooterText;
-pub use overlay::{NpcPortrait, NpcProfile, OverlayImage, viewport_inner_rect};
-
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
@@ -49,6 +37,13 @@ pub enum HudView {
     Rest,
     /// Fullscreen map overlay (M key). Freezes time, blocks input.
     Map,
+}
+
+/// Resource holding the image to display as a fullscreen overlay in the viewport area.
+/// Insert this resource (and set HudView to a non-World variant) to show an overlay.
+#[derive(Resource)]
+pub struct OverlayImage {
+    pub image: Handle<Image>,
 }
 
 /// Handle to the current map's overview image for the M-key fullscreen overlay.

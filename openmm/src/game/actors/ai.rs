@@ -25,7 +25,7 @@ use crate::game::actors::Actor;
 use crate::game::actors::combat::{ActorDead, DyingTimer};
 use crate::game::actors::physics::{is_passable, snap_actor_y};
 use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
-use crate::game::hud::HudView;
+use crate::game::hud_view::HudView;
 use crate::game::indoor::DoorColliders;
 use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;

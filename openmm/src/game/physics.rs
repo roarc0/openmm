@@ -20,7 +20,7 @@ impl Plugin for PhysicsPlugin {
                 Update,
                 gravity_system
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(crate::game::hud::HudView::World)),
+                    .run_if(resource_equals(crate::game::hud_view::HudView::World)),
             );
     }
 }

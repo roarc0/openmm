@@ -9,7 +9,7 @@ use openmm_data::assets::SmkArchive;
 
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use crate::game::hud::UiAssets;
+use crate::game::ui_assets::UiAssets;
 use crate::screens::{ImageElement, REF_H, REF_W, ScreenElement, VideoElement};
 
 /// Filter to LOD image archives and VID video archives (exclude sound archives).

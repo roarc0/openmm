@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::hud::HudView;
+use crate::game::hud_view::HudView;
 use crate::game::spatial_index::SpatialIndexSet;
 
 pub mod loading;

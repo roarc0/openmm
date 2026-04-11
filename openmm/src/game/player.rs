@@ -175,14 +175,14 @@ impl Plugin for PlayerPlugin {
                     .before(player_look)
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
-                    .run_if(crate::game::hud::game_input_active),
+                    .run_if(crate::game::hud_view::game_input_active),
             )
             .add_systems(
                 Update,
                 (player_movement, player_look, cursor_grab, log_gamepads)
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
-                    .run_if(crate::game::hud::game_input_active),
+                    .run_if(crate::game::hud_view::game_input_active),
             )
             // Torch visibility follows GameTime, which freezes while HudView ≠ World.
             // Gate the system so it doesn't flicker the torch on/off during dialogues.
@@ -190,7 +190,7 @@ impl Plugin for PlayerPlugin {
                 Update,
                 party_torch_system
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(crate::game::hud::HudView::World)),
+                    .run_if(resource_equals(crate::game::hud_view::HudView::World)),
             );
     }
 }
