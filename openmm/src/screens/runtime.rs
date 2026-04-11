@@ -997,29 +997,32 @@ fn hover_actions(
 }
 
 /// Start/stop pulsing on hover for Pulsable elements.
+/// Checks that the element's screen layer is still active to avoid
+/// inserting on entities queued for despawn by a screen transition.
 fn pulse_hover(
     mut commands: Commands,
-    query: Query<(Entity, &Interaction, Has<HiddenByDefault>), (Changed<Interaction>, With<Pulsable>)>,
+    query: Query<(Entity, &Interaction, Has<HiddenByDefault>, &ScreenLayer), (Changed<Interaction>, With<Pulsable>)>,
     pulsing_query: Query<&Pulsing>,
     mut image_query: Query<&mut ImageNode>,
+    layers: Res<ScreenLayers>,
 ) {
-    for (entity, interaction, hidden_default) in &query {
+    for (entity, interaction, hidden_default, layer) in &query {
+        // Skip entities whose screen was just replaced (despawn is deferred).
+        if !layers.screens.contains_key(&layer.0) {
+            continue;
+        }
         let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
         if hovering && !pulsing_query.contains(entity) {
-            // Entity may have been despawned by a screen transition this frame.
-            if let Ok(mut ec) = commands.get_entity(entity) {
-                ec.insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
-            }
+            commands
+                .entity(entity)
+                .insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
         } else if !hovering && pulsing_query.contains(entity) {
-            let Ok(mut ec) = commands.get_entity(entity) else { continue };
-            ec.remove::<Pulsing>();
+            commands.entity(entity).remove::<Pulsing>();
             if let Ok(mut img) = image_query.get_mut(entity) {
                 img.color = img.color.with_alpha(1.0);
             }
             if hidden_default {
-                if let Ok(mut ec) = commands.get_entity(entity) {
-                    ec.insert(Visibility::Hidden);
-                }
+                commands.entity(entity).insert(Visibility::Hidden);
             }
         }
     }
