@@ -43,11 +43,11 @@ pub enum DecorationLight {
 /// Keep RANGE_SCALE small — Bevy clusters every light by its range sphere; a light with
 /// range=40960 in a 22000-unit dungeon touches every cluster and tanks frame time.
 ///
-/// `shadows`: pass `false` indoors. Each shadow-casting point light cube-maps the scene
-/// 6× per frame, and dungeons have dozens of braziers/torches/chandeliers — enabling
-/// them hangs the game. Outdoors, individual decoration lights are rare enough that
-/// the `cfg.shadows` toggle is affordable.
-pub fn decoration_point_light(source: DecorationLight, shadows: bool) -> impl Bundle {
+/// Decoration point lights never cast shadows. Each shadow-casting point light
+/// cube-maps the scene 6× per frame — with dozens of torches, braziers, and
+/// campfires on a typical map, enabling them tanks frame rate from 120 to 40 fps.
+/// The directional sun handles outdoor shadows; decorations just need local glow.
+pub fn decoration_point_light(source: DecorationLight, _shadows: bool) -> impl Bundle {
     const RANGE_SCALE: f32 = 2.0;
     let radius = match source {
         DecorationLight::Ddeclist(lr) => lr,
@@ -59,7 +59,7 @@ pub fn decoration_point_light(source: DecorationLight, shadows: bool) -> impl Bu
         color: Color::srgb(1.0, 0.78, 0.40),
         intensity: lr * lr * 200.0,
         range: lr * RANGE_SCALE,
-        shadows_enabled: shadows,
+        shadows_enabled: false,
         ..default()
     }
 }
@@ -122,9 +122,9 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTi
     if cfg.shadows {
         sun.insert(
             CascadeShadowConfigBuilder {
-                maximum_distance: 10000.0,
-                first_cascade_far_bound: 10.0,
-                overlap_proportion: 0.5,
+                maximum_distance: 5000.0,
+                first_cascade_far_bound: 50.0,
+                overlap_proportion: 0.2,
                 ..default()
             }
             .build(),

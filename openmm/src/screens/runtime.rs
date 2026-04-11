@@ -365,14 +365,17 @@ fn update_screen_crosshair(
     let cy = vp_top + vp_h / 2.0;
     let cursor_free = matches!(cursor.grab_mode, bevy::window::CursorGrabMode::None);
 
+    let target_left = Val::Px(cx - 10.0);
+    let target_top = Val::Px(cy - 10.0);
+    let target_vis = if cfg.crosshair && !cursor_free {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
     for (mut node, mut vis) in query.iter_mut() {
-        node.left = Val::Px(cx - 10.0);
-        node.top = Val::Px(cy - 10.0);
-        *vis = if cfg.crosshair && !cursor_free {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
-        };
+        if node.left != target_left { node.left = target_left; }
+        if node.top != target_top { node.top = target_top; }
+        vis.set_if_neq(target_vis);
     }
 }
 
@@ -1013,27 +1016,26 @@ fn text_update(
         };
 
         // Position text within bounding box based on alignment.
-        node.width = Val::Auto;
-        node.height = Val::Px(display_h);
-        node.top = Val::Px(by * sy);
-        node.left = Val::Auto;
-        node.right = Val::Auto;
-
-        match rt.align.as_str() {
+        // Use set_if_neq to avoid triggering UI layout recalculation when values haven't changed.
+        let target_left = match rt.align.as_str() {
             "right" => {
-                // Right edge of text at right edge of bounding box.
                 let right_edge = box_x + box_w;
-                node.left = Val::Px(right_edge - display_w);
+                Val::Px(right_edge - display_w)
             }
             "center" => {
-                // Center text within bounding box.
                 let center_x = box_x + box_w / 2.0;
-                node.left = Val::Px(center_x - display_w / 2.0);
+                Val::Px(center_x - display_w / 2.0)
             }
-            _ => {
-                node.left = Val::Px(box_x);
-            }
-        }
+            _ => Val::Px(box_x),
+        };
+        let target_top = Val::Px(by * sy);
+        let target_h = Val::Px(display_h);
+
+        if node.width != Val::Auto { node.width = Val::Auto; }
+        if node.height != target_h { node.height = target_h; }
+        if node.top != target_top { node.top = target_top; }
+        if node.left != target_left { node.left = target_left; }
+        if node.right != Val::Auto { node.right = Val::Auto; }
     }
 }
 

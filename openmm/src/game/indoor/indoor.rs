@@ -168,24 +168,151 @@ pub struct OccluderFaceInfo {
     pub vertices: Vec<Vec3>,
 }
 
+/// XZ cell size for the occluder spatial grid. 512 units = 1 MM6 tile.
+/// Matches `MAX_INTERACT_RANGE` so a ray of that length crosses at most
+/// a 3×3 block of cells.
+const OCCLUDER_CELL_SIZE: f32 = 512.0;
+
 /// Resource holding all solid face geometry for ray-occlusion tests.
 ///
 /// Present for both outdoor (BSP model faces) and indoor (BLV wall/floor/ceiling faces)
 /// maps. Used by hover and interact systems to gate hits — an NPC or decoration
 /// behind a building wall should not be targetable.
+///
+/// Faces are spatially indexed by XZ cell so `min_hit_t` only tests faces
+/// overlapping the ray's swept area instead of brute-forcing all 2000+ faces.
 #[derive(Resource, Default)]
 pub struct OccluderFaces {
     pub faces: Vec<OccluderFaceInfo>,
+    /// XZ grid: cell key → list of face indices into `faces`.
+    grid: bevy::platform::collections::HashMap<(i32, i32), Vec<u32>>,
+    /// Per-face generation stamp for dedup without per-frame allocation.
+    /// Incremented each `min_hit_t_max` call; a face is "tested" if
+    /// `tested_gen[i] == current_gen`.
+    tested_gen: Vec<u32>,
+    current_gen: u32,
 }
 
 impl OccluderFaces {
-    /// Returns the smallest `t` along `(origin, dir)` that hits any solid face,
-    /// or `f32::MAX` if the ray misses all faces.
-    pub fn min_hit_t(&self, origin: Vec3, dir: Vec3) -> f32 {
+    /// Create from a face list and build the spatial grid.
+    pub fn new(faces: Vec<OccluderFaceInfo>) -> Self {
+        let len = faces.len();
+        let mut s = Self {
+            faces,
+            grid: Default::default(),
+            tested_gen: vec![0; len],
+            current_gen: 1,
+        };
+        s.build_grid();
+        s
+    }
+
+    /// Build the spatial grid from the face list. Call once at map load.
+    fn build_grid(&mut self) {
+        self.grid.clear();
+        for (i, face) in self.faces.iter().enumerate() {
+            // Compute XZ AABB of this face.
+            let (mut min_x, mut max_x, mut min_z, mut max_z) =
+                (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+            for v in &face.vertices {
+                min_x = min_x.min(v.x);
+                max_x = max_x.max(v.x);
+                min_z = min_z.min(v.z);
+                max_z = max_z.max(v.z);
+            }
+            // Insert into every cell the AABB overlaps.
+            let cx0 = (min_x / OCCLUDER_CELL_SIZE).floor() as i32;
+            let cx1 = (max_x / OCCLUDER_CELL_SIZE).floor() as i32;
+            let cz0 = (min_z / OCCLUDER_CELL_SIZE).floor() as i32;
+            let cz1 = (max_z / OCCLUDER_CELL_SIZE).floor() as i32;
+            for cx in cx0..=cx1 {
+                for cz in cz0..=cz1 {
+                    self.grid.entry((cx, cz)).or_default().push(i as u32);
+                }
+            }
+        }
+    }
+
+    /// Returns the smallest `t` along `(origin, dir)` that hits any solid face
+    /// within `max_t`, or `f32::MAX` if the ray misses.
+    ///
+    /// Uses the XZ spatial grid to test only faces near the ray path.
+    /// Also applies back-face culling (skip faces whose normal faces the same
+    /// direction as the ray — the ray hits the back side, which never occludes).
+    /// Returns the smallest `t` along `(origin, dir)` that hits any solid face
+    /// within `max_t`, or `f32::MAX` if the ray misses.
+    ///
+    /// Uses the XZ spatial grid to test only faces near the ray path.
+    /// Also applies back-face culling (skip faces whose normal faces the same
+    /// direction as the ray — the ray hits the back side, which never occludes).
+    pub fn min_hit_t_max(&mut self, origin: Vec3, dir: Vec3, max_t: f32) -> f32 {
         use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
-        let mut min_t = f32::MAX;
+
+        // If grid was built, use spatial lookup. Otherwise fall back to brute force.
+        if self.grid.is_empty() && !self.faces.is_empty() {
+            return self.min_hit_t_brute(origin, dir, max_t);
+        }
+
+        // Collect the set of cells the ray passes through within max_t.
+        let end = origin + dir * max_t.min(10000.0);
+        let cx0 = (origin.x.min(end.x) / OCCLUDER_CELL_SIZE).floor() as i32;
+        let cx1 = (origin.x.max(end.x) / OCCLUDER_CELL_SIZE).floor() as i32;
+        let cz0 = (origin.z.min(end.z) / OCCLUDER_CELL_SIZE).floor() as i32;
+        let cz1 = (origin.z.max(end.z) / OCCLUDER_CELL_SIZE).floor() as i32;
+
+        let mut min_t = max_t;
+        // Bump generation counter for dedup — no per-frame allocation needed.
+        self.current_gen = self.current_gen.wrapping_add(1);
+        if self.current_gen == 0 {
+            // Wraparound: reset all stamps so 0 != current_gen.
+            self.tested_gen.fill(0);
+            self.current_gen = 1;
+        }
+        let cur_gen = self.current_gen;
+
+        for cx in cx0..=cx1 {
+            for cz in cz0..=cz1 {
+                let Some(indices) = self.grid.get(&(cx, cz)) else {
+                    continue;
+                };
+                for &fi in indices {
+                    let fi = fi as usize;
+                    if self.tested_gen[fi] == cur_gen {
+                        continue;
+                    }
+                    self.tested_gen[fi] = cur_gen;
+
+                    let face = &self.faces[fi];
+                    // Back-face cull: if the ray is going the same direction as the
+                    // face normal, we're hitting the back side — skip.
+                    if face.normal.dot(dir) >= 0.0 {
+                        continue;
+                    }
+                    if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist)
+                        && t > 0.0
+                        && t < min_t
+                    {
+                        let hit = origin + dir * t;
+                        if point_in_polygon(hit, &face.vertices, face.normal) {
+                            min_t = t;
+                        }
+                    }
+                }
+            }
+        }
+        min_t
+    }
+
+    /// Brute-force fallback when grid isn't built (shouldn't happen in practice).
+    fn min_hit_t_brute(&self, origin: Vec3, dir: Vec3, max_t: f32) -> f32 {
+        use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
+        let mut min_t = max_t;
         for face in &self.faces {
+            if face.normal.dot(dir) >= 0.0 {
+                continue;
+            }
             if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist)
+                && t > 0.0
                 && t < min_t
             {
                 let hit = origin + dir * t;
@@ -353,7 +480,7 @@ pub(crate) fn spawn_indoor_world(
             vertices: f.vertices.clone(),
         })
         .collect();
-    commands.insert_resource(OccluderFaces { faces: occ_faces });
+    commands.insert_resource(OccluderFaces::new(occ_faces));
 
     // Build TouchTriggerFaces resource
     let touch_faces: Vec<TouchTriggerInfo> = prepared

@@ -5,6 +5,8 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 pub mod console;
 pub mod cpu_usage;
 pub mod hud;
+#[cfg(feature = "perf_log")]
+pub mod perf_log;
 
 use crate::config::GameConfig;
 use crate::game::player::Player;
@@ -16,6 +18,9 @@ pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugKeyBindings>().add_plugins(hud::DebugHudPlugin);
+
+        #[cfg(feature = "perf_log")]
+        app.add_plugins(perf_log::PerfLogPlugin);
 
         if app.world().resource::<GameConfig>().world_inspector {
             app.add_plugins(EguiPlugin::default())

@@ -111,7 +111,9 @@ fn compass_scroll(
 
     for (crop, mut node) in &mut strip_q {
         let clip_w = crop.crop_w * sx;
-        node.left = Val::Px(clip_w / 2.0 - pixel_pos);
+        // Round to nearest pixel to avoid floating-point jitter triggering UI layout every frame.
+        let target = Val::Px((clip_w / 2.0 - pixel_pos).round());
+        if node.left != target { node.left = target; }
     }
 }
 
@@ -153,8 +155,9 @@ fn minimap_scroll(
 
     let Some(handle) = map_handle.as_ref() else {
         // Indoor or no map — hide the minimap.
+        let offscreen = Val::Px(-9999.0);
         for (_, _, mut node, _) in &mut query {
-            node.left = Val::Px(-9999.0);
+            if node.left != offscreen { node.left = offscreen; }
         }
         return;
     };
@@ -174,14 +177,19 @@ fn minimap_scroll(
         let map_img_size = crop_w_px * minimap.zoom;
 
         // Center player in viewport, offset to match TAP transparent window.
+        // Round to avoid subpixel jitter triggering UI layout every frame.
         let offset_x = 3.0 * sx;
         let offset_y = 20.0 * sy;
-        node.left = Val::Px(crop_w_px / 2.0 + offset_x - nx * map_img_size);
-        node.top = Val::Px(crop_h_px / 2.0 + offset_y - nz * map_img_size);
-        node.width = Val::Px(map_img_size);
-        node.height = Val::Px(map_img_size);
+        let target_left = Val::Px((crop_w_px / 2.0 + offset_x - nx * map_img_size).round());
+        let target_top = Val::Px((crop_h_px / 2.0 + offset_y - nz * map_img_size).round());
+        let target_w = Val::Px(map_img_size);
+        let target_h = Val::Px(map_img_size);
 
-        img_node.image = handle.clone();
+        if node.left != target_left { node.left = target_left; }
+        if node.top != target_top { node.top = target_top; }
+        if node.width != target_w { node.width = target_w; }
+        if node.height != target_h { node.height = target_h; }
+        if img_node.image != *handle { img_node.image = handle.clone(); }
     }
 }
 
@@ -230,8 +238,9 @@ fn arrow_update(
     let sector = ((cw_angle / (std::f32::consts::TAU / 8.0) + 0.5) as usize) % 8;
     let idx = (9 - sector) % 8;
 
+    let target = &arrows.0[idx];
     for mut img in &mut query {
-        img.image = arrows.0[idx].clone();
+        if img.image != *target { img.image = target.clone(); }
     }
 }
 
@@ -289,8 +298,9 @@ fn tap_update(
         2 // evening (tap3)
     };
 
+    let target = &taps.0[idx];
     for mut img in &mut query {
-        img.image = taps.0[idx].clone();
+        if img.image != *target { img.image = target.clone(); }
     }
 }
 

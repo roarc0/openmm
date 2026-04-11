@@ -184,7 +184,7 @@ fn world_interact_system(
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
     monsters: Query<(Entity, &MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
     clickable_faces: Option<Res<clickable::Faces>>,
-    occluder_faces: Option<Res<OccluderFaces>>,
+    mut occluder_faces: Option<ResMut<OccluderFaces>>,
     map_events: Option<Res<MapEvents>>,
     spatial: Res<EntitySpatialIndex>,
     mut event_queue: ResMut<EventQueue>,
@@ -210,8 +210,8 @@ fn world_interact_system(
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
     let occluder_t = occluder_faces
-        .as_ref()
-        .map(|of| of.min_hit_t(origin, dir))
+        .as_mut()
+        .map(|of| of.min_hit_t_max(origin, dir, MAX_INTERACT_RANGE))
         .unwrap_or(f32::MAX);
 
     let max_range_sq = MAX_INTERACT_RANGE * MAX_INTERACT_RANGE;
@@ -416,7 +416,7 @@ fn decoration_proximity_system(
 fn hover_hint_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     clickable_faces: Option<Res<clickable::Faces>>,
-    occluder_faces: Option<Res<OccluderFaces>>,
+    mut occluder_faces: Option<ResMut<OccluderFaces>>,
     decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
     npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
     monsters: Query<(&MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
@@ -432,8 +432,8 @@ fn hover_hint_system(
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
     let occluder_t = occluder_faces
-        .as_ref()
-        .map(|of| of.min_hit_t(origin, dir))
+        .as_mut()
+        .map(|of| of.min_hit_t_max(origin, dir, MAX_INTERACT_RANGE))
         .unwrap_or(f32::MAX);
 
     let mut nearest: Option<(f32, String)> = None;

@@ -28,6 +28,25 @@ run-release-native:
 	RUSTFLAGS="-C target-cpu=native $$RUSTFLAGS" cargo run --release -p openmm
 
 # --- Profiling ---
+
+# Quick perf log: logs per-system timings every 2s, highlights bottlenecks.
+# Runs in dev mode with perf_log feature. Good for quick checks.
+profile:
+ifdef map
+	cargo run -p openmm --features "openmm/dev,openmm/perf_log" -- --map $(map) --skip-intro true
+else
+	cargo run -p openmm --features "openmm/dev,openmm/perf_log" -- --skip-intro true
+endif
+
+# Chrome tracing (dev build): dumps trace JSON for Perfetto analysis.
+# Open the file at https://ui.perfetto.dev after closing the game.
+profile-chrome-dev:
+ifdef map
+	cargo run -p openmm --features "openmm/dev,bevy/trace_chrome" -- --map $(map) --skip-intro true
+else
+	cargo run -p openmm --features "openmm/dev,bevy/trace_chrome" -- --skip-intro true
+endif
+
 # Chrome tracing: opens a JSON file in https://ui.perfetto.dev
 profile-chrome:
 ifdef map
@@ -117,5 +136,6 @@ help:
 	@echo "  dump_vid      - Extract SMK videos from Anims VID archives"
 	@echo "  check-data    - Run full data round-trip verification (generates ./data/mm6_serialized/)"
 	@echo "  clean         - Clean cargo target directory"
+	@echo "  profile        - Run with perf logging (per-system timing every 2s)"
 	@echo "  profile-chrome - Run with Chrome/Perfetto tracing (open .json at ui.perfetto.dev)"
 	@echo "  profile-tracy  - Run with Tracy profiler (start Tracy UI first)"

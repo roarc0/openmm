@@ -110,8 +110,6 @@ pub fn spawn_bsp_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
         });
     }
     if !outdoor_occluders.is_empty() {
-        commands.insert_resource(crate::game::indoor::OccluderFaces {
-            faces: outdoor_occluders,
-        });
+        commands.insert_resource(crate::game::indoor::OccluderFaces::new(outdoor_occluders));
     }
 }
