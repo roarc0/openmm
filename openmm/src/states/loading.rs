@@ -12,6 +12,7 @@ use crate::{
     config::GameConfig,
     despawn_all,
     game::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy},
+    game::world::CurrentMap,
 };
 use openmm_data::{
     blv::Blv,
@@ -47,12 +48,13 @@ impl Plugin for LoadingPlugin {
             (despawn_all::<crate::game::InGame>, loading_setup).chain(),
         )
         .add_systems(Update, loading_step.run_if(in_state(GameState::Loading)))
-        .add_systems(OnExit(GameState::Loading), despawn_all::<InLoading>);
+        .add_systems(OnExit(GameState::Loading), cleanup_loading_step);
     }
 }
 
-#[derive(Component)]
-struct InLoading;
+fn cleanup_loading_step(mut commands: Commands) {
+    commands.remove_resource::<LoadingStep>();
+}
 
 /// Requested map to load. Insert this resource before transitioning to Loading state.
 #[derive(Resource)]
@@ -241,8 +243,10 @@ pub struct PreparedSubMesh {
     pub face_indices: Vec<u32>,
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-enum LoadingStep {
+/// Current loading pipeline step — published as a resource so the screen
+/// binding system can drive the loading animation independently.
+#[derive(Default, Clone, Copy, PartialEq, Eq, Resource)]
+pub enum LoadingStep {
     #[default]
     ParseMap,
     BuildTerrain,
@@ -254,7 +258,7 @@ enum LoadingStep {
 }
 
 impl LoadingStep {
-    fn label(&self) -> &'static str {
+    pub fn label(&self) -> &'static str {
         match self {
             Self::ParseMap => "Parsing map...",
             Self::BuildTerrain => "Building terrain...",
@@ -263,6 +267,19 @@ impl LoadingStep {
             Self::BuildBillboards => "Loading decorations...",
             Self::PreloadSprites => "Loading sprites...",
             Self::Done => "Done!",
+        }
+    }
+
+    /// Ordinal index (0-based) for animation frame sequencing.
+    pub fn index(&self) -> usize {
+        match self {
+            Self::ParseMap => 0,
+            Self::BuildTerrain => 1,
+            Self::BuildAtlas => 2,
+            Self::BuildModels => 3,
+            Self::BuildBillboards => 4,
+            Self::PreloadSprites => 5,
+            Self::Done => 6,
         }
     }
 
@@ -323,17 +340,11 @@ impl PreparedWorld {
     }
 }
 
-#[derive(Component)]
-struct LoadingText;
-
 fn loading_setup(
     mut commands: Commands,
     load_request: Option<Res<LoadRequest>>,
     save_data: Res<crate::save::GameSave>,
     cfg: Res<GameConfig>,
-    game_assets: Res<GameAssets>,
-    mut ui_assets: ResMut<crate::game::hud::UiAssets>,
-    mut images: ResMut<Assets<Image>>,
     mut world_state: ResMut<crate::game::world::WorldState>,
 ) {
     // Clean up resources from previous map (indoor or outdoor)
@@ -345,6 +356,7 @@ fn loading_setup(
     commands.remove_resource::<crate::game::indoor::TouchTriggerFaces>();
     commands.remove_resource::<crate::game::indoor::OccluderFaces>();
     commands.remove_resource::<crate::game::hud::MapOverviewImage>();
+    commands.remove_resource::<CurrentMap>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.
     let (map_name, spawn_position, spawn_yaw) = if let Some(r) = load_request {
@@ -403,38 +415,8 @@ fn loading_setup(
         spawn_yaw,
     });
 
-    // Spawn loading screen with loading.pcx background from LOD
-    commands.spawn((Camera2d, InLoading));
-
-    let loading_bg = ui_assets.get_or_load("loading.pcx", &game_assets, &mut images, &cfg);
-
-    commands
-        .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                align_items: AlignItems::FlexEnd,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            ImageNode::new(loading_bg.unwrap_or_default()),
-            InLoading,
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Text::new("Loading..."),
-                TextFont {
-                    font_size: 24.0,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                Node {
-                    margin: UiRect::all(Val::Px(20.0)),
-                    ..default()
-                },
-                LoadingText,
-            ));
-        });
+    // Publish loading step so the screen binding can drive the animation.
+    commands.insert_resource(LoadingStep::default());
 }
 
 fn loading_step(
@@ -443,16 +425,14 @@ fn loading_step(
     load_request: Res<LoadRequest>,
     mut game_state: ResMut<NextState<GameState>>,
     mut commands: Commands,
-    mut text_query: Query<&mut Text, With<LoadingText>>,
+    mut step_res: ResMut<LoadingStep>,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut sprite_materials: Option<ResMut<Assets<crate::game::sprites::material::SpriteMaterial>>>,
     world_state: Option<Res<crate::game::world::WorldState>>,
 ) {
-    // Update loading text
-    for mut text in &mut text_query {
-        **text = progress.step.label().to_string();
-    }
+    // Keep the public resource in sync with internal progress.
+    step_res.set_if_neq(progress.step);
 
     match progress.step {
         LoadingStep::ParseMap => {
@@ -965,6 +945,7 @@ fn loading_step(
                     blv_lights,
                     sector_ambients,
                 });
+                commands.insert_resource(CurrentMap(load_request.map_name.clone()));
                 commands.remove_resource::<LoadingProgress>();
                 commands.remove_resource::<LoadRequest>();
                 game_state.set(GameState::Game);
@@ -1320,6 +1301,7 @@ fn loading_step(
                         .unwrap_or_else(openmm_data::terrain::TerrainLookup::empty),
                     music_track: progress.music_track,
                 });
+                commands.insert_resource(CurrentMap(load_request.map_name.clone()));
                 commands.remove_resource::<LoadingProgress>();
                 commands.remove_resource::<LoadRequest>();
                 game_state.set(GameState::Game);

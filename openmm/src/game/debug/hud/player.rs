@@ -88,17 +88,17 @@ pub fn update_position_text(
 pub fn update_tile_text(
     throttle: Res<HudThrottle>,
     player_query: Query<&Transform, With<Player>>,
-    prepared: Option<Res<PreparedWorld>>,
+    prepared: Res<PreparedWorld>,
     mut query: Query<(&mut Text, &mut TextColor), With<TileSpan>>,
 ) {
     if !throttle.0.just_finished() {
         return;
     }
 
-    let tileset = player_query.iter().next().and_then(|tf| {
-        let p = prepared.as_ref()?;
-        p.terrain_at(tf.translation.x, tf.translation.z)
-    });
+    let tileset = player_query
+        .iter()
+        .next()
+        .and_then(|tf| prepared.terrain_at(tf.translation.x, tf.translation.z));
 
     let tileset_str = if let Some(ts) = tileset {
         format!("  {ts}")

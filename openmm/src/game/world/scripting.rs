@@ -247,7 +247,7 @@ fn show_autonote_text(id: i32, assets: &GameAssets, footer: &mut FooterText, tim
 
 /// Returns true if this variable is per-character (not global).
 fn is_character_var(var: EvtVariable) -> bool {
-    matches!(var.0, 0x01..=0x68)
+    var.is_character_scoped()
 }
 
 /// Write a value to a game variable.

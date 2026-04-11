@@ -115,22 +115,40 @@ impl ScreenElement {
         }
     }
     pub fn as_image(&self) -> Option<&ImageElement> {
-        match self { Self::Image(e) => Some(e), _ => None }
+        match self {
+            Self::Image(e) => Some(e),
+            _ => None,
+        }
     }
     pub fn as_image_mut(&mut self) -> Option<&mut ImageElement> {
-        match self { Self::Image(e) => Some(e), _ => None }
+        match self {
+            Self::Image(e) => Some(e),
+            _ => None,
+        }
     }
     pub fn as_video(&self) -> Option<&VideoElement> {
-        match self { Self::Video(e) => Some(e), _ => None }
+        match self {
+            Self::Video(e) => Some(e),
+            _ => None,
+        }
     }
     pub fn as_video_mut(&mut self) -> Option<&mut VideoElement> {
-        match self { Self::Video(e) => Some(e), _ => None }
+        match self {
+            Self::Video(e) => Some(e),
+            _ => None,
+        }
     }
     pub fn as_text(&self) -> Option<&TextElement> {
-        match self { Self::Text(e) => Some(e), _ => None }
+        match self {
+            Self::Text(e) => Some(e),
+            _ => None,
+        }
     }
     pub fn as_text_mut(&mut self) -> Option<&mut TextElement> {
-        match self { Self::Text(e) => Some(e), _ => None }
+        match self {
+            Self::Text(e) => Some(e),
+            _ => None,
+        }
     }
 }
 
@@ -230,9 +248,15 @@ pub const TEXT_ALIGNS: &[&str] = &["left", "center", "right"];
 pub const TEXT_COLORS: &[&str] = &["white", "yellow", "red", "green"];
 
 impl TextElement {
-    fn default_font() -> String { "smallnum".into() }
-    fn default_color() -> String { "white".into() }
-    fn default_align() -> String { "left".into() }
+    fn default_font() -> String {
+        "smallnum".into()
+    }
+    fn default_color() -> String {
+        "white".into()
+    }
+    fn default_align() -> String {
+        "left".into()
+    }
 
     pub fn color_rgba(&self) -> [u8; 4] {
         match self.color.as_str() {
@@ -320,6 +344,7 @@ mod tests {
             ElementState {
                 texture: "mmnew1".to_string(),
                 condition: "hover".to_string(),
+                transparent_color: String::new(),
             },
         );
         img.on_click = vec!["PlaySound 75".to_string(), "GoToScreen segue".to_string()];

@@ -10,6 +10,7 @@
 
 use bevy::prelude::*;
 
+use crate::game::world::is_outdoor;
 use crate::GameState;
 
 mod boundary;
@@ -38,7 +39,7 @@ impl Plugin for OdmPlugin {
             .add_message::<ApplyTextureOutdoors>()
             .add_systems(
                 OnEnter(GameState::Game),
-                spawn::spawn_world.run_if(resource_exists::<crate::states::loading::PreparedWorld>),
+                spawn::spawn_world.run_if(is_outdoor),
             )
             .add_systems(
                 Update,
@@ -49,7 +50,7 @@ impl Plugin for OdmPlugin {
                 )
                     .run_if(in_state(GameState::Game))
                     .run_if(resource_equals(crate::game::hud::HudView::World))
-                    .run_if(resource_exists::<crate::states::loading::PreparedWorld>),
+                    .run_if(is_outdoor),
             );
     }
 }

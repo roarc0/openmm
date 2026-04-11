@@ -11,6 +11,7 @@ use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::InGame;
 use crate::game::player::PlayerCamera;
+use crate::game::world::{is_indoor, is_outdoor};
 use crate::states::loading::PreparedWorld;
 
 /// Marker for the sky dome entity.
@@ -52,16 +53,16 @@ impl Plugin for SkyPlugin {
             .add_systems(
                 OnEnter(GameState::Game),
                 (
-                    spawn_sky.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
-                    set_indoor_clear_color.run_if(resource_exists::<crate::states::loading::PreparedIndoorWorld>),
+                    spawn_sky.run_if(is_outdoor),
+                    set_indoor_clear_color.run_if(is_indoor),
                 ),
             )
             .add_systems(
                 Update,
                 (
                     follow_camera,
-                    update_sky_color.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
-                    update_sky_sun_dir.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
+                    update_sky_color.run_if(is_outdoor),
+                    update_sky_sun_dir.run_if(is_outdoor),
                     sync_fog_to_sky,
                 )
                     .chain()

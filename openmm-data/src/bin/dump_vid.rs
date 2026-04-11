@@ -14,11 +14,13 @@ fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let data_path = PathBuf::from(openmm_data::get_data_path());
-    
+
     // Anims directory is usually a sibling to Data (where .lod files are)
     let anims_dir = if data_path.join("Anims").is_dir() {
         data_path.join("Anims")
-    } else if let Some(parent) = data_path.parent() && parent.join("Anims").is_dir() {
+    } else if let Some(parent) = data_path.parent()
+        && parent.join("Anims").is_dir()
+    {
         parent.join("Anims")
     } else if Path::new("data/mm6/Anims").is_dir() {
         PathBuf::from("data/mm6/Anims")

@@ -2,6 +2,8 @@ use bevy::prelude::*;
 
 use crate::GameState;
 use crate::game::hud::HudView;
+use crate::game::world::{is_indoor};
+use crate::states::loading::PreparedIndoorWorld;
 
 pub(crate) mod indoor;
 
@@ -11,7 +13,10 @@ pub struct BlvPlugin;
 
 impl Plugin for BlvPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), indoor::spawn_indoor_world)
+        app.add_systems(
+            OnEnter(GameState::Game),
+            indoor::spawn_indoor_world.run_if(is_indoor),
+        )
             .add_systems(
                 Update,
                 (

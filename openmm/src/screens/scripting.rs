@@ -122,11 +122,11 @@ pub fn eval_condition(expr: &str, ctx: &ScriptContext) -> bool {
 
     // map_var(N) op X
     if let Some(rest) = s.strip_prefix("map_var(") {
-        if let Some((idx_str, after_paren)) = rest.split_once(')') {
-            if let Ok(idx) = idx_str.trim().parse::<usize>() {
-                let val = ctx.vars.map_vars.get(idx).copied().unwrap_or(0);
-                return eval_comparison(after_paren.trim(), val);
-            }
+        if let Some((idx_str, after_paren)) = rest.split_once(')')
+            && let Ok(idx) = idx_str.trim().parse::<usize>()
+        {
+            let val = ctx.vars.map_vars.get(idx).copied().unwrap_or(0);
+            return eval_comparison(after_paren.trim(), val);
         }
         return false;
     }
@@ -212,26 +212,11 @@ mod tests {
     fn parse_screen_actions() {
         assert_eq!(parse_action("Quit()"), Action::Quit);
         assert_eq!(parse_action("NewGame()"), Action::NewGame);
-        assert_eq!(
-            parse_action("LoadScreen(\"menu\")"),
-            Action::LoadScreen("menu".into())
-        );
-        assert_eq!(
-            parse_action("ShowScreen(\"hud\")"),
-            Action::ShowScreen("hud".into())
-        );
-        assert_eq!(
-            parse_action("HideScreen(\"hud\")"),
-            Action::HideScreen("hud".into())
-        );
-        assert_eq!(
-            parse_action("ShowSprite(\"icon\")"),
-            Action::ShowSprite("icon".into())
-        );
-        assert_eq!(
-            parse_action("HideSprite(\"icon\")"),
-            Action::HideSprite("icon".into())
-        );
+        assert_eq!(parse_action("LoadScreen(\"menu\")"), Action::LoadScreen("menu".into()));
+        assert_eq!(parse_action("ShowScreen(\"hud\")"), Action::ShowScreen("hud".into()));
+        assert_eq!(parse_action("HideScreen(\"hud\")"), Action::HideScreen("hud".into()));
+        assert_eq!(parse_action("ShowSprite(\"icon\")"), Action::ShowSprite("icon".into()));
+        assert_eq!(parse_action("HideSprite(\"icon\")"), Action::HideSprite("icon".into()));
         // Bare Hint is unknown — use evt:Hint instead
         assert!(matches!(parse_action("Hint(\"Cast Spell\")"), Action::Unknown(_)));
         assert_eq!(parse_action("PulseSprite()"), Action::PulseSprite);
@@ -271,7 +256,10 @@ mod tests {
         ($vars:expr) => {{
             // Leak a static empty set — fine for tests.
             static FLAGS: std::sync::LazyLock<HashSet<String>> = std::sync::LazyLock::new(HashSet::new);
-            ScriptContext { vars: $vars, config_flags: &FLAGS }
+            ScriptContext {
+                vars: $vars,
+                config_flags: &FLAGS,
+            }
         }};
     }
 
@@ -338,7 +326,10 @@ mod tests {
     fn eval_config_flag() {
         let vars = GameVariables::default();
         let flags: HashSet<String> = ["skip_intro".into()].into();
-        let c = ScriptContext { vars: &vars, config_flags: &flags };
+        let c = ScriptContext {
+            vars: &vars,
+            config_flags: &flags,
+        };
         assert!(eval_condition("config(skip_intro)", &c));
         assert!(!eval_condition("config(debug)", &c));
         assert!(!eval_condition("not config(skip_intro)", &c));
@@ -421,7 +412,10 @@ mod tests {
     fn execute_config_skip() {
         let vars = GameVariables::default();
         let flags: HashSet<String> = ["skip_intro".into()].into();
-        let c = ScriptContext { vars: &vars, config_flags: &flags };
+        let c = ScriptContext {
+            vars: &vars,
+            config_flags: &flags,
+        };
         let actions = vec![
             "Compare(\"config(skip_intro)\")".into(),
             "LoadScreen(\"menu\")".into(),

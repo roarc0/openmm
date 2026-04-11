@@ -67,17 +67,20 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
 
             if ui.small_button("+ Add Text").clicked() {
                 let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
-                editor.screen.elements.push(ScreenElement::Text(crate::screens::TextElement {
-                    id: "new_text".to_string(),
-                    position: (crate::screens::REF_W / 2.0, crate::screens::REF_H / 2.0),
-                    size: (200.0, 12.0),
-                    z: max_z + 1,
-                    hidden: false,
-                    source: "footer_text".to_string(),
-                    font: "smallnum".to_string(),
-                    color: "white".to_string(),
-                    align: "center".to_string(),
-                }));
+                editor
+                    .screen
+                    .elements
+                    .push(ScreenElement::Text(crate::screens::TextElement {
+                        id: "new_text".to_string(),
+                        position: (crate::screens::REF_W / 2.0, crate::screens::REF_H / 2.0),
+                        size: (200.0, 12.0),
+                        z: max_z + 1,
+                        hidden: false,
+                        source: "footer_text".to_string(),
+                        font: "smallnum".to_string(),
+                        color: "white".to_string(),
+                        align: "center".to_string(),
+                    }));
                 editor.dirty = true;
             }
 
@@ -103,7 +106,13 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
             let is_image = editor.screen.elements[sel_idx].as_image().is_some();
             let is_video = editor.screen.elements[sel_idx].as_video().is_some();
             let state_keys: Vec<String> = if is_image {
-                editor.screen.elements[sel_idx].as_image().unwrap().states.keys().cloned().collect()
+                editor.screen.elements[sel_idx]
+                    .as_image()
+                    .unwrap()
+                    .states
+                    .keys()
+                    .cloned()
+                    .collect()
             } else {
                 Vec::new()
             };
@@ -166,13 +175,11 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
 
             // Video (only for Video variant)
             if is_video {
-                let mut video_name = editor.screen.elements[sel_idx]
-                    .as_video().unwrap().video.clone();
+                let mut video_name = editor.screen.elements[sel_idx].as_video().unwrap().video.clone();
                 ui.horizontal(|ui| {
                     ui.label("Video:");
                     if ui.text_edit_singleline(&mut video_name).changed() {
-                        editor.screen.elements[sel_idx]
-                            .as_video_mut().unwrap().video = video_name;
+                        editor.screen.elements[sel_idx].as_video_mut().unwrap().video = video_name;
                         editor.dirty = true;
                     }
                 });
@@ -220,7 +227,9 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                 });
                 ui.horizontal(|ui| {
                     ui.label("Font:");
-                    if ui.text_edit_singleline(&mut font).changed() { changed = true; }
+                    if ui.text_edit_singleline(&mut font).changed() {
+                        changed = true;
+                    }
                 });
                 ui.horizontal(|ui| {
                     ui.label("Color:");
@@ -269,7 +278,8 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
 
                     for key in &state_keys {
                         let mut tex = editor.screen.elements[sel_idx]
-                            .as_image().unwrap()
+                            .as_image()
+                            .unwrap()
                             .states
                             .get(key)
                             .map(|s| s.texture.clone())
@@ -278,7 +288,10 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                             ui.label(key.as_str());
                             if ui.text_edit_singleline(&mut tex).changed() {
                                 if let Some(state) = editor.screen.elements[sel_idx]
-                                    .as_image_mut().unwrap().states.get_mut(key)
+                                    .as_image_mut()
+                                    .unwrap()
+                                    .states
+                                    .get_mut(key)
                                 {
                                     state.texture = tex;
                                     editor.dirty = true;
@@ -291,7 +304,10 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                     }
                     if let Some(k) = to_remove {
                         editor.screen.elements[sel_idx]
-                            .as_image_mut().unwrap().states.remove(&k);
+                            .as_image_mut()
+                            .unwrap()
+                            .states
+                            .remove(&k);
                         editor.dirty = true;
                     }
                     if ui.small_button("+ Add state").clicked() {
@@ -330,11 +346,19 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                         });
                     }
                     if let Some(i) = to_remove {
-                        editor.screen.elements[sel_idx].as_image_mut().unwrap().on_click.remove(i);
+                        editor.screen.elements[sel_idx]
+                            .as_image_mut()
+                            .unwrap()
+                            .on_click
+                            .remove(i);
                         editor.dirty = true;
                     }
                     if ui.small_button("+ Add action").clicked() {
-                        editor.screen.elements[sel_idx].as_image_mut().unwrap().on_click.push(String::new());
+                        editor.screen.elements[sel_idx]
+                            .as_image_mut()
+                            .unwrap()
+                            .on_click
+                            .push(String::new());
                         editor.dirty = true;
                     }
                 });
@@ -354,11 +378,19 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                         });
                     }
                     if let Some(i) = to_remove {
-                        editor.screen.elements[sel_idx].as_image_mut().unwrap().on_hover.remove(i);
+                        editor.screen.elements[sel_idx]
+                            .as_image_mut()
+                            .unwrap()
+                            .on_hover
+                            .remove(i);
                         editor.dirty = true;
                     }
                     if ui.small_button("+ Add action").clicked() {
-                        editor.screen.elements[sel_idx].as_image_mut().unwrap().on_hover.push(String::new());
+                        editor.screen.elements[sel_idx]
+                            .as_image_mut()
+                            .unwrap()
+                            .on_hover
+                            .push(String::new());
                         editor.dirty = true;
                     }
                 });
@@ -386,7 +418,11 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                         editor.dirty = true;
                     }
                     if ui.small_button("+ Add action").clicked() {
-                        editor.screen.elements[sel_idx].as_video_mut().unwrap().on_end.push(String::new());
+                        editor.screen.elements[sel_idx]
+                            .as_video_mut()
+                            .unwrap()
+                            .on_end
+                            .push(String::new());
                         editor.dirty = true;
                     }
                 });

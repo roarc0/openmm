@@ -9,7 +9,7 @@ use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
 use crate::game::sprites::Billboard;
 use crate::game::sprites::tint_buffer::SpriteTintBuffers;
-use crate::game::world::GameTime;
+use crate::game::world::{CurrentMap, GameTime, is_outdoor};
 
 // ── Decoration point lights ─────────────────────────────────────────────────
 
@@ -73,7 +73,7 @@ impl Plugin for LightingPlugin {
                 OnEnter(GameState::Game),
                 (
                     ambient_setup,
-                    sun_setup.run_if(not(resource_exists::<crate::states::loading::PreparedIndoorWorld>)),
+                    sun_setup.run_if(is_outdoor),
                 ),
             )
             // Gate on HudView::World so day/night/ambient advance freezes in
@@ -271,6 +271,7 @@ fn animate_day_cycle(
     mut std_materials: ResMut<Assets<StandardMaterial>>,
     mut terrain_materials: Option<ResMut<Assets<TerrainMaterial>>>,
     mut tint_buffers: ResMut<SpriteTintBuffers>,
+    map: Res<CurrentMap>,
     indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
     // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
     model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
@@ -278,7 +279,7 @@ fn animate_day_cycle(
     mut ambient_query: Query<&mut AmbientLight, With<AmbientMarker>>,
     player_query: Query<&Transform, With<Player>>,
 ) {
-    let is_indoor = indoor.is_some();
+    let is_indoor = map.is_indoor();
     let tod = game_time.time_of_day();
 
     apply_lighting_mode_switch(

@@ -1,10 +1,10 @@
-last_screen = "ingame"
+last_screen = "loading"
 browser_open = true
 browser_pos = [
-    1792.0,
-    550.0,
+    1833.0,
+    1113.0,
 ]
 edt_pos = [
-    1424.0,
+    1425.0,
     1094.0,
 ]

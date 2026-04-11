@@ -4,6 +4,7 @@ use openmm_data::dtile::Tileset;
 use super::SoundManager;
 use crate::game::InGame;
 use crate::game::player::Player;
+use crate::game::world::{is_outdoor};
 use crate::states::loading::PreparedWorld;
 
 /// Base terrain suffix used to build footstep sound names ("Walk<Suffix>" / "Run<Suffix>").
@@ -39,7 +40,7 @@ impl Plugin for FootstepsPlugin {
                 // it — otherwise footsteps lag one frame behind input.
                 .after(crate::game::player::PlayerInputSet)
                 .run_if(resource_exists::<SoundManager>)
-                .run_if(resource_exists::<PreparedWorld>),
+                .run_if(is_outdoor),
         );
     }
 }

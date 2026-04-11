@@ -49,6 +49,27 @@ struct ArrowHandles(Vec<Handle<Image>>);
 #[derive(Resource)]
 struct TapHandles(Vec<Handle<Image>>);
 
+/// Loading animation frame — attached to overlay sprites in loading.ron.
+/// The `frame` number (1-based) determines when this sprite becomes visible
+/// during the loading sequence.
+#[derive(Component)]
+pub struct LoadingFrameBinding {
+    pub frame: u32,
+}
+
+/// Tracks the loading animation timeline independently from the actual loading
+/// pipeline. Each frame stays visible for at least `MIN_FRAME_SECS`.
+#[derive(Resource)]
+struct LoadingAnimState {
+    /// Current animation frame (0 = no overlays, 1..=5 = progressive reveals).
+    current_frame: u32,
+    /// Elapsed time in the current frame.
+    elapsed: f32,
+}
+
+const MIN_FRAME_SECS: f32 = 0.3;
+const TOTAL_FRAMES: u32 = 5;
+
 // ── Plugin ─────────────────────────────────────────────────────────────────
 
 pub struct BindingsPlugin;
@@ -60,7 +81,8 @@ impl Plugin for BindingsPlugin {
             Update,
             (compass_scroll, minimap_scroll, arrow_update, tap_update)
                 .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
-        );
+        )
+        .add_systems(Update, loading_anim_update.run_if(in_state(GameState::Loading)));
     }
 }
 
@@ -84,8 +106,7 @@ fn compass_scroll(
 
     let e_start = 28.0 * sx;
     let cycle_w = 240.0 * sx;
-    let angle_from_east =
-        (cw_angle - std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
+    let angle_from_east = (cw_angle - std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
     let pixel_pos = e_start + (angle_from_east / std::f32::consts::TAU) * cycle_w;
 
     for (crop, mut node) in &mut strip_q {
@@ -126,12 +147,7 @@ fn minimap_scroll(
         *map_handle = if map_name.is_empty() {
             None
         } else {
-            crate::game::hud::minimap::load_map_overview(
-                &map_name,
-                &game_assets,
-                &mut images,
-                &cfg,
-            )
+            crate::game::hud::minimap::load_map_overview(&map_name, &game_assets, &mut images, &cfg)
         };
     }
 
@@ -194,14 +210,7 @@ fn arrow_update(
             .filter_map(|i| {
                 let name = format!("mapdir{}", i);
                 let key = format!("{}_transparent", name);
-                ui_assets.get_or_load_transformed(
-                    &name,
-                    &key,
-                    &game_assets,
-                    &mut images,
-                    &cfg,
-                    make_black_transparent,
-                )
+                ui_assets.get_or_load_transformed(&name, &key, &game_assets, &mut images, &cfg, make_black_transparent)
             })
             .collect();
         if handles.len() == 8 {
@@ -284,5 +293,49 @@ fn tap_update(
 
     for mut img in &mut query {
         img.image = taps.0[idx].clone();
+    }
+}
+
+// ── Loading animation ─────────────────────────────────────────────────────
+
+/// Advances the loading animation based on LoadingStep progress and wall-clock
+/// time. Each overlay frame stays visible for at least MIN_FRAME_SECS. The
+/// animation plays once (no cycling). Frame visibility is cumulative: once a
+/// frame is shown, it stays visible.
+fn loading_anim_update(
+    time: Res<Time>,
+    loading_step: Option<Res<crate::states::loading::LoadingStep>>,
+    mut anim: Local<Option<LoadingAnimState>>,
+    mut query: Query<(&LoadingFrameBinding, &mut Visibility)>,
+) {
+    let Some(step) = loading_step else { return };
+
+    // Init anim state on first frame.
+    let state = anim.get_or_insert_with(|| LoadingAnimState {
+        current_frame: 0,
+        elapsed: 0.0,
+    });
+
+    state.elapsed += time.delta_secs();
+
+    // Target frame: map loading step index to animation frame.
+    // Steps 0-5 map to frames 0-5, but we cap at TOTAL_FRAMES.
+    // Frame 0 = just the background (no overlays).
+    let target_frame = (step.index() as u32).min(TOTAL_FRAMES);
+
+    // Advance one frame at a time, respecting min duration.
+    if state.current_frame < target_frame && state.elapsed >= MIN_FRAME_SECS {
+        state.current_frame += 1;
+        state.elapsed = 0.0;
+    }
+
+    // Show all frames up to and including current_frame (cumulative reveal).
+    for (binding, mut vis) in &mut query {
+        let should_show = binding.frame <= state.current_frame;
+        vis.set_if_neq(if should_show {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        });
     }
 }

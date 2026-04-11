@@ -81,7 +81,7 @@ pub fn load_texture_with_transparency(
     // Strip `icons/` prefix — UiAssets.get_or_load already prepends it via lod.icon().
     let bare = tex_name
         .strip_prefix("icons/")
-        .unwrap_or_else(|| tex_name.split('/').last().unwrap_or(tex_name));
+        .unwrap_or_else(|| tex_name.split('/').next_back().unwrap_or(tex_name));
     if transparent_color.is_empty() {
         return ui_assets
             .get_or_load(bare, game_assets, images, cfg)

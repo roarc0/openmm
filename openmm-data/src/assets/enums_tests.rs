@@ -117,6 +117,16 @@ fn evt_variable_skill_index() {
 }
 
 #[test]
+fn evt_variable_is_character_scoped() {
+    assert!(EvtVariable::HP.is_character_scoped()); // 0x03
+    assert!(EvtVariable::SKILL_MISC.is_character_scoped()); // 0x56
+    assert!(EvtVariable::COND_MAIN.is_character_scoped()); // 0x68
+    assert!(!EvtVariable(0x00).is_character_scoped()); // before range
+    assert!(!EvtVariable(0x69).is_character_scoped()); // start of map vars
+    assert!(EvtVariable::GOLD.is_character_scoped()); // 0x15 is in the range
+}
+
+#[test]
 fn evt_variable_display_map_var() {
     assert_eq!(format!("{}", EvtVariable(0x69)), "MapVar0");
     assert_eq!(format!("{}", EvtVariable(0x6A)), "MapVar1");

@@ -9,7 +9,7 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::coords::mm6_position_to_bevy;
 use crate::game::hud::HudView;
-use crate::game::world::GameTime;
+use crate::game::world::{GameTime, is_outdoor};
 use crate::states::loading::PreparedWorld;
 
 use super::effects::PlaySoundEvent;
@@ -33,7 +33,7 @@ impl Plugin for DecorationSoundsPlugin {
             dawn_dusk_sound_system
                 .run_if(in_state(GameState::Game))
                 .run_if(resource_equals(HudView::World))
-                .run_if(resource_exists::<PreparedWorld>),
+                .run_if(is_outdoor),
         );
     }
 }

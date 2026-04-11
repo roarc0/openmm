@@ -13,6 +13,8 @@ pub mod player;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
+use crate::game::world::{is_outdoor};
+use crate::states::loading::PreparedWorld;
 
 use self::chart::*;
 use self::common::*;
@@ -40,7 +42,7 @@ impl Plugin for DebugHudPlugin {
                     update_map_info_text,
                     update_player_mode_text,
                     update_position_text,
-                    update_tile_text,
+                    update_tile_text.run_if(is_outdoor),
                     update_chart_labels,
                     update_fps_chart,
                     super::debug_log,

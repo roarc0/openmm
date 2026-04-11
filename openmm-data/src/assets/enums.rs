@@ -1070,6 +1070,11 @@ impl EvtVariable {
     pub fn skill_index(self) -> Option<u8> {
         if self.is_skill() { Some(self.0 - 0x38) } else { None }
     }
+
+    /// Returns true if this variable ID refers to a character-scoped variable (0x01..=0x68).
+    pub fn is_character_scoped(self) -> bool {
+        (0x01..=0x68).contains(&self.0)
+    }
 }
 
 impl std::fmt::Display for EvtVariable {

@@ -5,8 +5,7 @@ use assets::GameAssets;
 use config::GameConfig;
 use game::InGamePlugin;
 use save::GameSave;
-use states::video::VideoRequest;
-use states::{loading::LoadingPlugin, menu::MenuPlugin, video::VideoPlugin};
+use states::loading::LoadingPlugin;
 
 pub(crate) mod assets;
 pub mod config;
@@ -42,7 +41,6 @@ impl Plugin for GamePlugin {
         let save_data = GameSave::load_or_default();
 
         let editor_mode = cfg.editor;
-        let screen_mode = cfg.screens;
         let initial_state = if editor_mode {
             #[cfg(feature = "editor")]
             {
@@ -53,14 +51,10 @@ impl Plugin for GamePlugin {
                 bevy::log::warn!("--editor requires the 'editor' feature; starting normally");
                 GameState::Menu
             }
-        } else if screen_mode {
-            GameState::Menu
         } else if cfg.map.is_some() {
             GameState::Loading
-        } else if cfg.skip_intro {
-            GameState::Menu
         } else {
-            GameState::Video
+            GameState::Menu
         };
 
         app.insert_resource(ClearColor(Color::BLACK))
@@ -83,19 +77,7 @@ impl Plugin for GamePlugin {
         }
 
         // Game-only plugins — not loaded in editor mode.
-        // Loading + InGame always present. Screen runtime replaces Menu + Video + HUD.
-        app.add_plugins((LoadingPlugin, InGamePlugin));
-
-        if screen_mode {
-            app.add_plugins(screens::runtime::ScreenRuntimePlugin);
-        } else {
-            app.insert_resource(VideoRequest {
-                name: "3dologo".into(),
-                skippable: false,
-                next: GameState::Menu,
-            })
-            .add_plugins((VideoPlugin, MenuPlugin));
-        }
+        app.add_plugins((LoadingPlugin, InGamePlugin, screens::runtime::ScreenRuntimePlugin));
 
         app.insert_state(initial_state);
     }

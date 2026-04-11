@@ -204,10 +204,6 @@ struct Cli {
     #[arg(long)]
     editor: bool,
 
-    /// Use screen-based UI (RON screens) instead of hardcoded menus/HUD
-    #[arg(long)]
-    screens: Option<bool>,
-
     /// Path to config file
     /// Path to config file (default: ./openmm.toml, fallback: data/openmm.toml)
     #[arg(long)]
@@ -221,7 +217,6 @@ struct ConfigFile {
     log_level: Option<String>,
     skip_intro: Option<bool>,
     skip_logo: Option<bool>,
-    screens: Option<bool>,
     debug: Option<bool>,
     console: Option<bool>,
     crosshair: Option<bool>,
@@ -361,9 +356,6 @@ pub struct GameConfig {
     /// Launch screen editor mode instead of the game (runtime-only, not saved to config).
     #[serde(skip)]
     pub editor: bool,
-    /// Use screen-based UI instead of hardcoded menus/HUD (runtime-only).
-    #[serde(skip)]
-    pub screens: bool,
 }
 
 impl Default for GameConfig {
@@ -418,7 +410,6 @@ impl Default for GameConfig {
             exposure: 0.0,
             world_inspector: false,
             editor: false,
-            screens: false,
         }
     }
 }
@@ -540,7 +531,6 @@ impl GameConfig {
             exposure: resolve!(cli.exposure, file_cfg.exposure, d.exposure),
             world_inspector: resolve!(cli.world_inspector, file_cfg.world_inspector, d.world_inspector),
             editor: cli.editor || file_cfg.editor.unwrap_or(d.editor),
-            screens: resolve!(cli.screens, file_cfg.screens, d.screens),
         };
         resolved.validate();
         resolved

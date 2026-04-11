@@ -74,40 +74,12 @@ pub struct MapOverviewImage(pub Option<Handle<Image>>);
 
 pub struct HudPlugin;
 
-/// Run condition: true when screen-based UI is NOT active.
-fn hud_enabled(cfg: Res<crate::config::GameConfig>) -> bool {
-    !cfg.screens
-}
-
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(debug_hud::DebugHudCoordsPlugin)
-            .add_systems(OnEnter(GameState::Game), spawn_hud.run_if(hud_enabled))
-            .add_systems(Update, close_ui_system.run_if(in_state(GameState::Game).and(hud_enabled)))
-            // Viewport must update even in screens mode so the 3D camera
-            // is clipped to the area inside the HUD borders.
-            .add_systems(Update, update_viewport.run_if(in_state(GameState::Game)))
-            .add_systems(
-                Update,
-                (
-                    update_hud_layout,
-                    update_minimap,
-                    update_footer_text,
-                    stats_bar::update_stats_bar,
-                    crosshair::update_crosshair,
-                    overlay::spawn_overlay,
-                    overlay::despawn_overlay,
-                    overlay::update_overlay_layout,
-                    overlay::spawn_npc_portrait,
-                    overlay::despawn_npc_portrait,
-                    map_overlay::map_input_system,
-                    map_overlay::spawn_map_overlay,
-                    map_overlay::despawn_map_overlay,
-                    map_overlay::update_map_overlay_layout,
-                    freeze_system,
-                )
-                    .run_if(in_state(GameState::Game).and(hud_enabled)),
-            );
+            // Viewport must update so the 3D camera is clipped to the area
+            // inside the HUD borders.
+            .add_systems(Update, update_viewport.run_if(in_state(GameState::Game)));
     }
 }
 

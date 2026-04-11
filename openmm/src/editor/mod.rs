@@ -1,5 +1,6 @@
 mod browser;
 pub mod canvas;
+mod element_editor;
 pub mod format;
 mod inspector;
 pub mod io;

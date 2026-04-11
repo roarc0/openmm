@@ -216,7 +216,7 @@ pub struct TouchTriggerFaces {
 // --- Spawn ---
 
 pub(crate) fn spawn_indoor_world(
-    prepared: Option<Res<PreparedIndoorWorld>>,
+    prepared: Res<PreparedIndoorWorld>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -225,7 +225,6 @@ pub(crate) fn spawn_indoor_world(
     game_assets: Res<crate::assets::GameAssets>,
     cfg: Res<crate::config::GameConfig>,
 ) {
-    let Some(prepared) = prepared else { return };
 
     // Spawn all static face meshes (grouped by texture)
     let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);

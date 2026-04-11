@@ -73,10 +73,10 @@ fn dump_save(save: &SaveFile, out_root: &Path) {
         if let Some(data) = save.get_file(&name) {
             let out = slot_dir.join(&name);
             // Create subdirs if the name contains path separators (shouldn't, but be safe)
-            if let Some(parent) = out.parent() {
-                if let Err(e) = fs::create_dir_all(parent) {
-                    error!("failed to create parent dir for {}: {}", out.display(), e);
-                }
+            if let Some(parent) = out.parent()
+                && let Err(e) = fs::create_dir_all(parent)
+            {
+                error!("failed to create parent dir for {}: {}", out.display(), e);
             }
             if let Err(e) = fs::write(&out, data) {
                 error!("failed to write file {}: {}", out.display(), e);

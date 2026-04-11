@@ -1,5 +1,4 @@
 //! Screen runtime: renders .ron screen definitions as composable Bevy UI layers.
-//! Activated via `--screens=<id>` CLI flag.
 //!
 //! Multiple screens can be visible simultaneously (e.g. HUD + building UI).
 //! - `LoadScreen("x")` — replaces ALL screens with a single new one
@@ -31,16 +30,23 @@ pub struct ScreenRuntimePlugin;
 
 impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
+        let screen_states = in_state(GameState::Menu)
+            .or(in_state(GameState::Game))
+            .or(in_state(GameState::Loading));
+
         app.add_plugins(super::bindings::BindingsPlugin)
             .init_resource::<ScreenLayers>()
             .init_resource::<ScreenUiHovered>()
             // Menu state: load "menu" screen.
             .add_systems(OnEnter(GameState::Menu), menu_screen_setup)
             .add_systems(OnExit(GameState::Menu), screen_teardown)
+            // Loading state: load "loading" screen.
+            .add_systems(OnEnter(GameState::Loading), loading_screen_setup)
+            .add_systems(OnExit(GameState::Loading), screen_teardown)
             // Game state: load "ingame" screen as HUD overlay (no extra camera).
             .add_systems(OnEnter(GameState::Game), game_screen_setup)
             .add_systems(OnExit(GameState::Game), screen_teardown)
-            // Interaction systems run in both Menu and Game states.
+            // Interaction and text systems run in Menu, Loading, and Game states.
             .add_systems(
                 Update,
                 (
@@ -56,7 +62,7 @@ impl Plugin for ScreenRuntimePlugin {
                     process_pending_actions,
                     update_screen_crosshair,
                 )
-                    .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
+                    .run_if(screen_states),
             );
     }
 }
@@ -76,6 +82,8 @@ struct ScreenLayer(String);
 struct RuntimeElement {
     screen_id: String,
     index: usize,
+    /// The RON element `id` field — for ShowSprite/HideSprite lookup.
+    element_id: String,
 }
 
 #[derive(Component)]
@@ -155,14 +163,34 @@ fn menu_screen_setup(
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
 ) {
-    if !cfg.screens {
-        return;
-    }
-
     commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
 
     show_screen(
         "logo",
+        &mut commands,
+        &mut layers,
+        &mut ui_assets,
+        &game_assets,
+        &mut images,
+        &mut audio_sources,
+        &cfg,
+    );
+}
+
+/// Loading state: spawn Camera2d + load "loading" screen.
+fn loading_screen_setup(
+    mut commands: Commands,
+    cfg: Res<GameConfig>,
+    game_assets: Res<GameAssets>,
+    mut ui_assets: ResMut<UiAssets>,
+    mut images: ResMut<Assets<Image>>,
+    mut audio_sources: ResMut<Assets<AudioSource>>,
+    mut layers: ResMut<ScreenLayers>,
+) {
+    commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
+
+    show_screen(
+        "loading",
         &mut commands,
         &mut layers,
         &mut ui_assets,
@@ -183,10 +211,6 @@ fn game_screen_setup(
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
 ) {
-    if !cfg.screens {
-        return;
-    }
-
     // UI camera renders on top of the 3D scene (order=1, no clear).
     commands.spawn((
         Camera2d,
@@ -772,13 +796,22 @@ fn spawn_image_element(
         let marker = RuntimeElement {
             screen_id: screen_id.to_string(),
             index,
+            element_id: img.id.clone(),
         };
         commands
             .spawn((clip_node, ZIndex(img.z), marker, layer_tag.clone()))
             .with_children(|clip| {
                 // Inner image fills the crop area by default (bindings scroll it).
-                let inner_w = if w > crop_w { Val::Percent(w / crop_w * 100.0) } else { Val::Percent(100.0) };
-                let inner_h = if h > crop_h { Val::Percent(h / crop_h * 100.0) } else { Val::Percent(100.0) };
+                let inner_w = if w > crop_w {
+                    Val::Percent(w / crop_w * 100.0)
+                } else {
+                    Val::Percent(100.0)
+                };
+                let inner_h = if h > crop_h {
+                    Val::Percent(h / crop_h * 100.0)
+                } else {
+                    Val::Percent(100.0)
+                };
 
                 let mut inner = clip.spawn((
                     Node {
@@ -800,8 +833,12 @@ fn spawn_image_element(
                 }
 
                 match binding {
-                    Some("compass") => { inner.insert(CompassBinding); }
-                    Some("minimap") => { inner.insert(MinimapBinding { zoom: 3.0 }); }
+                    Some("compass") => {
+                        inner.insert(CompassBinding);
+                    }
+                    Some("minimap") => {
+                        inner.insert(MinimapBinding { zoom: 3.0 });
+                    }
                     _ => {}
                 }
             });
@@ -814,6 +851,7 @@ fn spawn_image_element(
     let marker = RuntimeElement {
         screen_id: screen_id.to_string(),
         index,
+        element_id: img.id.clone(),
     };
     let initial_vis = if img.hidden {
         Visibility::Hidden
@@ -833,8 +871,20 @@ fn spawn_image_element(
             entity.insert(HiddenByDefault);
         }
         match img.bindings.get("source").map(|s| s.as_str()) {
-            Some("arrow") => { entity.insert(ArrowBinding); }
-            Some("tap") => { entity.insert(TapBinding); }
+            Some("arrow") => {
+                entity.insert(ArrowBinding);
+            }
+            Some("tap") => {
+                entity.insert(TapBinding);
+            }
+            Some("loading") => {
+                let frame = img
+                    .bindings
+                    .get("frame")
+                    .and_then(|f| f.parse::<u32>().ok())
+                    .unwrap_or(0);
+                entity.insert(super::bindings::LoadingFrameBinding { frame });
+            }
             _ => {}
         }
         if let Some(h_handle) = hover_handle {
@@ -867,11 +917,7 @@ fn spawn_image_element(
 
 // ── Text elements ───────────────────────────────────────────────────────────
 
-fn spawn_text_element(
-    commands: &mut Commands,
-    txt: &TextElement,
-    layer_tag: &ScreenLayer,
-) {
+fn spawn_text_element(commands: &mut Commands, txt: &TextElement, layer_tag: &ScreenLayer) {
     // Text starts hidden. Width/position set dynamically by text_update.
     let node = Node {
         position_type: PositionType::Absolute,
@@ -903,6 +949,7 @@ fn spawn_text_element(
 fn text_update(
     footer: Res<FooterText>,
     world_state: Option<Res<crate::game::world::WorldState>>,
+    loading_step: Option<Res<crate::states::loading::LoadingStep>>,
     game_fonts: Res<GameFonts>,
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
@@ -917,8 +964,13 @@ fn text_update(
     for (mut rt, mut img_node, mut vis, mut node) in &mut query {
         let current = match rt.source.as_str() {
             "footer_text" => footer.text().to_string(),
-            "gold" => world_state.as_ref().map_or(String::new(), |ws| ws.game_vars.gold.to_string()),
-            "food" => world_state.as_ref().map_or(String::new(), |ws| ws.game_vars.food.to_string()),
+            "gold" => world_state
+                .as_ref()
+                .map_or(String::new(), |ws| ws.game_vars.gold.to_string()),
+            "food" => world_state
+                .as_ref()
+                .map_or(String::new(), |ws| ws.game_vars.food.to_string()),
+            "loading_step" => loading_step.as_ref().map_or(String::new(), |s| s.label().to_string()),
             _ => String::new(),
         };
 
@@ -1154,14 +1206,14 @@ fn screen_keys(
     }
     for screen in layers.screens.values() {
         for (key_name, actions) in &screen.keys {
-            if let Some(code) = parse_key_code(key_name) {
-                if keys.just_pressed(code) {
-                    info!("screen key [{}]: {}", screen.id, key_name);
-                    commands.insert_resource(PendingActions {
-                        actions: actions.clone(),
-                    });
-                    return; // one key per frame
-                }
+            if let Some(code) = parse_key_code(key_name)
+                && keys.just_pressed(code)
+            {
+                info!("screen key [{}]: {}", screen.id, key_name);
+                commands.insert_resource(PendingActions {
+                    actions: actions.clone(),
+                });
+                return; // one key per frame
             }
         }
     }
@@ -1267,6 +1319,7 @@ fn process_pending_actions(
     pending: Option<Res<PendingActions>>,
     mut layers: ResMut<ScreenLayers>,
     layer_entities: Query<(Entity, &ScreenLayer)>,
+    mut sprite_query: Query<(&RuntimeElement, &mut Visibility)>,
     cfg: Res<GameConfig>,
     game_assets: Res<GameAssets>,
     mut ui_assets: ResMut<UiAssets>,
@@ -1287,7 +1340,10 @@ fn process_pending_actions(
     let default_vars = crate::game::world::state::GameVariables::default();
     let vars = world_state.as_ref().map(|ws| &ws.game_vars).unwrap_or(&default_vars);
     let config_flags = build_config_flags(&cfg);
-    let ctx = super::scripting::ScriptContext { vars, config_flags: &config_flags };
+    let ctx = super::scripting::ScriptContext {
+        vars,
+        config_flags: &config_flags,
+    };
 
     let actions = super::scripting::execute_actions(&action_strings, &ctx);
 
@@ -1332,11 +1388,19 @@ fn process_pending_actions(
                 info!("action: HideScreen(\"{}\")", id);
                 hide_screen(&id, &mut commands, &mut layers, &layer_entities);
             }
-            Action::ShowSprite(_) => {
-                info!("action: ShowSprite (not yet wired)");
+            Action::ShowSprite(ref id) => {
+                for (elem, mut vis) in &mut sprite_query {
+                    if elem.element_id == *id {
+                        *vis = Visibility::Inherited;
+                    }
+                }
             }
-            Action::HideSprite(_) => {
-                info!("action: HideSprite (not yet wired)");
+            Action::HideSprite(ref id) => {
+                for (elem, mut vis) in &mut sprite_query {
+                    if elem.element_id == *id {
+                        *vis = Visibility::Hidden;
+                    }
+                }
             }
             Action::PulseSprite => {} // handled at spawn time
             Action::EvtProxy(evt_str) => {
@@ -1355,28 +1419,33 @@ fn process_pending_actions(
 /// Build config flags set from GameConfig for condition evaluation.
 fn build_config_flags(cfg: &GameConfig) -> std::collections::HashSet<String> {
     let mut flags = std::collections::HashSet::new();
-    if cfg.skip_intro { flags.insert("skip_intro".into()); }
-    if cfg.skip_logo { flags.insert("skip_logo".into()); }
-    if cfg.debug { flags.insert("debug".into()); }
-    if cfg.console { flags.insert("console".into()); }
+    if cfg.skip_intro {
+        flags.insert("skip_intro".into());
+    }
+    if cfg.skip_logo {
+        flags.insert("skip_logo".into());
+    }
+    if cfg.debug {
+        flags.insert("debug".into());
+    }
+    if cfg.console {
+        flags.insert("console".into());
+    }
     flags
 }
 
 /// Proxy an `evt:` action string to the EVT EventQueue.
-fn proxy_evt_action(
-    evt_str: &str,
-    event_queue: &mut crate::game::world::scripting::EventQueue,
-) {
+fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::world::scripting::EventQueue) {
     use openmm_data::evt::GameEvent;
 
     let s = evt_str.trim();
 
     // PlaySound(id)
-    if let Some(rest) = s.strip_prefix("PlaySound(").and_then(|r| r.strip_suffix(')')) {
-        if let Ok(id) = rest.trim().parse::<u32>() {
-            event_queue.push_single(GameEvent::PlaySound { sound_id: id });
-            return;
-        }
+    if let Some(rest) = s.strip_prefix("PlaySound(").and_then(|r| r.strip_suffix(')'))
+        && let Ok(id) = rest.trim().parse::<u32>()
+    {
+        event_queue.push_single(GameEvent::PlaySound { sound_id: id });
+        return;
     }
 
     // Hint("text")

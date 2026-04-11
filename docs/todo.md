@@ -29,6 +29,18 @@ Grouping the flat `src/game/` directory into logical subdirectories.
 - [ ] **Deconstruct `hud/mod.rs`** — Split into `hud/layout.rs`, `hud/builder.rs`, and `hud/constants.rs`.
 - [ ] **Refactoring Helpers** — Extract generic actor (`build_actor_component`) and decoration (`apply_decoration_components`) construction.
 
+## Screen Editor
+- [ ] **Inline text element editing** — Text properties (source, font, color, align) are only editable in the Inspector panel. Add a floating edit panel on the canvas when a Text element is selected, so text config is accessible inline like Image position/size drag-editing.
+- [ ] **Consolidate inspector + event editor** — `inspector.rs` and `canvas.rs`/`element_editor.rs` both edit on_click, on_hover, states, position, size. Two code paths for the same data = drift risk. Unify into a single tabbed inspector.
+- [ ] **Element ID validation** — No collision detection on element IDs. Duplicate IDs silently allowed. ShowSprite/HideSprite can reference nonexistent element IDs. Validate on save, warn about dangling references.
+- [ ] **Texture name validation** — No check that texture names exist in LOD archives. Validate at edit time by caching LOD file lists at startup.
+- [ ] **Editor undo/redo** — Changes are immediately reflected on `EditorScreen` with no rollback. Implement a command-based undo stack.
+
+## Screen Runtime
+- [ ] **Text source registry** — `text_update()` in `runtime.rs` hardcodes source names (`"footer_text"`, `"gold"`, `"food"`, `"loading_step"`). Adding a new source requires editing runtime.rs. Move to a registry or dispatch mechanism.
+- [ ] **Condition evaluation for element states** — `ElementState` supports a `condition` string but conditions are never evaluated at runtime (only stored). Hover state is hardcoded as a special case. Generalize to a runtime state machine.
+- [ ] **Texture asset pooling** — `load_texture_with_transparency()` creates new Image assets on every spawn. Same texture loaded multiple times wastes memory. Implement dedup or pooling.
+
 ## Feature Parity & Modernization
 - [ ] **Indoor Minimap** — Implement minimap logic for indoor BLV maps; currently only handled for outdoor ODM maps.
 - [ ] **HUD GameTime integration** — Tap frame switching (morning/day/evening/night) and date/time text display.
@@ -76,10 +88,9 @@ These items are architectural improvements identified to align the project with 
 - [ ] **Decouple Spawning** — `spawn_player` is currently a "God Function" for everything player-related (physics, camera, fog, lighting, tonemapping). 
     - [ ] Split into modular setup systems (e.g. `setup_player_camera`, `setup_player_torch`) and use standard Bevy `OnEnter(GameState::Game)` ordering.
 
-### 4b. Finish `run_if` refactor for indoor/outdoor gating
-Several systems still use inline `Option<Res<PreparedWorld>>` / `Option<Res<PreparedIndoorWorld>>` checks with early returns instead of declarative `run_if(resource_exists::<...>)` gates. Most were converted in the indoor-shadow-hang fix; these remain:
-- [ ] **`indoor::spawn_indoor_world`** — gate the `OnEnter(Game)` system on `resource_exists::<PreparedIndoorWorld>`; drop the `Option<Res<PreparedIndoorWorld>>` parameter and its early return.
-- [ ] **`debug::hud::player::update_tile_text`** — gate on `resource_exists::<PreparedWorld>` (tile debug info is outdoor-only; indoor shows nothing meaningful).
+### 4b. Finish `run_if` refactor for indoor/outdoor gating — DONE.
+- [x] **`indoor::spawn_indoor_world`** — DONE. Gated on `resource_exists::<PreparedIndoorWorld>`, dropped `Option` and early return.
+- [x] **`debug::hud::player::update_tile_text`** — DONE. Gated on `resource_exists::<PreparedWorld>`, dropped `Option` and early return.
 
 ### 5. Performance Optimizations
 - [x] **Allocation Audit** — DONE. `resolve_movement` no longer allocates: `SpatialGrid::cells_overlapping` returns `impl Iterator<Item = usize>` instead of `Vec<usize>`, and the explicit `HashSet` wall dedupe was dropped — a wall spanning multiple cells is processed once per cell, but the second visit is a guaranteed no-op (signed distance already ≥ radius after the first push), so correctness is preserved at zero allocation cost. Two regression tests cover the push-through-wall and free-movement paths.
@@ -114,7 +125,7 @@ Findings from a full-project audit of plugin structure, perf hotspots, and CLAUD
 - [x] **C1. Lighting runs during paused game** — DONE (6753596). `animate_day_cycle` gated on `resource_equals(HudView::World)`.
 - [x] **C2. Party torch not HudView-gated** — DONE (6753596). Same gate added.
 - [x] **C3. Footsteps not ordered after `PlayerInputSet`** — DONE (6753596). `footstep_system.after(PlayerInputSet)`.
-- [ ] **C4. Rule 3 violation — character-var range hardcoded in game code** — `game/world/scripting.rs:252` has `matches!(var.0, 0x01..=0x68)`. NOTE: `!var.is_map_var()` is NOT equivalent — `0x01..=0x68` is the character-scoped range (HP, stats, skills); values outside 0x68 that aren't map vars (0xCD+) are party/global. Needs a new `EvtVariable::is_character_scoped()` method in openmm-data.
+- [x] **C4. Rule 3 violation — character-var range hardcoded in game code** — DONE. Added `EvtVariable::is_character_scoped()` in openmm-data and updated `scripting.rs`.
 - [x] **C5. Rule 3 violation — actor attribute bitflags hardcoded** — DONE (6753596). Uses `ActorAttributes::VISIBLE` / `HOSTILE` from openmm-data.
 
 ### D. Lower-impact cleanups

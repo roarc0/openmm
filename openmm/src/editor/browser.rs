@@ -7,17 +7,15 @@ use super::canvas::EditorScreen;
 use openmm_data::Archive;
 use openmm_data::assets::SmkArchive;
 
-use crate::screens::{ImageElement, REF_H, REF_W, ScreenElement, VideoElement};
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::hud::UiAssets;
+use crate::screens::{ImageElement, REF_H, REF_W, ScreenElement, VideoElement};
 
 /// Filter to LOD image archives and VID video archives (exclude sound archives).
 fn browsable_archive_names(assets: &openmm_data::Assets, all: Vec<String>) -> Vec<String> {
     all.into_iter()
-        .filter(|name| {
-            assets.files_in(name).is_some_and(|f| !f.is_empty())
-        })
+        .filter(|name| assets.files_in(name).is_some_and(|f| !f.is_empty()))
         .filter(|name| {
             let lower = name.to_lowercase();
             !lower.contains("snd")
@@ -88,7 +86,11 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
                 if let Ok(vid) = SmkArchive::open(&path) {
                     let mut files: Vec<String> = vid.list_files().iter().map(|e| e.name.clone()).collect();
                     files.sort();
-                    let folder_name = path.file_stem().and_then(|s| s.to_str()).unwrap_or(vid_name).to_string();
+                    let folder_name = path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or(vid_name)
+                        .to_string();
                     let prefixed: Vec<String> = files.into_iter().map(|f| format!("{}/{}", folder_name, f)).collect();
                     browser.folders.push(LodFolder {
                         name: folder_name,
@@ -333,7 +335,10 @@ fn place_element(
 fn place_video_element(name: &str, editor: &mut EditorScreen) {
     let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
     // Strip extension if present (e.g. "3dologo.smk" -> "3dologo").
-    let video_name = name.strip_suffix(".smk").or_else(|| name.strip_suffix(".SMK")).unwrap_or(name);
+    let video_name = name
+        .strip_suffix(".smk")
+        .or_else(|| name.strip_suffix(".SMK"))
+        .unwrap_or(name);
 
     let vid = VideoElement {
         id: format!("vid_{}", video_name),

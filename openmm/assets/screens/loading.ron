@@ -2,7 +2,7 @@
     id: "loading",
     elements: [
         Image((
-            id: "icons/loading.pcx",
+            id: "loading_bg",
             position: (0.0, 0.0),
             size: (640.0, 480.0),
             z: 1,
@@ -16,7 +16,61 @@
             bindings: {},
         )),
         Image((
-            id: "icons/demover.pcx",
+            id: "womover",
+            position: (122.0, 151.0),
+            size: (93.0, 59.0),
+            z: 4,
+            states: {
+                "default": (
+                    texture: "icons/womover.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {
+                "frame": "1",
+                "source": "loading",
+            },
+            hidden: true,
+        )),
+        Image((
+            id: "womover2",
+            position: (122.0, 151.0),
+            size: (93.0, 59.0),
+            z: 5,
+            states: {
+                "default": (
+                    texture: "icons/womover2.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {
+                "frame": "2",
+                "source": "loading",
+            },
+            hidden: true,
+        )),
+        Image((
+            id: "smokover",
+            position: (200.0, 170.0),
+            size: (263.0, 23.0),
+            z: 6,
+            states: {
+                "default": (
+                    texture: "icons/Smokover.PCX",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {
+                "frame": "3",
+                "source": "loading",
+            },
+            hidden: true,
+        )),
+        Image((
+            id: "demover",
             position: (449.0, 56.0),
             size: (123.0, 171.0),
             z: 2,
@@ -27,10 +81,14 @@
             },
             on_click: [],
             on_hover: [],
-            bindings: {},
+            bindings: {
+                "frame": "4",
+                "source": "loading",
+            },
+            hidden: true,
         )),
         Image((
-            id: "icons/demover2.pcx",
+            id: "demover2",
             position: (449.0, 56.0),
             size: (123.0, 171.0),
             z: 3,
@@ -41,49 +99,41 @@
             },
             on_click: [],
             on_hover: [],
-            bindings: {},
+            bindings: {
+                "frame": "5",
+                "source": "loading",
+            },
+            hidden: true,
+        )),
+        Text((
+            id: "loading_text",
+            position: (0.0, 460.0),
+            size: (640.0, 12.0),
+            z: 10,
+            source: "loading_step",
+            font: "smallnum",
+            color: "white",
+            align: "center",
         )),
         Image((
-            id: "icons/womover.pcx",
-            position: (118.0, 151.0),
-            size: (93.0, 59.0),
-            z: 4,
+            id: "icons/fireball",
+            position: (187.0, 170.0),
+            size: (29.0, 16.0),
+            z: 11,
             states: {
                 "default": (
-                    texture: "icons/womover.pcx",
+                    texture: "icons/fireball",
                 ),
             },
             on_click: [],
             on_hover: [],
             bindings: {},
-        )),
-        Image((
-            id: "icons/womover2.pcx",
-            position: (118.0, 151.0),
-            size: (93.0, 59.0),
-            z: 5,
-            states: {
-                "default": (
-                    texture: "icons/womover2.pcx",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/Smokover.PCX",
-            position: (202.0, 168.0),
-            size: (263.0, 23.0),
-            z: 6,
-            states: {
-                "default": (
-                    texture: "icons/Smokover.PCX",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
+            transparent_color: "cyan",
         )),
     ],
+    editor: (
+        locked: [
+            "womover",
+        ],
+    ),
 )
