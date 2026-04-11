@@ -88,14 +88,20 @@ pub(super) fn hud_dimensions(width: f32, height: f32, ui: &UiAssets) -> HudDimen
             .unwrap_or((0.0, 0.0))
     };
 
-    let border1 = dim("border1.pcx");
-    let border2 = dim("border2.pcx");
-    let border3 = dim("border3");
-    let border4 = dim("border4");
+    // Fall back to MM6 reference sizes when textures aren't loaded
+    // (e.g. screens mode where they're loaded under different names).
+    let dim_or = |name: &str, fw: f32, fh: f32| -> (f32, f32) {
+        let d = dim(name);
+        if d.0 > 0.0 { d } else { (fw, fh) }
+    };
+    let border1 = dim_or("border1.pcx", 172.0, 339.0);
+    let border2 = dim_or("border2.pcx", 469.0, 109.0);
+    let border3 = dim_or("border3", 468.0, 8.0);
+    let border4 = dim_or("border4", 8.0, 344.0);
     let border5 = dim("border5");
     let border6 = dim("border6");
-    let tap1 = dim("tap1");
-    let footer = dim("footer");
+    let tap1 = dim_or("tap1", 172.0, 142.0);
+    let footer = dim_or("footer", 483.0, 24.0);
     let compass = dim("compass");
 
     HudDimensions {

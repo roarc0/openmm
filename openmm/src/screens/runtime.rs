@@ -325,26 +325,21 @@ fn spawn_screen_crosshair(commands: &mut Commands, layer_tag: &ScreenLayer) {
 }
 
 /// Position crosshair at viewport center, show only when cursor is grabbed.
-/// Uses reference-pixel coordinates matching the ingame.ron layout:
-/// viewport runs from (0, 8) to (468, 352) in 640x480 reference space.
 fn update_screen_crosshair(
-    cursor_query: Query<&bevy::window::CursorOptions, With<bevy::window::PrimaryWindow>>,
+    windows: Query<(&Window, &bevy::window::CursorOptions), With<bevy::window::PrimaryWindow>>,
     cfg: Res<GameConfig>,
+    ui_assets: Res<UiAssets>,
     mut query: Query<(&mut Node, &mut Visibility), With<ScreenCrosshair>>,
 ) {
-    let cursor_free = cursor_query
-        .single()
-        .is_ok_and(|c| matches!(c.grab_mode, bevy::window::CursorGrabMode::None));
-
-    // Viewport center in reference pixels (640x480 space).
-    // Top-left: (0, 8) after BORDER3. Bottom: 352 (FOOTER y). Right: 468 (Border1 x).
-    const VP_CX: f32 = 468.0 / 2.0;   // ~234
-    const VP_CY: f32 = 8.0 + (352.0 - 8.0) / 2.0; // ~180
-    const HALF_SIZE: f32 = 10.0;
+    let Ok((window, cursor)) = windows.single() else { return };
+    let (vp_left, vp_top, vp_w, vp_h) = crate::game::hud::viewport_rect(window, &cfg, &ui_assets);
+    let cx = vp_left + vp_w / 2.0;
+    let cy = vp_top + vp_h / 2.0;
+    let cursor_free = matches!(cursor.grab_mode, bevy::window::CursorGrabMode::None);
 
     for (mut node, mut vis) in query.iter_mut() {
-        node.left = Val::Percent((VP_CX - HALF_SIZE) / REF_W * 100.0);
-        node.top = Val::Percent((VP_CY - HALF_SIZE) / REF_H * 100.0);
+        node.left = Val::Px(cx - 10.0);
+        node.top = Val::Px(cy - 10.0);
         *vis = if cfg.crosshair && !cursor_free {
             Visibility::Inherited
         } else {

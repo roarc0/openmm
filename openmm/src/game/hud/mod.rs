@@ -84,10 +84,13 @@ impl Plugin for HudPlugin {
         app.add_plugins(debug_hud::DebugHudCoordsPlugin)
             .add_systems(OnEnter(GameState::Game), spawn_hud.run_if(hud_enabled))
             .add_systems(Update, close_ui_system.run_if(in_state(GameState::Game).and(hud_enabled)))
+            // Viewport must update even in screens mode so the 3D camera
+            // is clipped to the area inside the HUD borders.
+            .add_systems(Update, update_viewport.run_if(in_state(GameState::Game)))
             .add_systems(
                 Update,
                 (
-                    (update_hud_layout, update_viewport).chain(),
+                    update_hud_layout,
                     update_minimap,
                     update_footer_text,
                     stats_bar::update_stats_bar,
