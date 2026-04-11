@@ -122,7 +122,7 @@ fn sun_setup(mut commands: Commands, cfg: Res<GameConfig>, game_time: Res<GameTi
     if cfg.shadows {
         sun.insert(
             CascadeShadowConfigBuilder {
-                maximum_distance: 5000.0,
+                maximum_distance: 10000.0,
                 first_cascade_far_bound: 50.0,
                 overlap_proportion: 0.2,
                 ..default()
