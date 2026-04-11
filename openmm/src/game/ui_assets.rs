@@ -118,10 +118,9 @@ pub(crate) fn load_map_overview(
 }
 
 /// Make green or red color-keyed pixels transparent for tap frame overlays.
+/// MM6 uses exact #00FF00 (green) and #FF0000 (red) as transparency keys.
 pub(crate) fn make_tap_key_transparent(img: &mut image::DynamicImage) {
     make_transparent_where(img, |r, g, b| {
-        let is_green = g > r && g > b && g >= 128 && r < 100 && b < 100;
-        let is_red = r > g && r > b && r >= 128 && g < 100 && b < 100;
-        is_green || is_red
+        (r == 0 && g == 255 && b == 0) || (r == 255 && g == 0 && b == 0)
     });
 }
