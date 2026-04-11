@@ -4,7 +4,7 @@ mod crosshair;
 mod debug_hud;
 mod footer;
 mod map_overlay;
-mod minimap;
+pub(crate) mod minimap;
 pub mod overlay;
 mod stats_bar;
 

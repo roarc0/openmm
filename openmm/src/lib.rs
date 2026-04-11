@@ -73,8 +73,12 @@ impl Plugin for GamePlugin {
 
         #[cfg(feature = "editor")]
         if editor_mode {
-            app.add_plugins(editor::EditorPlugin);
+            // State must be inserted before EditorPlugin so EguiPrimaryContextPass
+            // systems see GameState::Editor from the very first frame. If the state
+            // isn't ready when egui runs its first pass, the context may never
+            // initialize — causing a permanently frozen editor.
             app.insert_state(initial_state);
+            app.add_plugins(editor::EditorPlugin);
             return;
         }
 

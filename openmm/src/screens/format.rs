@@ -12,6 +12,10 @@ fn editor_section_is_empty(s: &EditorSection) -> bool {
     s.locked.is_empty()
 }
 
+fn is_zero(v: &f32) -> bool {
+    *v == 0.0
+}
+
 /// A UI screen definition — the root of a .screen.ron file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Screen {
@@ -155,6 +159,13 @@ pub struct ImageElement {
     /// Color key for transparency.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub transparent_color: String,
+    /// Crop viewport width in reference pixels. When set, the image spawns inside
+    /// a clip container of this size and can scroll within it.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub crop_w: f32,
+    /// Crop viewport height in reference pixels.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub crop_h: f32,
 }
 
 /// A video element that plays an SMK file.
@@ -277,6 +288,8 @@ impl ImageElement {
             bindings: BTreeMap::new(),
             hidden: false,
             transparent_color: String::new(),
+            crop_w: 0.0,
+            crop_h: 0.0,
         }
     }
 

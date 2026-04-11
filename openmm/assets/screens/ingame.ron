@@ -213,7 +213,7 @@
         Image((
             id: "icons/COMPASS",
             position: (538.0, 10.0),
-            size: (38.0, 9.0),
+            size: (325.0, 9.0),
             z: 2,
             states: {
                 "default": (
@@ -225,23 +225,60 @@
             bindings: {
                 "source": "compass",
             },
+            crop_w: 38.0,
+            crop_h: 9.0,
+        )),
+        Image((
+            id: "minimap",
+            position: (468.0, 0.0),
+            size: (512.0, 512.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {
+                "source": "minimap",
+            },
+            crop_w: 172.0,
+            crop_h: 142.0,
+        )),
+        Image((
+            id: "icons/MAPDIR2",
+            position: (553.0, 91.0),
+            size: (7.0, 7.0),
+            z: 9,
+            states: {
+                "default": (
+                    texture: "icons/MAPDIR2",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "black",
         )),
     ],
     editor: (
         locked: [
-            "BORDER4",
+            "BORDER6",
+            "FOOTER",
             "icons/Border2.pcx",
+            "icons/Border1.pcx",
+            "BORDER3",
+            "minimap",
+            "BUTTCAMP",
+            "icons/MAPDIR2",
+            "footer",
             "BUTTBK1",
             "icons/BUTTCAST",
-            "BUTTCAMP",
-            "BORDER3",
             "icons/BUTTMENU",
-            "BORDER6",
-            "icons/TAP1",
-            "icons/Border1.pcx",
-            "footer",
             "icons/COMPASS",
-            "FOOTER",
+            "BORDER4",
+            "icons/TAP1",
         ],
     ),
 )

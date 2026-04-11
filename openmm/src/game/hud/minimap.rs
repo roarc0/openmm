@@ -29,7 +29,7 @@ pub(super) struct TapFrames(pub Vec<Handle<Image>>);
 
 /// Load the overview image for `map_name` (e.g. `"oute3"`).
 /// Returns `None` for indoor maps or if no icon is found in the LOD.
-pub(super) fn load_map_overview(
+pub(crate) fn load_map_overview(
     map_name: &str,
     game_assets: &GameAssets,
     images: &mut Assets<Image>,

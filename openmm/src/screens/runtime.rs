@@ -54,6 +54,7 @@ impl Plugin for ScreenRuntimePlugin {
                     process_pending_actions,
                     update_screen_crosshair,
                     compass_scroll,
+                    minimap_scroll,
                 )
                     .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
             );
@@ -130,11 +131,22 @@ struct Pulsing {
     elapsed: f32,
 }
 
-/// Inner compass strip image — scrolls horizontally inside a clip container.
+/// Inner image inside a crop viewport — scrollable within its clip container.
 #[derive(Component)]
-struct CompassStrip {
-    /// Clip window width in reference pixels.
-    clip_w: f32,
+struct CroppedImage {
+    /// Crop viewport size in reference pixels.
+    crop_w: f32,
+    crop_h: f32,
+}
+
+/// Marks a cropped image as a compass strip (scrolls by player yaw).
+#[derive(Component)]
+struct CompassBinding;
+
+/// Marks a cropped image as a minimap (scrolls by player position).
+#[derive(Component)]
+struct MinimapBinding {
+    zoom: f32,
 }
 
 /// All active screen layers, keyed by screen id.
@@ -752,47 +764,65 @@ fn spawn_image_element(
         }
     });
 
-    // Compass strip: spawn as clip container + scrollable inner strip.
-    if img.bindings.get("source").map(|s| s.as_str()) == Some("compass") {
-        if let Some(handle) = default_handle {
-            let clip_w = w;   // element size = visible window
-            let clip_h = h;
-            // Get actual strip dimensions from the texture.
-            let strip_w = ui_assets
-                .dimensions("compass")
-                .map(|(sw, _)| sw as f32)
-                .unwrap_or(325.0);
+    // Cropped image: spawn as clip container + scrollable inner image.
+    let has_crop = img.crop_w > 0.0 && img.crop_h > 0.0;
+    if has_crop {
+        let crop_w = img.crop_w;
+        let crop_h = img.crop_h;
+        let binding = img.bindings.get("source").map(|s| s.as_str());
 
-            let clip_node = Node {
-                position_type: PositionType::Absolute,
-                left: Val::Percent(img.position.0 / REF_W * 100.0),
-                top: Val::Percent(img.position.1 / REF_H * 100.0),
-                width: Val::Percent(clip_w / REF_W * 100.0),
-                height: Val::Percent(clip_h / REF_H * 100.0),
-                overflow: Overflow::clip(),
-                ..default()
-            };
-            let marker = RuntimeElement {
-                screen_id: screen_id.to_string(),
-                index,
-            };
-            commands
-                .spawn((clip_node, ZIndex(img.z), marker, layer_tag.clone()))
-                .with_children(|clip| {
-                    clip.spawn((
-                        ImageNode::new(handle),
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(0.0),
-                            top: Val::Px(0.0),
-                            width: Val::Percent(strip_w / clip_w * 100.0),
-                            height: Val::Percent(100.0),
-                            ..default()
-                        },
-                        CompassStrip { clip_w },
-                    ));
-                });
-        }
+        // For minimap, texture is loaded at runtime — use a placeholder.
+        let image_handle = if binding == Some("minimap") {
+            None // loaded dynamically by minimap_scroll
+        } else {
+            default_handle.clone()
+        };
+
+        let clip_node = Node {
+            position_type: PositionType::Absolute,
+            left: Val::Percent(img.position.0 / REF_W * 100.0),
+            top: Val::Percent(img.position.1 / REF_H * 100.0),
+            width: Val::Percent(crop_w / REF_W * 100.0),
+            height: Val::Percent(crop_h / REF_H * 100.0),
+            overflow: Overflow::clip(),
+            ..default()
+        };
+        let marker = RuntimeElement {
+            screen_id: screen_id.to_string(),
+            index,
+        };
+        commands
+            .spawn((clip_node, ZIndex(img.z), marker, layer_tag.clone()))
+            .with_children(|clip| {
+                // Inner image fills the crop area by default (bindings scroll it).
+                let inner_w = if w > crop_w { Val::Percent(w / crop_w * 100.0) } else { Val::Percent(100.0) };
+                let inner_h = if h > crop_h { Val::Percent(h / crop_h * 100.0) } else { Val::Percent(100.0) };
+
+                let mut inner = clip.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(0.0),
+                        top: Val::Px(0.0),
+                        width: inner_w,
+                        height: inner_h,
+                        ..default()
+                    },
+                    CroppedImage { crop_w, crop_h },
+                ));
+
+                if let Some(handle) = image_handle {
+                    inner.insert(ImageNode::new(handle));
+                } else if binding == Some("minimap") {
+                    // Minimap gets a default ImageNode — texture set by minimap_scroll.
+                    inner.insert(ImageNode::default());
+                }
+
+                match binding {
+                    Some("compass") => { inner.insert(CompassBinding); }
+                    Some("minimap") => { inner.insert(MinimapBinding { zoom: 3.0 }); }
+                    _ => {}
+                }
+            });
         return;
     }
 
@@ -975,7 +1005,7 @@ fn text_update(
 fn compass_scroll(
     player_q: Query<&Transform, With<Player>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
-    mut strip_q: Query<(&CompassStrip, &mut Node)>,
+    mut strip_q: Query<(&CroppedImage, &mut Node), With<CompassBinding>>,
 ) {
     let Ok(player_tf) = player_q.single() else { return };
     let Ok(window) = windows.single() else { return };
@@ -983,7 +1013,6 @@ fn compass_scroll(
     let (yaw, _, _) = player_tf.rotation.to_euler(EulerRot::YXZ);
     let cw_angle = (-yaw).rem_euclid(std::f32::consts::TAU);
 
-    // Scale from reference pixels to screen pixels.
     let sx = window.width() / REF_W;
 
     let e_start = 28.0 * sx;
@@ -991,9 +1020,76 @@ fn compass_scroll(
     let angle_from_east = (cw_angle - std::f32::consts::FRAC_PI_2).rem_euclid(std::f32::consts::TAU);
     let pixel_pos = e_start + (angle_from_east / std::f32::consts::TAU) * cycle_w;
 
-    for (strip, mut node) in &mut strip_q {
-        let clip_w = strip.clip_w * sx;
+    for (crop, mut node) in &mut strip_q {
+        let clip_w = crop.crop_w * sx;
         node.left = Val::Px(clip_w / 2.0 - pixel_pos);
+    }
+}
+
+// ── Minimap scroll ─────────────────────────────────────────────────────────
+
+/// Load minimap texture and scroll based on player position.
+fn minimap_scroll(
+    player_q: Query<&Transform, With<Player>>,
+    windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
+    world_state: Option<Res<crate::game::world::WorldState>>,
+    game_assets: Res<GameAssets>,
+    mut images: ResMut<Assets<Image>>,
+    cfg: Res<GameConfig>,
+    mut query: Query<(&CroppedImage, &MinimapBinding, &mut Node, &mut ImageNode)>,
+    mut last_map: Local<String>,
+    mut map_handle: Local<Option<Handle<Image>>>,
+) {
+    let Ok(window) = windows.single() else { return };
+    let sx = window.width() / REF_W;
+    let sy = window.height() / REF_H;
+
+    // Resolve map overview texture (changes when map changes).
+    let map_name = world_state.as_ref().map(|ws| {
+        match &ws.map.name {
+            openmm_data::utils::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
+            openmm_data::utils::MapName::Indoor(_) => String::new(),
+        }
+    }).unwrap_or_default();
+
+    if map_name != *last_map {
+        *last_map = map_name.clone();
+        *map_handle = if map_name.is_empty() {
+            None
+        } else {
+            crate::game::hud::minimap::load_map_overview(&map_name, &game_assets, &mut images, &cfg)
+        };
+    }
+
+    let Some(handle) = map_handle.as_ref() else {
+        // Indoor or no map — hide the minimap.
+        for (_, _, mut node, _) in &mut query {
+            node.left = Val::Px(-9999.0);
+        }
+        return;
+    };
+
+    // Get player position for scrolling.
+    let Ok(player_tf) = player_q.single() else { return };
+
+    use openmm_data::odm::ODM_TILE_SCALE;
+    let terrain_size = 128.0 * ODM_TILE_SCALE;
+    let half = terrain_size / 2.0;
+    let nx = (player_tf.translation.x + half) / terrain_size;
+    let nz = (player_tf.translation.z + half) / terrain_size;
+
+    for (crop, minimap, mut node, mut img_node) in &mut query {
+        let crop_w_px = crop.crop_w * sx;
+        let crop_h_px = crop.crop_h * sy;
+        let map_img_size = crop_w_px.max(crop_h_px) * minimap.zoom;
+
+        // Center player in viewport.
+        node.left = Val::Px(crop_w_px / 2.0 - nx * map_img_size);
+        node.top = Val::Px(crop_h_px / 2.0 - nz * map_img_size);
+        node.width = Val::Px(map_img_size);
+        node.height = Val::Px(map_img_size);
+
+        img_node.image = handle.clone();
     }
 }
 

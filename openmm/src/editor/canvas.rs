@@ -252,7 +252,18 @@ fn spawn_element(
         };
         if let Some(handle) = maybe_handle {
             commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
+        } else if img.bindings.get("source").is_some() {
+            // Bound element (minimap, etc.) — texture loaded at runtime, show transparent placeholder.
+            commands.spawn((
+                label,
+                BackgroundColor(Color::srgba(0.2, 0.2, 0.3, 0.4)),
+                node,
+                z,
+                marker,
+                Pickable::IGNORE,
+            ));
         } else {
+            warn!("editor: failed to load texture '{}' (transparent_color='{}') — showing magenta", tex_name, img.transparent_color);
             commands.spawn((
                 label,
                 BackgroundColor(Color::srgba(1.0, 0.0, 1.0, 0.8)),

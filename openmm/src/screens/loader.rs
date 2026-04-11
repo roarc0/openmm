@@ -78,14 +78,19 @@ pub fn load_texture_with_transparency(
     images: &mut Assets<Image>,
     cfg: &GameConfig,
 ) -> Option<Handle<Image>> {
-    let bare = tex_name.split('/').last().unwrap_or(tex_name);
+    // Strip `icons/` prefix — UiAssets.get_or_load already prepends it via lod.icon().
+    let bare = tex_name
+        .strip_prefix("icons/")
+        .unwrap_or_else(|| tex_name.split('/').last().unwrap_or(tex_name));
     if transparent_color.is_empty() {
         return ui_assets
-            .get_or_load(tex_name, game_assets, images, cfg)
-            .or_else(|| ui_assets.get_or_load(bare, game_assets, images, cfg));
+            .get_or_load(bare, game_assets, images, cfg)
+            .or_else(|| ui_assets.get_or_load(tex_name, game_assets, images, cfg));
     }
-    let cache_key = format!("{}@t_{}", tex_name, transparent_color);
-    let source = if ui_assets.get_or_load(tex_name, game_assets, images, cfg).is_some() {
+    let cache_key = format!("{}@t_{}", bare, transparent_color);
+    let source = if ui_assets.get_or_load(bare, game_assets, images, cfg).is_some() {
+        bare
+    } else if ui_assets.get_or_load(tex_name, game_assets, images, cfg).is_some() {
         tex_name
     } else {
         bare
