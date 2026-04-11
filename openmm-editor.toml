@@ -1,6 +1,10 @@
-last_screen = "ingame_screen"
+last_screen = "segue"
 browser_open = true
 browser_pos = [
-    2177.0,
-    941.0,
+    1792.0,
+    550.0,
+]
+edt_pos = [
+    1424.0,
+    1094.0,
 ]

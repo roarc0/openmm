@@ -368,16 +368,16 @@ impl Assets {
             if let Some(data) = lod.get_file_raw(file_name) {
                 if let Ok(image) = Image::try_from(data.as_slice()) {
                     if let Err(e) = image.save(out_path.join(format!("{}.png", file_name))) {
-                        eprintln!("Error saving image {} : {}", file_name, e);
+                        log::error!("Error saving image {} : {}", file_name, e);
                     }
                 } else if let Ok(sprite) = Image::try_from((data.as_slice(), palettes)) {
                     if let Err(e) = sprite.save(out_path.join(format!("{}.png", file_name))) {
-                        eprintln!("Error saving sprite {} : {}", file_name, e)
+                        log::error!("Error saving sprite {} : {}", file_name, e)
                     }
                 } else if let Ok(lod_data) = LodData::try_from(data.as_slice())
                     && let Err(e) = lod_data.dump(out_path.join(file_name))
                 {
-                    eprintln!("Error saving lod data {} : {}", file_name, e)
+                    log::error!("Error saving lod data {} : {}", file_name, e)
                 }
             }
         }

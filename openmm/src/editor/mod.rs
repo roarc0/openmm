@@ -41,9 +41,8 @@ impl Plugin for EditorPlugin {
 
         // Load screen and editor state eagerly so resources exist from frame 0.
         let screen = io::load_last_screen();
-        let name = screen.id.clone();
-        let locked = io::load_locks(&name);
-        info!("screen editor — editing '{name}'");
+        let locked = io::load_locks(&screen);
+        info!("screen editor — editing '{}'", screen.id);
 
         app.init_resource::<canvas::Selection>()
             .init_resource::<browser::BrowserState>()
@@ -148,9 +147,9 @@ fn editor_toolbar(
                                 if ui.selectable_label(false, name).clicked() {
                                     match io::load_screen(name) {
                                         Ok(s) => {
+                                            editor_state.locked = io::load_locks(&s);
                                             editor.screen = s;
                                             editor.dirty = false;
-                                            editor_state.locked = io::load_locks(name);
                                             editor_state.hidden.clear();
                                             io::set_last_screen(name);
                                             info!("loaded screen '{name}'");

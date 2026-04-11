@@ -2,9 +2,12 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
+use log::{error, info};
 use openmm_data::Assets;
 
 fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let lod_path = openmm_data::get_data_path();
     let assets = Assets::new(&lod_path).expect("failed to open LOD files");
 
@@ -29,7 +32,7 @@ fn main() {
     let json = serde_json_minimal(&asset_map);
     let json_path = out_dir.join("assets.json");
     fs::write(&json_path, &json).expect("failed to write assets.json");
-    println!(
+    info!(
         "Wrote {} ({} archives, {} files total)",
         json_path.display(),
         archives.len(),
@@ -37,30 +40,35 @@ fn main() {
     );
 
     for (archive, files) in &asset_map {
-        println!("  {}: {} files", archive, files.len());
+        info!("  {}: {} files", archive, files.len());
     }
 
     // Dump all files
-    println!("\nDumping files to {}/ ...", out_dir.display());
+    info!("Dumping files to {}/ ...", out_dir.display());
     let palettes = assets.palettes().ok();
     for (archive, files) in &asset_map {
         let arch_dir = out_dir.join(archive);
         let _ = fs::create_dir_all(&arch_dir);
         for file in files {
             let path = format!("{}/{}", archive, file);
-            if let Ok(bytes) = assets.get_decompressed(&path) {
-                if let Some(img) = try_decode_image(&bytes, palettes) {
-                    let png_name = format!("{}.png", file);
-                    let _ = img.save(arch_dir.join(&png_name));
-                } else {
-                    let _ = fs::write(arch_dir.join(file), bytes);
+            match assets.get_decompressed(&path) {
+                Ok(bytes) => {
+                    if let Some(img) = try_decode_image(&bytes, palettes) {
+                        let png_name = format!("{}.png", file);
+                        if let Err(e) = img.save(arch_dir.join(&png_name)) {
+                            error!("failed to save image {}: {}", png_name, e);
+                        }
+                    } else if let Err(e) = fs::write(arch_dir.join(file), bytes) {
+                        error!("failed to write file {}: {}", file, e);
+                    }
                 }
+                Err(e) => error!("failed to decompress {}: {}", path, e),
             }
         }
     }
 
     // Dump readable versions (JSON). Remove stale .txt files from previous runs.
-    println!("\nDumping readable JSON files (*.json) ...");
+    info!("Dumping readable JSON files (*.json) ...");
     // Remove old .txt dump files so stale data is not confusing.
     if let Ok(entries) = std::fs::read_dir(out_dir) {
         for entry in entries.flatten() {
@@ -132,7 +140,11 @@ fn dump_readable_files(assets: &Assets, out_dir: &Path) {
 
                 if let Some(content) = out_content {
                     let out_path = out_dir.join(format!("{}.json", file));
-                    let _ = fs::write(&out_path, content);
+                    if let Err(e) = fs::write(&out_path, content) {
+                        error!("failed to write readable file {}: {}", out_path.display(), e);
+                    }
+                } else {
+                    // warn!("could not load/convert {} to readable JSON", file);
                 }
             }
         }

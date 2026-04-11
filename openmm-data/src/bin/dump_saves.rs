@@ -11,15 +11,18 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use log::{error, info, warn};
 use openmm_data::save::{SaveFile, list_saves};
 
 fn main() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let out_root = Path::new("data/dump/saves");
     fs::create_dir_all(out_root).expect("failed to create data/dump/saves");
 
     let scan_dirs = candidate_save_dirs();
     if scan_dirs.is_empty() {
-        eprintln!("No save directories found.");
+        error!("No save directories found.");
         return;
     }
 
@@ -27,7 +30,7 @@ fn main() {
     for dir in &scan_dirs {
         let saves = list_saves(dir);
         if saves.is_empty() {
-            println!("  (no .mm6 saves in {})", dir.display());
+            info!("  (no .mm6 saves in {})", dir.display());
             continue;
         }
         for save in saves {
@@ -35,7 +38,7 @@ fn main() {
             total += 1;
         }
     }
-    println!("\nDumped {} save(s) to {}/", total, out_root.display());
+    info!("Dumped {} save(s) to {}/", total, out_root.display());
 }
 
 fn dump_save(save: &SaveFile, out_root: &Path) {
@@ -50,15 +53,19 @@ fn dump_save(save: &SaveFile, out_root: &Path) {
         header.save_name.replace('"', "\\\""),
         header.map_name.replace('"', "\\\""),
     );
-    fs::write(slot_dir.join("info.json"), info).ok();
+    let info_path = slot_dir.join("info.json");
+    if let Err(e) = fs::write(&info_path, info) {
+        error!("failed to write {}: {}", info_path.display(), e);
+    }
 
     // --- screenshot.png ---
     if let Some(img) = save.screenshot() {
         let png_path = slot_dir.join("screenshot.png");
-        img.save(&png_path)
-            .unwrap_or_else(|e| eprintln!("  warn: screenshot save failed for {}: {}", save.slot, e));
+        if let Err(e) = img.save(&png_path) {
+            error!("screenshot save failed for {}: {}", save.slot, e);
+        }
     } else {
-        println!("  warn: no screenshot in {}", save.slot);
+        warn!("no screenshot in {}", save.slot);
     }
 
     // --- raw files ---
@@ -67,13 +74,17 @@ fn dump_save(save: &SaveFile, out_root: &Path) {
             let out = slot_dir.join(&name);
             // Create subdirs if the name contains path separators (shouldn't, but be safe)
             if let Some(parent) = out.parent() {
-                fs::create_dir_all(parent).ok();
+                if let Err(e) = fs::create_dir_all(parent) {
+                    error!("failed to create parent dir for {}: {}", out.display(), e);
+                }
             }
-            fs::write(&out, data).ok();
+            if let Err(e) = fs::write(&out, data) {
+                error!("failed to write file {}: {}", out.display(), e);
+            }
         }
     }
 
-    println!(
+    info!(
         "  {} — map: {:?}  name: {:?}  ({} files)",
         save.slot,
         header.map_name,
@@ -93,7 +104,7 @@ fn candidate_save_dirs() -> Vec<PathBuf> {
     if let Some(game_root) = data_path.parent() {
         let saves = game_root.join("Saves");
         if saves.is_dir() {
-            println!("Scanning original MM6 saves: {}", saves.display());
+            info!("Scanning original MM6 saves: {}", saves.display());
             dirs.push(saves);
         }
     }
@@ -101,7 +112,7 @@ fn candidate_save_dirs() -> Vec<PathBuf> {
     // OpenMM saves in ./saves/
     let openmm_saves = PathBuf::from("saves");
     if openmm_saves.is_dir() {
-        println!("Scanning OpenMM saves: {}", openmm_saves.display());
+        info!("Scanning OpenMM saves: {}", openmm_saves.display());
         dirs.push(openmm_saves);
     }
 

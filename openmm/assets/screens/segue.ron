@@ -1,5 +1,27 @@
 (
     id: "segue",
+    editor: (
+        locked: [
+            "BORDER5",
+            "icons/Title.pcx",
+            "BORDER6",
+            "BUTTBK1",
+            "icons/CREAT_DN",
+            "icons/Border2.pcx",
+            "BORDER3",
+            "icons/MMLOA1",
+            "icons/QUICK_DN",
+            "BUTTCAMP",
+            "FOOTER",
+            "icons/BUTTCAST",
+            "icons/MMESC1",
+            "icons/MMNEW1",
+            "BORDER4",
+            "icons/BUTTMENU",
+            "icons/MMCRE1",
+            "icons/TAP1",
+        ],
+    ),
     elements: [
         Image((
             id: "icons/Segue_bg.pcx",

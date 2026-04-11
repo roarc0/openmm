@@ -2,14 +2,12 @@
 //! Screen loading/saving delegated to crate::screens.
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 // Re-export shared functions so existing editor code doesn't break.
 pub use crate::screens::{Screen, list_screens, load_screen, save_screen, screen_path};
 
-const SCREENS_DIR: &str = "openmm/assets";
 const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";
 
 /// Persisted editor settings.
@@ -67,42 +65,15 @@ pub fn save_screen_with_config(screen: &Screen) -> Result<(), String> {
     Ok(())
 }
 
-/// Per-element editor-only properties, stored alongside the screen RON.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ScreenEditorData {
-    #[serde(default)]
-    pub locked: Vec<String>,
+/// Save lock state into the screen's editor section and persist the whole screen.
+pub fn save_locks(screen: &mut Screen, locked: &std::collections::HashSet<String>) {
+    screen.editor.locked = locked.iter().cloned().collect();
+    let _ = save_screen(screen);
 }
 
-fn editor_data_path(screen_id: &str) -> PathBuf {
-    Path::new(SCREENS_DIR).join(format!("{}.editor.ron", screen_id))
-}
-
-pub fn save_editor_data(screen_id: &str, data: &ScreenEditorData) {
-    let _ = fs::create_dir_all(SCREENS_DIR);
-    let path = editor_data_path(screen_id);
-    if let Ok(s) = ron::ser::to_string_pretty(data, ron::ser::PrettyConfig::default()) {
-        let _ = fs::write(&path, s);
-    }
-}
-
-pub fn load_editor_data(screen_id: &str) -> ScreenEditorData {
-    let path = editor_data_path(screen_id);
-    fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| ron::from_str(&s).ok())
-        .unwrap_or_default()
-}
-
-pub fn save_locks(screen_id: &str, locked: &std::collections::HashSet<String>) {
-    let data = ScreenEditorData {
-        locked: locked.iter().cloned().collect(),
-    };
-    save_editor_data(screen_id, &data);
-}
-
-pub fn load_locks(screen_id: &str) -> std::collections::HashSet<String> {
-    load_editor_data(screen_id).locked.into_iter().collect()
+/// Load lock state from a screen's editor section.
+pub fn load_locks(screen: &Screen) -> std::collections::HashSet<String> {
+    screen.editor.locked.iter().cloned().collect()
 }
 
 #[cfg(test)]

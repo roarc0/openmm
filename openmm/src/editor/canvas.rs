@@ -848,7 +848,7 @@ pub fn apply_overlay_actions(
                     editor_state.locked.insert(id);
                 }
                 // Persist lock state.
-                super::io::save_locks(&editor.screen.id, &editor_state.locked);
+                super::io::save_locks(&mut editor.screen, &editor_state.locked);
             }
         }
         OverlayCmd::BringToTop(idx) => {
