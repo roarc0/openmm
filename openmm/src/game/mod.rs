@@ -91,16 +91,21 @@ impl Plugin for GameplayPlugin {
     }
 }
 
-/// UI: HUD, debug overlays, dev console, click interaction, EVT event dispatch.
+/// UI: viewport, debug overlays, dev console, click interaction, EVT event dispatch.
 struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            hud::HudPlugin,
             debug::DebugPlugin,
             debug::console::ConsolePlugin,
             interaction::InteractionPlugin,
-        ));
+        ))
+        // Viewport clipping and debug coords — the only bits needed from the old HUD.
+        .add_plugins(hud::debug_hud::DebugHudCoordsPlugin)
+        .add_systems(
+            Update,
+            hud::borders::update_viewport.run_if(in_state(crate::GameState::Game)),
+        );
     }
 }
 

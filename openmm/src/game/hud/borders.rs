@@ -210,7 +210,7 @@ pub fn viewport_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> (f32, 
 
 /// Update the 3D camera viewport to the letterboxed area minus HUD borders.
 /// The HUD camera has no viewport (full window) and clears to black for letterbox bars.
-pub(super) fn update_viewport(
+pub(crate) fn update_viewport(
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
     ui_assets: Res<UiAssets>,

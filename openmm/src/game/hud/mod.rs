@@ -1,7 +1,7 @@
 mod assets;
-mod borders;
+pub(crate) mod borders;
 mod crosshair;
-mod debug_hud;
+pub(crate) mod debug_hud;
 mod footer;
 mod map_overlay;
 pub(crate) mod minimap;
