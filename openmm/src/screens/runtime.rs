@@ -51,6 +51,7 @@ impl Plugin for ScreenRuntimePlugin {
                     text_update,
                     click_flash_tick,
                     process_pending_actions,
+                    update_screen_crosshair,
                 )
                     .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
             );
@@ -58,6 +59,10 @@ impl Plugin for ScreenRuntimePlugin {
 }
 
 // ── Components & resources ──────────────────────────────────────────────────
+
+/// Marks the screen-system crosshair entity.
+#[derive(Component)]
+struct ScreenCrosshair;
 
 /// Tags an entity as belonging to a specific screen layer.
 #[derive(Component, Clone)]
@@ -268,7 +273,79 @@ fn show_screen(
         });
     }
 
+    // Spawn crosshair for the ingame screen.
+    if screen_id == "ingame" {
+        spawn_screen_crosshair(commands, &layer_tag);
+    }
+
     layers.screens.insert(screen_id.to_string(), screen);
+}
+
+/// Spawn a crosshair overlay for the ingame screen.
+fn spawn_screen_crosshair(commands: &mut Commands, layer_tag: &ScreenLayer) {
+    let color = BackgroundColor(Color::srgba(1.0, 1.0, 1.0, 0.9));
+    commands
+        .spawn((
+            Name::new("screen_crosshair"),
+            Node {
+                position_type: PositionType::Absolute,
+                ..default()
+            },
+            Visibility::Hidden,
+            GlobalZIndex(50),
+            ScreenCrosshair,
+            layer_tag.clone(),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Name::new("crosshair_h"),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(0.0),
+                    top: Val::Px(9.0),
+                    width: Val::Px(20.0),
+                    height: Val::Px(2.0),
+                    ..default()
+                },
+                color,
+            ));
+            parent.spawn((
+                Name::new("crosshair_v"),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(9.0),
+                    top: Val::Px(0.0),
+                    width: Val::Px(2.0),
+                    height: Val::Px(20.0),
+                    ..default()
+                },
+                color,
+            ));
+        });
+}
+
+/// Position crosshair at viewport center, show only when cursor is grabbed.
+fn update_screen_crosshair(
+    windows: Query<(&Window, &bevy::window::CursorOptions), With<bevy::window::PrimaryWindow>>,
+    cfg: Res<GameConfig>,
+    ui_assets: Res<UiAssets>,
+    mut query: Query<(&mut Node, &mut Visibility), With<ScreenCrosshair>>,
+) {
+    let Ok((window, cursor)) = windows.single() else { return };
+    let (vp_left, vp_top, vp_w, vp_h) = crate::game::hud::viewport_rect(window, &cfg, &ui_assets);
+    let cx = vp_left + vp_w / 2.0;
+    let cy = vp_top + vp_h / 2.0;
+    let cursor_free = matches!(cursor.grab_mode, bevy::window::CursorGrabMode::None);
+
+    for (mut node, mut vis) in query.iter_mut() {
+        node.left = Val::Px(cx - 10.0);
+        node.top = Val::Px(cy - 10.0);
+        *vis = if cfg.crosshair && !cursor_free {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+    }
 }
 
 fn hide_screen(
