@@ -158,6 +158,18 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `event_dispatch.rs` handles all event logic (image loading, view switching, map transitions)
 - `ChangeDoorState` triggers door open/close/toggle via `BlvDoors` resource
 
+### Screen scripting
+
+- `screens/scripting.rs` — flat action executor for screen RON files
+- Action strings in `on_click`, `on_hover`, `on_end`, `keys` are one of:
+  - Screen action (bare): `LoadScreen("menu")`, `ShowSprite("icon")`, `Hint("text")`, `Quit()`, `NewGame()`, `PulseSprite()`
+  - EVT proxy (`evt:` prefix): `evt:PlaySound(75)`, `evt:Hint("text")`, `evt:StatusText("text")`
+  - Control flow: `Compare("condition")`, `Else()`, `End()`
+- Compare/Else/End: flat, single-level. Compare sets a flag; actions skip if flag is false; Else flips; End resets.
+- Condition expressions: `quest_bit(N)`, `not quest_bit(N)`, `map_var(N) == X`, `gold > X`, `food < X`
+- EVT proxy pushes `GameEvent` to `EventQueue` — same sink as the original EVT system, no interference
+- `execute_actions()` returns dispatchable actions after control flow evaluation; `runtime.rs` handles the actual side effects
+
 ### Indoor maps (BLV) and doors
 
 - Door faces are spawned as individual entities (not batched with static geometry) for animation
