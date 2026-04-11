@@ -4,7 +4,7 @@
 //! spawns the face-based geometry, door entities, and ambient lighting.
 //! Also handles indoor face interaction (click/Enter) and door animation.
 
-use bevy::light::NotShadowCaster;
+use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::mesh::VertexAttributeValues;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
@@ -558,6 +558,7 @@ pub(crate) fn spawn_indoor_world(
                 crate::game::sprites::FacingYaw(dec.facing_yaw),
                 InGame,
             ));
+            ent.insert(NotShadowReceiver);
             if !cfg.billboard_shadows {
                 ent.insert(NotShadowCaster);
             }
@@ -614,6 +615,7 @@ pub(crate) fn spawn_indoor_world(
                 sheet,
                 InGame,
             ));
+            ent.insert(NotShadowReceiver);
             if !cfg.billboard_shadows {
                 ent.insert(NotShadowCaster);
             }
@@ -683,6 +685,7 @@ pub(crate) fn spawn_indoor_world(
                 crate::game::sprites::AnimationState::Idle,
                 InGame,
             ));
+            ent.insert(NotShadowReceiver);
             if !cfg.billboard_shadows {
                 ent.insert(NotShadowCaster);
             }
@@ -840,6 +843,7 @@ pub(crate) fn spawn_indoor_world(
                     InGame,
                 ))
                 .id();
+            commands.entity(mon_id).insert(NotShadowReceiver);
             if !cfg.actor_shadows {
                 commands.entity(mon_id).insert(NotShadowCaster);
             }

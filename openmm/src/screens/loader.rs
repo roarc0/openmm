@@ -97,13 +97,16 @@ pub fn load_texture_with_transparency(
     };
     let tc = transparent_color.to_string();
     ui_assets.get_or_load_transformed(source, &cache_key, game_assets, images, cfg, move |img| {
+        // Tight color-key matching — check raw pixel values before filtering.
+        // Threshold of 8 accommodates minor palette rounding while rejecting
+        // visually distinct colours that the old loose ranges (30/200) caught.
         crate::game::ui_assets::make_transparent_where(img, |r, g, b| match tc.as_str() {
-            "black" => r < 30 && g < 30 && b < 30,
-            "cyan" => r < 30 && g > 200 && b > 200,
-            "lime" => r < 30 && g > 200 && b < 30,
-            "red" => r > 200 && g < 30 && b < 30,
-            "magenta" => r > 200 && g < 30 && b > 200,
-            "blue" => r < 30 && g < 30 && b > 200,
+            "black" => r < 8 && g < 8 && b < 8,
+            "cyan" => r < 8 && g > 247 && b > 247,
+            "lime" => r < 8 && g > 247 && b < 8,
+            "red" => r > 247 && g < 8 && b < 8,
+            "magenta" => r > 247 && g < 8 && b > 247,
+            "blue" => r < 8 && g < 8 && b > 247,
             _ => false,
         });
     })

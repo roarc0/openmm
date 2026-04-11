@@ -98,7 +98,11 @@ pub fn rebuild_and_cull(
     player_query: Query<&GlobalTransform, With<Player>>,
     mut index: ResMut<EntitySpatialIndex>,
     mut entities: Query<(Entity, &GlobalTransform, &mut Visibility), With<WorldEntity>>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
 ) {
+    #[cfg(feature = "perf_log")]
+    let _start = crate::game::debug::perf_log::perf_start();
+
     index.clear();
 
     let player_pos = match player_query.single() {
@@ -110,6 +114,8 @@ pub fn rebuild_and_cull(
     for (entity, g_tf, mut vis) in entities.iter_mut() {
         let pos = g_tf.translation();
         index.insert(entity, pos.x, pos.z);
+        #[cfg(feature = "perf_log")]
+        { perf.spatial_entities += 1; }
 
         if let Some(player_pos) = player_pos {
             let new_vis = if pos.distance_squared(player_pos) < draw_dist_sq {
@@ -117,9 +123,16 @@ pub fn rebuild_and_cull(
             } else {
                 Visibility::Hidden
             };
+            if *vis != new_vis {
+                #[cfg(feature = "perf_log")]
+                { perf.spatial_vis_changes += 1; }
+            }
             vis.set_if_neq(new_vis);
         }
     }
+
+    #[cfg(feature = "perf_log")]
+    { perf.time_spatial_rebuild_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
 }
 
 pub struct SpatialIndexPlugin;

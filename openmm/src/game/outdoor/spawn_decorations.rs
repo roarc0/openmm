@@ -1,7 +1,7 @@
 //! Per-frame decoration spawning (static, animated, and directional billboards).
 
 use bevy::ecs::message::MessageWriter;
-use bevy::light::NotShadowCaster;
+use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
 
 use crate::game::InGame;
@@ -65,6 +65,8 @@ pub(super) fn spawn_decorations(
                         crate::game::sprites::FacingYaw(dec.facing_yaw),
                     ))
                     .id();
+                // Sprites are unlit — never receive shadows (skip shadow map sampling per pixel).
+                commands.entity(child_id).insert(NotShadowReceiver);
                 if !ctx.billboard_shadows {
                     commands.entity(child_id).insert(NotShadowCaster);
                 }
@@ -154,6 +156,7 @@ pub(super) fn spawn_decorations(
                     sheet,
                 ))
                 .id();
+            commands.entity(child_id).insert(NotShadowReceiver);
             if !ctx.billboard_shadows {
                 commands.entity(child_id).insert(NotShadowCaster);
             }
@@ -233,6 +236,7 @@ pub(super) fn spawn_decorations(
                 .insert(crate::game::sprites::EntityKind::Decoration)
                 .insert(crate::game::sprites::Billboard)
                 .insert(InGame);
+            commands.entity(child_id).insert(NotShadowReceiver);
             if !ctx.billboard_shadows {
                 commands.entity(child_id).insert(NotShadowCaster);
             }

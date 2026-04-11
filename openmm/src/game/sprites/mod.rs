@@ -123,16 +123,29 @@ impl Plugin for SpritesPlugin {
 /// Runs after `SpatialIndexSet` (which performs distance culling): when
 /// unlit it forces Hidden; when lit it leaves whatever the cull set, so
 /// out-of-range entities stay hidden.
-fn flicker_system(time: Res<Time>, mut query: Query<(&DecorFlicker, &mut Visibility)>) {
+fn flicker_system(
+    time: Res<Time>,
+    mut query: Query<(&DecorFlicker, &mut Visibility)>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
+) {
+    #[cfg(feature = "perf_log")]
+    let _start = crate::game::debug::perf_log::perf_start();
+
     let elapsed = time.elapsed_secs();
     for (flicker, mut vis) in query.iter_mut() {
+        #[cfg(feature = "perf_log")]
+        { perf.flicker_iter += 1; }
         if !flicker.lit(elapsed) {
-            // Skip the write when Visibility is already Hidden (set by
-            // distance_culling for far entities).
+            if *vis != Visibility::Hidden {
+                #[cfg(feature = "perf_log")]
+                { perf.flicker_writes += 1; }
+            }
             vis.set_if_neq(Visibility::Hidden);
         }
-        // When lit, distance_culling result stands — no change needed.
     }
+
+    #[cfg(feature = "perf_log")]
+    { perf.time_flicker_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
 }
 
 /// Rotate visible billboard entities to face the camera (Y-axis only, stays upright).
@@ -144,26 +157,40 @@ fn billboard_face_camera(
         (&mut Transform, &GlobalTransform, &Visibility),
         (With<Billboard>, Without<loading::SpriteSheet>),
     >,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
 ) {
+    #[cfg(feature = "perf_log")]
+    let _start = crate::game::debug::perf_log::perf_start();
+
     let Ok(camera_gt) = camera_query.single() else {
         return;
     };
     let cam_pos = camera_gt.translation();
 
     for (mut transform, global_transform, vis) in billboard_query.iter_mut() {
+        #[cfg(feature = "perf_log")]
+        { perf.billboard_iter += 1; }
         if *vis == Visibility::Hidden {
             continue;
         }
         let dir = cam_pos - global_transform.translation();
         if dir.x.abs() > 0.01 || dir.z.abs() > 0.01 {
-            let new_rot = Quat::from_rotation_y(dir.x.atan2(dir.z));
-            // Only write if rotation actually changed — writing Transform marks it changed,
-            // triggering GlobalTransform propagation for every billboard every frame.
+            // Quantize to ~1.4° steps (128 bins per full turn) so tiny camera
+            // movements don't dirty every billboard's Transform every frame.
+            // Sprites face the camera — sub-degree precision is invisible.
+            let raw = dir.x.atan2(dir.z);
+            let quantized = (raw * 128.0 / std::f32::consts::TAU).round() * std::f32::consts::TAU / 128.0;
+            let new_rot = Quat::from_rotation_y(quantized);
             if transform.rotation != new_rot {
                 transform.rotation = new_rot;
+                #[cfg(feature = "perf_log")]
+                { perf.billboard_rot_writes += 1; }
             }
         }
     }
+
+    #[cfg(feature = "perf_log")]
+    { perf.time_billboard_face_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
 }
 
 #[cfg(test)]

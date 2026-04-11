@@ -357,6 +357,7 @@ fn execute_command(
         "aspect" | "aspect_ratio" | "ar" => commands::cmd_aspect(state, cfg, arg),
         "vsync" => commands::cmd_vsync(state, cfg, arg),
         "fps_cap" => commands::cmd_fps_cap(state, cfg, arg),
+        "render_scale" | "rs" => commands::cmd_render_scale(state, cfg, arg),
 
         // Audio
         "mute" => commands::cmd_mute(state, cfg),

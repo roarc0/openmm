@@ -203,6 +203,14 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 > Full pipeline details: see `docs/loading-pipeline.md`.
 
+### Render scale
+
+- `render_scale` config (0.1–1.0, default 1.0): renders 3D at a fraction of the window resolution. HUD stays at native res.
+- Console: `render_scale 0.5` or `rs 0.5`. Essential on 4K displays — borderless mode ignores `width`/`height` and renders at native monitor resolution.
+- At scale < 1.0, the 3D camera renders to a low-res off-screen image (`RenderScaleState` resource). A UI `ImageNode` stretches the result to fill the viewport area.
+- At scale 1.0 (default), renders directly to the window viewport with no overhead.
+- `viewport.rs` manages the render target lifecycle: creates the image + display node when scaling down, tears it down when returning to 1.0.
+
 ### Player details
 
 - `PlayerSettings`: speed=1024, fly_speed=4096, eye_height=160, gravity=9800, collision_radius=24.
@@ -243,7 +251,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - Toggle with Tab (only when `cfg.console = true`). The console occupies the top 40% (`CONSOLE_HEIGHT_FRACTION = 0.4`) of the inner viewport.
 - Command history: up/down arrow keys navigate; `saved_input` preserves the draft while browsing.
 - Max output lines: `MAX_OUTPUT_LINES = 50`. Beyond this, oldest lines are removed.
-- Available commands include: `load <map>`, `msaa <0/1/2/4>`, `fullscreen`, `borderless`, `windowed`, `exit`, `lighting <enhanced|flat>`, `fog <start> <end>`, `music <vol>`, `sfx <vol>`, and others. Type `help` in-game for the current list.
+- Available commands include: `load <map>`, `msaa <0/1/2/4>`, `fullscreen`, `borderless`, `windowed`, `exit`, `lighting <enhanced|flat>`, `fog <start> <end>`, `music <vol>`, `sfx <vol>`, `render_scale <0.25–1.0>` (alias `rs`), and others. Type `help` in-game for the current list.
 
 ### openmm-data crate structure
 

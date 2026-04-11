@@ -67,6 +67,11 @@ struct Cli {
     #[arg(long)]
     fps_cap: Option<u32>,
 
+    /// 3D render scale (0.25–1.0). Renders the 3D scene at a fraction of
+    /// the window resolution. HUD stays at native res. Lower = faster, pixelated.
+    #[arg(long)]
+    render_scale: Option<f32>,
+
     /// Entity draw/culling distance in world units
     #[arg(long)]
     draw_distance: Option<f32>,
@@ -227,6 +232,7 @@ struct ConfigFile {
     window_mode: Option<String>,
     vsync: Option<String>,
     fps_cap: Option<u32>,
+    render_scale: Option<f32>,
     draw_distance: Option<f32>,
     fog_start: Option<f32>,
     fog_end: Option<f32>,
@@ -290,6 +296,8 @@ pub struct GameConfig {
     /// VSync mode: "auto", "fast", "off"
     pub vsync: String,
     pub fps_cap: u32,
+    /// 3D render scale (0.25–1.0). Viewport is scaled down; HUD stays native.
+    pub render_scale: f32,
     pub draw_distance: f32,
     pub fog_start: f32,
     pub fog_end: f32,
@@ -376,6 +384,7 @@ impl Default for GameConfig {
             window_mode: "borderless".into(),
             vsync: "auto".into(),
             fps_cap: 60,
+            render_scale: 1.0,
             draw_distance: 16000.0,
             fog_start: 12000.0,
             fog_end: 28000.0,
@@ -477,6 +486,7 @@ impl GameConfig {
             window_mode: resolve!(cli.window_mode, file_cfg.window_mode, d.window_mode),
             vsync: resolve!(cli.vsync, file_cfg.vsync, d.vsync),
             fps_cap: resolve!(cli.fps_cap, file_cfg.fps_cap, d.fps_cap),
+            render_scale: resolve!(cli.render_scale, file_cfg.render_scale, d.render_scale),
             draw_distance: resolve!(cli.draw_distance, file_cfg.draw_distance, d.draw_distance),
             fog_start: resolve!(cli.fog_start, file_cfg.fog_start, d.fog_start),
             fog_end: resolve!(cli.fog_end, file_cfg.fog_end, d.fog_end),

@@ -169,7 +169,11 @@ fn monster_ai_system(
         ),
     >,
     mut sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
 ) {
+    #[cfg(feature = "perf_log")]
+    let _start = crate::game::debug::perf_log::perf_start();
+
     let Ok(player_tf) = player.single() else {
         return;
     };
@@ -183,9 +187,16 @@ fn monster_ai_system(
     // Sound events must be collected to avoid capturing the non-clonable MessageWriter in par_iter
     let pending_sounds = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
+    #[cfg(feature = "perf_log")]
+    let ai_count = std::sync::atomic::AtomicU32::new(0);
+    #[cfg(feature = "perf_log")]
+    let steer_count = std::sync::atomic::AtomicU32::new(0);
+
     query
         .par_iter_mut()
         .for_each(|(mut transform, mut actor, mut anim_state, mut ai_mode)| {
+            #[cfg(feature = "perf_log")]
+            ai_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let sounds = &pending_sounds;
             if actor.hp <= 0 {
                 return;
@@ -290,6 +301,8 @@ fn monster_ai_system(
                     let chase_target = player_pos + jitter_offset;
 
                     let mut cache = actor.cached_steer_offset;
+                    #[cfg(feature = "perf_log")]
+                    steer_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let (dest, facing) = steer_toward(my_pos, chase_target, speed, c, dc, &mut cache);
                     actor.cached_steer_offset = cache;
                     actor.facing_yaw = facing;
@@ -333,6 +346,8 @@ fn monster_ai_system(
                     // Wander uses capped speed; steering handles indoor walls.
                     let speed = actor.move_speed.min(60.0) * dt;
                     let mut cache = actor.cached_steer_offset;
+                    #[cfg(feature = "perf_log")]
+                    steer_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let (dest, facing) = steer_toward(my_pos, actor.wander_target, speed, c, dc, &mut cache);
                     actor.cached_steer_offset = cache;
                     actor.facing_yaw = facing;
@@ -358,6 +373,13 @@ fn monster_ai_system(
     // Write all queued sound events serially
     for event in pending_sounds.lock().unwrap().drain(..) {
         sounds.try_write(event);
+    }
+
+    #[cfg(feature = "perf_log")]
+    {
+        perf.ai_iter += ai_count.load(std::sync::atomic::Ordering::Relaxed);
+        perf.ai_steer_calls += steer_count.load(std::sync::atomic::Ordering::Relaxed);
+        perf.time_ai_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
     }
 }
 

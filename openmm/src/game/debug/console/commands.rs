@@ -428,6 +428,17 @@ pub(super) fn cmd_fps_cap(state: &mut ConsoleState, cfg: &mut GameConfig, arg: &
     }
 }
 
+pub(super) fn cmd_render_scale(state: &mut ConsoleState, cfg: &mut GameConfig, arg: &str) {
+    if arg.is_empty() {
+        state.push_output(format!("Render scale: {:.2}", cfg.render_scale));
+    } else if let Ok(v) = arg.parse::<f32>() {
+        cfg.render_scale = v.clamp(0.1, 1.0);
+        state.push_output(format!("Render scale: {:.2}", cfg.render_scale));
+    } else {
+        state.push_output("Usage: render_scale <0.25|0.5|0.75|1.0>".to_string());
+    }
+}
+
 // --- Audio ---
 
 pub(super) fn cmd_mute(state: &mut ConsoleState, cfg: &mut GameConfig) {

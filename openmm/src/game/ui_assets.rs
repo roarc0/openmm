@@ -83,7 +83,7 @@ impl UiAssets {
 /// Make black (or near-black) pixels fully transparent.
 /// Useful for UI sprites with solid black backgrounds (e.g. minimap arrows).
 pub fn make_black_transparent(img: &mut DynamicImage) {
-    make_transparent_where(img, |r, g, b| r < 30 && g < 30 && b < 30);
+    make_transparent_where(img, |r, g, b| r < 8 && g < 8 && b < 8);
 }
 
 /// Make pixels matching a color-key predicate fully transparent.

@@ -1,10 +1,22 @@
-use bevy::camera::Viewport;
+use bevy::camera::{ImageRenderTarget, RenderTarget, Viewport};
 use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureFormat, TextureUsages};
 use bevy::window::PrimaryWindow;
 
 use crate::config::GameConfig;
 use crate::game::player::PlayerCamera;
 use crate::game::ui_assets::UiAssets;
+
+/// Holds the render-to-texture state when `render_scale < 1.0`.
+/// The 3D camera renders to `image` at reduced resolution; `display_node`
+/// is a UI ImageNode that stretches the result to fill the viewport area.
+#[derive(Resource)]
+pub struct RenderScaleState {
+    pub image: Handle<Image>,
+    display_node: Entity,
+    /// Cached (vp_w, vp_h, scale) to detect when we need to recreate.
+    cached_key: (u32, u32, u32),
+}
 
 // MM6 reference dimensions — all HUD dimensions scale relative to these
 pub(super) const REF_H: f32 = 480.0;
@@ -155,11 +167,16 @@ pub fn viewport_inner_rect(window: &Window, cfg: &GameConfig, ui: &UiAssets) -> 
 }
 
 /// Update the 3D camera viewport to the letterboxed area minus HUD borders.
+/// When `render_scale < 1.0`, renders to a lower-res texture and displays
+/// it stretched via a UI node — HUD stays at native resolution.
 pub(crate) fn update_viewport(
+    mut commands: Commands,
     windows: Query<&Window, With<PrimaryWindow>>,
     cfg: Res<GameConfig>,
     ui_assets: Res<UiAssets>,
-    mut player_cameras: Query<&mut Camera, With<PlayerCamera>>,
+    mut images: ResMut<Assets<Image>>,
+    mut player_cameras: Query<(Entity, &mut Camera), With<PlayerCamera>>,
+    scale_state: Option<ResMut<RenderScaleState>>,
 ) {
     let Ok(window) = windows.single() else {
         return;
@@ -181,19 +198,130 @@ pub(crate) fn update_viewport(
     let vp_w = lw.saturating_sub(sidebar_w).max(1);
     let vp_h = lh.saturating_sub(top_h + bottom_h).max(1);
 
-    let pos = UVec2::new(vp_x, vp_y);
-    let size = UVec2::new(vp_w, vp_h);
-    for mut camera in player_cameras.iter_mut() {
-        let changed = camera
-            .viewport
-            .as_ref()
-            .is_none_or(|v| v.physical_position != pos || v.physical_size != size);
-        if changed {
-            camera.viewport = Some(Viewport {
-                physical_position: pos,
-                physical_size: size,
-                ..default()
-            });
+    let scale = cfg.render_scale.clamp(0.1, 1.0);
+
+    if scale >= 1.0 {
+        // Native resolution: render directly to window viewport.
+        // Tear down render-to-texture state if it exists.
+        if let Some(state) = scale_state {
+            commands.entity(state.display_node).despawn();
+            // Restore camera to render to the primary window.
+            for (cam_entity, _) in player_cameras.iter() {
+                commands.entity(cam_entity).insert(RenderTarget::default());
+            }
+            commands.remove_resource::<RenderScaleState>();
         }
+
+        let pos = UVec2::new(vp_x, vp_y);
+        let size = UVec2::new(vp_w, vp_h);
+        for (_, mut camera) in player_cameras.iter_mut() {
+            let changed = camera
+                .viewport
+                .as_ref()
+                .is_none_or(|v| v.physical_position != pos || v.physical_size != size);
+            if changed {
+                camera.viewport = Some(Viewport {
+                    physical_position: pos,
+                    physical_size: size,
+                    ..default()
+                });
+            }
+        }
+        return;
+    }
+
+    // Scaled rendering: render 3D to a lower-res texture, display via UI node.
+    let scaled_w = ((vp_w as f32 * scale) as u32).max(1);
+    let scaled_h = ((vp_h as f32 * scale) as u32).max(1);
+    // Quantize scale to integer permille for cheap change detection.
+    let scale_key = (scale * 1000.0) as u32;
+    let key = (vp_w, vp_h, scale_key);
+
+    // Logical position/size for the UI display node.
+    let logical_left = vp_x as f32 / sf;
+    let logical_top = vp_y as f32 / sf;
+    let logical_w = vp_w as f32 / sf;
+    let logical_h = vp_h as f32 / sf;
+
+    let image_target = |handle: Handle<Image>| -> RenderTarget {
+        RenderTarget::Image(ImageRenderTarget {
+            handle,
+            scale_factor: 1.0,
+        })
+    };
+
+    if let Some(mut state) = scale_state {
+        if state.cached_key != key {
+            // Resolution or scale changed — resize the render target.
+            if let Some(img) = images.get_mut(&state.image) {
+                img.resize(Extent3d {
+                    width: scaled_w,
+                    height: scaled_h,
+                    depth_or_array_layers: 1,
+                });
+            }
+            state.cached_key = key;
+            // Update display node size/position.
+            if let Ok(mut node) = commands.get_entity(state.display_node) {
+                node.insert(Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(logical_left),
+                    top: Val::Px(logical_top),
+                    width: Val::Px(logical_w),
+                    height: Val::Px(logical_h),
+                    ..default()
+                });
+            }
+        }
+        // Camera targets the existing render texture (no viewport — fills the image).
+        let handle = state.image.clone();
+        for (cam_entity, mut camera) in player_cameras.iter_mut() {
+            commands.entity(cam_entity).insert(image_target(handle.clone()));
+            camera.viewport = None;
+        }
+    } else {
+        // First time at this scale — create render target and display node.
+        let size = Extent3d {
+            width: scaled_w,
+            height: scaled_h,
+            depth_or_array_layers: 1,
+        };
+        let mut image = Image::default();
+        image.texture_descriptor.size = size;
+        image.texture_descriptor.format = TextureFormat::Bgra8UnormSrgb;
+        image.texture_descriptor.usage =
+            TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST | TextureUsages::RENDER_ATTACHMENT;
+        image.resize(size);
+        let image_handle = images.add(image);
+
+        // UI node that stretches the render texture to fill the viewport area.
+        // Rendered behind the HUD (default UI ordering).
+        let display_node = commands
+            .spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(logical_left),
+                    top: Val::Px(logical_top),
+                    width: Val::Px(logical_w),
+                    height: Val::Px(logical_h),
+                    ..default()
+                },
+                ImageNode::new(image_handle.clone()),
+                // Low z-index so HUD renders on top.
+                ZIndex(-100),
+                crate::game::InGame,
+            ))
+            .id();
+
+        for (cam_entity, mut camera) in player_cameras.iter_mut() {
+            commands.entity(cam_entity).insert(image_target(image_handle.clone()));
+            camera.viewport = None;
+        }
+
+        commands.insert_resource(RenderScaleState {
+            image: image_handle,
+            display_node,
+            cached_key: key,
+        });
     }
 }

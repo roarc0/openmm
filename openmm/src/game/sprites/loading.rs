@@ -533,7 +533,11 @@ pub fn update_sprite_sheets(
         Option<&FacingYaw>,
         &Visibility,
     )>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
 ) {
+    #[cfg(feature = "perf_log")]
+    let _start = crate::game::debug::perf_log::perf_start();
+
     let Ok(camera_gt) = camera_query.single() else {
         return;
     };
@@ -543,6 +547,8 @@ pub fn update_sprite_sheets(
     for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state, actor, facing_yaw, vis) in
         query.iter_mut()
     {
+        #[cfg(feature = "perf_log")]
+        { perf.sprite_iter += 1; }
         if *vis == Visibility::Hidden {
             continue;
         }
@@ -552,6 +558,8 @@ pub fn update_sprite_sheets(
         if cam_pos.distance_squared(actor_pos) > cfg.draw_distance * cfg.draw_distance {
             continue;
         }
+        #[cfg(feature = "perf_log")]
+        { perf.sprite_visible += 1; }
 
         let state_idx = match anim_state {
             AnimationState::Attacking if sprites.states.len() > 2 && !sprites.states[2].is_empty() => 2,
@@ -602,8 +610,13 @@ pub fn update_sprite_sheets(
             .or_else(|| facing_yaw.map(|f| f.0))
             .unwrap_or(0.0);
         let dir_to_camera = cam_pos - actor_pos;
-        let camera_angle = dir_to_camera.x.atan2(dir_to_camera.z);
-        let (direction, mirrored) = direction_for_angle(entity_yaw, camera_angle);
+        let raw_angle = dir_to_camera.x.atan2(dir_to_camera.z);
+        // Use full-precision angle for direction selection (octant boundaries
+        // matter) but quantized angle for the Transform rotation. 128 bins
+        // per full turn ≈ 2.8° — imperceptible on a billboard, but prevents
+        // tiny camera movements from dirtying every sprite's Transform.
+        let camera_angle = (raw_angle * 128.0 / std::f32::consts::TAU).round() * std::f32::consts::TAU / 128.0;
+        let (direction, mirrored) = direction_for_angle(entity_yaw, raw_angle);
 
         // Only swap material when the displayed frame actually changed
         let current_key = (state_idx, sprites.current_frame, direction);
@@ -615,6 +628,8 @@ pub fn update_sprite_sheets(
             if state_idx < sprites.state_masks.len() && sprites.current_frame < sprites.state_masks[state_idx].len() {
                 sprites.current_mask = Some(sprites.state_masks[state_idx][sprites.current_frame][direction].clone());
             }
+            #[cfg(feature = "perf_log")]
+            { perf.sprite_mat_swaps += 1; }
         }
 
         // Only write when value actually changed — writing Transform marks it dirty,
@@ -622,13 +637,20 @@ pub fn update_sprite_sheets(
         let new_rot = Quat::from_rotation_y(camera_angle);
         if transform.rotation != new_rot {
             transform.rotation = new_rot;
+            #[cfg(feature = "perf_log")]
+            { perf.sprite_rot_writes += 1; }
         }
         // Scale only changes when mirrored octant flips (infrequent) — guard the write.
         let new_x_scale = if mirrored { -1.0 } else { 1.0 };
         if transform.scale.x != new_x_scale {
             transform.scale.x = new_x_scale;
+            #[cfg(feature = "perf_log")]
+            { perf.sprite_scale_writes += 1; }
         }
     }
+
+    #[cfg(feature = "perf_log")]
+    { perf.time_sprite_update_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
 }
 
 /// Pick the sprite direction index (0-4) and mirror flag from an entity's facing
