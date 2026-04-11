@@ -40,6 +40,31 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                 }
             });
 
+            // on_load actions (screen-level)
+            ui.collapsing("on_load actions", |ui| {
+                let mut to_remove: Option<usize> = None;
+                for i in 0..editor.screen.on_load.len() {
+                    let mut action = editor.screen.on_load[i].clone();
+                    ui.horizontal(|ui| {
+                        if ui.text_edit_singleline(&mut action).changed() {
+                            editor.screen.on_load[i] = action;
+                            editor.dirty = true;
+                        }
+                        if ui.small_button("\u{2715}").clicked() {
+                            to_remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = to_remove {
+                    editor.screen.on_load.remove(i);
+                    editor.dirty = true;
+                }
+                if ui.small_button("+ Add action").clicked() {
+                    editor.screen.on_load.push(String::new());
+                    editor.dirty = true;
+                }
+            });
+
             if ui.small_button("+ Add Text").clicked() {
                 let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
                 editor.screen.elements.push(ScreenElement::Text(crate::screens::TextElement {

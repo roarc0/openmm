@@ -41,6 +41,7 @@ impl Plugin for ScreenRuntimePlugin {
                 Update,
                 (
                     screen_hover,
+                    hover_actions,
                     pulse_hover,
                     pulse_animate,
                     screen_click,
@@ -851,6 +852,36 @@ fn screen_hover(
                     Visibility::Hidden
                 };
             }
+        }
+    }
+}
+
+/// Dispatch on_hover actions when hover starts (excluding PulseSprite, handled separately).
+fn hover_actions(
+    mut commands: Commands,
+    query: Query<(&Interaction, &RuntimeElement), Changed<Interaction>>,
+    layers: Res<ScreenLayers>,
+    pending: Option<Res<PendingActions>>,
+) {
+    // Don't queue hover actions while another action batch is pending.
+    if pending.is_some() {
+        return;
+    }
+    for (interaction, rt_elem) in &query {
+        if *interaction != Interaction::Hovered {
+            continue;
+        }
+        let Some(screen) = layers.screens.get(&rt_elem.screen_id) else {
+            continue;
+        };
+        let hover_actions: Vec<String> = screen.elements[rt_elem.index]
+            .on_hover()
+            .iter()
+            .filter(|a| a.trim() != "PulseSprite()")
+            .cloned()
+            .collect();
+        if !hover_actions.is_empty() {
+            commands.insert_resource(PendingActions { actions: hover_actions });
         }
     }
 }
