@@ -4,6 +4,7 @@
 mod format;
 mod loader;
 pub(crate) mod runtime;
+pub(crate) mod scripting;
 
 pub use format::*;
 pub use loader::*;
