@@ -1,7 +1,7 @@
 (
     id: "logo",
     on_load: [
-        "Compare(\"config(skip_intro)\")",
+        "Compare(\"config(skip_logo)\")",
         "LoadScreen(\"menu\")",
         "End()",
     ],

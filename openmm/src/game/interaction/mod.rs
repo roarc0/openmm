@@ -422,7 +422,9 @@ fn hover_hint_system(
     spatial: Res<EntitySpatialIndex>,
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
+    ui_hovered: Option<Res<crate::screens::runtime::ScreenUiHovered>>,
 ) {
+    let ui_hovered = ui_hovered.as_ref().map(|r| r.0).unwrap_or(false);
     let Ok((cam_global, _)) = camera_query.single() else {
         return;
     };
@@ -544,6 +546,12 @@ fn hover_hint_system(
 
     match nearest {
         Some((_, name)) => footer.set(&name),
-        None => footer.clear(),
+        // Don't clear footer when a screen UI element is being hovered —
+        // the screen system owns the hint text in that case.
+        None => {
+            if !ui_hovered {
+                footer.clear();
+            }
+        }
     }
 }

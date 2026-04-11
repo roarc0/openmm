@@ -19,6 +19,10 @@ struct Cli {
     #[arg(long)]
     skip_intro: Option<bool>,
 
+    /// Skip logo video on startup
+    #[arg(long)]
+    skip_logo: Option<bool>,
+
     /// Log level: error, warn, info, debug, trace
     #[arg(long)]
     log_level: Option<String>,
@@ -216,6 +220,7 @@ struct ConfigFile {
     map: Option<String>,
     log_level: Option<String>,
     skip_intro: Option<bool>,
+    skip_logo: Option<bool>,
     debug: Option<bool>,
     console: Option<bool>,
     crosshair: Option<bool>,
@@ -272,6 +277,7 @@ pub struct GameConfig {
     /// Log level: "error", "warn", "info", "debug", "trace"
     pub log_level: String,
     pub skip_intro: bool,
+    pub skip_logo: bool,
     pub debug: bool,
     /// Enable developer console (Tab key)
     pub console: bool,
@@ -366,6 +372,7 @@ impl Default for GameConfig {
             map: None,
             log_level: "info".into(),
             skip_intro: false,
+            skip_logo: false,
             debug: false,
             console: true,
             crosshair: true,
@@ -467,6 +474,7 @@ impl GameConfig {
             map: cli.map.or(file_cfg.map).or(d.map),
             log_level: resolve!(cli.log_level, file_cfg.log_level, d.log_level),
             skip_intro: resolve!(cli.skip_intro, file_cfg.skip_intro, d.skip_intro),
+            skip_logo: resolve!(cli.skip_logo, file_cfg.skip_logo, d.skip_logo),
             debug: resolve!(cli.debug, file_cfg.debug, d.debug),
             console: resolve!(cli.console, file_cfg.console, d.console),
             crosshair: resolve!(cli.crosshair, file_cfg.crosshair, d.crosshair),

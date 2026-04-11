@@ -30,6 +30,7 @@ pub struct ScreenRuntimePlugin;
 impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ScreenLayers>()
+            .init_resource::<ScreenUiHovered>()
             // Menu state: load "menu" screen.
             .add_systems(OnEnter(GameState::Menu), menu_screen_setup)
             .add_systems(OnExit(GameState::Menu), screen_teardown)
@@ -856,18 +857,39 @@ fn screen_hover(
     }
 }
 
-/// Dispatch on_hover actions when hover starts (excluding PulseSprite, handled separately).
+/// Tracks whether a screen UI element is currently hovered.
+/// When true, the world interaction system skips footer clearing.
+#[derive(Resource, Default)]
+pub struct ScreenUiHovered(pub bool);
+
+/// Dispatch on_hover actions via PendingActions on hover start.
+/// Maintains ScreenUiHovered flag every frame (not just on change)
+/// so the world interaction system doesn't clear the footer while hovering.
 fn hover_actions(
     mut commands: Commands,
-    query: Query<(&Interaction, &RuntimeElement), Changed<Interaction>>,
+    changed_query: Query<(&Interaction, &RuntimeElement), Changed<Interaction>>,
+    all_query: Query<(&Interaction, &RuntimeElement)>,
     layers: Res<ScreenLayers>,
     pending: Option<Res<PendingActions>>,
+    mut ui_hovered: ResMut<ScreenUiHovered>,
 ) {
-    // Don't queue hover actions while another action batch is pending.
+    // Check ALL hovered elements (not just changed) to keep the flag stable.
+    let any_hovered = all_query.iter().any(|(interaction, rt_elem)| {
+        matches!(interaction, Interaction::Hovered | Interaction::Pressed)
+            && layers.screens.get(&rt_elem.screen_id).is_some_and(|screen| {
+                screen.elements[rt_elem.index]
+                    .on_hover()
+                    .iter()
+                    .any(|a| a.trim() != "PulseSprite()")
+            })
+    });
+    ui_hovered.0 = any_hovered;
+
+    // Dispatch actions only on hover start (Changed<Interaction>).
     if pending.is_some() {
         return;
     }
-    for (interaction, rt_elem) in &query {
+    for (interaction, rt_elem) in &changed_query {
         if *interaction != Interaction::Hovered {
             continue;
         }
@@ -1169,6 +1191,7 @@ fn process_pending_actions(
 fn build_config_flags(cfg: &GameConfig) -> std::collections::HashSet<String> {
     let mut flags = std::collections::HashSet::new();
     if cfg.skip_intro { flags.insert("skip_intro".into()); }
+    if cfg.skip_logo { flags.insert("skip_logo".into()); }
     if cfg.debug { flags.insert("debug".into()); }
     if cfg.console { flags.insert("console".into()); }
     flags
