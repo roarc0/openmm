@@ -129,12 +129,9 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### Game states
 
-- `Video` -> `Menu` -> `Loading` -> `Game`
-- `GameState::Video` plays a Smacker (.smk) video from the VID archives, then transitions to `next` from `VideoRequest`.
-- `VideoRequest` resource: set `name` (SMK name without extension), `skippable`, and `next` before entering `GameState::Video`.
-- On app start: plays `3dologo.smk` (non-skippable) then transitions to `Menu`. Set `skip_intro: true` in config to bypass.
-- `Game → Video → Game` preserves all game entities (InGame cleanup moved to `OnEnter(Loading)`, not `OnExit(Game)`).
-- To trigger video from event dispatch: push `GameEvent::PlayVideo { name, skippable }` to `EventQueue`.
+- `Menu` -> `Loading` -> `Game`
+- Videos play inline via `InlineVideo` components in screen .ron files (no separate Video state).
+- `GameEvent::PlayVideo` from EVT is not yet wired to the screen system (logs a warning).
 - Loading state runs a step-based pipeline: ParseMap -> BuildTerrain -> BuildAtlas -> BuildModels -> BuildBillboards -> PreloadSprites -> Done
 - Map switching (console `load` command or boundary crossing) transitions Game -> Loading -> Game
 

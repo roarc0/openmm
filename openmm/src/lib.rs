@@ -23,7 +23,6 @@ const APP_NAME: &str = "openmm";
 #[derive(Clone, Copy, Default, Eq, PartialEq, Debug, Hash, States)]
 pub(crate) enum GameState {
     #[default]
-    Video,
     Menu,
     Loading,
     Game,
