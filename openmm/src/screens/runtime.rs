@@ -1036,6 +1036,7 @@ fn click_flash_tick(
 }
 
 /// Process queued actions with full system access (commands, layers, entities, exit).
+/// Uses the scripting executor for Compare/Else/End control flow.
 fn process_pending_actions(
     mut commands: Commands,
     pending: Option<Res<PendingActions>>,
@@ -1047,90 +1048,126 @@ fn process_pending_actions(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
+    world_state: Option<Res<crate::game::world::WorldState>>,
+    mut event_queue: Option<ResMut<crate::game::world::scripting::EventQueue>>,
+    mut footer: Option<ResMut<FooterText>>,
+    _time: Res<Time>,
 ) {
+    use super::scripting::Action;
+
     let Some(pending) = pending else { return };
-    let actions = pending.actions.clone();
+    let action_strings = pending.actions.clone();
     commands.remove_resource::<PendingActions>();
 
-    for action in &actions {
-        dispatch_action(
-            action,
-            &mut commands,
-            &mut layers,
-            &layer_entities,
-            &mut ui_assets,
-            &game_assets,
-            &mut images,
-            &mut audio_sources,
-            &cfg,
-            &mut exit_writer,
-        );
+    // Use world state vars if available (Game state), otherwise default (Menu state)
+    let default_vars = crate::game::world::state::GameVariables::default();
+    let vars = world_state
+        .as_ref()
+        .map(|ws| &ws.game_vars)
+        .unwrap_or(&default_vars);
+
+    let actions = super::scripting::execute_actions(&action_strings, vars);
+
+    for action in actions {
+        match action {
+            Action::Quit => {
+                info!("action: Quit");
+                exit_writer.write(bevy::app::AppExit::Success);
+            }
+            Action::NewGame => {
+                info!("action: NewGame");
+                commands.set_state(GameState::Loading);
+            }
+            Action::LoadScreen(id) => {
+                info!("action: LoadScreen(\"{}\")", id);
+                load_screen_replace_all(
+                    &id,
+                    &mut commands,
+                    &mut layers,
+                    &layer_entities,
+                    &mut ui_assets,
+                    &game_assets,
+                    &mut images,
+                    &mut audio_sources,
+                    &cfg,
+                );
+            }
+            Action::ShowScreen(id) => {
+                info!("action: ShowScreen(\"{}\")", id);
+                show_screen(
+                    &id,
+                    &mut commands,
+                    &mut layers,
+                    &mut ui_assets,
+                    &game_assets,
+                    &mut images,
+                    &mut audio_sources,
+                    &cfg,
+                );
+            }
+            Action::HideScreen(id) => {
+                info!("action: HideScreen(\"{}\")", id);
+                hide_screen(&id, &mut commands, &mut layers, &layer_entities);
+            }
+            Action::ShowSprite(_) => {
+                info!("action: ShowSprite (not yet wired)");
+            }
+            Action::HideSprite(_) => {
+                info!("action: HideSprite (not yet wired)");
+            }
+            Action::Hint(text) => {
+                if let Some(ref mut ft) = footer {
+                    ft.set(&text);
+                }
+            }
+            Action::PulseSprite => {} // handled at spawn time
+            Action::EvtProxy(evt_str) => {
+                if let Some(ref mut eq) = event_queue {
+                    proxy_evt_action(&evt_str, eq);
+                }
+            }
+            Action::Unknown(s) => {
+                warn!("unknown screen action: '{}'", s);
+            }
+            Action::Compare(_) | Action::Else | Action::End => {} // consumed by execute_actions
+        }
     }
 }
 
-// ── Action dispatch ─────────────────────────────────────────────────────────
-
-fn dispatch_action(
-    action: &str,
-    commands: &mut Commands,
-    layers: &mut ScreenLayers,
-    layer_entities: &Query<(Entity, &ScreenLayer)>,
-    ui_assets: &mut UiAssets,
-    game_assets: &GameAssets,
-    images: &mut Assets<Image>,
-    audio_sources: &mut Assets<AudioSource>,
-    cfg: &GameConfig,
-    exit_writer: &mut bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
+/// Proxy an `evt:` action string to the EVT EventQueue.
+fn proxy_evt_action(
+    evt_str: &str,
+    event_queue: &mut crate::game::world::scripting::EventQueue,
 ) {
-    let trimmed = action.trim();
+    use openmm_data::evt::GameEvent;
 
-    if trimmed == "Quit()" {
-        info!("action: Quit()");
-        exit_writer.write(bevy::app::AppExit::Success);
+    let s = evt_str.trim();
+
+    // PlaySound(id)
+    if let Some(rest) = s.strip_prefix("PlaySound(").and_then(|r| r.strip_suffix(')')) {
+        if let Ok(id) = rest.trim().parse::<u32>() {
+            event_queue.push_single(GameEvent::PlaySound { sound_id: id });
+            return;
+        }
+    }
+
+    // Hint("text")
+    if let Some(text) = super::scripting::parse_string_arg(s, "Hint") {
+        event_queue.push_single(GameEvent::Hint {
+            str_id: 0,
+            text: text.to_string(),
+        });
         return;
     }
 
-    if trimmed == "NewGame()" {
-        info!("action: NewGame()");
-        commands.set_state(GameState::Loading);
+    // StatusText("text")
+    if let Some(text) = super::scripting::parse_string_arg(s, "StatusText") {
+        event_queue.push_single(GameEvent::StatusText {
+            str_id: 0,
+            text: text.to_string(),
+        });
         return;
     }
 
-    if let Some(id) = parse_string_arg(trimmed, "LoadScreen") {
-        info!("action: LoadScreen(\"{}\")", id);
-        load_screen_replace_all(
-            id,
-            commands,
-            layers,
-            layer_entities,
-            ui_assets,
-            game_assets,
-            images,
-            audio_sources,
-            cfg,
-        );
-        return;
-    }
-
-    if let Some(id) = parse_string_arg(trimmed, "ShowScreen") {
-        info!("action: ShowScreen(\"{}\")", id);
-        show_screen(id, commands, layers, ui_assets, game_assets, images, audio_sources, cfg);
-        return;
-    }
-
-    if let Some(id) = parse_string_arg(trimmed, "HideScreen") {
-        info!("action: HideScreen(\"{}\")", id);
-        hide_screen(id, commands, layers, layer_entities);
-        return;
-    }
-
-    warn!("unknown screen action: '{}'", trimmed);
-}
-
-/// Extract string arg from `FuncName("value")`.
-fn parse_string_arg<'a>(input: &'a str, func_name: &str) -> Option<&'a str> {
-    let rest = input.strip_prefix(func_name)?.trim();
-    let rest = rest.strip_prefix('(')?.strip_suffix(')')?;
-    let rest = rest.trim();
-    rest.strip_prefix('"')?.strip_suffix('"')
+    warn!("evt: unknown proxy action: '{}'", s);
 }
