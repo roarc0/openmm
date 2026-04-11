@@ -259,6 +259,13 @@ fn show_screen(
         );
     }
 
+    // Queue on_load actions if present.
+    if !screen.on_load.is_empty() {
+        commands.insert_resource(PendingActions {
+            actions: screen.on_load.clone(),
+        });
+    }
+
     layers.screens.insert(screen_id.to_string(), screen);
 }
 
@@ -1058,14 +1065,13 @@ fn process_pending_actions(
     let action_strings = pending.actions.clone();
     commands.remove_resource::<PendingActions>();
 
-    // Use world state vars if available (Game state), otherwise default (Menu state)
+    // Build script context from available resources.
     let default_vars = crate::game::world::state::GameVariables::default();
-    let vars = world_state
-        .as_ref()
-        .map(|ws| &ws.game_vars)
-        .unwrap_or(&default_vars);
+    let vars = world_state.as_ref().map(|ws| &ws.game_vars).unwrap_or(&default_vars);
+    let config_flags = build_config_flags(&cfg);
+    let ctx = super::scripting::ScriptContext { vars, config_flags: &config_flags };
 
-    let actions = super::scripting::execute_actions(&action_strings, vars);
+    let actions = super::scripting::execute_actions(&action_strings, &ctx);
 
     for action in actions {
         match action {
@@ -1126,6 +1132,15 @@ fn process_pending_actions(
             Action::Compare(_) | Action::Else | Action::End => {} // consumed by execute_actions
         }
     }
+}
+
+/// Build config flags set from GameConfig for condition evaluation.
+fn build_config_flags(cfg: &GameConfig) -> std::collections::HashSet<String> {
+    let mut flags = std::collections::HashSet::new();
+    if cfg.skip_intro { flags.insert("skip_intro".into()); }
+    if cfg.debug { flags.insert("debug".into()); }
+    if cfg.console { flags.insert("console".into()); }
+    flags
 }
 
 /// Proxy an `evt:` action string to the EVT EventQueue.

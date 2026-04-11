@@ -2,7 +2,16 @@
 //! Screen-native actions are handled locally; `evt:` prefixed actions proxy
 //! to the EVT EventQueue.
 
+use std::collections::HashSet;
+
 use crate::game::world::state::GameVariables;
+
+/// Context for condition evaluation — game variables + config flags.
+pub struct ScriptContext<'a> {
+    pub vars: &'a GameVariables,
+    /// Config flag names that are true (e.g. "skip_intro", "debug").
+    pub config_flags: &'a HashSet<String>,
+}
 
 /// Parsed screen action.
 #[derive(Debug, Clone, PartialEq)]
@@ -85,9 +94,9 @@ pub(crate) fn parse_string_arg<'a>(input: &'a str, func_name: &str) -> Option<&'
     rest.strip_prefix('"')?.strip_suffix('"')
 }
 
-/// Evaluate a condition expression against game variables.
+/// Evaluate a condition expression against script context.
 /// Returns false for invalid expressions (fail-safe: skip the block).
-pub fn eval_condition(expr: &str, vars: &GameVariables) -> bool {
+pub fn eval_condition(expr: &str, ctx: &ScriptContext) -> bool {
     let s = expr.trim();
     if s.is_empty() {
         return false;
@@ -95,13 +104,18 @@ pub fn eval_condition(expr: &str, vars: &GameVariables) -> bool {
 
     // Negation
     if let Some(inner) = s.strip_prefix("not ") {
-        return !eval_condition(inner, vars);
+        return !eval_condition(inner, ctx);
+    }
+
+    // config(key) — check config flags
+    if let Some(inner) = s.strip_prefix("config(").and_then(|r| r.strip_suffix(')')) {
+        return ctx.config_flags.contains(inner.trim());
     }
 
     // quest_bit(N)
     if let Some(inner) = s.strip_prefix("quest_bit(").and_then(|r| r.strip_suffix(')')) {
         if let Ok(n) = inner.trim().parse::<i32>() {
-            return vars.has_qbit(n);
+            return ctx.vars.has_qbit(n);
         }
         return false;
     }
@@ -110,7 +124,7 @@ pub fn eval_condition(expr: &str, vars: &GameVariables) -> bool {
     if let Some(rest) = s.strip_prefix("map_var(") {
         if let Some((idx_str, after_paren)) = rest.split_once(')') {
             if let Ok(idx) = idx_str.trim().parse::<usize>() {
-                let val = vars.map_vars.get(idx).copied().unwrap_or(0);
+                let val = ctx.vars.map_vars.get(idx).copied().unwrap_or(0);
                 return eval_comparison(after_paren.trim(), val);
             }
         }
@@ -119,12 +133,12 @@ pub fn eval_condition(expr: &str, vars: &GameVariables) -> bool {
 
     // gold op X
     if let Some(rest) = s.strip_prefix("gold") {
-        return eval_comparison(rest.trim(), vars.gold);
+        return eval_comparison(rest.trim(), ctx.vars.gold);
     }
 
     // food op X
     if let Some(rest) = s.strip_prefix("food") {
-        return eval_comparison(rest.trim(), vars.food);
+        return eval_comparison(rest.trim(), ctx.vars.food);
     }
 
     bevy::log::warn!("unknown condition expression: '{}'", s);
@@ -158,7 +172,7 @@ fn eval_comparison(op_and_value: &str, current: i32) -> bool {
 /// Walk an action string list with Compare/Else/End control flow.
 /// Returns the list of actions that should be dispatched (control flow
 /// keywords consumed, skipped actions excluded).
-pub fn execute_actions(action_strings: &[String], vars: &GameVariables) -> Vec<Action> {
+pub fn execute_actions(action_strings: &[String], ctx: &ScriptContext) -> Vec<Action> {
     let mut result = Vec::new();
     let mut condition_met = true;
     let mut in_block = false;
@@ -168,7 +182,7 @@ pub fn execute_actions(action_strings: &[String], vars: &GameVariables) -> Vec<A
         match action {
             Action::Compare(ref expr) => {
                 in_block = true;
-                condition_met = eval_condition(expr, vars);
+                condition_met = eval_condition(expr, ctx);
             }
             Action::Else => {
                 condition_met = !condition_met;
@@ -251,68 +265,93 @@ mod tests {
         assert!(matches!(parse_action(""), Action::Unknown(_)));
     }
 
-    // -- Task 2: eval_condition tests --
+    // -- helpers --
+
+    macro_rules! ctx {
+        ($vars:expr) => {{
+            // Leak a static empty set — fine for tests.
+            static FLAGS: std::sync::LazyLock<HashSet<String>> = std::sync::LazyLock::new(HashSet::new);
+            ScriptContext { vars: $vars, config_flags: &FLAGS }
+        }};
+    }
+
+    // -- eval_condition tests --
 
     #[test]
     fn eval_quest_bit() {
         let mut vars = GameVariables::default();
-        assert!(!eval_condition("quest_bit(12)", &vars));
+        assert!(!eval_condition("quest_bit(12)", &ctx!(&vars)));
         vars.set_qbit(12);
-        assert!(eval_condition("quest_bit(12)", &vars));
+        assert!(eval_condition("quest_bit(12)", &ctx!(&vars)));
     }
 
     #[test]
     fn eval_not_quest_bit() {
         let mut vars = GameVariables::default();
-        assert!(eval_condition("not quest_bit(12)", &vars));
+        assert!(eval_condition("not quest_bit(12)", &ctx!(&vars)));
         vars.set_qbit(12);
-        assert!(!eval_condition("not quest_bit(12)", &vars));
+        assert!(!eval_condition("not quest_bit(12)", &ctx!(&vars)));
     }
 
     #[test]
     fn eval_map_var_eq() {
         let mut vars = GameVariables::default();
         vars.map_vars[3] = 5;
-        assert!(eval_condition("map_var(3) == 5", &vars));
-        assert!(!eval_condition("map_var(3) == 4", &vars));
-        assert!(eval_condition("map_var(3) != 4", &vars));
-        assert!(!eval_condition("map_var(3) != 5", &vars));
+        let c = ctx!(&vars);
+        assert!(eval_condition("map_var(3) == 5", &c));
+        assert!(!eval_condition("map_var(3) == 4", &c));
+        assert!(eval_condition("map_var(3) != 4", &c));
+        assert!(!eval_condition("map_var(3) != 5", &c));
     }
 
     #[test]
     fn eval_gold_comparisons() {
         let mut vars = GameVariables::default();
         vars.gold = 100;
-        assert!(eval_condition("gold > 50", &vars));
-        assert!(!eval_condition("gold > 100", &vars));
-        assert!(eval_condition("gold >= 100", &vars));
-        assert!(eval_condition("gold < 200", &vars));
-        assert!(!eval_condition("gold < 100", &vars));
-        assert!(eval_condition("gold <= 100", &vars));
+        let c = ctx!(&vars);
+        assert!(eval_condition("gold > 50", &c));
+        assert!(!eval_condition("gold > 100", &c));
+        assert!(eval_condition("gold >= 100", &c));
+        assert!(eval_condition("gold < 200", &c));
+        assert!(!eval_condition("gold < 100", &c));
+        assert!(eval_condition("gold <= 100", &c));
     }
 
     #[test]
     fn eval_food_comparisons() {
         let mut vars = GameVariables::default();
         vars.food = 7;
-        assert!(eval_condition("food > 5", &vars));
-        assert!(eval_condition("food < 10", &vars));
+        let c = ctx!(&vars);
+        assert!(eval_condition("food > 5", &c));
+        assert!(eval_condition("food < 10", &c));
     }
 
     #[test]
     fn eval_invalid_condition() {
         let vars = GameVariables::default();
-        assert!(!eval_condition("", &vars));
-        assert!(!eval_condition("nonsense", &vars));
+        let c = ctx!(&vars);
+        assert!(!eval_condition("", &c));
+        assert!(!eval_condition("nonsense", &c));
     }
 
-    // -- Task 3: execute_actions tests --
+    #[test]
+    fn eval_config_flag() {
+        let vars = GameVariables::default();
+        let flags: HashSet<String> = ["skip_intro".into()].into();
+        let c = ScriptContext { vars: &vars, config_flags: &flags };
+        assert!(eval_condition("config(skip_intro)", &c));
+        assert!(!eval_condition("config(debug)", &c));
+        assert!(!eval_condition("not config(skip_intro)", &c));
+        assert!(eval_condition("not config(debug)", &c));
+    }
+
+    // -- execute_actions tests --
 
     #[test]
     fn execute_unconditional() {
         let actions = vec!["evt:Hint(\"hello\")".into(), "evt:Hint(\"world\")".into()];
         let vars = GameVariables::default();
-        let result = execute_actions(&actions, &vars);
+        let result = execute_actions(&actions, &ctx!(&vars));
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], Action::EvtProxy("Hint(\"hello\")".into()));
         assert_eq!(result[1], Action::EvtProxy("Hint(\"world\")".into()));
@@ -328,7 +367,7 @@ mod tests {
             "End()".into(),
             "evt:Hint(\"always\")".into(),
         ];
-        let result = execute_actions(&actions, &vars);
+        let result = execute_actions(&actions, &ctx!(&vars));
         assert_eq!(result.len(), 2);
         assert_eq!(result[0], Action::EvtProxy("Hint(\"yes\")".into()));
         assert_eq!(result[1], Action::EvtProxy("Hint(\"always\")".into()));
@@ -343,7 +382,7 @@ mod tests {
             "End()".into(),
             "evt:Hint(\"always\")".into(),
         ];
-        let result = execute_actions(&actions, &vars);
+        let result = execute_actions(&actions, &ctx!(&vars));
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], Action::EvtProxy("Hint(\"always\")".into()));
     }
@@ -359,12 +398,12 @@ mod tests {
             "evt:Hint(\"no\")".into(),
             "End()".into(),
         ];
-        let result = execute_actions(&actions, &vars);
+        let result = execute_actions(&actions, &ctx!(&vars));
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], Action::EvtProxy("Hint(\"yes\")".into()));
 
         let vars2 = GameVariables::default();
-        let result2 = execute_actions(&actions, &vars2);
+        let result2 = execute_actions(&actions, &ctx!(&vars2));
         assert_eq!(result2.len(), 1);
         assert_eq!(result2[0], Action::EvtProxy("Hint(\"no\")".into()));
     }
@@ -373,12 +412,31 @@ mod tests {
     fn execute_evt_proxy_passes_through() {
         let vars = GameVariables::default();
         let actions = vec!["evt:PlaySound(75)".into()];
-        let result = execute_actions(&actions, &vars);
+        let result = execute_actions(&actions, &ctx!(&vars));
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], Action::EvtProxy("PlaySound(75)".into()));
     }
 
-    // -- Task 5: EVT proxy tests --
+    #[test]
+    fn execute_config_skip() {
+        let vars = GameVariables::default();
+        let flags: HashSet<String> = ["skip_intro".into()].into();
+        let c = ScriptContext { vars: &vars, config_flags: &flags };
+        let actions = vec![
+            "Compare(\"config(skip_intro)\")".into(),
+            "LoadScreen(\"menu\")".into(),
+            "End()".into(),
+        ];
+        let result = execute_actions(&actions, &c);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], Action::LoadScreen("menu".into()));
+
+        // Without the flag — block is skipped
+        let result2 = execute_actions(&actions, &ctx!(&vars));
+        assert!(result2.is_empty());
+    }
+
+    // -- EVT proxy tests --
 
     #[test]
     fn parse_evt_play_sound() {
@@ -412,7 +470,7 @@ mod tests {
             "evt:PlaySound(75)".into(),
             "End()".into(),
         ];
-        let result = execute_actions(&actions, &vars);
+        let result = execute_actions(&actions, &ctx!(&vars));
         assert!(result.is_empty());
     }
 }

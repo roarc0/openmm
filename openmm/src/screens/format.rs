@@ -1,6 +1,17 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// Editor-only metadata embedded in the screen RON.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct EditorSection {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub locked: Vec<String>,
+}
+
+fn editor_section_is_empty(s: &EditorSection) -> bool {
+    s.locked.is_empty()
+}
+
 /// A UI screen definition — the root of a .screen.ron file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Screen {
@@ -11,8 +22,14 @@ pub struct Screen {
     /// Keyboard shortcuts. Key = key name (e.g. "Escape", "Return", "N"), Value = actions.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub keys: BTreeMap<String, Vec<String>>,
+    /// Actions executed when the screen is first loaded.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_load: Vec<String>,
     #[serde(default)]
     pub elements: Vec<ScreenElement>,
+    /// Editor-only section — locked elements, etc. Stripped at runtime.
+    #[serde(default, skip_serializing_if = "editor_section_is_empty")]
+    pub editor: EditorSection,
 }
 
 /// A screen element — image, video, or dynamic text.
@@ -232,7 +249,9 @@ impl Screen {
             id: id.into(),
             bg_music: String::new(),
             keys: BTreeMap::new(),
+            on_load: Vec::new(),
             elements: Vec::new(),
+            editor: EditorSection::default(),
         }
     }
 }
@@ -289,12 +308,8 @@ mod tests {
         img.on_click = vec!["PlaySound 75".to_string(), "GoToScreen segue".to_string()];
         img.on_hover = vec!["SetState hover".to_string()];
 
-        let screen = Screen {
-            id: "title".to_string(),
-            bg_music: String::new(),
-            keys: BTreeMap::new(),
-            elements: vec![ScreenElement::Image(img)],
-        };
+        let mut screen = Screen::new("title");
+        screen.elements = vec![ScreenElement::Image(img)];
 
         let ron_str = ron::ser::to_string_pretty(&screen, ron::ser::PrettyConfig::default()).unwrap();
         let parsed: Screen = ron::from_str(&ron_str).unwrap();
@@ -324,12 +339,8 @@ mod tests {
             on_end: vec!["LoadScreen(\"menu\")".to_string()],
         };
 
-        let screen = Screen {
-            id: "splash".to_string(),
-            bg_music: String::new(),
-            keys: BTreeMap::new(),
-            elements: vec![ScreenElement::Video(vid)],
-        };
+        let mut screen = Screen::new("splash");
+        screen.elements = vec![ScreenElement::Video(vid)];
 
         let ron_str = ron::ser::to_string_pretty(&screen, ron::ser::PrettyConfig::default()).unwrap();
         let parsed: Screen = ron::from_str(&ron_str).unwrap();
