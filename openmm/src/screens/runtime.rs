@@ -1006,16 +1006,20 @@ fn pulse_hover(
     for (entity, interaction, hidden_default) in &query {
         let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
         if hovering && !pulsing_query.contains(entity) {
-            commands
-                .entity(entity)
-                .insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
+            // Entity may have been despawned by a screen transition this frame.
+            if let Ok(mut ec) = commands.get_entity(entity) {
+                ec.insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
+            }
         } else if !hovering && pulsing_query.contains(entity) {
-            commands.entity(entity).remove::<Pulsing>();
+            let Ok(mut ec) = commands.get_entity(entity) else { continue };
+            ec.remove::<Pulsing>();
             if let Ok(mut img) = image_query.get_mut(entity) {
                 img.color = img.color.with_alpha(1.0);
             }
             if hidden_default {
-                commands.entity(entity).insert(Visibility::Hidden);
+                if let Ok(mut ec) = commands.get_entity(entity) {
+                    ec.insert(Visibility::Hidden);
+                }
             }
         }
     }
