@@ -12,8 +12,9 @@
             size: (640.0, 480.0),
             z: 1,
             video: "3dologo",
+            skippable: true,
             on_end: [
-                "LoadScreen(\"menu\")",
+                "LoadScreen(\"mm6Intro\")",
             ],
         )),
     ],

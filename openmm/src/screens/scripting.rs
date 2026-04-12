@@ -31,6 +31,8 @@ pub enum Action {
     Compare(String),
     Else,
     End,
+    // Database / Config
+    SaveConfig(String, String),
     // Fallback
     Unknown(String),
 }
@@ -83,6 +85,9 @@ pub fn parse_action(input: &str) -> Action {
     if let Some(id) = parse_string_arg(s, "HideSprite") {
         return Action::HideSprite(id.to_string());
     }
+    if let Some((key, val)) = parse_two_string_args(s, "SaveConfig") {
+        return Action::SaveConfig(key.to_string(), val.to_string());
+    }
     Action::Unknown(s.to_string())
 }
 
@@ -92,6 +97,16 @@ pub(crate) fn parse_string_arg<'a>(input: &'a str, func_name: &str) -> Option<&'
     let rest = rest.strip_prefix('(')?.strip_suffix(')')?;
     let rest = rest.trim();
     rest.strip_prefix('"')?.strip_suffix('"')
+}
+
+/// Extract two string args from `FuncName("key", "value")`.
+pub(crate) fn parse_two_string_args<'a>(input: &'a str, func_name: &str) -> Option<(&'a str, &'a str)> {
+    let rest = input.strip_prefix(func_name)?.trim();
+    let rest = rest.strip_prefix('(')?.strip_suffix(')')?;
+    let (left, right) = rest.split_once(',')?;
+    let left = left.trim().strip_prefix('"')?.strip_suffix('"')?;
+    let right = right.trim().strip_prefix('"')?.strip_suffix('"')?;
+    Some((left, right))
 }
 
 /// Evaluate a condition expression against script context.
@@ -220,6 +235,18 @@ mod tests {
         // Bare Hint is unknown — use evt:Hint instead
         assert!(matches!(parse_action("Hint(\"Cast Spell\")"), Action::Unknown(_)));
         assert_eq!(parse_action("PulseSprite()"), Action::PulseSprite);
+    }
+
+    #[test]
+    fn parse_save_config() {
+        assert_eq!(
+            parse_action("SaveConfig(\"skipIntro\", \"true\")"),
+            Action::SaveConfig("skipIntro".into(), "true".into())
+        );
+        assert_eq!(
+            parse_action("SaveConfig(\"debug\", \"false\")"),
+            Action::SaveConfig("debug".into(), "false".into())
+        );
     }
 
     #[test]

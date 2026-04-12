@@ -8,6 +8,8 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
+use bevy::ecs::message::{Message, MessageReader, MessageWriter};
+use crate::game::optional::OptionalWrite;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -36,6 +38,7 @@ impl Plugin for ScreenRuntimePlugin {
             .or(in_state(GameState::Loading));
 
         app.add_plugins(super::bindings::BindingsPlugin)
+            .add_message::<ScreenActions>()
             .init_resource::<ScreenLayers>()
             .init_resource::<ScreenUiHovered>()
             // Menu state: load "menu" screen.
@@ -147,9 +150,9 @@ struct ScreenLayers {
 }
 
 /// Queued actions from click handlers, processed next frame.
-#[derive(Resource, Default)]
-struct PendingActions {
-    actions: Vec<String>,
+#[derive(Message, Clone)]
+pub(crate) struct ScreenActions {
+    pub(crate) actions: Vec<String>,
 }
 
 // ── Setup & teardown ────────────────────────────────────────────────────────
@@ -163,6 +166,7 @@ fn menu_screen_setup(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
+    mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
     commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
 
@@ -175,6 +179,7 @@ fn menu_screen_setup(
         &mut images,
         &mut audio_sources,
         &cfg,
+        &mut actions,
     );
 }
 
@@ -187,6 +192,7 @@ fn loading_screen_setup(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
+    mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
     commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
 
@@ -199,6 +205,7 @@ fn loading_screen_setup(
         &mut images,
         &mut audio_sources,
         &cfg,
+        &mut actions,
     );
 }
 
@@ -211,6 +218,7 @@ fn game_screen_setup(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
+    mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
     // UI camera renders on top of the 3D scene (order=1, no clear).
     commands.spawn((
@@ -233,6 +241,7 @@ fn game_screen_setup(
         &mut images,
         &mut audio_sources,
         &cfg,
+        &mut actions,
     );
 }
 
@@ -258,6 +267,7 @@ fn show_screen(
     images: &mut Assets<Image>,
     audio_sources: &mut Assets<AudioSource>,
     cfg: &GameConfig,
+    actions: &mut Option<MessageWriter<ScreenActions>>,
 ) {
     if layers.screens.contains_key(screen_id) {
         warn!("ShowScreen: '{}' already visible", screen_id);
@@ -296,7 +306,7 @@ fn show_screen(
 
     // Queue on_load actions if present.
     if !screen.on_load.is_empty() {
-        commands.insert_resource(PendingActions {
+        actions.try_write(ScreenActions {
             actions: screen.on_load.clone(),
         });
     }
@@ -408,6 +418,7 @@ fn load_screen_replace_all(
     images: &mut Assets<Image>,
     audio_sources: &mut Assets<AudioSource>,
     cfg: &GameConfig,
+    actions: &mut Option<MessageWriter<ScreenActions>>,
 ) {
     // Despawn everything except the camera.
     for (entity, layer) in entities.iter() {
@@ -426,6 +437,7 @@ fn load_screen_replace_all(
         images,
         audio_sources,
         cfg,
+        actions,
     );
 }
 
@@ -632,7 +644,7 @@ fn video_tick(
     mut query: Query<(Entity, &mut InlineVideo)>,
     mut images: ResMut<Assets<Image>>,
     keys: Res<ButtonInput<KeyCode>>,
-    pending: Option<Res<PendingActions>>,
+    mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
     for (entity, mut vid) in &mut query {
         if vid.finished {
@@ -642,8 +654,8 @@ fn video_tick(
         // Skip check.
         if vid.skippable && keys.just_pressed(KeyCode::Escape) {
             vid.finished = true;
-            if !vid.on_end.is_empty() && pending.is_none() {
-                commands.insert_resource(PendingActions {
+            if !vid.on_end.is_empty() {
+                actions.try_write(ScreenActions {
                     actions: vid.on_end.clone(),
                 });
             }
@@ -674,8 +686,8 @@ fn video_tick(
                     }
                 } else {
                     vid.finished = true;
-                    if !vid.on_end.is_empty() && pending.is_none() {
-                        commands.insert_resource(PendingActions {
+                    if !vid.on_end.is_empty() {
+                        actions.try_write(ScreenActions {
                             actions: vid.on_end.clone(),
                         });
                     }
@@ -1069,12 +1081,11 @@ pub struct ScreenUiHovered(pub bool);
 /// Maintains ScreenUiHovered flag every frame (not just on change)
 /// so the world interaction system doesn't clear the footer while hovering.
 fn hover_actions(
-    mut commands: Commands,
     changed_query: Query<(&Interaction, &RuntimeElement), Changed<Interaction>>,
     all_query: Query<(&Interaction, &RuntimeElement)>,
     layers: Res<ScreenLayers>,
-    pending: Option<Res<PendingActions>>,
     mut ui_hovered: ResMut<ScreenUiHovered>,
+    mut actions: Option<MessageWriter<ScreenActions>>,
     cursor_query: Query<&bevy::window::CursorOptions, With<bevy::window::PrimaryWindow>>,
 ) {
     // Skip screen hover when cursor is grabbed (crosshair mode).
@@ -1099,9 +1110,6 @@ fn hover_actions(
     ui_hovered.0 = any_hovered;
 
     // Dispatch actions only on hover start (Changed<Interaction>).
-    if pending.is_some() {
-        return;
-    }
     for (interaction, rt_elem) in &changed_query {
         if *interaction != Interaction::Hovered {
             continue;
@@ -1116,7 +1124,7 @@ fn hover_actions(
             .cloned()
             .collect();
         if !hover_actions.is_empty() {
-            commands.insert_resource(PendingActions { actions: hover_actions });
+            actions.try_write(ScreenActions { actions: hover_actions });
         }
     }
 }
@@ -1201,20 +1209,17 @@ fn screen_keys(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     layers: Res<ScreenLayers>,
-    pending: Option<Res<PendingActions>>,
+    mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
-    // Don't queue keys while another action batch is pending.
-    if pending.is_some() {
-        return;
-    }
+    // Check keyboard shortcuts defined in all active screens.
     for screen in layers.screens.values() {
-        for (key_name, actions) in &screen.keys {
+        for (key_name, action_strings) in &screen.keys {
             if let Some(code) = parse_key_code(key_name)
                 && keys.just_pressed(code)
             {
                 info!("screen key [{}]: {}", screen.id, key_name);
-                commands.insert_resource(PendingActions {
-                    actions: actions.clone(),
+                actions.try_write(ScreenActions {
+                    actions: action_strings.clone(),
                 });
                 return; // one key per frame
             }
@@ -1298,6 +1303,7 @@ fn click_flash_tick(
     mut commands: Commands,
     time: Res<Time>,
     mut query: Query<(Entity, &mut ClickFlash, &mut Visibility)>,
+    mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
     for (entity, mut flash, mut vis) in &mut query {
         flash.timer.tick(time.delta());
@@ -1306,11 +1312,11 @@ fn click_flash_tick(
         }
 
         *vis = Visibility::Inherited;
-        let actions: Vec<String> = flash.pending_actions.drain(..).collect();
+        let p_actions: Vec<String> = flash.pending_actions.drain(..).collect();
         commands.entity(entity).remove::<ClickFlash>();
 
-        if !actions.is_empty() {
-            commands.insert_resource(PendingActions { actions });
+        if !p_actions.is_empty() {
+            actions.try_write(ScreenActions { actions: p_actions });
         }
     }
 }
@@ -1319,11 +1325,14 @@ fn click_flash_tick(
 /// Uses the scripting executor for Compare/Else/End control flow.
 fn process_pending_actions(
     mut commands: Commands,
-    pending: Option<Res<PendingActions>>,
+    mut actions_set: ParamSet<(
+        MessageReader<ScreenActions>,
+        Option<MessageWriter<ScreenActions>>,
+    )>,
     mut layers: ResMut<ScreenLayers>,
     layer_entities: Query<(Entity, &ScreenLayer)>,
     mut sprite_query: Query<(&RuntimeElement, &mut Visibility)>,
-    cfg: Res<GameConfig>,
+    mut cfg: ResMut<GameConfig>,
     game_assets: Res<GameAssets>,
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
@@ -1335,86 +1344,111 @@ fn process_pending_actions(
 ) {
     use super::scripting::Action;
 
-    let Some(pending) = pending else { return };
-    let action_strings = pending.actions.clone();
-    commands.remove_resource::<PendingActions>();
+    let actions_to_process: Vec<ScreenActions> = actions_set.p0().read().cloned().collect();
+    let mut actions = actions_set.p1();
 
-    // Build script context from available resources.
-    let default_vars = crate::game::world::state::GameVariables::default();
-    let vars = world_state.as_ref().map(|ws| &ws.game_vars).unwrap_or(&default_vars);
-    let config_flags = build_config_flags(&cfg);
-    let ctx = super::scripting::ScriptContext {
-        vars,
-        config_flags: &config_flags,
-    };
+    for event in actions_to_process {
+        let action_strings = event.actions.clone();
 
-    let actions = super::scripting::execute_actions(&action_strings, &ctx);
+        // Build script context from available resources.
+        let default_vars = crate::game::world::state::GameVariables::default();
+        let vars = world_state.as_ref().map(|ws| &ws.game_vars).unwrap_or(&default_vars);
+        let config_flags = build_config_flags(&cfg);
+        let ctx = super::scripting::ScriptContext {
+            vars,
+            config_flags: &config_flags,
+        };
 
-    for action in actions {
-        match action {
-            Action::Quit => {
-                info!("action: Quit");
-                exit_writer.write(bevy::app::AppExit::Success);
-            }
-            Action::NewGame => {
-                info!("action: NewGame");
-                commands.set_state(GameState::Loading);
-            }
-            Action::LoadScreen(id) => {
-                info!("action: LoadScreen(\"{}\")", id);
-                load_screen_replace_all(
-                    &id,
-                    &mut commands,
-                    &mut layers,
-                    &layer_entities,
-                    &mut ui_assets,
-                    &game_assets,
-                    &mut images,
-                    &mut audio_sources,
-                    &cfg,
-                );
-            }
-            Action::ShowScreen(id) => {
-                info!("action: ShowScreen(\"{}\")", id);
-                show_screen(
-                    &id,
-                    &mut commands,
-                    &mut layers,
-                    &mut ui_assets,
-                    &game_assets,
-                    &mut images,
-                    &mut audio_sources,
-                    &cfg,
-                );
-            }
-            Action::HideScreen(id) => {
-                info!("action: HideScreen(\"{}\")", id);
-                hide_screen(&id, &mut commands, &mut layers, &layer_entities);
-            }
-            Action::ShowSprite(ref id) => {
-                for (elem, mut vis) in &mut sprite_query {
-                    if elem.element_id == *id {
-                        *vis = Visibility::Inherited;
+        let actions_list = super::scripting::execute_actions(&action_strings, &ctx);
+
+        for action in actions_list {
+            match action {
+                Action::Quit => {
+                    info!("action: Quit");
+                    exit_writer.write(bevy::app::AppExit::Success);
+                }
+                Action::NewGame => {
+                    info!("action: NewGame");
+                    commands.set_state(GameState::Loading);
+                }
+                Action::LoadScreen(id) => {
+                    info!("action: LoadScreen(\"{}\")", id);
+                    load_screen_replace_all(
+                        &id,
+                        &mut commands,
+                        &mut layers,
+                        &layer_entities,
+                        &mut ui_assets,
+                        &game_assets,
+                        &mut images,
+                        &mut audio_sources,
+                        &cfg,
+                        &mut actions,
+                    );
+                }
+                Action::ShowScreen(id) => {
+                    info!("action: ShowScreen(\"{}\")", id);
+                    show_screen(
+                        &id,
+                        &mut commands,
+                        &mut layers,
+                        &mut ui_assets,
+                        &game_assets,
+                        &mut images,
+                        &mut audio_sources,
+                        &cfg,
+                        &mut actions,
+                    );
+                }
+                Action::HideScreen(id) => {
+                    info!("action: HideScreen(\"{}\")", id);
+                    hide_screen(&id, &mut commands, &mut layers, &layer_entities);
+                }
+                Action::ShowSprite(ref id) => {
+                    for (elem, mut vis) in &mut sprite_query {
+                        if elem.element_id == *id {
+                            *vis = Visibility::Inherited;
+                        }
                     }
                 }
-            }
-            Action::HideSprite(ref id) => {
-                for (elem, mut vis) in &mut sprite_query {
-                    if elem.element_id == *id {
-                        *vis = Visibility::Hidden;
+                Action::HideSprite(ref id) => {
+                    for (elem, mut vis) in &mut sprite_query {
+                        if elem.element_id == *id {
+                            *vis = Visibility::Hidden;
+                        }
                     }
                 }
-            }
-            Action::PulseSprite => {} // handled at spawn time
-            Action::EvtProxy(evt_str) => {
-                if let Some(ref mut eq) = event_queue {
-                    proxy_evt_action(&evt_str, eq);
+                Action::PulseSprite => {} // handled at spawn time
+                Action::EvtProxy(evt_str) => {
+                    if let Some(ref mut eq) = event_queue {
+                        proxy_evt_action(&evt_str, eq);
+                    }
                 }
+                Action::SaveConfig(key, value) => {
+                    info!("action: SaveConfig(\"{}\", \"{}\")", key, value);
+                    match key.as_str() {
+                        "skipIntro" | "skip_intro" => {
+                            cfg.skip_intro = value == "true";
+                        }
+                        "skipLogo" | "skip_logo" => {
+                            cfg.skip_logo = value == "true";
+                        }
+                        "debug" => {
+                            cfg.debug = value == "true";
+                        }
+                        _ => {
+                            warn!("SaveConfig: unknown key '{}'", key);
+                        }
+                    }
+                    if let Err(e) = cfg.save() {
+                        error!("SaveConfig: failed to save: {}", e);
+                    }
+                }
+                Action::Unknown(s) => {
+                    warn!("unknown screen action: '{}'", s);
+                }
+                Action::Compare(_) | Action::Else | Action::End => {} // consumed by execute_actions
             }
-            Action::Unknown(s) => {
-                warn!("unknown screen action: '{}'", s);
-            }
-            Action::Compare(_) | Action::Else | Action::End => {} // consumed by execute_actions
         }
     }
 }
