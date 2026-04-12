@@ -57,13 +57,19 @@ jobs:
       - name: Create archive (Linux/macOS)
         if: matrix.os != 'windows-latest'
         run: |
-          tar czf ${{ matrix.asset }} -C target/${{ matrix.target }}/release ${{ matrix.artifact }}
+          mkdir -p bundle
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact }} bundle/
+          cp -r openmm/assets bundle/
+          tar czf ${{ matrix.asset }} -C bundle .
 
       - name: Create archive (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          Compress-Archive -Path target/${{ matrix.target }}/release/${{ matrix.artifact }} -DestinationPath ${{ matrix.asset }}
+          New-Item -ItemType Directory -Force -Path bundle
+          Copy-Item target/${{ matrix.target }}/release/${{ matrix.artifact }} bundle/
+          Copy-Item -Recurse openmm/assets bundle/
+          Compress-Archive -Path bundle/* -DestinationPath ${{ matrix.asset }}
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -74,7 +80,7 @@ jobs:
 
             1. Download the binary for your platform below
             2. Extract the archive
-            3. Copy your Might and Magic VI game data files to the `data` directory next to the executable
+            3. Copy your Might and Magic VI game data files to the `mm6/` directory next to the executable (so they are at `mm6/data/*.lod`)
             4. Run the executable
 
             See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for detailed instructions.

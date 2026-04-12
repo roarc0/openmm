@@ -17,8 +17,14 @@ pub const ENV_OPENMM_6_PATH: &str = "OPENMM_6_PATH";
 
 pub fn get_data_path() -> String {
     if let Ok(p) = env::var(ENV_OPENMM_6_PATH) {
-        format!("{}/data", p)
-    } else {
-        String::from("data/mm6/data")
+        return format!("{}/data", p);
     }
+
+    // Release layout: ./mm6/data
+    if std::path::Path::new("mm6/data").exists() {
+        return String::from("mm6/data");
+    }
+
+    // Development layout: ./data/mm6/data
+    String::from("data/mm6/data")
 }

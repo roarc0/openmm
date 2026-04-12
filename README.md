@@ -44,34 +44,42 @@ The goal is to reproduce original MM6 gameplay — movement, combat, dialogue, q
 
 ## Game Data Setup
 
-OpenMM requires the original Might and Magic VI data files — the `.openmm-data` archives from your MM6 installation (`games.openmm-data`, `bitmaps.openmm-data`, `icons.openmm-data`, `sprites.openmm-data`, etc.).
+OpenMM requires the original Might and Magic VI data files (`games.lod`, `bitmaps.lod`, `icons.lod`, `sprites.lod`, etc.).
 
 > MM6 is available on [GOG](https://www.gog.com). The GOG version installs directly to a folder you can point the engine at.
 
 The engine searches for game data in this order:
 
-**Option 1 — `mm6/` folder next to the binary (recommended for release builds):**
-
-Place your MM6 installation folder (or a copy of it) as `mm6/` in the same directory as the executable. The engine expects the `.openmm-data` files inside `mm6/data/`:
-
-```
-openmm          ← the executable
-mm6/
-  data/
-    games.openmm-data
-    bitmaps.openmm-data
-    icons.openmm-data
-    sprites.openmm-data
-    …
-```
-
-**Option 2 — Environment variable:**
+**Option 1 — Environment variable (any build):**
 ```bash
 export OPENMM_6_PATH=/path/to/your/mm6
 ./openmm
 ```
 
-Point `OPENMM_6_PATH` at your MM6 installation directory (the one that contains the `data/` subfolder with the `.openmm-data` files).
+**Option 2 — `mm6/` folder next to the binary (recommended for releases):**
+
+Place your MM6 installation folder (or a copy of it) as `mm6/` in the same directory as the executable. The engine expects original data files inside `mm6/data/`:
+
+```
+openmm          ← binary
+mm6/
+  data/
+    games.lod
+    bitmaps.lod
+    ...
+```
+
+**Option 3 — `data/mm6/` folder (standard for local development):**
+
+In the source repository, the engine defaults to looking for data in `data/mm6/data/`:
+
+```
+data/mm6/
+  data/
+    games.lod
+    ...
+```
+
 
 ## Build from Source
 
@@ -107,14 +115,22 @@ sudo apt install mold
 ### Build Commands
 
 ```bash
-make build        # Debug build
-make release      # Optimized release build
-make run          # Run debug build
-make run map=oute3  # Run with specific map
-make test         # Run tests
-make lint         # Check formatting and linting
-make fmt          # Auto-format code
-make clippy       # Run clippy linter
+make build               # Debug build
+make release             # Optimized release build (portable)
+make release-native      # Optimized release build (native CPU, faster)
+make run                 # Run debug build
+make run map=oute3       # Run with specific map
+make editor              # Run with internal map editor
+make test                # Run tests
+make lint                # Check formatting and linting
+make fmt                 # Auto-format code
+make clippy              # Run clippy linter
+
+# Profiling and Tools
+make profile             # Run with per-system performance logging
+make profile-chrome      # Generate Chrome tracing profile (ui.perfetto.dev)
+make dump_assets         # Extract Bitmaps and Icons from LODs to disk
+make dump_vid            # Extract SMK videos from VID archives
 ```
 
 Or use cargo directly:

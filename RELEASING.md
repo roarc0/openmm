@@ -55,12 +55,16 @@ Each release includes:
 - `openmm-macos-x86_64.tar.gz` - macOS Intel binary
 - `openmm-macos-aarch64.tar.gz` - macOS Apple Silicon binary
 
+> [!NOTE]
+> Each archive also includes the `openmm/assets` directory, which contains required engine metadata and configuration.
+
 ### Game Data (end-user setup)
 
 The binaries do not include MM6 game data. End users must supply their own copy. The engine searches for data in this order:
 
-1. **`mm6/` folder next to the binary** — place your MM6 installation as `mm6/` in the same directory as the executable, with `.openmm-data` files inside `mm6/data/`. This is the recommended layout for release builds.
-2. **`OPENMM_6_PATH` environment variable** — set it to the MM6 installation directory (the one containing the `data/` subfolder with `.openmm-data` files).
+1. **`OPENMM_6_PATH` environment variable** — set it to the MM6 installation directory (the one containing the `data/` subfolder with `.lod` files).
+2. **`mm6/` folder next to the binary** — place your MM6 installation as `mm6/` in the same directory as the executable, with original `.lod`, `.snd`, and `.vid` files inside `mm6/data/`. This is the recommended layout for release builds.
+3. **`data/mm6/` folder** — fallback path used primarily for development in the source repository (`data/mm6/data/`).
 
 See the [README](README.md#game-data-setup) for a full example.
 
