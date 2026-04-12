@@ -130,7 +130,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 ### Game states
 
 - `Menu` -> `Loading` -> `Game`
-- Videos play inline via `InlineVideo` components in screen .ron files (no separate Video state).
+- Videos play inline via `InlineVideo` components in screen .ron files (no separate Video state). SMK audio for non-looping clips uses `PlaybackMode::Once` (not `Despawn`) so Bevy’s end-of-playback despawn never races with `LoadScreen` / layer teardown on the same entity.
 - `GameEvent::PlayVideo` from EVT is not yet wired to the screen system (logs a warning).
 - Loading state runs a step-based pipeline: ParseMap -> BuildTerrain -> BuildAtlas -> BuildModels -> BuildBillboards -> PreloadSprites -> Done
 - Map switching (console `load` command or boundary crossing) transitions Game -> Loading -> Game
@@ -282,7 +282,7 @@ Files in `docs/` — keep this list in sync (Rule 2):
 Dump commands:
 ```
 make dump_assets   # runs openmm_data::bin::dump_assets — writes maps, actors, decorations, etc. to data/dump/
-make dump_sounds   # extracts audio metadata to data/dump/sounds/
+make dump_sounds   # extracts audio to data/dump/sounds/; logs RIFF size/form, warns if form is not WAVE, scans for MIDI signatures only past the 12-byte RIFF header when present
 cargo run --example dump_events -- oute3   # EVT / billboard events for a specific map
 cargo run --example dump_npc_json          # NPC table → data/dump/npc.json, data/dump/npc2.json
 ```
