@@ -4349,7 +4349,7 @@ dependencies = [
 
 [[package]]
 name = "openmm"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
@@ -4367,7 +4367,7 @@ dependencies = [
 
 [[package]]
 name = "openmm-data"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "bitflags 2.11.0",
  "byteorder",
