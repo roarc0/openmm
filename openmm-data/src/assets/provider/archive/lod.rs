@@ -115,6 +115,8 @@ impl LodArchive {
         let version_str = try_read_string(&mut reader)?;
         let version = Version::try_from(version_str.as_str())?;
 
+        log::debug!("LOD Archive: magic={}, version={:?}", magic, version);
+
         // Read sentinel
         reader.seek(SeekFrom::Start(FILE_INDEX_OFFSET))?;
         let mut buf = [0u8; FILE_HEADER_SIZE];
@@ -136,11 +138,42 @@ impl LodArchive {
             // Preserve original case
             let original_name = fh.name.clone();
 
-            entries.push(ArchiveEntry::new(original_name.clone(), fh.size, 0));
-            offsets.push(fh.offset as usize);
+            let entry_offset = fh.offset as usize;
+            let entry_size = fh.size;
+
+            // Sanity check
+            if entry_offset + entry_size > data.len() {
+                log::error!(
+                    "LOD Index Error: '{}' (idx={}) out of bounds! offset=0x{:x} size={} archive_len=0x{:x}",
+                    original_name,
+                    i,
+                    entry_offset,
+                    entry_size,
+                    data.len()
+                );
+            } else if i < 10 {
+                let preview = if entry_offset + 16 <= data.len() {
+                    format!("{:02x?}", &data[entry_offset..entry_offset + 16])
+                } else {
+                    "N/A".to_string()
+                };
+                log::debug!(
+                    "LOD Entry [{}]: {:<16} offset=0x{:06x} size={:<8} data={}",
+                    i,
+                    original_name,
+                    entry_offset,
+                    entry_size,
+                    preview
+                );
+            }
+
+            entries.push(ArchiveEntry::new(original_name.clone(), entry_size, 0));
+            offsets.push(entry_offset);
             // Case-insensitive mapping by default
             lookup.insert(original_name.to_lowercase(), i);
         }
+
+        log::debug!("LOD Archive opened: {} entries", entries.len());
 
         Ok(Self {
             data,

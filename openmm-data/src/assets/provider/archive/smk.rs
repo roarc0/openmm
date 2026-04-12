@@ -45,10 +45,32 @@ impl SmkArchive {
             offsets.push(offset);
         }
 
-        // Compute sizes from offset differences.
+        // Compute sizes and verify SMK magic headers
         for i in 0..num_files {
             let next = if i + 1 < num_files { offsets[i + 1] } else { data.len() };
-            entries[i].size = next.saturating_sub(offsets[i]);
+            let start = offsets[i];
+            let size = next.saturating_sub(start);
+            entries[i].size = size;
+
+            if size > 0 && start + 3 <= data.len() {
+                let magic = &data[start..start + 3];
+                if magic != b"SMK" {
+                    let preview = if start + 16 <= data.len() {
+                        format!("{:02x?}", &data[start..start + 16])
+                    } else {
+                        "N/A".to_string()
+                    };
+                    log::warn!(
+                        "SMK magic mismatch for '{}' (idx={}) at 0x{:x}: expected 'SMK', found {:?} (data={})",
+                        entries[i].name,
+                        i,
+                        start,
+                        String::from_utf8_lossy(magic),
+                        preview
+                    );
+                }
+            }
+
             // Case-insensitive mapping BY DEFAULT
             lookup.insert(entries[i].name.to_lowercase(), i);
         }

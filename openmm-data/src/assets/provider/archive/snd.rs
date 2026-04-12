@@ -85,12 +85,16 @@ impl SndArchive {
             entry_size
         );
 
-        Ok(Self {
+        let archive = Self {
             entries,
             lookup,
             data,
             _offsets,
-        })
+        };
+
+        archive.check_gaps();
+
+        Ok(archive)
     }
 
     fn check_gaps(&self) {
@@ -101,9 +105,6 @@ impl SndArchive {
         // Index range
         let entry_count = self.entries.len();
         if entry_count > 0 {
-            // We don't know the entry_size directly here anymore,
-            // but we can estimate it or just use the first offset as the start of data.
-            // Actually, we'll just use the offsets we have.
             let first_offset = self._offsets.first().cloned().unwrap_or(0);
             ranges.push((4, first_offset));
         }
@@ -122,11 +123,26 @@ impl SndArchive {
         for (start, end) in ranges {
             if start > current_pos {
                 let gap_size = start - current_pos;
-                let preview = if current_pos + 16 <= self.data.len() {
-                    format!("{:02x?}", &self.data[current_pos..current_pos + 16])
+                let gap_data = &self.data[current_pos..start];
+
+                // Scan gap for music headers
+                let magics = [b"MThd", b"XMID", b"XDIR", b"RMID"];
+                for magic in magics {
+                    if let Some(pos) = gap_data.windows(magic.len()).position(|window| window == magic) {
+                        log::warn!(
+                            "MUSIC SIGNATURE '{:?}' FOUND IN SND GAP AT 0x{:x}!",
+                            String::from_utf8_lossy(magic),
+                            current_pos + pos
+                        );
+                    }
+                }
+
+                let preview = if gap_size >= 16 {
+                    format!("{:02x?}", &gap_data[0..16])
                 } else {
-                    "N/A".to_string()
+                    format!("{:02x?}", gap_data)
                 };
+
                 log::info!(
                     "SND Gap found: 0x{:x} to 0x{:x} (size={}B) data={}",
                     current_pos,
