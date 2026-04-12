@@ -20,6 +20,8 @@ pub struct SoundManager {
     pub dsounds: DSounds,
     pub snd_archive: SndArchive,
     cache: HashMap<u32, Handle<AudioSource>>,
+    /// Cache for generic tracks like music or video audio, by string name.
+    track_cache: HashMap<String, Handle<AudioSource>>,
     /// Sound IDs that failed to load — never retry or re-warn.
     failed: HashSet<u32>,
 }
@@ -96,6 +98,50 @@ impl SoundManager {
         self.cache.insert(sound_id, handle.clone());
         Some(handle)
     }
+
+    /// Retrieve or extract audio bytes for an SMK video, caching the Bevy handle.
+    pub fn get_video_audio(
+        &mut self,
+        video: &str,
+        game_assets: &GameAssets,
+        audio_sources: &mut Assets<AudioSource>,
+    ) -> Option<Handle<AudioSource>> {
+        let key = format!("video/{}", video);
+        if let Some(handle) = self.track_cache.get(&key) {
+            return Some(handle.clone());
+        }
+
+        if let Some(wav) = game_assets.smk_audio(video) {
+            if !wav.is_empty() {
+                let handle = audio_sources.add(AudioSource { bytes: wav.into() });
+                self.track_cache.insert(key, handle.clone());
+                return Some(handle);
+            }
+        }
+        None
+    }
+
+    /// Retrieve or read music bytes for a track, caching the Bevy handle.
+    pub fn get_music(
+        &mut self,
+        track: &str,
+        game_assets: &GameAssets,
+        audio_sources: &mut Assets<AudioSource>,
+    ) -> Option<Handle<AudioSource>> {
+        let key = format!("music/{}", track);
+        if let Some(handle) = self.track_cache.get(&key) {
+            return Some(handle.clone());
+        }
+
+        if let Some(bytes) = game_assets.music_bytes(track) {
+            if !bytes.is_empty() {
+                let handle = audio_sources.add(AudioSource { bytes: bytes.into() });
+                self.track_cache.insert(key, handle.clone());
+                return Some(handle);
+            }
+        }
+        None
+    }
 }
 
 pub struct SoundPlugin;
@@ -165,6 +211,7 @@ fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
         dsounds,
         snd_archive,
         cache: HashMap::new(),
+        track_cache: HashMap::new(),
         failed: HashSet::new(),
     });
 }

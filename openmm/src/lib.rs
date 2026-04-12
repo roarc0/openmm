@@ -14,6 +14,7 @@ pub(crate) mod editor;
 pub(crate) mod engine;
 pub(crate) mod fonts;
 pub(crate) mod game;
+pub mod input;
 pub(crate) mod save;
 pub(crate) mod screens;
 pub(crate) mod states;
