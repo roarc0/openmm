@@ -7,4 +7,5 @@
 *.bin
 *.txt
 openmm.toml
+openmm-editor.toml
 .superpowers
