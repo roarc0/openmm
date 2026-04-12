@@ -446,7 +446,9 @@ fn hover_hint_system(
     if let Some(faces) = clickable_faces.as_ref() {
         for face in &faces.faces {
             #[cfg(feature = "perf_log")]
-            { perf.hover_face_tests += 1; }
+            {
+                perf.hover_face_tests += 1;
+            }
             if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist) {
                 if t > MAX_INTERACT_RANGE {
                     continue;
@@ -468,7 +470,9 @@ fn hover_hint_system(
     // then the same per-entity hit test runs as before.
     for entity in spatial.query_radius(origin.x, origin.z, MAX_INTERACT_RANGE) {
         #[cfg(feature = "perf_log")]
-        { perf.hover_candidates += 1; }
+        {
+            perf.hover_candidates += 1;
+        }
         if let Ok((info, g_tf, sheet_opt)) = decorations.get(entity) {
             let center = g_tf.translation();
             if origin.distance_squared(center) > max_range_sq {
@@ -565,5 +569,7 @@ fn hover_hint_system(
     }
 
     #[cfg(feature = "perf_log")]
-    { perf.time_hover_hint_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
+    {
+        perf.time_hover_hint_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+    }
 }

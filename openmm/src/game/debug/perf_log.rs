@@ -119,12 +119,26 @@ impl EntitySnapshot {
                 None
             }
         };
-        if let Some(w) = check("audio", self.audio, baseline.audio) { warnings.push(w); }
-        if let Some(w) = check("lights", self.lights, baseline.lights) { warnings.push(w); }
-        if let Some(w) = check("total", self.total, baseline.total) { warnings.push(w); }
-        if let Some(w) = check("world", self.world, baseline.world) { warnings.push(w); }
-        if let Some(w) = check("sprites", self.sprites, baseline.sprites) { warnings.push(w); }
-        if warnings.is_empty() { None } else { Some(warnings.join(", ")) }
+        if let Some(w) = check("audio", self.audio, baseline.audio) {
+            warnings.push(w);
+        }
+        if let Some(w) = check("lights", self.lights, baseline.lights) {
+            warnings.push(w);
+        }
+        if let Some(w) = check("total", self.total, baseline.total) {
+            warnings.push(w);
+        }
+        if let Some(w) = check("world", self.world, baseline.world) {
+            warnings.push(w);
+        }
+        if let Some(w) = check("sprites", self.sprites, baseline.sprites) {
+            warnings.push(w);
+        }
+        if warnings.is_empty() {
+            None
+        } else {
+            Some(warnings.join(", "))
+        }
     }
 }
 
@@ -147,7 +161,9 @@ impl Plugin for PerfLogPlugin {
                     .run_if(in_state(GameState::Game))
                     .run_if(resource_equals(HudView::World)),
             );
-        info!("[PERF] perf_log enabled — reporting every {REPORT_INTERVAL_SECS}s, leak detection after {BASELINE_AFTER_REPORTS} reports");
+        info!(
+            "[PERF] perf_log enabled — reporting every {REPORT_INTERVAL_SECS}s, leak detection after {BASELINE_AFTER_REPORTS} reports"
+        );
     }
 }
 
@@ -189,13 +205,17 @@ fn perf_report(
 
     // Capture baseline after lazy spawn finishes.
     if state.baseline.is_none() && state.report_count >= BASELINE_AFTER_REPORTS {
-        info!("[PERF] baseline captured: entities={} audio={} lights={} world={} sprites={}",
-            snap.total, snap.audio, snap.lights, snap.world, snap.sprites);
+        info!(
+            "[PERF] baseline captured: entities={} audio={} lights={} world={} sprites={}",
+            snap.total, snap.audio, snap.lights, snap.world, snap.sprites
+        );
         state.baseline = Some(snap.clone());
     }
 
     // Leak detection.
-    let leak_msg = state.baseline.as_ref()
+    let leak_msg = state
+        .baseline
+        .as_ref()
         .and_then(|b| snap.diff_warn(b))
         .unwrap_or_default();
 

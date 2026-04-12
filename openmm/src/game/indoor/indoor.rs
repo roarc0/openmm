@@ -212,8 +212,7 @@ impl OccluderFaces {
         self.grid.clear();
         for (i, face) in self.faces.iter().enumerate() {
             // Compute XZ AABB of this face.
-            let (mut min_x, mut max_x, mut min_z, mut max_z) =
-                (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+            let (mut min_x, mut max_x, mut min_z, mut max_z) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
             for v in &face.vertices {
                 min_x = min_x.min(v.x);
                 max_x = max_x.max(v.x);

@@ -115,7 +115,9 @@ pub fn rebuild_and_cull(
         let pos = g_tf.translation();
         index.insert(entity, pos.x, pos.z);
         #[cfg(feature = "perf_log")]
-        { perf.spatial_entities += 1; }
+        {
+            perf.spatial_entities += 1;
+        }
 
         if let Some(player_pos) = player_pos {
             let new_vis = if pos.distance_squared(player_pos) < draw_dist_sq {
@@ -125,14 +127,18 @@ pub fn rebuild_and_cull(
             };
             if *vis != new_vis {
                 #[cfg(feature = "perf_log")]
-                { perf.spatial_vis_changes += 1; }
+                {
+                    perf.spatial_vis_changes += 1;
+                }
             }
             vis.set_if_neq(new_vis);
         }
     }
 
     #[cfg(feature = "perf_log")]
-    { perf.time_spatial_rebuild_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
+    {
+        perf.time_spatial_rebuild_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+    }
 }
 
 pub struct SpatialIndexPlugin;

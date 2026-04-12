@@ -548,7 +548,9 @@ pub fn update_sprite_sheets(
         query.iter_mut()
     {
         #[cfg(feature = "perf_log")]
-        { perf.sprite_iter += 1; }
+        {
+            perf.sprite_iter += 1;
+        }
         if *vis == Visibility::Hidden {
             continue;
         }
@@ -559,7 +561,9 @@ pub fn update_sprite_sheets(
             continue;
         }
         #[cfg(feature = "perf_log")]
-        { perf.sprite_visible += 1; }
+        {
+            perf.sprite_visible += 1;
+        }
 
         let state_idx = match anim_state {
             AnimationState::Attacking if sprites.states.len() > 2 && !sprites.states[2].is_empty() => 2,
@@ -629,7 +633,9 @@ pub fn update_sprite_sheets(
                 sprites.current_mask = Some(sprites.state_masks[state_idx][sprites.current_frame][direction].clone());
             }
             #[cfg(feature = "perf_log")]
-            { perf.sprite_mat_swaps += 1; }
+            {
+                perf.sprite_mat_swaps += 1;
+            }
         }
 
         // Only write when value actually changed — writing Transform marks it dirty,
@@ -638,19 +644,25 @@ pub fn update_sprite_sheets(
         if transform.rotation != new_rot {
             transform.rotation = new_rot;
             #[cfg(feature = "perf_log")]
-            { perf.sprite_rot_writes += 1; }
+            {
+                perf.sprite_rot_writes += 1;
+            }
         }
         // Scale only changes when mirrored octant flips (infrequent) — guard the write.
         let new_x_scale = if mirrored { -1.0 } else { 1.0 };
         if transform.scale.x != new_x_scale {
             transform.scale.x = new_x_scale;
             #[cfg(feature = "perf_log")]
-            { perf.sprite_scale_writes += 1; }
+            {
+                perf.sprite_scale_writes += 1;
+            }
         }
     }
 
     #[cfg(feature = "perf_log")]
-    { perf.time_sprite_update_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
+    {
+        perf.time_sprite_update_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+    }
 }
 
 /// Pick the sprite direction index (0-4) and mirror flag from an entity's facing

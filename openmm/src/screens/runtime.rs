@@ -7,9 +7,9 @@
 
 use std::collections::HashMap;
 
-use bevy::prelude::*;
-use bevy::ecs::message::{Message, MessageReader, MessageWriter};
 use crate::game::optional::OptionalWrite;
+use bevy::ecs::message::{Message, MessageReader, MessageWriter};
+use bevy::prelude::*;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -131,6 +131,7 @@ struct InlineVideo {
     on_end: Vec<String>,
     smk_bytes: Vec<u8>,
     finished: bool,
+    life_timer: f32,
 }
 
 /// Element has PulseSprite() in on_hover — eligible for pulse animation.
@@ -383,8 +384,12 @@ fn update_screen_crosshair(
         Visibility::Hidden
     };
     for (mut node, mut vis) in query.iter_mut() {
-        if node.left != target_left { node.left = target_left; }
-        if node.top != target_top { node.top = target_top; }
+        if node.left != target_left {
+            node.left = target_left;
+        }
+        if node.top != target_top {
+            node.top = target_top;
+        }
         vis.set_if_neq(target_vis);
     }
 }
@@ -600,7 +605,7 @@ fn spawn_video_element(
         Visibility::Inherited
     };
 
-    commands.spawn((
+    let _video_entity = commands.spawn((
         ImageNode::new(image_handle.clone()),
         Node {
             position_type: PositionType::Absolute,
@@ -623,6 +628,7 @@ fn spawn_video_element(
             on_end: vid.on_end.clone(),
             smk_bytes: bytes,
             finished: false,
+            life_timer: 0.0,
         },
     ));
 
@@ -650,9 +656,11 @@ fn video_tick(
         if vid.finished {
             continue;
         }
+        vid.life_timer += time.delta_secs();
 
         // Skip check.
-        if vid.skippable && keys.just_pressed(KeyCode::Escape) {
+        // Ignore skips in the first 100ms to prevent "leaked" inputs from previous screens.
+        if vid.skippable && vid.life_timer > 0.1 && keys.just_pressed(KeyCode::Escape) {
             vid.finished = true;
             if !vid.on_end.is_empty() {
                 actions.try_write(ScreenActions {
@@ -1043,11 +1051,21 @@ fn text_update(
         let target_top = Val::Px(by * sy);
         let target_h = Val::Px(display_h);
 
-        if node.width != Val::Auto { node.width = Val::Auto; }
-        if node.height != target_h { node.height = target_h; }
-        if node.top != target_top { node.top = target_top; }
-        if node.left != target_left { node.left = target_left; }
-        if node.right != Val::Auto { node.right = Val::Auto; }
+        if node.width != Val::Auto {
+            node.width = Val::Auto;
+        }
+        if node.height != target_h {
+            node.height = target_h;
+        }
+        if node.top != target_top {
+            node.top = target_top;
+        }
+        if node.left != target_left {
+            node.left = target_left;
+        }
+        if node.right != Val::Auto {
+            node.right = Val::Auto;
+        }
     }
 }
 
@@ -1206,7 +1224,7 @@ fn screen_click(
 
 /// Check keyboard shortcuts defined in all active screens.
 fn screen_keys(
-    mut commands: Commands,
+    _commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     layers: Res<ScreenLayers>,
     mut actions: Option<MessageWriter<ScreenActions>>,
@@ -1325,10 +1343,7 @@ fn click_flash_tick(
 /// Uses the scripting executor for Compare/Else/End control flow.
 fn process_pending_actions(
     mut commands: Commands,
-    mut actions_set: ParamSet<(
-        MessageReader<ScreenActions>,
-        Option<MessageWriter<ScreenActions>>,
-    )>,
+    mut actions_set: ParamSet<(MessageReader<ScreenActions>, Option<MessageWriter<ScreenActions>>)>,
     mut layers: ResMut<ScreenLayers>,
     layer_entities: Query<(Entity, &ScreenLayer)>,
     mut sprite_query: Query<(&RuntimeElement, &mut Visibility)>,

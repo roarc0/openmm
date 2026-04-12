@@ -134,18 +134,24 @@ fn flicker_system(
     let elapsed = time.elapsed_secs();
     for (flicker, mut vis) in query.iter_mut() {
         #[cfg(feature = "perf_log")]
-        { perf.flicker_iter += 1; }
+        {
+            perf.flicker_iter += 1;
+        }
         if !flicker.lit(elapsed) {
             if *vis != Visibility::Hidden {
                 #[cfg(feature = "perf_log")]
-                { perf.flicker_writes += 1; }
+                {
+                    perf.flicker_writes += 1;
+                }
             }
             vis.set_if_neq(Visibility::Hidden);
         }
     }
 
     #[cfg(feature = "perf_log")]
-    { perf.time_flicker_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
+    {
+        perf.time_flicker_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+    }
 }
 
 /// Rotate visible billboard entities to face the camera (Y-axis only, stays upright).
@@ -169,7 +175,9 @@ fn billboard_face_camera(
 
     for (mut transform, global_transform, vis) in billboard_query.iter_mut() {
         #[cfg(feature = "perf_log")]
-        { perf.billboard_iter += 1; }
+        {
+            perf.billboard_iter += 1;
+        }
         if *vis == Visibility::Hidden {
             continue;
         }
@@ -184,13 +192,17 @@ fn billboard_face_camera(
             if transform.rotation != new_rot {
                 transform.rotation = new_rot;
                 #[cfg(feature = "perf_log")]
-                { perf.billboard_rot_writes += 1; }
+                {
+                    perf.billboard_rot_writes += 1;
+                }
             }
         }
     }
 
     #[cfg(feature = "perf_log")]
-    { perf.time_billboard_face_us += crate::game::debug::perf_log::perf_elapsed_us(_start); }
+    {
+        perf.time_billboard_face_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+    }
 }
 
 #[cfg(test)]

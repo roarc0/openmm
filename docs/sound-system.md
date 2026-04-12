@@ -3,7 +3,7 @@
 ## Architecture
 
 - `SoundManager` resource holds DSounds table + SndArchive + cached Bevy audio handles
-- Sound files are WAV stored in `Sounds/Audio.snd` (zlib-compressed), resolved by name from `dsounds.bin`
+- Sound files are WAV stored in `Sounds/Audio.snd` (almost always zlib-compressed when `decompressed_size > compressed_size`; rare entries use `decompressed_size == compressed_size` for uncompressed payload), resolved by name from `dsounds.bin`
 - Sounds are loaded on-demand and cached by `sound_id`
 
 ## Events

@@ -3,7 +3,6 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::hud_view::HudView;
 use crate::game::world::is_indoor;
-use crate::states::loading::PreparedIndoorWorld;
 
 pub(crate) mod indoor;
 

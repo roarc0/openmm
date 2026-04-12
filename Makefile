@@ -1,4 +1,4 @@
-.PHONY: build run editor release release-native run-release run-release-native check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci profile-chrome profile-tracy
+.PHONY: build run editor release release-native run-release run-release-native check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci profile-chrome profile-tracy patch_sounds patch-sounds
 
 # --- Build ---
 
@@ -108,6 +108,11 @@ dump_saves:
 
 dump_vid:
 	cargo run --release -p openmm-data --bin dump_vid
+
+patch_sounds:
+	cargo run --release -p openmm-data --bin patch_snd
+
+patch-sounds: patch_sounds
 
 clean:
 	cargo clean

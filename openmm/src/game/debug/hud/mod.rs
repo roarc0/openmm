@@ -14,7 +14,6 @@ use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::world::is_outdoor;
-use crate::states::loading::PreparedWorld;
 
 use self::chart::*;
 use self::common::*;

@@ -9,7 +9,7 @@ use bevy::prelude::*;
 ///     footer.set("The Knife Shoppe");
 /// }
 /// ```
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct FooterText {
     text: String,
     /// Generation counter -- bumped on every change so consumers know to re-render.
@@ -17,16 +17,6 @@ pub struct FooterText {
     /// If set, this text is "locked" until the timer expires.
     /// Hover hints won't overwrite locked text.
     lock_until: Option<f64>,
-}
-
-impl Default for FooterText {
-    fn default() -> Self {
-        Self {
-            text: String::new(),
-            generation: 0,
-            lock_until: None,
-        }
-    }
 }
 
 impl FooterText {

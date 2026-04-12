@@ -46,8 +46,7 @@ impl Plugin for EffectsPlugin {
             )
             .add_systems(
                 Update,
-                cull_distant_looping_sounds
-                    .run_if(in_state(crate::GameState::Game)),
+                cull_distant_looping_sounds.run_if(in_state(crate::GameState::Game)),
             );
     }
 }

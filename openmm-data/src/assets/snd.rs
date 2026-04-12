@@ -120,24 +120,35 @@ pub fn ima_adpcm_to_pcm(wav: &[u8]) -> Option<Vec<u8>> {
     ]) as usize;
     let adpcm_data = &wav[data_offset + 8..data_offset + 8 + data_size];
 
-    let num_blocks = adpcm_data.len() / block_align;
+    let num_full_blocks = adpcm_data.len() / block_align;
+    let has_partial = adpcm_data.len() % block_align > (channels * 4);
+    let num_blocks = num_full_blocks + if has_partial { 1 } else { 0 };
+
     let total_samples = num_blocks * samples_per_block * channels;
     let mut pcm_samples: Vec<i16> = Vec::with_capacity(total_samples);
 
     for block_idx in 0..num_blocks {
-        let block = &adpcm_data[block_idx * block_align..(block_idx + 1) * block_align];
+        let start = block_idx * block_align;
+        let end = ((block_idx + 1) * block_align).min(adpcm_data.len());
+        let block = &adpcm_data[start..end];
+
         let mut predictors = vec![0i32; channels];
         let mut step_indices = vec![0i32; channels];
         for ch in 0..channels {
             let hdr = ch * 4;
             if hdr + 4 > block.len() {
-                return None;
+                break; // Should not happen given has_partial check
             }
             predictors[ch] = i16::from_le_bytes([block[hdr], block[hdr + 1]]) as i32;
             step_indices[ch] = (block[hdr + 2] as i32).clamp(0, 88);
             pcm_samples.push(predictors[ch] as i16);
         }
-        let payload = &block[channels * 4..];
+        let payload = if block.len() > channels * 4 {
+            &block[channels * 4..]
+        } else {
+            &[]
+        };
+
         if channels == 1 {
             for &byte in payload {
                 let lo = byte & 0x0F;

@@ -113,7 +113,9 @@ fn compass_scroll(
         let clip_w = crop.crop_w * sx;
         // Round to nearest pixel to avoid floating-point jitter triggering UI layout every frame.
         let target = Val::Px((clip_w / 2.0 - pixel_pos).round());
-        if node.left != target { node.left = target; }
+        if node.left != target {
+            node.left = target;
+        }
     }
 }
 
@@ -157,7 +159,9 @@ fn minimap_scroll(
         // Indoor or no map — hide the minimap.
         let offscreen = Val::Px(-9999.0);
         for (_, _, mut node, _) in &mut query {
-            if node.left != offscreen { node.left = offscreen; }
+            if node.left != offscreen {
+                node.left = offscreen;
+            }
         }
         return;
     };
@@ -185,11 +189,21 @@ fn minimap_scroll(
         let target_w = Val::Px(map_img_size);
         let target_h = Val::Px(map_img_size);
 
-        if node.left != target_left { node.left = target_left; }
-        if node.top != target_top { node.top = target_top; }
-        if node.width != target_w { node.width = target_w; }
-        if node.height != target_h { node.height = target_h; }
-        if img_node.image != *handle { img_node.image = handle.clone(); }
+        if node.left != target_left {
+            node.left = target_left;
+        }
+        if node.top != target_top {
+            node.top = target_top;
+        }
+        if node.width != target_w {
+            node.width = target_w;
+        }
+        if node.height != target_h {
+            node.height = target_h;
+        }
+        if img_node.image != *handle {
+            img_node.image = handle.clone();
+        }
     }
 }
 
@@ -240,7 +254,9 @@ fn arrow_update(
 
     let target = &arrows.0[idx];
     for mut img in &mut query {
-        if img.image != *target { img.image = target.clone(); }
+        if img.image != *target {
+            img.image = target.clone();
+        }
     }
 }
 
@@ -300,7 +316,9 @@ fn tap_update(
 
     let target = &taps.0[idx];
     for mut img in &mut query {
-        if img.image != *target { img.image = target.clone(); }
+        if img.image != *target {
+            img.image = target.clone();
+        }
     }
 }
 
