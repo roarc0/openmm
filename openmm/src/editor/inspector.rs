@@ -31,14 +31,51 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                 }
             });
 
-            let mut music = editor.screen.bg_music.clone();
+            // Sound / Music
+            let mut soundId = editor.screen.sound.id().to_string();
             ui.horizontal(|ui| {
-                ui.label("Music:");
-                if ui.text_edit_singleline(&mut music).changed() {
-                    editor.screen.bg_music = music;
+                ui.label("Sound:");
+                if ui.text_edit_singleline(&mut soundId).changed() {
+                    let old_start = editor.screen.sound.start_sec();
+                    let old_loop = editor.screen.sound.looping();
+                    if soundId.is_empty() {
+                        editor.screen.sound = crate::screens::Sound::None;
+                    } else if old_start > 0.0 || !old_loop {
+                        editor.screen.sound = crate::screens::Sound::Sound {
+                            id: soundId,
+                            start_sec: old_start,
+                            looping: old_loop,
+                        };
+                    } else {
+                        editor.screen.sound = crate::screens::Sound::Id(soundId);
+                    }
                     editor.dirty = true;
                 }
             });
+
+            // Advanced sound settings
+            let mut start_sec = editor.screen.sound.start_sec();
+            let mut looping = editor.screen.sound.looping();
+            let mut sound_changed = false;
+
+            ui.horizontal(|ui| {
+                ui.label("Start (s):");
+                if ui.add(egui::DragValue::new(&mut start_sec).speed(0.1).clamp_range(0.0..=3600.0)).changed() {
+                    sound_changed = true;
+                }
+                if ui.checkbox(&mut looping, "Loop").changed() {
+                    sound_changed = true;
+                }
+            });
+
+            if sound_changed {
+                editor.screen.sound = crate::screens::Sound::Sound {
+                    id: editor.screen.sound.id().to_string(),
+                    start_sec,
+                    looping,
+                };
+                editor.dirty = true;
+            }
 
             // on_load actions (screen-level)
             ui.collapsing("on_load actions", |ui| {

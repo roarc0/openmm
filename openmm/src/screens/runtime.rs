@@ -284,8 +284,8 @@ fn show_screen(
 
     info!("ShowScreen: '{}' ({} elements)", screen.id, screen.elements.len());
 
-    if !screen.bg_music.is_empty() {
-        spawn_screen_music(commands, audio_sources, &screen.bg_music, screen_id, cfg, game_assets);
+    if !screen.sound.is_empty() {
+        spawn_screen_music(commands, audio_sources, &screen.sound, screen_id, cfg, game_assets);
     }
 
     let layer_tag = ScreenLayer(screen_id.to_string());
@@ -503,8 +503,8 @@ fn preload_next_screens(screen: &Screen, game_assets: &GameAssets) {
             }
 
             // Preload upcoming music.
-            if !next_screen.bg_music.is_empty() {
-                game_assets.preload_music(&next_screen.bg_music);
+            if !next_screen.sound.is_empty() {
+                game_assets.preload_music(next_screen.sound.id());
             }
         }
     }
@@ -515,11 +515,14 @@ fn preload_next_screens(screen: &Screen, game_assets: &GameAssets) {
 fn spawn_screen_music(
     commands: &mut Commands,
     audio_sources: &mut Assets<AudioSource>,
-    track: &str,
+    sound: &super::Sound,
     screen_id: &str,
     cfg: &GameConfig,
     game_assets: &GameAssets,
 ) {
+    let track = sound.id();
+    let start_sec = sound.start_sec();
+    let looping = sound.looping();
     let bytes = if let Some(b) = game_assets.music_bytes(track) {
         b
     } else {
@@ -531,8 +534,17 @@ fn spawn_screen_music(
     commands.spawn((
         AudioPlayer(handle),
         PlaybackSettings {
-            mode: bevy::audio::PlaybackMode::Loop,
+            mode: if looping {
+                bevy::audio::PlaybackMode::Loop
+            } else {
+                bevy::audio::PlaybackMode::Despawn
+            },
             volume: bevy::audio::Volume::Linear(cfg.music_volume),
+            start_position: if start_sec > 0.0 {
+                Some(std::time::Duration::from_secs_f32(start_sec))
+            } else {
+                None
+            },
             ..default()
         },
         ScreenMusic(screen_id.to_string()),

@@ -1,6 +1,6 @@
 (
     id: "menu",
-    bg_music: "13",
+    sound: Sound(id: "13", start_sec: 16.0, looping: true),
     elements: [
         Image((
             id: "icons/Title.pcx",

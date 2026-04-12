@@ -16,13 +16,160 @@ fn is_zero(v: &f32) -> bool {
     *v == 0.0
 }
 
+/// Background sound definition.
+#[derive(Debug, Clone, Serialize, PartialEq, Default)]
+pub enum Sound {
+    #[default]
+    None,
+    Id(String),
+    Sound {
+        id: String,
+        start_sec: f32,
+        looping: bool,
+    },
+}
+
+impl Sound {
+    fn default_true() -> bool {
+        true
+    }
+
+    pub fn id(&self) -> &str {
+        match self {
+            Self::None => "",
+            Self::Id(id) => id,
+            Self::Sound { id, .. } => id,
+        }
+    }
+    pub fn is_empty(&self) -> bool {
+        self.id().is_empty()
+    }
+    pub fn start_sec(&self) -> f32 {
+        match self {
+            Self::Sound { start_sec, .. } => *start_sec,
+            _ => 0.0,
+        }
+    }
+    pub fn looping(&self) -> bool {
+        match self {
+            Self::Sound { looping, .. } => *looping,
+            _ => true,
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Sound {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct SoundFields {
+            id: String,
+            #[serde(default)]
+            start_sec: f32,
+            #[serde(default = "Sound::default_true")]
+            looping: bool,
+        }
+
+        struct SoundFieldsVisitor;
+        impl<'de> serde::de::Visitor<'de> for SoundFieldsVisitor {
+            type Value = SoundFields;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("Sound fields")
+            }
+            fn visit_map<M>(self, map: M) -> Result<Self::Value, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                SoundFields::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+            }
+            fn visit_seq<S>(self, seq: S) -> Result<Self::Value, S::Error>
+            where
+                S: serde::de::SeqAccess<'de>,
+            {
+                SoundFields::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))
+            }
+        }
+
+        struct SoundVisitor;
+        impl<'de> serde::de::Visitor<'de> for SoundVisitor {
+            type Value = Sound;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a string or a Sound(...) object")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                if v.is_empty() {
+                    Ok(Sound::None)
+                } else {
+                    Ok(Sound::Id(v.to_owned()))
+                }
+            }
+
+            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::EnumAccess<'de>,
+            {
+                use serde::de::VariantAccess;
+                let (variant, access): (String, _) = data.variant()?;
+                if variant == "Sound" {
+                    let fields = access.struct_variant(&["id", "start_sec", "looping"], SoundFieldsVisitor)?;
+                    Ok(Sound::Sound {
+                        id: fields.id,
+                        start_sec: fields.start_sec,
+                        looping: fields.looping,
+                    })
+                } else {
+                    Err(serde::de::Error::unknown_variant(&variant, &["Sound"]))
+                }
+            }
+
+            fn visit_map<M>(self, map: M) -> Result<Self::Value, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                let fields = SoundFields::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                Ok(Sound::Sound {
+                    id: fields.id,
+                    start_sec: fields.start_sec,
+                    looping: fields.looping,
+                })
+            }
+
+            fn visit_seq<S>(self, seq: S) -> Result<Self::Value, S::Error>
+            where
+                S: serde::de::SeqAccess<'de>,
+            {
+                let fields = SoundFields::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))?;
+                Ok(Sound::Sound {
+                    id: fields.id,
+                    start_sec: fields.start_sec,
+                    looping: fields.looping,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(SoundVisitor)
+    }
+}
+
 /// A UI screen definition — the root of a .screen.ron file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Screen {
     pub id: String,
-    /// Background music track name (e.g. "15" for Music/15.mp3). Empty = no music.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub bg_music: String,
+    /// Background music track (e.g. "15" or Sound(id: "15", start_sec: 1.5, looping: true)).
+    #[serde(
+        default,
+        rename = "sound",
+        alias = "bg_sound",
+        skip_serializing_if = "Sound::is_empty"
+    )]
+    pub sound: Sound,
     /// Keyboard shortcuts. Key = key name (e.g. "Escape", "Return", "N"), Value = actions.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub keys: BTreeMap<String, Vec<String>>,
@@ -285,7 +432,7 @@ impl Screen {
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),
-            bg_music: String::new(),
+            sound: Sound::None,
             keys: BTreeMap::new(),
             on_load: Vec::new(),
             elements: Vec::new(),
@@ -416,4 +563,5 @@ mod tests {
         assert_eq!(screen.id, "empty");
         assert!(screen.elements.is_empty());
     }
+
 }
