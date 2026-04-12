@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-use log::{error, info};
+use log::{info, warn};
 use openmm_data::Assets;
 
 fn main() {
@@ -25,6 +25,8 @@ fn main() {
             files.sort();
             total += files.len();
             asset_map.insert(archive.to_string(), files.iter().map(|s| s.to_string()).collect());
+        } else {
+            warn!("dump_assets: no file list for archive '{}'", archive);
         }
     }
 
@@ -55,14 +57,18 @@ fn main() {
                 Ok(bytes) => {
                     if let Some(img) = try_decode_image(&bytes, palettes) {
                         let png_name = format!("{}.png", file);
-                        if let Err(e) = img.save(arch_dir.join(&png_name)) {
-                            error!("failed to save image {}: {}", png_name, e);
+                        match img.save(arch_dir.join(&png_name)) {
+                            Ok(()) => info!("dump {} -> {}/{} (png)", path, archive, png_name),
+                            Err(e) => warn!("dump {}: failed to save PNG: {}", path, e),
                         }
-                    } else if let Err(e) = fs::write(arch_dir.join(file), bytes) {
-                        error!("failed to write file {}: {}", file, e);
+                    } else {
+                        match fs::write(arch_dir.join(file), &bytes) {
+                            Ok(()) => info!("dump {} (raw, {} bytes)", path, bytes.len()),
+                            Err(e) => warn!("dump {}: failed to write raw file: {}", path, e),
+                        }
                     }
                 }
-                Err(e) => error!("failed to decompress {}: {}", path, e),
+                Err(e) => warn!("dump {}: failed to decompress: {}", path, e),
             }
         }
     }
@@ -119,32 +125,46 @@ fn try_decode_image(
 fn dump_readable_files(assets: &Assets, out_dir: &Path) {
     let archives = assets.archives();
     for archive in archives {
-        if let Some(files) = assets.files_in(&archive) {
-            for file in files {
-                let lower = file.to_lowercase();
-                let mut out_content: Option<String> = None;
+        let Some(files) = assets.files_in(&archive) else {
+            warn!("dump_assets readable: no file list for archive '{}'", archive);
+            continue;
+        };
+        for file in files {
+            let lower = file.to_lowercase();
+            let logical = format!("{}/{}", archive, file);
+            let mut out_content: Option<String> = None;
 
-                if lower.ends_with(".odm") {
-                    if let Ok(data) = openmm_data::odm::Odm::load(assets, &file) {
-                        out_content = serde_json::to_string_pretty(&data).ok();
-                    }
-                } else if lower.ends_with(".ddm") {
-                    if let Ok(data) = openmm_data::ddm::Ddm::load(assets, &file) {
-                        out_content = serde_json::to_string_pretty(&data).ok();
-                    }
-                } else if lower.ends_with(".blv")
-                    && let Ok(data) = openmm_data::blv::Blv::load(assets, &file)
-                {
-                    out_content = serde_json::to_string_pretty(&data).ok();
+            if lower.ends_with(".odm") {
+                match openmm_data::odm::Odm::load(assets, &file) {
+                    Ok(data) => match serde_json::to_string_pretty(&data) {
+                        Ok(s) => out_content = Some(s),
+                        Err(e) => warn!("dump {}: ODM JSON serialize failed: {}", logical, e),
+                    },
+                    Err(e) => warn!("dump {}: Odm::load failed: {}", logical, e),
                 }
+            } else if lower.ends_with(".ddm") {
+                match openmm_data::ddm::Ddm::load(assets, &file) {
+                    Ok(data) => match serde_json::to_string_pretty(&data) {
+                        Ok(s) => out_content = Some(s),
+                        Err(e) => warn!("dump {}: DDM JSON serialize failed: {}", logical, e),
+                    },
+                    Err(e) => warn!("dump {}: Ddm::load failed: {}", logical, e),
+                }
+            } else if lower.ends_with(".blv") {
+                match openmm_data::blv::Blv::load(assets, &file) {
+                    Ok(data) => match serde_json::to_string_pretty(&data) {
+                        Ok(s) => out_content = Some(s),
+                        Err(e) => warn!("dump {}: BLV JSON serialize failed: {}", logical, e),
+                    },
+                    Err(e) => warn!("dump {}: Blv::load failed: {}", logical, e),
+                }
+            }
 
-                if let Some(content) = out_content {
-                    let out_path = out_dir.join(format!("{}.json", file));
-                    if let Err(e) = fs::write(&out_path, content) {
-                        error!("failed to write readable file {}: {}", out_path.display(), e);
-                    }
-                } else {
-                    // warn!("could not load/convert {} to readable JSON", file);
+            if let Some(content) = out_content {
+                let out_path = out_dir.join(format!("{}.json", file));
+                match fs::write(&out_path, content) {
+                    Ok(()) => info!("readable {}", logical),
+                    Err(e) => warn!("dump {}: failed to write {}: {}", logical, out_path.display(), e),
                 }
             }
         }

@@ -253,7 +253,14 @@ fn dump_archives(lod: &openmm_data::Assets) {
     let mut archives = lod.archives();
     archives.sort();
     for archive in &archives {
-        let files = lod.files_in(archive).unwrap_or_default();
+        let Some(mut files) = lod.files_in(archive) else {
+            eprintln!("warning: no file list for archive '{}'", archive);
+            continue;
+        };
+        files.sort();
         println!("{}: {} files", archive, files.len());
+        for file in &files {
+            println!("{}/{}", archive, file);
+        }
     }
 }

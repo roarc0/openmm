@@ -365,20 +365,36 @@ impl Assets {
 
         for entry in lod.list_files() {
             let file_name = &entry.name;
-            if let Some(data) = lod.get_file_raw(file_name) {
-                if let Ok(image) = Image::try_from(data.as_slice()) {
-                    if let Err(e) = image.save(out_path.join(format!("{}.png", file_name))) {
-                        log::error!("Error saving image {} : {}", file_name, e);
-                    }
-                } else if let Ok(sprite) = Image::try_from((data.as_slice(), palettes)) {
-                    if let Err(e) = sprite.save(out_path.join(format!("{}.png", file_name))) {
-                        log::error!("Error saving sprite {} : {}", file_name, e)
-                    }
-                } else if let Ok(lod_data) = LodData::try_from(data.as_slice())
-                    && let Err(e) = lod_data.dump(out_path.join(file_name))
-                {
-                    log::error!("Error saving lod data {} : {}", file_name, e)
+            let logical = format!("{}/{}", archive, file_name);
+            let Some(data) = lod.get_file_raw(file_name) else {
+                log::warn!("dump_lod {}: missing raw data", logical);
+                continue;
+            };
+
+            if let Ok(image) = Image::try_from(data.as_slice()) {
+                let dest = out_path.join(format!("{}.png", file_name));
+                match image.save(&dest) {
+                    Ok(()) => log::info!("dump_lod {} -> {} (bitmap)", logical, dest.display()),
+                    Err(e) => log::warn!("dump_lod {}: failed to save bitmap: {}", logical, e),
                 }
+            } else if let Ok(sprite) = Image::try_from((data.as_slice(), palettes)) {
+                let dest = out_path.join(format!("{}.png", file_name));
+                match sprite.save(&dest) {
+                    Ok(()) => log::info!("dump_lod {} -> {} (sprite)", logical, dest.display()),
+                    Err(e) => log::warn!("dump_lod {}: failed to save sprite: {}", logical, e),
+                }
+            } else if let Ok(lod_data) = LodData::try_from(data.as_slice()) {
+                let dest = out_path.join(file_name);
+                match lod_data.dump(&dest) {
+                    Ok(()) => log::info!("dump_lod {} -> {} (lod_data)", logical, dest.display()),
+                    Err(e) => log::warn!("dump_lod {}: failed to dump lod_data: {}", logical, e),
+                }
+            } else {
+                log::warn!(
+                    "dump_lod {}: no bitmap/sprite/lod_data decoder matched ({} bytes)",
+                    logical,
+                    data.len()
+                );
             }
         }
         Ok(())
