@@ -7,12 +7,16 @@ use openmm_data::Assets;
 #[derive(Resource)]
 pub struct GameAssets {
     assets: Assets,
+    media: std::sync::RwLock<openmm_data::assets::MediaCache>,
 }
 
 impl GameAssets {
     pub fn new(path: std::path::PathBuf) -> Result<Self, Box<dyn Error>> {
         let assets = Assets::new(&*path.to_string_lossy())?;
-        Ok(Self { assets })
+        Ok(Self {
+            assets,
+            media: std::sync::RwLock::new(openmm_data::assets::MediaCache::new()),
+        })
     }
 
     pub fn assets(&self) -> &Assets {
@@ -67,6 +71,40 @@ impl GameAssets {
     pub fn lod(&self) -> openmm_data::assets::LodDecoder<'_> {
         self.assets.lod()
     }
+
+    /// Get raw SMK video bytes by name (e.g. `"3dologo"`).
+    /// Searches all loaded VID archives including the `Anims/` directory.
+    pub fn smk_bytes(&self, name: &str) -> Option<Vec<u8>> {
+        self.assets.get_smk(name).ok()
+    }
+
+    // ── Media Caching API ───────────────────────────────────────────────────
+
+    /// Preload the decoded WAV audio for an SMK video so it's ready instantly.
+    pub fn preload_smk_audio(&self, name: &str) {
+        if let Ok(mut media) = self.media.write() {
+            media.preload_video_audio(name, &self.assets);
+        }
+    }
+
+    /// Retrieve pre-decoded WAV audio for an SMK video (cached or decodes instantly).
+    pub fn smk_audio(&self, name: &str) -> Option<Vec<u8>> {
+        self.media.write().ok()?.video_audio_wav(name, &self.assets)
+    }
+
+    /// Preload a music file into memory (e.g., `"13"` → `Music/13.mp3`).
+    pub fn preload_music(&self, track: &str) {
+        if let Ok(mut media) = self.media.write() {
+            media.preload_music(track, &self.assets);
+        }
+    }
+
+    /// Retrieve music bytes for a track (cached or reads instantly).
+    pub fn music_bytes(&self, track: &str) -> Option<Vec<u8>> {
+        self.media.write().ok()?.music_bytes(track, &self.assets)
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
 
     /// Load a LOD icon by name as a nearest-neighbor Bevy Image handle.
     /// Returns `None` if the icon is not found.

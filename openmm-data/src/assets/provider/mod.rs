@@ -164,9 +164,34 @@ impl Assets {
         Ok(assets)
     }
 
-    /// Refresh the asset list by scanning the game directory.
+    /// Refresh the asset list by scanning the game directory and known sibling
+    /// directories (e.g. `Anims/`) for LOD, SND, and VID archives.
     pub fn refresh(&mut self) -> Result<(), Box<dyn Error>> {
-        let entries = fs::read_dir(&self.game_dir)?;
+        self.scan_dir(&self.game_dir.clone())?;
+
+        // Also scan sibling directories of the game data path for VID archives.
+        // MM6 stores Smacker videos in a peer `Anims/` folder next to `data/`.
+        if let Some(parent) = self.game_dir.parent()
+            && let Some(anims) = crate::utils::find_path_case_insensitive(parent, "Anims")
+            && anims.is_dir()
+        {
+            self.scan_dir(&anims)?;
+        }
+
+        // Lazy load dsounds.bin if possible
+        if let Ok(dsounds) = DSounds::load_from_assets(self) {
+            self.dsounds = Some(dsounds);
+        }
+
+        Ok(())
+    }
+
+    /// Scan a single directory for LOD, SND, and VID archives.
+    fn scan_dir(&mut self, dir: &Path) -> Result<(), Box<dyn Error>> {
+        let entries = match fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return Ok(()), // directory may not exist
+        };
 
         for entry in entries {
             let entry = entry?;
@@ -193,11 +218,6 @@ impl Assets {
                     _ => {}
                 }
             }
-        }
-
-        // Lazy load dsounds.bin if possible
-        if let Ok(dsounds) = DSounds::load_from_assets(self) {
-            self.dsounds = Some(dsounds);
         }
 
         Ok(())
@@ -302,6 +322,28 @@ impl Assets {
             }
         }
         Err(format!("Smacker video not found: {}", name).into())
+    }
+
+    /// Retrieve a music file by track name (e.g. `"13"` → `Music/13.mp3`).
+    ///
+    /// Searches for `Music/{track}.mp3` under the game directory's parent,
+    /// case-insensitively (for Linux compatibility with Windows-era paths).
+    pub fn get_music(&self, track: &str) -> Result<Vec<u8>, Box<dyn Error>> {
+        let parent = self.game_dir.parent().unwrap_or(&self.game_dir);
+        let rel = format!("Music/{}.mp3", track);
+        let path = crate::utils::find_path_case_insensitive(parent, &rel)
+            .ok_or_else(|| format!("Music not found: {}", rel))?;
+        Ok(fs::read(&path)?)
+    }
+
+    /// Decode all audio from an SMK video into a WAV buffer.
+    ///
+    /// Looks up the video by name in the loaded VID archives, then extracts
+    /// audio via `SmkDecoder::extract_audio_wav`.  Returns `None` if the video
+    /// is not found or has no audio.
+    pub fn video_audio_wav(&self, name: &str) -> Option<Vec<u8>> {
+        let smk_bytes = self.get_smk(name).ok()?;
+        crate::assets::SmkDecoder::extract_audio_wav(&smk_bytes)
     }
 
     pub fn exists<P: AsRef<Path>>(&self, path: P) -> bool {

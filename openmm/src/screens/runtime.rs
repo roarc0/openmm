@@ -13,8 +13,7 @@ use bevy::prelude::*;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use openmm_data::Archive;
-use openmm_data::assets::{SmkArchive as Vid, SmkDecoder};
+use openmm_data::assets::SmkDecoder;
 
 use super::{
     ImageElement, REF_H, REF_W, Screen, ScreenElement, TextElement, VideoElement, load_screen,
@@ -286,7 +285,7 @@ fn show_screen(
     info!("ShowScreen: '{}' ({} elements)", screen.id, screen.elements.len());
 
     if !screen.bg_music.is_empty() {
-        spawn_screen_music(commands, audio_sources, &screen.bg_music, screen_id, cfg);
+        spawn_screen_music(commands, audio_sources, &screen.bg_music, screen_id, cfg, game_assets);
     }
 
     let layer_tag = ScreenLayer(screen_id.to_string());
@@ -316,6 +315,9 @@ fn show_screen(
     if screen_id == "ingame" {
         spawn_screen_crosshair(commands, &layer_tag);
     }
+
+    // Preload assets for screens reachable from this one.
+    preload_next_screens(&screen, game_assets);
 
     layers.screens.insert(screen_id.to_string(), screen);
 }
@@ -446,6 +448,68 @@ fn load_screen_replace_all(
     );
 }
 
+// ── Preloading ──────────────────────────────────────────────────────────────
+
+/// Scan a screen's actions for `LoadScreen("x")` references and eagerly cache
+/// the target screen's decoded audio and music in the `MediaCache`.
+///
+/// Raw video bytes are served by `GameAssets` (VID archives loaded at startup).
+/// Only loads assets not already present in the cache; safe to call repeatedly.
+fn preload_next_screens(screen: &Screen, game_assets: &GameAssets) {
+    let mut next_ids: Vec<String> = Vec::new();
+
+    // Collect LoadScreen targets from all action lists in this screen.
+    let mut collect = |actions: &[String]| {
+        for a in actions {
+            if let Some(id) = super::scripting::parse_string_arg(a.trim(), "LoadScreen") {
+                next_ids.push(id.to_string());
+            }
+        }
+    };
+
+    // on_load actions.
+    collect(&screen.on_load);
+
+    // Element-level actions.
+    for elem in &screen.elements {
+        match elem {
+            ScreenElement::Video(vid) => collect(&vid.on_end),
+            ScreenElement::Image(img) => {
+                collect(&img.on_click);
+                collect(&img.on_hover);
+            }
+            ScreenElement::Text(_) => {}
+        }
+    }
+
+    // Keyboard shortcut actions.
+    for actions in screen.keys.values() {
+        collect(actions);
+    }
+
+    // Deduplicate.
+    next_ids.sort();
+    next_ids.dedup();
+
+    // Preload each target screen's assets.
+    for next_id in &next_ids {
+        // Parse the screen RON (fast).
+        if let Ok(next_screen) = load_screen(next_id) {
+            // Pre-decode audio for upcoming videos.
+            for elem in &next_screen.elements {
+                if let ScreenElement::Video(vid) = elem {
+                    game_assets.preload_smk_audio(&vid.video);
+                }
+            }
+
+            // Preload upcoming music.
+            if !next_screen.bg_music.is_empty() {
+                game_assets.preload_music(&next_screen.bg_music);
+            }
+        }
+    }
+}
+
 // ── Music ───────────────────────────────────────────────────────────────────
 
 fn spawn_screen_music(
@@ -454,74 +518,30 @@ fn spawn_screen_music(
     track: &str,
     screen_id: &str,
     cfg: &GameConfig,
+    game_assets: &GameAssets,
 ) {
-    let data_path = openmm_data::get_data_path();
-    let base_dir = std::path::Path::new(&data_path)
-        .parent()
-        .unwrap_or(std::path::Path::new(&data_path));
-    let track_name = format!("Music/{}.mp3", track);
-    let music_path = openmm_data::find_path_case_insensitive(base_dir, &track_name);
-
-    if let Some(path) = music_path {
-        if let Ok(bytes) = std::fs::read(&path) {
-            let handle = audio_sources.add(AudioSource { bytes: bytes.into() });
-            commands.spawn((
-                AudioPlayer(handle),
-                PlaybackSettings {
-                    mode: bevy::audio::PlaybackMode::Loop,
-                    volume: bevy::audio::Volume::Linear(cfg.music_volume),
-                    ..default()
-                },
-                ScreenMusic(screen_id.to_string()),
-                ScreenLayer(screen_id.to_string()),
-            ));
-            info!("screen music: playing '{}' from {:?}", track, path);
-        } else {
-            warn!("screen music: failed to read {:?}", path);
-        }
+    let bytes = if let Some(b) = game_assets.music_bytes(track) {
+        b
     } else {
-        warn!("screen music: '{}' not found (searched {:?})", track_name, base_dir);
-    }
+        warn!("screen music: track '{}' not found", track);
+        return;
+    };
+
+    let handle = audio_sources.add(AudioSource { bytes: bytes.into() });
+    commands.spawn((
+        AudioPlayer(handle),
+        PlaybackSettings {
+            mode: bevy::audio::PlaybackMode::Loop,
+            volume: bevy::audio::Volume::Linear(cfg.music_volume),
+            ..default()
+        },
+        ScreenMusic(screen_id.to_string()),
+        ScreenLayer(screen_id.to_string()),
+    ));
+    info!("screen music: playing track '{}'", track);
 }
 
 // ── Video spawning ──────────────────────────────────────────────────────────
-
-/// Build a minimal WAV from raw PCM bytes.
-fn build_wav(pcm: &[u8], channels: u8, sample_rate: u32, bitdepth: u8) -> Vec<u8> {
-    let data_len = pcm.len() as u32;
-    let block_align = (channels as u32) * (bitdepth as u32 / 8);
-    let byte_rate = sample_rate * block_align;
-    let mut wav = Vec::with_capacity(44 + pcm.len());
-    wav.extend_from_slice(b"RIFF");
-    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
-    wav.extend_from_slice(b"WAVE");
-    wav.extend_from_slice(b"fmt ");
-    wav.extend_from_slice(&16u32.to_le_bytes());
-    wav.extend_from_slice(&1u16.to_le_bytes());
-    wav.extend_from_slice(&(channels as u16).to_le_bytes());
-    wav.extend_from_slice(&sample_rate.to_le_bytes());
-    wav.extend_from_slice(&byte_rate.to_le_bytes());
-    wav.extend_from_slice(&(block_align as u16).to_le_bytes());
-    wav.extend_from_slice(&(bitdepth as u16).to_le_bytes());
-    wav.extend_from_slice(b"data");
-    wav.extend_from_slice(&data_len.to_le_bytes());
-    wav.extend_from_slice(pcm);
-    wav
-}
-
-/// Load SMK bytes from Anims1.vid / Anims2.vid.
-fn load_smk_bytes(name: &str) -> Option<Vec<u8>> {
-    let data_path = openmm_data::get_data_path();
-    let base = std::path::Path::new(&data_path);
-    let parent = base.parent().unwrap_or(base);
-    let anims_dir = openmm_data::utils::find_path_case_insensitive(parent, "Anims")?;
-
-    ["Anims1.vid", "Anims2.vid"].iter().find_map(|fname| {
-        let path = openmm_data::utils::find_path_case_insensitive(&anims_dir, fname)?;
-        let vid = Vid::open(&path).ok()?;
-        vid.get_file(name)
-    })
-}
 
 fn spawn_video_element(
     commands: &mut Commands,
@@ -529,8 +549,9 @@ fn spawn_video_element(
     audio_sources: &mut Assets<AudioSource>,
     vid: &VideoElement,
     layer_tag: &ScreenLayer,
+    game_assets: &GameAssets,
 ) {
-    let Some(bytes) = load_smk_bytes(&vid.video) else {
+    let Some(bytes) = game_assets.smk_bytes(&vid.video) else {
         warn!(
             "video element '{}': '{}' not found in Anims VID archives",
             vid.id, vid.video
@@ -554,26 +575,21 @@ fn spawn_video_element(
         1.0 / 15.0
     };
 
-    if let Some(audio_info) = decoder.audio
-        && let Ok(mut audio_dec) = SmkDecoder::new(bytes.clone())
-    {
-        let mut pcm: Vec<u8> = Vec::new();
-        while audio_dec.next_frame().is_some() {
-            pcm.extend_from_slice(&audio_dec.decode_current_audio());
-        }
-        if !pcm.is_empty() {
-            let wav = build_wav(&pcm, audio_info.channels, audio_info.rate, audio_info.bitdepth);
-            let handle = audio_sources.add(AudioSource { bytes: wav.into() });
-            let mode = if vid.looping {
-                bevy::audio::PlaybackMode::Loop
-            } else {
-                bevy::audio::PlaybackMode::Despawn
-            };
-            commands.spawn((
-                AudioPlayer(handle),
-                PlaybackSettings { mode, ..default() },
-                layer_tag.clone(),
-            ));
+    if decoder.audio.is_some() {
+        if let Some(wav) = game_assets.smk_audio(&vid.video) {
+            if !wav.is_empty() {
+                let handle = audio_sources.add(AudioSource { bytes: wav.into() });
+                let mode = if vid.looping {
+                    bevy::audio::PlaybackMode::Loop
+                } else {
+                    bevy::audio::PlaybackMode::Despawn
+                };
+                commands.spawn((
+                    AudioPlayer(handle),
+                    PlaybackSettings { mode, ..default() },
+                    layer_tag.clone(),
+                ));
+            }
         }
     }
 
@@ -735,7 +751,7 @@ fn spawn_runtime_element(
             );
         }
         ScreenElement::Video(vid) => {
-            spawn_video_element(commands, images, audio_sources, vid, layer_tag);
+            spawn_video_element(commands, images, audio_sources, vid, layer_tag, game_assets);
         }
         ScreenElement::Text(txt) => {
             spawn_text_element(commands, txt, layer_tag);

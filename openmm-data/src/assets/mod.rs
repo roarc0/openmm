@@ -30,6 +30,7 @@ pub mod image;
 pub mod items;
 pub mod lod_data;
 pub mod mapstats;
+pub mod media_cache;
 pub mod merchant;
 pub mod monsters;
 pub mod npcbtb;
@@ -72,6 +73,7 @@ pub use self::provider::{Archive, ArchiveEntry, LodArchive, LodWriter, StaticGam
 pub use self::smk::{SmkAudioInfo, SmkDecoder, SmkInfo, parse_smk_info};
 pub use self::snd::SndArchive;
 pub use self::zlib::*;
+pub use self::media_cache::MediaCache;
 
 // Re-export specific types
 pub use self::autonotes::AutonotesTable;

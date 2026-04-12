@@ -161,6 +161,47 @@ impl SmkDecoder {
         }
         rgba
     }
+
+    /// Decode all audio from raw SMK bytes into a WAV buffer.
+    ///
+    /// Creates a temporary decoder, iterates every frame to collect PCM samples,
+    /// and wraps the result in a minimal RIFF/WAV header.  Returns `None` if the
+    /// SMK has no audio track or decoding fails.
+    pub fn extract_audio_wav(smk_bytes: &[u8]) -> Option<Vec<u8>> {
+        let mut dec = Self::new(smk_bytes.to_vec()).ok()?;
+        let info = dec.audio?;
+        let mut pcm: Vec<u8> = Vec::new();
+        while dec.next_frame().is_some() {
+            pcm.extend_from_slice(&dec.decode_current_audio());
+        }
+        if pcm.is_empty() {
+            return None;
+        }
+        Some(build_wav(&pcm, info.channels, info.rate, info.bitdepth))
+    }
+}
+
+/// Build a minimal RIFF/WAV from raw PCM bytes.
+fn build_wav(pcm: &[u8], channels: u8, sample_rate: u32, bitdepth: u8) -> Vec<u8> {
+    let data_len = pcm.len() as u32;
+    let block_align = (channels as u32) * (bitdepth as u32 / 8);
+    let byte_rate = sample_rate * block_align;
+    let mut wav = Vec::with_capacity(44 + pcm.len());
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&(channels as u16).to_le_bytes());
+    wav.extend_from_slice(&sample_rate.to_le_bytes());
+    wav.extend_from_slice(&byte_rate.to_le_bytes());
+    wav.extend_from_slice(&(block_align as u16).to_le_bytes());
+    wav.extend_from_slice(&(bitdepth as u16).to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    wav.extend_from_slice(pcm);
+    wav
 }
 
 #[cfg(test)]
