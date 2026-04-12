@@ -1,15 +1,16 @@
 (
-    id: "mm6Intro",
+    id: "jvc",
     elements: [
         Video((
-            id: "vid_MM6Intro",
+            id: "vid_jvc",
             position: (0.0, 0.0),
             size: (640.0, 480.0),
             z: 1,
-            video: "MM6Intro",
+            video: "jvc",
             skippable: true,
             on_end: [
-                "LoadScreen(\"loading\")",
+                "SaveConfig(\"skip_intro\",\"true\")",
+                "LoadScreen(\"menu\")",
             ],
         )),
     ],

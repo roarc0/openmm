@@ -172,7 +172,7 @@ fn menu_screen_setup(
     commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
 
     show_screen(
-        "logo",
+        "3dologo",
         &mut commands,
         &mut layers,
         &mut ui_assets,

@@ -1,5 +1,5 @@
 (
-    id: "logo",
+    id: "3dologo",
     on_load: [
         "Compare(\"config(skip_logo)\")",
         "LoadScreen(\"menu\")",
@@ -14,7 +14,7 @@
             video: "3dologo",
             skippable: true,
             on_end: [
-                "LoadScreen(\"mm6Intro\")",
+                "LoadScreen(\"jvc\")",
             ],
         )),
     ],
