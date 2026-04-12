@@ -65,16 +65,6 @@ pub fn save_screen_with_config(screen: &Screen) -> Result<(), String> {
     Ok(())
 }
 
-/// Save lock state into the screen's editor section and persist the whole screen.
-pub fn save_locks(screen: &mut Screen, locked: &std::collections::HashSet<String>) {
-    screen.editor.locked = locked.iter().cloned().collect();
-    let _ = save_screen(screen);
-}
-
-/// Load lock state from a screen's editor section.
-pub fn load_locks(screen: &Screen) -> std::collections::HashSet<String> {
-    screen.editor.locked.iter().cloned().collect()
-}
 
 #[cfg(test)]
 mod tests {

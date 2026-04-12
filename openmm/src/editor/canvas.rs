@@ -114,8 +114,6 @@ pub struct CanvasBackground;
 pub struct ElementEditorState {
     /// Hidden element indices (texture hidden, gizmo remains).
     pub hidden: std::collections::HashSet<usize>,
-    /// Locked element IDs (by element id string, persisted across sessions).
-    pub locked: std::collections::HashSet<String>,
 }
 
 /// Current selection state.
@@ -394,7 +392,7 @@ pub fn draw_overlays(
         );
 
         // Status stamps at bottom-right inside the element.
-        let is_locked = editor_state.locked.contains(elem.id());
+        let is_locked = editor.screen.editor.locked.contains(&elem.id().to_string());
         let evt_count =
             elem.on_click().len() + elem.on_hover().len() + elem.as_image().map_or(0, |img| img.bindings.len());
         let mut stamps: Vec<String> = Vec::new();
@@ -471,7 +469,7 @@ pub fn draw_overlays(
                         if btn(ui, vis_label) {
                             overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
                         }
-                        let is_locked = editor_state.locked.contains(elem.id());
+                        let is_locked = editor.screen.editor.locked.contains(&elem.id().to_string());
                         if btn(ui, if is_locked { "Unlk" } else { "Lock" }) {
                             overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
                         }
@@ -518,10 +516,12 @@ pub fn apply_overlay_actions(
     match cmd {
         OverlayCmd::Remove(idx) => {
             if idx < editor.screen.elements.len() {
+                let id = editor.screen.elements[idx].id().to_string();
                 editor.screen.elements.remove(idx);
                 editor.dirty = true;
                 selection.index = None;
                 editor_state.hidden.remove(&idx);
+                editor.screen.editor.locked.retain(|locked_id| locked_id != &id);
             }
         }
         OverlayCmd::ToggleVisibility(idx) => {
@@ -532,11 +532,13 @@ pub fn apply_overlay_actions(
         OverlayCmd::ToggleLock(idx) => {
             if let Some(elem) = editor.screen.elements.get(idx) {
                 let id = elem.id().to_string();
-                if !editor_state.locked.remove(&id) {
-                    editor_state.locked.insert(id);
+                if let Some(pos) = editor.screen.editor.locked.iter().position(|l| l == &id) {
+                    editor.screen.editor.locked.remove(pos);
+                } else {
+                    editor.screen.editor.locked.push(id);
                 }
-                // Persist lock state.
-                super::io::save_locks(&mut editor.screen, &editor_state.locked);
+                // Persist screen state (pruning built-in to save_screen if called later).
+                editor.dirty = true;
             }
         }
         OverlayCmd::BringToTop(idx) => {
@@ -649,7 +651,7 @@ pub fn drag_system(
         .screen
         .elements
         .get(sel_idx)
-        .is_some_and(|e| editor_state.locked.contains(e.id()))
+        .is_some_and(|e| editor.screen.editor.locked.contains(&e.id().to_string()))
     {
         return;
     }
@@ -785,7 +787,7 @@ pub fn arrow_nudge_system(
         .screen
         .elements
         .get(sel_idx)
-        .is_some_and(|e| editor_state.locked.contains(e.id()))
+        .is_some_and(|e| editor.screen.editor.locked.contains(&e.id().to_string()))
     {
         return;
     }
@@ -834,7 +836,7 @@ pub fn delete_system(
         .screen
         .elements
         .get(idx)
-        .is_some_and(|e| editor_state.locked.contains(e.id()))
+        .is_some_and(|e| editor.screen.editor.locked.contains(&e.id().to_string()))
     {
         return;
     }

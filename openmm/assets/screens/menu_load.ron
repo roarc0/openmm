@@ -1,10 +1,5 @@
 (
     id: "menu_load",
-    editor: (
-        locked: [
-            "icons/load_up",
-        ],
-    ),
     elements: [
         Image((
             id: "icons/LSAVE640.PCX",
@@ -53,4 +48,9 @@
             bindings: {},
         )),
     ],
+    editor: (
+        locked: [
+            "icons/load_up",
+        ],
+    ),
 )

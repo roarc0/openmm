@@ -40,9 +40,8 @@ impl Plugin for EditorPlugin {
             app.add_plugins(EguiPlugin::default());
         }
 
-        // Load screen and editor state eagerly so resources exist from frame 0.
+        // Load screen eagerly so resources exist from frame 0.
         let screen = io::load_last_screen();
-        let locked = io::load_locks(&screen);
         info!("screen editor — editing '{}'", screen.id);
 
         app.init_resource::<canvas::Selection>()
@@ -50,10 +49,7 @@ impl Plugin for EditorPlugin {
             .init_resource::<UiVisible>()
             .init_resource::<canvas::OverlayAction>()
             .insert_resource(canvas::EditorScreen { screen, dirty: false })
-            .insert_resource(canvas::ElementEditorState {
-                locked,
-                ..Default::default()
-            })
+            .init_resource::<canvas::ElementEditorState>()
             .add_systems(OnEnter(GameState::Editor), editor_setup)
             .add_systems(
                 Update,
@@ -136,6 +132,7 @@ fn editor_toolbar(
                 if ui.button("New").clicked() {
                     editor.screen = Screen::new("untitled");
                     editor.dirty = false;
+                    editor_state.hidden.clear();
                     io::set_last_screen("untitled");
                 }
 
@@ -148,7 +145,6 @@ fn editor_toolbar(
                                 if ui.selectable_label(false, name).clicked() {
                                     match io::load_screen(name) {
                                         Ok(s) => {
-                                            editor_state.locked = io::load_locks(&s);
                                             editor.screen = s;
                                             editor.dirty = false;
                                             editor_state.hidden.clear();
@@ -165,6 +161,7 @@ fn editor_toolbar(
                 }
 
                 if ui.button("Save").clicked() {
+                    editor.screen.prune_locked_elements();
                     match io::save_screen(&editor.screen) {
                         Ok(()) => {
                             editor.dirty = false;
