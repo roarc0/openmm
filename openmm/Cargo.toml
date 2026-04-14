@@ -11,7 +11,7 @@ editor = []
 perf_log = []
 
 [dependencies]
-ron = "0.10"
+ron = "0.12"
 openmm-data = { path = "../openmm-data" }
 bevy = { version = "0.18", default-features = false, features = [
     # App core
