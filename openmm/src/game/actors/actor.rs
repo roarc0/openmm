@@ -52,3 +52,62 @@ pub struct Actor {
     /// to re-probe every frame while rounding the same obstacle.
     pub cached_steer_offset: Option<f32>,
 }
+
+/// Parameters for constructing an [`Actor`] via [`Actor::new`].
+/// Caller supplies only the varying fields; shared fields (timer seeds, sentinels) are
+/// computed by the constructor.
+pub struct ActorParams {
+    pub name: String,
+    pub hp: i16,
+    pub move_speed: f32,
+    pub position: Vec3,
+    pub hostile: bool,
+    pub variant: u8,
+    pub sound_ids: [u16; 4],
+    pub tether_distance: f32,
+    pub attack_range: f32,
+    pub ddm_id: i32,
+    pub group_id: i32,
+    pub aggro_range: f32,
+    pub recovery_secs: f32,
+    pub sprite_half_height: f32,
+    pub can_fly: bool,
+    pub ai_type: String,
+}
+
+impl Actor {
+    /// Construct an [`Actor`] from [`ActorParams`].
+    /// Timer fields (wander_timer, fidget_timer, attack_timer) are deterministically
+    /// seeded from the spawn position so nearby actors don't synchronise their behaviour.
+    pub fn new(p: ActorParams) -> Self {
+        let pos = p.position;
+        Self {
+            name: p.name,
+            hp: p.hp,
+            max_hp: p.hp,
+            move_speed: p.move_speed,
+            initial_position: pos,
+            guarding_position: pos,
+            tether_distance: p.tether_distance,
+            wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
+            wander_target: pos,
+            facing_yaw: 0.0,
+            hostile: p.hostile,
+            variant: p.variant,
+            sound_ids: p.sound_ids,
+            fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+            attack_range: p.attack_range,
+            attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
+            attack_anim_remaining: 0.0,
+            ddm_id: p.ddm_id,
+            group_id: p.group_id,
+            aggro_range: p.aggro_range,
+            recovery_secs: p.recovery_secs,
+            sprite_half_height: p.sprite_half_height,
+            can_fly: p.can_fly,
+            vertical_velocity: 0.0,
+            ai_type: p.ai_type,
+            cached_steer_offset: None,
+        }
+    }
+}

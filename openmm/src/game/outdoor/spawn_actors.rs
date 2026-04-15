@@ -91,34 +91,24 @@ pub(super) fn spawn_npc_actors(
                     name: actor.name.clone(),
                 })
                 .insert(crate::game::actors::MonsterAiMode::Wander)
-                .insert(actor::Actor {
+                .insert(actor::Actor::new(actor::ActorParams {
                     name: actor.name.clone(),
                     hp: actor.hp,
-                    max_hp: actor.hp,
                     move_speed: actor.move_speed as f32,
-                    initial_position: pos,
-                    guarding_position: pos,
-                    tether_distance: actor.tether_distance as f32,
-                    wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
-                    wander_target: pos,
-                    facing_yaw: 0.0,
+                    position: pos,
                     hostile: true,
                     variant: actor.variant,
                     sound_ids: actor.sound_ids,
-                    fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                    tether_distance: actor.tether_distance as f32,
                     attack_range: actor.radius as f32 * 2.0,
-                    attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
-                    attack_anim_remaining: 0.0,
                     ddm_id: i as i32,
                     group_id: actor.group,
                     aggro_range: actor.aggro_range,
                     recovery_secs: actor.recovery_secs,
                     sprite_half_height: sh / 2.0,
                     can_fly: actor.can_fly,
-                    vertical_velocity: 0.0,
                     ai_type: actor.ai_type.clone(),
-                    cached_steer_offset: None,
-                })
+                }))
                 .insert(InGame);
             commands.entity(child_id).insert(NotShadowReceiver);
             if !ctx.actor_shadows {
@@ -216,34 +206,24 @@ pub(super) fn spawn_npc_actors(
                 npc_id: effective_npc_id as i16,
             })
             .insert(crate::game::actors::MonsterAiMode::Wander)
-            .insert(actor::Actor {
+            .insert(actor::Actor::new(actor::ActorParams {
                 name: actor.name.clone(),
                 hp: actor.hp,
-                max_hp: actor.hp,
                 move_speed: actor.move_speed as f32,
-                initial_position: pos,
-                guarding_position: pos,
-                tether_distance: actor.tether_distance as f32,
-                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
-                wander_target: pos,
-                facing_yaw: 0.0,
+                position: pos,
                 hostile: false,
                 variant: actor.variant,
                 sound_ids: actor.sound_ids,
-                fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                tether_distance: actor.tether_distance as f32,
                 attack_range: actor.radius as f32 * 2.0,
-                attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
-                attack_anim_remaining: 0.0,
                 ddm_id: i as i32,
                 group_id: actor.group,
                 aggro_range: actor.aggro_range,
                 recovery_secs: actor.recovery_secs,
                 sprite_half_height: sh / 2.0,
                 can_fly: actor.can_fly,
-                vertical_velocity: 0.0,
                 ai_type: actor.ai_type.clone(),
-                cached_steer_offset: None,
-            })
+            }))
             .insert(InGame);
         commands.entity(child_id).insert(NotShadowReceiver);
         if !ctx.actor_shadows {
@@ -327,34 +307,24 @@ pub(super) fn spawn_odm_monsters(
             ))
             .insert(crate::game::interaction::MonsterInteractable { name: mon.name.clone() })
             .insert(crate::game::actors::MonsterAiMode::Wander)
-            .insert(actor::Actor {
+            .insert(actor::Actor::new(actor::ActorParams {
                 name: mon.name.clone(),
                 hp: mon.hp,
-                max_hp: mon.hp,
                 move_speed: mon.move_speed as f32,
-                initial_position: pos,
-                guarding_position: pos,
-                tether_distance: mon.radius as f32 * 2.0,
-                wander_timer: (pos.x * 0.011 + pos.z * 0.017).abs().fract() * 4.0,
-                wander_target: pos,
-                facing_yaw: 0.0,
+                position: pos,
                 hostile: true,
                 variant: mon.variant,
                 sound_ids: mon.sound_ids,
-                fidget_timer: (pos.x * 0.013 + pos.z * 0.019).abs().fract() * 15.0 + 5.0,
+                tether_distance: mon.radius as f32 * 2.0,
                 attack_range: mon.body_radius as f32 * 2.0,
-                attack_timer: (pos.x * 0.007 + pos.z * 0.023).abs().fract() * 3.0 + 1.0,
-                attack_anim_remaining: 0.0,
                 ddm_id: -1,
                 group_id: 0,
                 aggro_range: mon.aggro_range,
                 recovery_secs: mon.recovery_secs,
                 sprite_half_height: sh / 2.0,
                 can_fly: mon.can_fly,
-                vertical_velocity: 0.0,
                 ai_type: mon.ai_type.clone(),
-                cached_steer_offset: None,
-            })
+            }))
             .insert(InGame);
         commands.entity(child_id).insert(NotShadowReceiver);
         if !ctx.actor_shadows {
