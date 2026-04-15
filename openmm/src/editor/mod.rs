@@ -1,7 +1,6 @@
 mod browser;
 pub mod canvas;
 mod element_editor;
-pub mod format;
 mod inspector;
 pub mod io;
 
@@ -10,13 +9,12 @@ use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 use crate::GameState;
+use crate::screens::Screen;
 
 /// Run condition: true when egui wants keyboard input (user typing in a text field).
 fn egui_wants_keyboard(egui_input: Option<Res<EguiWantsInput>>) -> bool {
     egui_input.is_some_and(|e| e.wants_keyboard_input())
 }
-
-pub use format::Screen;
 
 /// Marker for all editor entities — despawned on editor exit.
 #[derive(Component)]

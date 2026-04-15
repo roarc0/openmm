@@ -5,7 +5,6 @@ use std::fs;
 
 use serde::{Deserialize, Serialize};
 
-// Re-export shared functions so existing editor code doesn't break.
 pub use crate::screens::{Screen, list_screens, load_screen, save_screen, screen_path};
 
 const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";

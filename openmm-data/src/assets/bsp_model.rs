@@ -400,8 +400,6 @@ impl BSPModelFace {
     }
 }
 
-// PolygonType is now in assets::enums — re-exported for backward compatibility.
-
 #[repr(C)]
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct BSPNode {
