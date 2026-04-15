@@ -4,30 +4,11 @@ use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
 use super::canvas::EditorScreen;
-use openmm_data::Archive;
-use openmm_data::assets::SmkArchive;
 
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::ui_assets::UiAssets;
 use crate::screens::{ImageElement, REF_H, REF_W, ScreenElement, VideoElement};
-
-/// Filter to LOD image archives and VID video archives (exclude sound archives).
-fn browsable_archive_names(assets: &openmm_data::Assets, all: Vec<String>) -> Vec<String> {
-    all.into_iter()
-        .filter(|name| assets.files_in(name).is_some_and(|f| !f.is_empty()))
-        .filter(|name| {
-            let lower = name.to_lowercase();
-            !lower.contains("snd")
-        })
-        .collect()
-}
-
-/// True if the archive name looks like a VID/SMK video archive.
-fn is_video_archive(name: &str) -> bool {
-    let lower = name.to_lowercase();
-    lower.contains("anims") || lower.contains("vid") || lower.contains("smk")
-}
 
 /// One archive and its file list.
 struct LodFolder {
@@ -63,10 +44,15 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
     let mut archive_names = assets.archives();
     archive_names.sort();
 
-    let lod_archives: Vec<String> = browsable_archive_names(&assets, archive_names);
-
-    for archive in &lod_archives {
+    // LOD archives (image/bitmap data).
+    for archive in &archive_names {
+        if assets.get_lod(archive).is_none() {
+            continue;
+        }
         let mut files = assets.files_in(archive).unwrap_or_default();
+        if files.is_empty() {
+            continue;
+        }
         files.sort();
         let prefixed: Vec<String> = files.into_iter().map(|f| format!("{}/{}", archive, f)).collect();
         browser.folders.push(LodFolder {
@@ -76,30 +62,22 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
         });
     }
 
-    // Discover VID archives in the Anims sibling directory.
-    let data_path = openmm_data::get_data_path();
-    let base = std::path::Path::new(&data_path);
-    let parent = base.parent().unwrap_or(base);
-    if let Some(anims_dir) = openmm_data::utils::find_path_case_insensitive(parent, "Anims") {
-        for vid_name in &["Anims1.vid", "Anims2.vid"] {
-            if let Some(path) = openmm_data::utils::find_path_case_insensitive(&anims_dir, vid_name) {
-                if let Ok(vid) = SmkArchive::open(&path) {
-                    let mut files: Vec<String> = vid.list_files().iter().map(|e| e.name.clone()).collect();
-                    files.sort();
-                    let folder_name = path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or(vid_name)
-                        .to_string();
-                    let prefixed: Vec<String> = files.into_iter().map(|f| format!("{}/{}", folder_name, f)).collect();
-                    browser.folders.push(LodFolder {
-                        name: folder_name,
-                        files: prefixed,
-                        is_video: true,
-                    });
-                }
-            }
+    // VID archives (Smacker video) — already loaded by Assets::refresh() scanning Anims/.
+    for archive in &archive_names {
+        if assets.get_lod(archive).is_some() || assets.get_snd(archive).is_some() {
+            continue;
         }
+        let mut files = assets.files_in(archive).unwrap_or_default();
+        if files.is_empty() {
+            continue;
+        }
+        files.sort();
+        let prefixed: Vec<String> = files.into_iter().map(|f| format!("{}/{}", archive, f)).collect();
+        browser.folders.push(LodFolder {
+            name: archive.clone(),
+            files: prefixed,
+            is_video: true,
+        });
     }
 
     browser.filtered.clear();
