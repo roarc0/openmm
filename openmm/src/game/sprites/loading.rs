@@ -498,14 +498,11 @@ fn load_sprite_with_palette_offset(
         return None;
     };
 
-    // Read the base palette_id from the sprite header (offset 20, u16 LE)
+    // Read the base palette_id from the sprite header via openmm-data parser
     let sprite_data = assets
         .get_bytes(format!("sprites/{}", sprite_name.to_lowercase()))
         .ok()?;
-    if sprite_data.len() < 22 {
-        return None;
-    }
-    let base_palette_id = u16::from_le_bytes([sprite_data[20], sprite_data[21]]);
+    let base_palette_id = openmm_data::assets::image::sprite_palette_id(&sprite_data)?;
     let variant_palette_id = base_palette_id + palette_offset;
 
     // Try with variant palette, fall back to normal decode

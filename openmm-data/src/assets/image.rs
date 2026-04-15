@@ -149,6 +149,15 @@ impl Image {
     }
 }
 
+/// Extract the palette_id from raw sprite header bytes (offset 20, u16 LE).
+/// Returns None if data is too short to contain the field.
+pub fn sprite_palette_id(data: &[u8]) -> Option<u16> {
+    if data.len() < 22 {
+        return None;
+    }
+    Some(u16::from_le_bytes([data[20], data[21]]))
+}
+
 fn process_sprite_data(data: &[u8], table: &[u8], width: usize, height: usize) -> Result<Vec<u8>, Box<dyn Error>> {
     let img_size = width * height;
     let mut img: Vec<u8> = vec![0; img_size];
@@ -390,9 +399,30 @@ pub fn tint_variant(image: &mut DynamicImage, variant: u8) {
 
 #[cfg(test)]
 mod test {
-    use super::{ATLAS_TILE_PAD, get_atlas};
+    use super::{ATLAS_TILE_PAD, get_atlas, sprite_palette_id};
     use crate::assets::test_lod;
     use image::GenericImageView;
+
+    #[test]
+    fn sprite_palette_id_short_data_returns_none() {
+        assert!(sprite_palette_id(&[]).is_none());
+        assert!(sprite_palette_id(&[0u8; 21]).is_none());
+    }
+
+    #[test]
+    fn sprite_palette_id_reads_offset_20_le() {
+        let mut data = [0u8; 22];
+        data[20] = 0x2A; // 42 low byte
+        data[21] = 0x00; // high byte
+        assert_eq!(sprite_palette_id(&data), Some(42));
+    }
+
+    #[test]
+    fn sprite_palette_id_exact_boundary() {
+        // exactly 22 bytes: should succeed
+        let data = [0u8; 22];
+        assert_eq!(sprite_palette_id(&data), Some(0));
+    }
 
     #[test]
     fn join_images() {
