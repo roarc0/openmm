@@ -60,15 +60,10 @@ fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let data_path = openmm_data::get_data_path();
-    let base = Path::new(&data_path);
-
-    let snd_path = [base.join("../Sounds/Audio.snd"), base.join("Sounds/Audio.snd")]
-        .into_iter()
-        .find(|p| p.exists())
-        .expect("Audio.snd not found");
-
-    info!("Opening {:?}", snd_path);
-    let archive = openmm_data::assets::snd::SndArchive::open(&snd_path).expect("Failed to open Audio.snd");
+    let assets = openmm_data::Assets::new(&data_path).expect("Failed to load game assets");
+    let archive = assets
+        .get_snd("audio")
+        .expect("Audio.snd not found in loaded archives");
 
     let output_dir = Path::new("data/dump/sounds");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");

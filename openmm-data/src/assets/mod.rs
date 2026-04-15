@@ -66,6 +66,7 @@ pub use self::image::{Image, get_atlas};
 pub use self::items::ItemsTable;
 pub use self::lod_data::LodData;
 pub use self::mapstats::MapStats;
+pub use self::media_cache::MediaCache;
 pub use self::odm::{Odm, SpawnPoint};
 pub use self::palette::{Palette, Palettes};
 pub use self::provider::archive::smk::{SmkArchive, SmkWriter};
@@ -73,7 +74,6 @@ pub use self::provider::{Archive, ArchiveEntry, LodArchive, LodWriter, StaticGam
 pub use self::smk::{SmkAudioInfo, SmkDecoder, SmkInfo, parse_smk_info};
 pub use self::snd::SndArchive;
 pub use self::zlib::*;
-pub use self::media_cache::MediaCache;
 
 // Re-export specific types
 pub use self::autonotes::AutonotesTable;

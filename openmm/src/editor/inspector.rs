@@ -60,7 +60,14 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
 
             ui.horizontal(|ui| {
                 ui.label("Start (s):");
-                if ui.add(egui::DragValue::new(&mut start_sec).speed(0.1).clamp_range(0.0..=3600.0)).changed() {
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut start_sec)
+                            .speed(0.1)
+                            .clamp_range(0.0..=3600.0),
+                    )
+                    .changed()
+                {
                     sound_changed = true;
                 }
                 if ui.checkbox(&mut looping, "Loop").changed() {

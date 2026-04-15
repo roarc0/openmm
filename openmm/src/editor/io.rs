@@ -65,7 +65,6 @@ pub fn save_screen_with_config(screen: &Screen) -> Result<(), String> {
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

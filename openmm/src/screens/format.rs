@@ -442,8 +442,7 @@ impl Screen {
 
     /// Prune the locked list to only include current element IDs.
     pub fn prune_locked_elements(&mut self) {
-        let element_ids: std::collections::HashSet<_> =
-            self.elements.iter().map(|e| e.id().to_string()).collect();
+        let element_ids: std::collections::HashSet<_> = self.elements.iter().map(|e| e.id().to_string()).collect();
         self.editor.locked.retain(|id| element_ids.contains(id));
     }
 }
@@ -576,9 +575,9 @@ mod tests {
         let mut screen = Screen::new("test");
         screen.elements = vec![ScreenElement::Image(ImageElement::new("valid", "tex", (0.0, 0.0)))];
         screen.editor.locked = vec!["valid".to_string(), "invalid".to_string()];
-        
+
         screen.prune_locked_elements();
-        
+
         assert_eq!(screen.editor.locked.len(), 1);
         assert_eq!(screen.editor.locked[0], "valid");
     }

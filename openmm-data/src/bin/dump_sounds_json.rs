@@ -1,32 +1,17 @@
-use openmm_data::snd::SndArchive;
-use openmm_data::{Archive, Assets, dsounds::DSounds, find_path_case_insensitive};
+use openmm_data::{Archive, Assets};
 use serde_json::json;
 use std::fs::File;
 use std::io::Write;
 
 fn main() {
     let data_path = openmm_data::get_data_path();
-    let assets = Assets::new(&data_path).expect("failed to load LODs");
-    let dsounds = match DSounds::load(&assets) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Error loading dsounds.bin: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let assets = Assets::new(&data_path).expect("failed to load game assets");
 
-    let base = std::path::Path::new(&data_path);
-    let parent = base.parent().unwrap_or(base);
-    let snd_path = find_path_case_insensitive(parent, "Sounds/Audio.snd")
-        .or_else(|| find_path_case_insensitive(base, "Audio.snd"));
-
-    let snd_archive = snd_path.and_then(|p| {
-        println!("Opening Audio.snd at {:?}", p);
-        SndArchive::open(p).ok()
-    });
+    let dsounds = assets.dsounds().expect("dsounds.bin not loaded");
+    let snd_archive = assets.get_snd("audio");
 
     if snd_archive.is_none() {
-        println!("Warning: Audio.snd not found. Sizes will be 0.");
+        println!("Warning: Audio.snd not found in loaded archives. Sizes will be 0.");
     }
 
     let mut results = Vec::new();
@@ -39,7 +24,7 @@ fn main() {
                 "Warning: Sound ID {} has an empty name entry in dsounds.bin",
                 item.sound_id
             );
-        } else if let Some(ref archive) = snd_archive {
+        } else if let Some(archive) = snd_archive {
             let lower_name = name.to_lowercase();
             if let Some(entry) = archive
                 .list_files()

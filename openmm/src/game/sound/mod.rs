@@ -5,11 +5,7 @@ pub(crate) mod footsteps;
 pub(crate) mod music;
 
 use bevy::prelude::*;
-use openmm_data::{
-    Archive,
-    dsounds::DSounds,
-    snd::{SndArchive, SndExt},
-};
+use openmm_data::{Archive, dsounds::DSounds, snd::SndArchive, snd::SndExt};
 use std::collections::{HashMap, HashSet};
 
 use crate::assets::GameAssets;
@@ -164,42 +160,14 @@ impl Plugin for SoundPlugin {
 }
 
 fn init_sound_manager(mut commands: Commands, game_assets: Res<GameAssets>) {
-    let dsounds = match DSounds::load(game_assets.assets()) {
-        Ok(d) => d,
-        Err(e) => {
-            warn!("Failed to load dsounds.bin: {e}");
-            return;
-        }
-    };
-
-    let data_path = openmm_data::get_data_path();
-    let base = std::path::Path::new(&data_path);
-    let parent = base.parent().unwrap_or(base);
-
-    // Use robust path resolution for Audio.snd
-    let snd_path = openmm_data::find_path_case_insensitive(parent, "Sounds/Audio.snd")
-        .or_else(|| openmm_data::find_path_case_insensitive(base, "Audio.snd"));
-
-    let Some(snd_path) = snd_path else {
-        warn!(
-            "Audio.snd not found in {:?}/Sounds or {:?} — sound effects disabled",
-            parent, base
-        );
-        // List directory to help debug
-        if let Ok(entries) = std::fs::read_dir(parent) {
-            let names: Vec<_> = entries.flatten().map(|e| e.file_name()).collect();
-            debug!("Directory contents of {:?}: {:?}", parent, names);
-        }
+    let Some(dsounds) = game_assets.dsounds().cloned() else {
+        warn!("dsounds.bin not loaded — sound effects disabled");
         return;
     };
 
-    info!("Opening Audio.snd at {:?}", snd_path);
-    let snd_archive = match SndArchive::open(&snd_path) {
-        Ok(a) => a,
-        Err(e) => {
-            warn!("Failed to open Audio.snd at {:?}: {e}", snd_path);
-            return;
-        }
+    let Some(snd_archive) = game_assets.get_snd("audio").cloned() else {
+        warn!("Audio.snd not found in loaded archives — sound effects disabled");
+        return;
     };
 
     info!(

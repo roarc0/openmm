@@ -72,6 +72,16 @@ impl GameAssets {
         self.assets.lod()
     }
 
+    /// Retrieve an already-opened SND archive by stem name (e.g. `"audio"` for `Audio.snd`).
+    pub fn get_snd(&self, name: &str) -> Option<&openmm_data::assets::SndArchive> {
+        self.assets.get_snd(name)
+    }
+
+    /// Access the loaded dsounds.bin table (sound ID → filename mapping).
+    pub fn dsounds(&self) -> Option<&openmm_data::dsounds::DSounds> {
+        self.assets.dsounds()
+    }
+
     /// Get raw SMK video bytes by name (e.g. `"3dologo"`).
     /// Searches all loaded VID archives including the `Anims/` directory.
     pub fn smk_bytes(&self, name: &str) -> Option<Vec<u8>> {

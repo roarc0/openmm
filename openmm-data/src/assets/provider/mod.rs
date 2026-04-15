@@ -169,17 +169,23 @@ impl Assets {
     pub fn refresh(&mut self) -> Result<(), Box<dyn Error>> {
         self.scan_dir(&self.game_dir.clone())?;
 
-        // Also scan sibling directories of the game data path for VID archives.
-        // MM6 stores Smacker videos in a peer `Anims/` folder next to `data/`.
-        if let Some(parent) = self.game_dir.parent()
-            && let Some(anims) = crate::utils::find_path_case_insensitive(parent, "Anims")
-            && anims.is_dir()
-        {
-            self.scan_dir(&anims)?;
+        // Also scan sibling directories of the game data path for archives.
+        // MM6 stores Smacker videos in `Anims/` and sound archives in `Sounds/`.
+        let sibling_dirs: Vec<_> = if let Some(parent) = self.game_dir.parent() {
+            ["Anims", "Sounds"]
+                .iter()
+                .filter_map(|name| crate::utils::find_path_case_insensitive(parent, name))
+                .filter(|p| p.is_dir())
+                .collect()
+        } else {
+            vec![]
+        };
+        for dir in sibling_dirs {
+            self.scan_dir(&dir)?;
         }
 
         // Lazy load dsounds.bin if possible
-        if let Ok(dsounds) = DSounds::load_from_assets(self) {
+        if let Ok(dsounds) = DSounds::load(self) {
             self.dsounds = Some(dsounds);
         }
 
@@ -330,10 +336,13 @@ impl Assets {
     /// case-insensitively (for Linux compatibility with Windows-era paths).
     pub fn get_music(&self, track: &str) -> Result<Vec<u8>, Box<dyn Error>> {
         let parent = self.game_dir.parent().unwrap_or(&self.game_dir);
-        let rel = format!("Music/{}.mp3", track);
-        let path = crate::utils::find_path_case_insensitive(parent, &rel)
-            .ok_or_else(|| format!("Music not found: {}", rel))?;
-        Ok(fs::read(&path)?)
+        for dir in &["Music", "Sounds"] {
+            let rel = format!("{}/{}.mp3", dir, track);
+            if let Some(path) = crate::utils::find_path_case_insensitive(parent, &rel) {
+                return Ok(fs::read(&path)?);
+            }
+        }
+        Err(format!("Music not found: Music/{t}.mp3 or Sounds/{t}.mp3", t = track).into())
     }
 
     /// Decode all audio from an SMK video into a WAV buffer.
@@ -385,6 +394,16 @@ impl Assets {
 
     pub fn get_lod(&self, name: &str) -> Option<&LodArchive> {
         self.lods.get(&name.to_lowercase())
+    }
+
+    /// Retrieve an already-opened SND archive by stem name (e.g. `"audio"` for `Audio.snd`).
+    pub fn get_snd(&self, name: &str) -> Option<&SndArchive> {
+        self.snds.get(&name.to_lowercase())
+    }
+
+    /// Access the loaded dsounds.bin table (sound ID → filename mapping).
+    pub fn dsounds(&self) -> Option<&DSounds> {
+        self.dsounds.as_ref()
     }
 
     /// O(1) check: does `name` exist in the given LOD archive?

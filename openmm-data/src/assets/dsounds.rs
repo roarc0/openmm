@@ -18,7 +18,7 @@ fn default_dsounds_runtime() -> [u8; 68] {
     [0; 68]
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DSounds {
     pub items: Vec<DSoundInfo>,
 }
@@ -81,10 +81,6 @@ impl DSounds {
     pub fn load(assets: &Assets) -> Result<Self, Box<dyn Error>> {
         let raw = assets.get_bytes("icons/dsounds.bin")?;
         Self::try_from(raw.as_slice())
-    }
-
-    pub fn load_from_assets(assets: &Assets) -> Result<Self, Box<dyn Error>> {
-        Self::load(assets)
     }
 
     pub fn parse(data: &[u8]) -> Result<Self, Box<dyn Error>> {
