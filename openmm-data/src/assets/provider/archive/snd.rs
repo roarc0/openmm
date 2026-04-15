@@ -176,10 +176,7 @@ impl Archive for SndArchive {
             return None;
         }
         let lower = name.to_lowercase();
-        let idx = self.lookup.get(&lower).or_else(|| {
-            log::warn!("Sound file not found in archive: '{}' (requested as '{}')", name, lower);
-            None
-        })?;
+        let idx = self.lookup.get(&lower)?;
         let start = self._offsets[*idx];
         let size = self.entries[*idx].size;
 
