@@ -595,13 +595,14 @@ fn spawn_decorations(
         if dec.is_directional {
             let result = spawn_directional_decoration(
                 dec,
-                &dec_pos,
+                dec_pos,
                 key,
                 commands,
                 images,
                 meshes,
                 sprite_materials,
-                game_assets,
+                game_assets.assets(),
+                &lod,
                 cfg,
                 &mut sprite_cache,
             );
@@ -611,7 +612,7 @@ fn spawn_decorations(
         } else if dec.num_frames > 1 {
             let result = spawn_animated_decoration(
                 dec,
-                &dec_pos,
+                dec_pos,
                 key,
                 commands,
                 images,
@@ -626,7 +627,7 @@ fn spawn_decorations(
         } else {
             let result = spawn_static_decoration(
                 dec,
-                &dec_pos,
+                dec_pos,
                 key,
                 commands,
                 images,
@@ -661,22 +662,22 @@ fn spawn_decorations(
 /// Spawn a directional decoration. Returns (sprite_center, entity_id) or None if skipped.
 fn spawn_directional_decoration(
     dec: &DecorationEntry,
-    dec_pos: &Vec3,
+    dec_pos: Vec3,
     key: &str,
     commands: &mut Commands,
     images: &mut Assets<Image>,
     meshes: &mut Assets<Mesh>,
     sprite_materials: &mut Assets<SpriteMaterial>,
-    game_assets: &crate::assets::GameAssets,
+    assets: &openmm_data::Assets,
+    lod: &LodDecoder<'_>,
     cfg: &crate::config::GameConfig,
     sprite_cache: &mut sprites::SpriteCache,
 ) -> Option<(Vec3, Entity)> {
-    let lod = game_assets.lod();
     // Indoor directionals with a ddeclist light are selflit.
     let is_selflit = dec.light_radius > 0;
     let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
         key,
-        game_assets.assets(),
+        assets,
         images,
         sprite_materials,
         &mut Some(sprite_cache),
@@ -690,7 +691,7 @@ fn spawn_directional_decoration(
     let sh = px_h * dsft_scale;
     let initial_mat = dirs[0].clone();
     let quad = meshes.add(Rectangle::new(sw, sh));
-    let pos = *dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
+    let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
     let states = vec![vec![dirs]];
     let state_masks = vec![vec![dir_masks]];
     let mut ent = commands.spawn((
@@ -728,7 +729,7 @@ fn spawn_directional_decoration(
 /// Spawn an animated decoration. Returns (sprite_center, entity_id) or None if skipped.
 fn spawn_animated_decoration(
     dec: &DecorationEntry,
-    dec_pos: &Vec3,
+    dec_pos: Vec3,
     key: &str,
     commands: &mut Commands,
     images: &mut Assets<Image>,
@@ -746,7 +747,7 @@ fn spawn_animated_decoration(
         return None;
     }
     let quad = meshes.add(Rectangle::new(w, h));
-    let pos = *dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
+    let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
     // All indoor animated decorations (torches, campfires, cauldrons)
     // are flame sources -> always selflit.
     let mut frame_mats = vec![];
@@ -819,7 +820,7 @@ fn spawn_animated_decoration(
 /// Spawn a static single-frame decoration. Returns (sprite_center, entity_id) or None if skipped.
 fn spawn_static_decoration(
     dec: &DecorationEntry,
-    dec_pos: &Vec3,
+    dec_pos: Vec3,
     key: &str,
     commands: &mut Commands,
     images: &mut Assets<Image>,
@@ -842,7 +843,7 @@ fn spawn_static_decoration(
     let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
     let mat = sprite_materials.add(unlit_billboard_material(tex, is_selflit));
     let quad = meshes.add(Rectangle::new(w, h));
-    let pos = *dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
+    let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
     let mut ent = commands.spawn((
         Name::new(format!("decoration:{}", key)),
         Mesh3d(quad),

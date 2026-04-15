@@ -1204,7 +1204,7 @@ fn handle_set_sprite(
         debug!("SetSprite: decoration {} not found", target_idx);
         return;
     };
-    let _ = declist_id; // stored for future use (e.g. directional swap)
+    let _declist_id = declist_id; // needed for future directional sprite swap
     let Some(sprite_materials) = sprite_materials else {
         return;
     };

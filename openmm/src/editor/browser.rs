@@ -62,7 +62,8 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
         });
     }
 
-    // VID archives (Smacker video) — already loaded by Assets::refresh() scanning Anims/.
+    // VID archives (Smacker video) — identified by elimination: not LOD, not SND.
+    // If a new archive type is added to Assets, update this filter.
     for archive in &archive_names {
         if assets.get_lod(archive).is_some() || assets.get_snd(archive).is_some() {
             continue;
