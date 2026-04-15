@@ -10,6 +10,8 @@ The goal is to reproduce original MM6 gameplay — movement, combat, dialogue, q
 
 > OpenMM is a fan project, not affiliated with Ubisoft or New World Computing. You must own a copy of Might and Magic VI to use it.
 
+Demo video: [YouTube](https://www.youtube.com/watch?v=xBLvt3cBPcw&t=101s)
+
 ## Current Features
 
 - Terrain rendering with textures (outdoor maps / ODM files)
