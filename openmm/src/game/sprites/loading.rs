@@ -16,6 +16,22 @@ use crate::game::sprites::material::{SpriteMaterial, unlit_billboard_material};
 use crate::game::sprites::{AnimationState, FacingYaw};
 use openmm_data::Assets as DataAssets;
 
+/// Pad an RGBA image to target dimensions, centered horizontally and bottom-aligned.
+fn pad_sprite_image(rgba: image::RgbaImage, target_w: u32, target_h: u32) -> image::RgbaImage {
+    if rgba.width() == target_w && rgba.height() == target_h {
+        return rgba;
+    }
+    let mut padded = image::RgbaImage::new(target_w, target_h);
+    let x_off = (target_w - rgba.width()) / 2;
+    let y_off = target_h - rgba.height();
+    for py in 0..rgba.height() {
+        for px in 0..rgba.width() {
+            padded.put_pixel(px + x_off, py + y_off, *rgba.get_pixel(px, py));
+        }
+    }
+    padded
+}
+
 /// CPU-side 1-bit alpha mask for a sprite image. Used for pixel-accurate ray hit testing.
 /// Built from the padded RGBA image at load time and kept in memory alongside the material.
 pub struct AlphaMask {
@@ -451,19 +467,7 @@ fn decode_sprite_frames(
         for (dir, img_opt) in dir_imgs.into_iter().enumerate() {
             if let Some(img) = img_opt {
                 let rgba = img.into_rgba8();
-                let rgba = if rgba.width() != max_w || rgba.height() != max_h {
-                    let mut padded = image::RgbaImage::new(max_w, max_h);
-                    let x_off = (max_w - rgba.width()) / 2;
-                    let y_off = max_h - rgba.height();
-                    for py in 0..rgba.height() {
-                        for px in 0..rgba.width() {
-                            padded.put_pixel(px + x_off, py + y_off, *rgba.get_pixel(px, py));
-                        }
-                    }
-                    padded
-                } else {
-                    rgba
-                };
+                let rgba = pad_sprite_image(rgba, max_w, max_h);
                 dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
                 let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
                 dir_materials[dir] = materials.add(unlit_billboard_material(tex, selflit));
@@ -759,19 +763,7 @@ pub fn load_decoration_directions(
     for (dir, img_opt) in raw.into_iter().enumerate() {
         if let Some(img) = img_opt {
             let rgba = img.into_rgba8();
-            let rgba = if rgba.width() != max_w || rgba.height() != max_h {
-                let mut padded = image::RgbaImage::new(max_w, max_h);
-                let x_off = (max_w - rgba.width()) / 2;
-                let y_off = max_h - rgba.height();
-                for py in 0..rgba.height() {
-                    for px in 0..rgba.width() {
-                        padded.put_pixel(px + x_off, py + y_off, *rgba.get_pixel(px, py));
-                    }
-                }
-                padded
-            } else {
-                rgba
-            };
+            let rgba = pad_sprite_image(rgba, max_w, max_h);
             dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
             let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
             dirs[dir] = materials.add(unlit_billboard_material(tex, selflit));
