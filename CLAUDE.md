@@ -81,9 +81,20 @@ Once you have verified a concrete value from the original game data — a sprite
 - Before adding code: is this the right place? Can it be simpler?
 - A refactor that makes the next change obvious is always worth it.
 
-### Rule 6: One concern per module
+### Rule 6: Enforce Strict Modular Design and Deduplication, one concern per module
 
-- `openmm-data` = data parsing only. `openmm` = rendering + gameplay. Each plugin owns one system.
+You MUST refactor the Rust codebase to enforce strong modular design. Each module MUST have a single, well-defined responsibility and expose a clean, minimal API. You MUST reduce coupling between modules and aggressively deduplicate logic by centralizing shared behavior into dedicated modules.
+
+You SHOULD reorganize packages and rename modules where necessary to achieve clarity and proper separation of concerns.
+
+Before making any changes, you MUST produce a clear, comprehensive refactoring plan. Only after the plan is complete and coherent should you proceed with implementation.
+
+All changes MUST follow idiomatic Rust best practices, including proper ownership, error handling, and maintainable project structure.
+
+For wath concerns the crates
+
+- `openmm-data` = data parsing and pure logic only.
+- `openmm` = rendering + gameplay. Each plugin owns one system.
 - Bevy: systems communicate via `Commands`, events, resources — never reach into unrelated entities.
 - `openmm-data` logic must be pure (same input → same output). `Result`/`Option` over panics. No `unsafe` without documented invariant.
 
