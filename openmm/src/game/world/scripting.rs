@@ -525,39 +525,28 @@ fn process_events(
                 footer.set(text);
             }
             GameEvent::SpeakInHouse { house_id } => {
-                // Show transition/location description if one exists for this house_id.
-                if let Some(desc) = game_assets
-                    .trans()
-                    .and_then(|t| t.get(*house_id as u16))
-                    .map(|e| e.description.clone())
-                    .filter(|s| !s.is_empty())
-                {
-                    footer.set_status(&desc, 4.0, time.elapsed_secs_f64());
-                }
-                let image = map_events
-                    .as_ref()
-                    .and_then(|me| super::events::resolve_building_image(*house_id, me, &game_assets, &mut images))
-                    .or_else(|| game_assets.load_icon("evt02", &mut images));
-                if let Some(image) = image {
-                    commands.insert_resource(OverlayImage { image });
-                    *hud_view = HudView::Building;
-                    crate::game::hud_view::grab_cursor(&mut cursor_query, false);
-                }
+                handle_speak_in_house(
+                    *house_id,
+                    &game_assets,
+                    &map_events,
+                    &mut images,
+                    &mut commands,
+                    &mut hud_view,
+                    &mut footer,
+                    &mut cursor_query,
+                    &time,
+                );
             }
             GameEvent::OpenChest { id } => {
-                debug!("OpenChest(id={})", id);
-                let icon_name = format!("chest{:02}", id);
-                if let Some(image) = game_assets.load_icon(&icon_name, &mut images) {
-                    // Play chest-open sound if available
-                    if let Some(ref sm) = audio.sound_manager
-                        && let Some(s) = sm.dsounds.get_by_name("openchest0101")
-                    {
-                        audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
-                    }
-                    commands.insert_resource(OverlayImage { image });
-                    *hud_view = HudView::Chest;
-                    crate::game::hud_view::grab_cursor(&mut cursor_query, false);
-                }
+                handle_open_chest(
+                    *id,
+                    &game_assets,
+                    &mut images,
+                    &mut commands,
+                    &mut hud_view,
+                    &mut cursor_query,
+                    &mut audio,
+                );
             }
             GameEvent::MoveToMap {
                 x,
@@ -566,73 +555,20 @@ fn process_events(
                 direction,
                 map_name,
             } => {
-                // A name with no letters (e.g. "0") means same-map teleport — just
-                // reposition the player without reloading the map.
-                // The original MM6 engine hardcodes playing the teleport sound here
-                // (there is no PlaySound step in the EVT data for MoveToMap events).
-                if !map_name.chars().any(|c| c.is_ascii_alphabetic()) {
-                    if let Some(ref sm) = audio.sound_manager
-                        && let Some(s) = sm.dsounds.get_by_name("teleport")
-                    {
-                        audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
-                    }
-                    let base = Vec3::from(mm6_position_to_bevy(*x, *y, *z));
-                    // Player Transform.y is at eye level (feet + eye_height), same as spawn.
-                    let pos = Vec3::new(base.x, base.y + entities.player_settings.eye_height, base.z);
-                    let yaw = mm6_binary_angle_to_radians(*direction);
-                    if let Ok(mut tf) = entities.player.single_mut() {
-                        tf.translation = pos;
-                        tf.rotation = Quat::from_rotation_y(yaw);
-                        info!(
-                            "MoveToMap same-map teleport: pos={:?} yaw={:.1}deg",
-                            pos,
-                            yaw.to_degrees()
-                        );
-                    }
-                    event_queue.clear();
-                    return;
-                }
-                let Ok(target) = MapName::try_from(map_name.as_str()) else {
-                    warn!("MoveToMap: invalid map name '{}'", map_name);
-                    return;
-                };
-
-                let pos = mm6_position_to_bevy(*x, *y, *z);
-                let yaw = mm6_binary_angle_to_radians(*direction);
-
-                debug!(
-                    "MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg",
+                handle_move_to_map(
                     map_name,
-                    x,
-                    y,
-                    z,
-                    direction,
-                    pos,
-                    yaw.to_degrees()
+                    *x,
+                    *y,
+                    *z,
+                    *direction,
+                    &mut event_queue,
+                    &mut audio,
+                    &mut entities,
+                    &mut transition,
+                    &mut world_state,
+                    &mut commands,
                 );
-
-                if let MapName::Outdoor(ref odm) = target {
-                    transition.save_data.map.map_x = odm.x;
-                    transition.save_data.map.map_y = odm.y;
-                    world_state.map.map_x = odm.x;
-                    world_state.map.map_y = odm.y;
-                }
-                world_state.map.name = target.clone();
-
-                transition.save_data.player.position = pos;
-                transition.save_data.player.yaw = yaw;
-
-                commands.insert_resource(LoadRequest {
-                    map_name: target,
-                    spawn_position: Some(pos),
-                    spawn_yaw: Some(yaw),
-                });
-                transition.game_state.set(GameState::Loading);
-
-                // Reset map vars on map transition
-                world_state.game_vars.map_vars = [0; 100];
-                event_queue.clear();
-                return; // Stop executing this sequence
+                return; // MoveToMap always terminates the sequence
             }
             GameEvent::ChangeDoorState { door_id, action } => {
                 debug!("ChangeDoorState door_id={} action={}", door_id, action);
@@ -771,47 +707,15 @@ fn process_events(
                 decoration_id,
                 sprite_name,
             } => {
-                info!("SetSprite: deco={} sprite='{}'", decoration_id, sprite_name);
-                let target_idx = *decoration_id as usize;
-                // Find the target entity first to get declist_id and ground_y.
-                let target = entities
-                    .decorations
-                    .iter()
-                    .find(|(d, ..)| d.billboard_index == target_idx)
-                    .map(|(d, ..)| (d.declist_id, d.ground_y));
-                let Some((declist_id, ground_y)) = target else {
-                    debug!("SetSprite: decoration {} not found", target_idx);
-                    continue;
-                };
-                let _ = declist_id; // stored for future use (e.g. directional swap)
-                let Some(sprite_materials) = sprite_materials.as_deref_mut() else {
-                    continue;
-                };
-                // New materials reference the shared tint storage buffer, so
-                // they pick up the current day/night tint automatically without
-                // any per-material write here. Default to regular; selflit sprite
-                // swaps aren't handled by the current SetSprite opcode.
-                let Some((new_mat, new_mesh, _new_w, new_h)) =
-                    crate::game::sprites::loading::load_static_decoration_sprite(
-                        sprite_name,
-                        game_assets.assets(),
-                        &mut images,
-                        sprite_materials,
-                        &mut audio.meshes,
-                        false,
-                    )
-                else {
-                    warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
-                    continue;
-                };
-                for (deco_info, mut mat_handle, mut mesh_handle, mut transform) in entities.decorations.iter_mut() {
-                    if deco_info.billboard_index == target_idx {
-                        transform.translation.y = ground_y + new_h / 2.0;
-                        mesh_handle.0 = new_mesh.clone();
-                        mat_handle.0 = new_mat.clone();
-                        break;
-                    }
-                }
+                handle_set_sprite(
+                    *decoration_id,
+                    sprite_name,
+                    &game_assets,
+                    &mut images,
+                    sprite_materials.as_deref_mut(),
+                    &mut audio.meshes,
+                    &mut entities,
+                );
             }
             GameEvent::ToggleIndoorLight { light_id, on } => {
                 warn!("STUB ToggleIndoorLight: light={} on={}", light_id, on);
@@ -876,26 +780,17 @@ fn process_events(
                 warn!("STUB MoveNPC: npc={} map_id={}", npc_id, map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
-                // day_of_week: GameTime uses 0=Monday epoch; proftext uses 0=Sunday.
-                // Shift by 6 to convert: Monday(0)→1, …, Sunday(6)→0.
-                let dow = audio
-                    .game_time
-                    .as_ref()
-                    .map(|gt| (gt.day_of_week() + 6) % 7)
-                    .unwrap_or(0);
-                if let Some((portrait, profile)) = super::npc_dialogue::prepare_npc_dialogue(
+                handle_speak_npc(
                     *npc_id,
-                    &map_events,
                     &game_assets,
+                    &map_events,
                     &mut images,
-                    dow,
-                    &world_state.game_vars.npc_greetings,
-                ) {
-                    commands.insert_resource(portrait);
-                    commands.insert_resource(profile);
-                    *hud_view = HudView::NpcDialogue;
-                    crate::game::hud_view::grab_cursor(&mut cursor_query, false);
-                }
+                    &mut commands,
+                    &mut hud_view,
+                    &mut cursor_query,
+                    &audio,
+                    &world_state,
+                );
             }
             GameEvent::ChangeEvent { target, new_event_id } => {
                 warn!("STUB ChangeEvent: target={} event={}", target, new_event_id);
@@ -1142,5 +1037,234 @@ fn process_events(
                 );
             }
         }
+    }
+}
+
+// ── Extracted event handlers ────────────────────────────────────────────
+
+/// Handle SpeakInHouse: show building description and overlay image.
+fn handle_speak_in_house(
+    house_id: u32,
+    game_assets: &GameAssets,
+    map_events: &Option<Res<MapEvents>>,
+    images: &mut Assets<Image>,
+    commands: &mut Commands,
+    hud_view: &mut HudView,
+    footer: &mut FooterText,
+    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
+    time: &Time,
+) {
+    // Show transition/location description if one exists for this house_id.
+    if let Some(desc) = game_assets
+        .trans()
+        .and_then(|t| t.get(house_id as u16))
+        .map(|e| e.description.clone())
+        .filter(|s| !s.is_empty())
+    {
+        footer.set_status(&desc, 4.0, time.elapsed_secs_f64());
+    }
+    let image = map_events
+        .as_ref()
+        .and_then(|me| super::events::resolve_building_image(house_id, me, game_assets, images))
+        .or_else(|| game_assets.load_icon("evt02", images));
+    if let Some(image) = image {
+        commands.insert_resource(OverlayImage { image });
+        *hud_view = HudView::Building;
+        crate::game::hud_view::grab_cursor(cursor_query, false);
+    }
+}
+
+/// Handle OpenChest: load chest icon, play sound, show overlay.
+fn handle_open_chest(
+    id: u8,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    commands: &mut Commands,
+    hud_view: &mut HudView,
+    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
+    audio: &mut AudioParams,
+) {
+    debug!("OpenChest(id={})", id);
+    let icon_name = format!("chest{:02}", id);
+    if let Some(image) = game_assets.load_icon(&icon_name, images) {
+        // Play chest-open sound if available
+        if let Some(ref sm) = audio.sound_manager
+            && let Some(s) = sm.dsounds.get_by_name("openchest0101")
+        {
+            audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
+        }
+        commands.insert_resource(OverlayImage { image });
+        *hud_view = HudView::Chest;
+        crate::game::hud_view::grab_cursor(cursor_query, false);
+    }
+}
+
+/// Handle MoveToMap: same-map teleport or cross-map transition.
+/// Always clears the event queue and terminates the current sequence.
+fn handle_move_to_map(
+    map_name: &str,
+    x: i32,
+    y: i32,
+    z: i32,
+    direction: i32,
+    event_queue: &mut EventQueue,
+    audio: &mut AudioParams,
+    entities: &mut MapEntityParams,
+    transition: &mut TransitionParams,
+    world_state: &mut super::state::WorldState,
+    commands: &mut Commands,
+) {
+    // A name with no letters (e.g. "0") means same-map teleport — just
+    // reposition the player without reloading the map.
+    // The original MM6 engine hardcodes playing the teleport sound here
+    // (there is no PlaySound step in the EVT data for MoveToMap events).
+    if !map_name.chars().any(|c| c.is_ascii_alphabetic()) {
+        if let Some(ref sm) = audio.sound_manager
+            && let Some(s) = sm.dsounds.get_by_name("teleport")
+        {
+            audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
+        }
+        let base = Vec3::from(mm6_position_to_bevy(x, y, z));
+        // Player Transform.y is at eye level (feet + eye_height), same as spawn.
+        let pos = Vec3::new(base.x, base.y + entities.player_settings.eye_height, base.z);
+        let yaw = mm6_binary_angle_to_radians(direction);
+        if let Ok(mut tf) = entities.player.single_mut() {
+            tf.translation = pos;
+            tf.rotation = Quat::from_rotation_y(yaw);
+            info!(
+                "MoveToMap same-map teleport: pos={:?} yaw={:.1}deg",
+                pos,
+                yaw.to_degrees()
+            );
+        }
+        event_queue.clear();
+        return;
+    }
+    let Ok(target) = MapName::try_from(map_name) else {
+        warn!("MoveToMap: invalid map name '{}'", map_name);
+        return;
+    };
+
+    let pos = mm6_position_to_bevy(x, y, z);
+    let yaw = mm6_binary_angle_to_radians(direction);
+
+    debug!(
+        "MoveToMap: '{}' mm6=({},{},{}) dir={} -> bevy={:?} yaw={:.1}deg",
+        map_name,
+        x,
+        y,
+        z,
+        direction,
+        pos,
+        yaw.to_degrees()
+    );
+
+    if let MapName::Outdoor(ref odm) = target {
+        transition.save_data.map.map_x = odm.x;
+        transition.save_data.map.map_y = odm.y;
+        world_state.map.map_x = odm.x;
+        world_state.map.map_y = odm.y;
+    }
+    world_state.map.name = target.clone();
+
+    transition.save_data.player.position = pos;
+    transition.save_data.player.yaw = yaw;
+
+    commands.insert_resource(LoadRequest {
+        map_name: target,
+        spawn_position: Some(pos),
+        spawn_yaw: Some(yaw),
+    });
+    transition.game_state.set(GameState::Loading);
+
+    // Reset map vars on map transition
+    world_state.game_vars.map_vars = [0; 100];
+    event_queue.clear();
+}
+
+/// Handle SetSprite: replace a decoration's sprite mesh and material.
+fn handle_set_sprite(
+    decoration_id: i32,
+    sprite_name: &str,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    sprite_materials: Option<&mut Assets<SpriteMaterial>>,
+    meshes: &mut Assets<Mesh>,
+    entities: &mut MapEntityParams,
+) {
+    info!("SetSprite: deco={} sprite='{}'", decoration_id, sprite_name);
+    let target_idx = decoration_id as usize;
+    // Find the target entity first to get declist_id and ground_y.
+    let target = entities
+        .decorations
+        .iter()
+        .find(|(d, ..)| d.billboard_index == target_idx)
+        .map(|(d, ..)| (d.declist_id, d.ground_y));
+    let Some((declist_id, ground_y)) = target else {
+        debug!("SetSprite: decoration {} not found", target_idx);
+        return;
+    };
+    let _ = declist_id; // stored for future use (e.g. directional swap)
+    let Some(sprite_materials) = sprite_materials else {
+        return;
+    };
+    // New materials reference the shared tint storage buffer, so
+    // they pick up the current day/night tint automatically without
+    // any per-material write here. Default to regular; selflit sprite
+    // swaps aren't handled by the current SetSprite opcode.
+    let Some((new_mat, new_mesh, _new_w, new_h)) =
+        crate::game::sprites::loading::load_static_decoration_sprite(
+            sprite_name,
+            game_assets.assets(),
+            images,
+            sprite_materials,
+            meshes,
+            false,
+        )
+    else {
+        warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
+        return;
+    };
+    for (deco_info, mut mat_handle, mut mesh_handle, mut transform) in entities.decorations.iter_mut() {
+        if deco_info.billboard_index == target_idx {
+            transform.translation.y = ground_y + new_h / 2.0;
+            mesh_handle.0 = new_mesh.clone();
+            mat_handle.0 = new_mat.clone();
+            break;
+        }
+    }
+}
+
+/// Handle SpeakNPC: prepare NPC dialogue portrait and profile, switch to dialogue view.
+fn handle_speak_npc(
+    npc_id: i32,
+    game_assets: &GameAssets,
+    map_events: &Option<Res<MapEvents>>,
+    images: &mut Assets<Image>,
+    commands: &mut Commands,
+    hud_view: &mut HudView,
+    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
+    audio: &AudioParams,
+    world_state: &super::state::WorldState,
+) {
+    // day_of_week: GameTime uses 0=Monday epoch; proftext uses 0=Sunday.
+    // Shift by 6 to convert: Monday(0)→1, …, Sunday(6)→0.
+    let dow = audio
+        .game_time
+        .as_ref()
+        .map(|gt| (gt.day_of_week() + 6) % 7)
+        .unwrap_or(0);
+    if let Some((portrait, profile)) = super::npc_dialogue::prepare_npc_dialogue(
+        npc_id,
+        map_events,
+        game_assets,
+        images,
+        dow,
+        &world_state.game_vars.npc_greetings,
+    ) {
+        commands.insert_resource(portrait);
+        commands.insert_resource(profile);
+        *hud_view = HudView::NpcDialogue;
+        crate::game::hud_view::grab_cursor(cursor_query, false);
     }
 }
