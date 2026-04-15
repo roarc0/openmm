@@ -594,24 +594,46 @@ fn spawn_decorations(
 
         if dec.is_directional {
             let result = spawn_directional_decoration(
-                dec, &dec_pos, key, commands, images, meshes, sprite_materials,
-                game_assets, cfg, &mut sprite_cache,
+                dec,
+                &dec_pos,
+                key,
+                commands,
+                images,
+                meshes,
+                sprite_materials,
+                game_assets,
+                cfg,
+                &mut sprite_cache,
             );
             let Some((center, entity)) = result else { continue };
             sprite_center = center;
             dec_entity = Some(entity);
         } else if dec.num_frames > 1 {
             let result = spawn_animated_decoration(
-                dec, &dec_pos, key, commands, images, meshes, sprite_materials,
-                cfg, &lod,
+                dec,
+                &dec_pos,
+                key,
+                commands,
+                images,
+                meshes,
+                sprite_materials,
+                cfg,
+                &lod,
             );
             let Some((center, entity)) = result else { continue };
             sprite_center = center;
             dec_entity = Some(entity);
         } else {
             let result = spawn_static_decoration(
-                dec, &dec_pos, key, commands, images, meshes, sprite_materials,
-                cfg, &lod,
+                dec,
+                &dec_pos,
+                key,
+                commands,
+                images,
+                meshes,
+                sprite_materials,
+                cfg,
+                &lod,
             );
             let Some((center, entity)) = result else { continue };
             sprite_center = center;
@@ -906,7 +928,9 @@ fn spawn_indoor_monsters(
 ) {
     let lod = game_assets.lod();
     let mut sprite_cache = sprites::SpriteCache::default();
-    let Some(ref monsters) = prepared.resolved_actors else { return };
+    let Some(ref monsters) = prepared.resolved_actors else {
+        return;
+    };
 
     for mon in monsters.iter() {
         let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(

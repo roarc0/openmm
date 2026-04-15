@@ -61,9 +61,7 @@ fn main() {
 
     let data_path = openmm_data::get_data_path();
     let assets = openmm_data::Assets::new(&data_path).expect("Failed to load game assets");
-    let archive = assets
-        .get_snd("audio")
-        .expect("Audio.snd not found in loaded archives");
+    let archive = assets.get_snd("audio").expect("Audio.snd not found in loaded archives");
 
     let output_dir = Path::new("data/dump/sounds");
     fs::create_dir_all(output_dir).expect("Failed to create output directory");

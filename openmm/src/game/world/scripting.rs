@@ -1212,16 +1212,14 @@ fn handle_set_sprite(
     // they pick up the current day/night tint automatically without
     // any per-material write here. Default to regular; selflit sprite
     // swaps aren't handled by the current SetSprite opcode.
-    let Some((new_mat, new_mesh, _new_w, new_h)) =
-        crate::game::sprites::loading::load_static_decoration_sprite(
-            sprite_name,
-            game_assets.assets(),
-            images,
-            sprite_materials,
-            meshes,
-            false,
-        )
-    else {
+    let Some((new_mat, new_mesh, _new_w, new_h)) = crate::game::sprites::loading::load_static_decoration_sprite(
+        sprite_name,
+        game_assets.assets(),
+        images,
+        sprite_materials,
+        meshes,
+        false,
+    ) else {
         warn!("SetSprite: sprite '{}' not found in LOD", sprite_name);
         return;
     };
