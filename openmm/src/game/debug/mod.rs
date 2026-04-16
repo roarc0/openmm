@@ -97,7 +97,7 @@ pub fn draw_events(
     }
 
     if let Some(ref faces) = clickable_faces {
-        for face in &faces.faces {
+        for face in faces.faces.iter().filter(|f| f.event_id > 0) {
             if face.vertices.len() < 2 {
                 continue;
             }
@@ -113,7 +113,7 @@ pub fn draw_events(
         }
     }
 
-    for info in decorations.iter() {
+    for info in decorations.iter().filter(|i| i.event_id > 0) {
         let pos = info.position;
         let color = Color::srgb(1.0, 1.0, 0.0);
         let top = pos + Vec3::Y * 200.0;
