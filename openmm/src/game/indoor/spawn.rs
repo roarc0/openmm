@@ -6,8 +6,9 @@ use openmm_data::provider::decorations::DecorationEntry;
 use openmm_data::provider::lod_decoder::LodDecoder;
 
 use crate::game::InGame;
-use crate::game::actors::{Actor, ActorParams, MonsterAiType};
 use crate::game::coords::mm6_position_to_bevy;
+use crate::game::spawn::SpawnCtx;
+use crate::game::spawn::monster::{ActorSpawnParams, ActorKind, spawn_actor};
 use crate::game::sprites::SelfLit;
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
@@ -561,40 +562,23 @@ fn spawn_indoor_monsters(
     game_assets: &crate::assets::GameAssets,
     cfg: &crate::config::GameConfig,
 ) {
-    let lod = game_assets.lod();
     let mut sprite_cache = sprites::SpriteCache::default();
     let Some(ref monsters) = prepared.resolved_actors else {
         return;
     };
 
-    for mon in monsters.iter() {
-        let (states, state_masks, raw_w, raw_h) = sprites::load_entity_sprites(
-            &mon.standing_sprite,
-            &mon.walking_sprite,
-            &mon.attacking_sprite,
-            &mon.dying_sprite,
-            game_assets.assets(),
-            images,
-            sprite_materials,
-            &mut Some(&mut sprite_cache),
-            mon.variant,
-            mon.palette_id,
-            false,
-        );
-        if states.is_empty() || states[0].is_empty() {
-            error!(
-                "Indoor monster '{}' sprite '{}' failed to load — skipping",
-                mon.name, mon.standing_sprite
-            );
-            continue;
-        }
-        let dsft_scale = lod.dsft_scale_for_group(&mon.standing_sprite);
-        let sw = raw_w * dsft_scale;
-        let sh = raw_h * dsft_scale;
-        let state_count = states.len();
-        let initial_mat = states[0][0][0].clone();
-        let quad = meshes.add(Rectangle::new(sw, sh));
+    let mut ctx = SpawnCtx {
+        game_assets,
+        images,
+        meshes,
+        sprite_materials,
+        sprite_cache: &mut sprite_cache,
+        shadows: cfg.shadows,
+        billboard_shadows: cfg.billboard_shadows,
+        actor_shadows: cfg.actor_shadows,
+    };
 
+    for mon in monsters.iter() {
         // Spread group members using golden angle (same as ODM, no terrain probe for indoor).
         let angle = mon.group_index as f32 * 2.399_f32;
         let r = mon.spawn_radius as f32;
@@ -603,43 +587,33 @@ fn spawn_indoor_monsters(
             mon.spawn_position[1] + (r * angle.sin()) as i32,
             mon.spawn_position[2],
         );
-        let pos = Vec3::new(bx, by + sh / 2.0, bz);
+        let ground_pos = Vec3::new(bx, by, bz);
 
-        let mon_id = commands
-            .spawn((
-                Name::new(format!("monster:{}", mon.name)),
-                Mesh3d(quad),
-                MeshMaterial3d(initial_mat),
-                Transform::from_translation(pos),
-                crate::game::sprites::WorldEntity,
-                crate::game::sprites::EntityKind::Monster,
-                crate::game::sprites::AnimationState::Idle,
-                sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
-                crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
-                crate::game::actors::MonsterAiMode::Wander,
-                Actor::new(ActorParams {
-                    name: mon.name.clone(),
-                    hp: mon.hp,
-                    move_speed: mon.move_speed as f32,
-                    position: pos,
-                    hostile: true,
-                    variant: mon.variant,
-                    sound_ids: mon.sound_ids,
-                    tether_distance: mon.radius as f32 * 2.0,
-                    attack_range: mon.body_radius as f32 * 2.0,
-                    ddm_id: -1,
-                    group_id: 0,
-                    aggro_range: mon.aggro_range,
-                    recovery_secs: mon.recovery_secs,
-                    sprite_half_height: sh / 2.0,
-                    can_fly: mon.can_fly,
-                    ai_type: MonsterAiType::from_str(&mon.ai_type),
-                }),
-                crate::game::sprites::Billboard,
-                InGame,
-            ))
-            .id();
-        crate::game::sprites::apply_shadow_config(commands, mon_id, cfg.actor_shadows);
-        info!("Spawned indoor monster '{}' at {:?}", mon.name, pos);
+        let params = ActorSpawnParams {
+            kind: ActorKind::Monster,
+            name: &mon.name,
+            standing_sprite: &mon.standing_sprite,
+            walking_sprite: &mon.walking_sprite,
+            attacking_sprite: &mon.attacking_sprite,
+            dying_sprite: &mon.dying_sprite,
+            variant: mon.variant,
+            palette_id: mon.palette_id,
+            ground_pos,
+            hp: mon.hp,
+            move_speed: mon.move_speed as f32,
+            sound_ids: mon.sound_ids,
+            tether_distance: mon.radius as f32 * 2.0,
+            attack_range: mon.body_radius as f32 * 2.0,
+            aggro_range: mon.aggro_range,
+            recovery_secs: mon.recovery_secs,
+            can_fly: mon.can_fly,
+            ai_type: &mon.ai_type,
+            ddm_id: -1,
+            group_id: 0,
+            hostile: true,
+        };
+        if spawn_actor(commands, &mut ctx, &params, None).is_some() {
+            info!("Spawned indoor monster '{}' at {:?}", mon.name, ground_pos);
+        }
     }
 }
