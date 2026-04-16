@@ -40,6 +40,8 @@ pub struct DecorationInfo {
     pub half_h: f32,
     /// Alpha mask for pixel-accurate hit testing of static decorations. None for directional.
     pub mask: Option<Arc<AlphaMask>>,
+    /// Human-readable name (e.g. "fountain").
+    pub display_name: Option<String>,
 }
 
 impl DecorationInfo {
@@ -62,6 +64,7 @@ impl DecorationInfo {
             half_w,
             half_h,
             mask,
+            display_name: dec.display_name.clone(),
         }
     }
 }

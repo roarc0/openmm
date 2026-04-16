@@ -370,13 +370,11 @@ fn spawn_directional_decoration(
         ))
         .id();
     crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
-    if dec.event_id > 0 {
-        commands
-            .entity(ent_id)
-            .insert(crate::game::interaction::DecorationInfo::from_entry(
-                dec, pos, dec_pos.y, 0.0, 0.0, None,
-            ));
-    }
+    commands
+        .entity(ent_id)
+        .insert(crate::game::interaction::DecorationInfo::from_entry(
+            dec, pos, dec_pos.y, 0.0, 0.0, None,
+        ));
     Some((pos, ent_id))
 }
 
@@ -430,13 +428,11 @@ fn spawn_animated_decoration(
         ))
         .id();
     crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
-    if dec.event_id > 0 {
-        commands
-            .entity(ent_id)
-            .insert(crate::game::interaction::DecorationInfo::from_entry(
-                dec, pos, dec_pos.y, 0.0, 0.0, None,
-            ));
-    }
+    commands
+        .entity(ent_id)
+        .insert(crate::game::interaction::DecorationInfo::from_entry(
+            dec, pos, dec_pos.y, 0.0, 0.0, None,
+        ));
     // Animated flame decorations do NOT get DecorFlicker — the frame cycling
     // is already the visual effect. Adding visibility toggle on top makes them
     // blink entirely off, which looks like a bug.
@@ -501,18 +497,16 @@ fn spawn_static_decoration(
         ))
         .id();
     crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
-    if dec.event_id > 0 {
-        commands
-            .entity(ent_id)
-            .insert(crate::game::interaction::DecorationInfo::from_entry(
-                dec,
-                pos,
-                dec_pos.y,
-                w / 2.0,
-                h / 2.0,
-                Some(mask),
-            ));
-    }
+    commands
+        .entity(ent_id)
+        .insert(crate::game::interaction::DecorationInfo::from_entry(
+            dec,
+            pos,
+            dec_pos.y,
+            w / 2.0,
+            h / 2.0,
+            Some(mask),
+        ));
     // DSFT-luminous static decs (chandeliers, crystals, sconces) get SelfLit + light.
     if dsft_lr > 0 {
         commands.entity(ent_id).insert(SelfLit);

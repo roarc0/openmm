@@ -10,13 +10,35 @@ use crate::game::world::EventQueue;
 use crate::game::world::WorldState;
 use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
 
+use crate::game::footer::FooterText;
 use super::clickable;
-use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect};
+use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 use super::{
-    DecorationInfo, DecorationTrigger, MAX_INTERACT_RANGE, MonsterInteractable, NpcInteractable, check_interact_input,
+    DecorationInfo, DecorationTrigger, MonsterInteractable, NpcInteractable, MAX_INTERACT_RANGE, check_interact_input,
     facing_rotation,
 };
+use crate::config::GameConfig;
 use crate::game::player::Player;
+
+use bevy::ecs::system::SystemParam;
+
+#[derive(SystemParam)]
+pub(crate) struct WorldInteractParams<'w, 's> {
+    pub camera_query: Query<'w, 's, (&'static GlobalTransform, &'static Camera), With<PlayerCamera>>,
+    pub decorations: Query<'w, 's, (&'static DecorationInfo, &'static GlobalTransform, Option<&'static SpriteSheet>)>,
+    pub npcs: Query<'w, 's, (&'static NpcInteractable, &'static GlobalTransform, &'static SpriteSheet)>,
+    pub monsters: Query<'w, 's, (Entity, &'static MonsterInteractable, &'static GlobalTransform, &'static SpriteSheet)>,
+    pub clickable_faces: Option<Res<'w, clickable::Faces>>,
+    pub occluder_faces: Option<ResMut<'w, OccluderFaces>>,
+    pub map_events: Option<Res<'w, MapEvents>>,
+    pub spatial: Res<'w, EntitySpatialIndex>,
+    pub event_queue: ResMut<'w, EventQueue>,
+    pub kill_events: Option<bevy::ecs::message::MessageWriter<'w, KillActorEvent>>,
+    pub world_state: Option<Res<'w, WorldState>>,
+    pub footer: ResMut<'w, FooterText>,
+    pub cfg: Res<'w, GameConfig>,
+    pub time: Res<'w, Time>,
+}
 
 /// Detect click/interact on the nearest interactable in the world (decoration, NPC, or BSP face)
 /// and push exactly one event. By finding the global nearest hit before pushing, this guarantees
@@ -25,20 +47,10 @@ pub(crate) fn world_interact_system(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
     gamepads: Query<&Gamepad>,
-    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
-    decorations: Query<(&DecorationInfo, &GlobalTransform, Option<&SpriteSheet>)>,
-    npcs: Query<(&NpcInteractable, &GlobalTransform, &SpriteSheet)>,
-    monsters: Query<(Entity, &MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
-    clickable_faces: Option<Res<clickable::Faces>>,
-    mut occluder_faces: Option<ResMut<OccluderFaces>>,
-    map_events: Option<Res<MapEvents>>,
-    spatial: Res<EntitySpatialIndex>,
-    mut event_queue: ResMut<EventQueue>,
-    kill_events: Option<bevy::ecs::message::MessageWriter<KillActorEvent>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
-    world_state: Option<Res<WorldState>>,
+    mut params: WorldInteractParams,
 ) {
-    let Ok((cam_global, _)) = camera_query.single() else {
+    let Ok((cam_global, _)) = params.camera_query.single() else {
         return;
     };
     let (key, click, gamepad) = check_interact_input(&keys, &mouse, &gamepads);
@@ -55,33 +67,32 @@ pub(crate) fn world_interact_system(
 
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
-    let occluder_t = occluder_faces
+    let occluder_t = params.occluder_faces
         .as_mut()
-        .map(|of| of.min_hit_t_max(origin, dir, MAX_INTERACT_RANGE))
+        .map(|of| of.min_hit_t_max(origin, dir, params.cfg.draw_distance))
         .unwrap_or(f32::MAX);
-
-    let max_range_sq = MAX_INTERACT_RANGE * MAX_INTERACT_RANGE;
 
     // Find the single nearest hit across all interactable types.
     enum Hit {
-        Face(u16),
-        /// Carries (event_id, billboard_index) so ChangeEvent overrides can be checked.
-        Decoration(u16, usize),
-        Npc(i16),
-        Monster(Entity),
+        Face(u16, Option<String>),
+        /// Carries (event_id, billboard_index, display_name)
+        Decoration(u16, usize, Option<String>),
+        Npc(i16, String),
+        Monster(Entity, String),
     }
     let mut nearest: Option<(f32, Hit)> = None;
 
     // BSP faces (outdoor buildings) — capped to arm's reach like all other interactables.
-    if let Some(faces) = clickable_faces.as_ref() {
+    if let Some(faces) = params.clickable_faces.as_ref() {
         for face in &faces.faces {
             if let Some(t) = ray_plane_intersect(origin, dir, face.normal, face.plane_dist) {
-                if t > MAX_INTERACT_RANGE {
+                if t > params.cfg.draw_distance {
                     continue;
                 }
                 let hit = origin + dir * t;
                 if point_in_polygon(hit, &face.vertices, face.normal) && nearest.as_ref().is_none_or(|n| t < n.0) {
-                    nearest = Some((t, Hit::Face(face.event_id)));
+                    let name = resolve_event_name(face.event_id, &params.map_events);
+                    nearest = Some((t, Hit::Face(face.event_id, name)));
                 }
             }
         }
@@ -91,10 +102,10 @@ pub(crate) fn world_interact_system(
     // narrows the candidate list to entities whose cell overlaps the interact
     // range, so the heavy matrix + polygon + mask work here only runs for a
     // handful of nearby entities instead of every `WorldEntity` on the map.
-    for entity in spatial.query_radius(origin.x, origin.z, MAX_INTERACT_RANGE) {
-        if let Ok((info, g_tf, sheet_opt)) = decorations.get(entity) {
+    for entity in params.spatial.query_radius(origin.x, origin.z, params.cfg.draw_distance) {
+        if let Ok((info, g_tf, sheet_opt)) = params.decorations.get(entity) {
             let center = g_tf.translation();
-            if origin.distance_squared(center) > max_range_sq {
+            if origin.distance_squared(center) > params.cfg.draw_distance * params.cfg.draw_distance {
                 continue;
             }
             let (half_w, half_h, mask) = if let Some(sheet) = sheet_opt {
@@ -117,17 +128,19 @@ pub(crate) fn world_interact_system(
                 half_h,
                 mask,
             ) && t < occluder_t
-                && t < MAX_INTERACT_RANGE
+                && t < params.cfg.draw_distance
                 && nearest.as_ref().is_none_or(|n| t < n.0)
             {
-                nearest = Some((t, Hit::Decoration(info.event_id, info.billboard_index)));
+                let name = resolve_event_name(info.event_id, &params.map_events)
+                    .or_else(|| info.display_name.clone());
+                nearest = Some((t, Hit::Decoration(info.event_id, info.billboard_index, name)));
             }
             continue;
         }
 
-        if let Ok((info, g_tf, sheet)) = npcs.get(entity) {
+        if let Ok((info, g_tf, sheet)) = params.npcs.get(entity) {
             let center = g_tf.translation();
-            if origin.distance_squared(center) > max_range_sq {
+            if origin.distance_squared(center) > MAX_INTERACT_RANGE * MAX_INTERACT_RANGE {
                 continue;
             }
             let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
@@ -145,14 +158,14 @@ pub(crate) fn world_interact_system(
                 && t < MAX_INTERACT_RANGE
                 && nearest.as_ref().is_none_or(|n| t < n.0)
             {
-                nearest = Some((t, Hit::Npc(info.npc_id)));
+                nearest = Some((t, Hit::Npc(info.npc_id, info.name.clone())));
             }
             continue;
         }
 
-        if let Ok((_, _info, g_tf, sheet)) = monsters.get(entity) {
+        if let Ok((_, info, g_tf, sheet)) = params.monsters.get(entity) {
             let center = g_tf.translation();
-            if origin.distance_squared(center) > max_range_sq {
+            if origin.distance_squared(center) > MAX_INTERACT_RANGE * MAX_INTERACT_RANGE {
                 continue;
             }
             let Some(&(sw, sh)) = sheet.state_dimensions.get(sheet.current_state) else {
@@ -170,58 +183,75 @@ pub(crate) fn world_interact_system(
                 && t < MAX_INTERACT_RANGE
                 && nearest.as_ref().is_none_or(|n| t < n.0)
             {
-                nearest = Some((t, Hit::Monster(entity)));
+                nearest = Some((t, Hit::Monster(entity, info.name.clone())));
             }
         }
     }
 
+    let now = params.time.elapsed_secs_f64();
     match nearest {
-        Some((dist, Hit::Face(event_id))) => {
-            info!("World interact: hit BSP face event_id={} at dist={:.0}", event_id, dist);
-            if let Some(me) = map_events.as_ref()
-                && let Some(evt) = me.evt.as_ref()
-            {
-                event_queue.push_all(event_id, evt);
+        Some((dist, Hit::Face(event_id, name))) => {
+            if let Some(name) = name {
+                params.footer.set_status(&name, 2.0, now);
             }
-        }
-        Some((_, Hit::Decoration(event_id, billboard_idx))) => {
-            // ChangeEvent can redirect this decoration to a different script at runtime.
-            let effective_id = world_state
-                .as_ref()
-                .and_then(|ws| ws.game_vars.event_overrides.get(&billboard_idx))
-                .copied()
-                .unwrap_or(event_id);
-            if let Some(me) = map_events.as_ref()
-                && let Some(evt) = me.evt.as_ref()
-            {
-                event_queue.push_all(effective_id, evt);
-            }
-        }
-        Some((_, Hit::Npc(npc_id))) => {
-            let npc_id_i32 = npc_id as i32;
-            // For quest NPCs (from npcdata.txt), run their event_a script if available.
-            // event_a is the "speak to" script — it typically contains SpeakNPC + dialogue options.
-            let ran_event = if npc_id_i32 > 0 && npc_id_i32 < GENERATED_NPC_ID_BASE {
-                if let Some(me) = map_events.as_ref()
+            if dist < MAX_INTERACT_RANGE {
+                info!("World interact: hit BSP face event_id={} at dist={:.0}", event_id, dist);
+                if let Some(me) = params.map_events.as_ref()
                     && let Some(evt) = me.evt.as_ref()
-                    && let Some(entry) = me.npc_table.as_ref().and_then(|t| t.get(npc_id_i32))
-                    && entry.event_a > 0
                 {
-                    event_queue.push_all(entry.event_a as u16, evt);
-                    true
+                    params.event_queue.push_all(event_id, evt);
+                }
+            }
+        }
+        Some((dist, Hit::Decoration(event_id, billboard_idx, name))) => {
+            if let Some(name) = name {
+                params.footer.set_status(&name, 2.0, now);
+            }
+            if dist < MAX_INTERACT_RANGE {
+                // ChangeEvent can redirect this decoration to a different script at runtime.
+                let effective_id = params.world_state
+                    .as_ref()
+                    .and_then(|ws| ws.game_vars.event_overrides.get(&billboard_idx))
+                    .copied()
+                    .unwrap_or(event_id);
+                if let Some(me) = params.map_events.as_ref()
+                    && let Some(evt) = me.evt.as_ref()
+                {
+                    params.event_queue.push_all(effective_id, evt);
+                }
+            }
+        }
+        Some((dist, Hit::Npc(npc_id, name))) => {
+            params.footer.set_status(&name, 2.0, now);
+            if dist < MAX_INTERACT_RANGE {
+                let npc_id_i32 = npc_id as i32;
+                // For quest NPCs (from npcdata.txt), run their event_a script if available.
+                // event_a is the "speak to" script — it typically contains SpeakNPC + dialogue options.
+                let ran_event = if npc_id_i32 > 0 && npc_id_i32 < GENERATED_NPC_ID_BASE {
+                    if let Some(me) = params.map_events.as_ref()
+                        && let Some(evt) = me.evt.as_ref()
+                        && let Some(entry) = me.npc_table.as_ref().and_then(|t| t.get(npc_id_i32))
+                        && entry.event_a > 0
+                    {
+                        params.event_queue.push_all(entry.event_a as u16, evt);
+                        true
+                    } else {
+                        false
+                    }
                 } else {
                     false
+                };
+                if !ran_event {
+                    params.event_queue.push_single(openmm_data::evt::GameEvent::SpeakNPC { npc_id: npc_id_i32 });
                 }
-            } else {
-                false
-            };
-            if !ran_event {
-                event_queue.push_single(openmm_data::evt::GameEvent::SpeakNPC { npc_id: npc_id_i32 });
             }
         }
-        Some((_, Hit::Monster(entity))) => {
-            if let Some(mut ke) = kill_events {
-                ke.write(KillActorEvent(entity));
+        Some((dist, Hit::Monster(entity, name))) => {
+            params.footer.set_status(&name, 2.0, now);
+            if dist < MAX_INTERACT_RANGE {
+                if let Some(mut ke) = params.kill_events {
+                    ke.write(KillActorEvent(entity));
+                }
             }
         }
         None => {}

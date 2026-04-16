@@ -36,6 +36,8 @@ pub struct DecorationEntry {
     pub light_radius: u16,
     /// Decoration type from ddeclist.bin.
     pub dec_type: u16,
+    /// Human-readable name from ddeclist.bin (e.g. "fountain", "tree").
+    pub display_name: Option<String>,
     /// Event variable / parameter passed to the event script on activation.
     pub event_variable: i16,
     /// Proximity radius in MM6 units for trigger activations (0 = no trigger).
@@ -151,6 +153,7 @@ impl Decorations {
                 flicker_rate,
                 light_radius: declist_item.light_radius,
                 dec_type: declist_item.dec_type,
+                display_name: declist_item.display_name(),
                 event_variable: bb.data.event_variable,
                 trigger_radius: bb.data.trigger_radius,
                 no_block_movement: declist_item.is_no_block_movement(),
@@ -246,6 +249,7 @@ impl Decorations {
                 flicker_rate,
                 light_radius: declist_item.light_radius,
                 dec_type: declist_item.dec_type,
+                display_name: declist_item.display_name(),
                 event_variable: dec.event_variable,
                 trigger_radius: dec.trigger_radius,
                 no_block_movement: declist_item.is_no_block_movement(),

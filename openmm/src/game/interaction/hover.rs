@@ -10,6 +10,7 @@ use crate::game::world::MapEvents;
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 use super::{DecorationInfo, MAX_INTERACT_RANGE, MonsterInteractable, NpcInteractable, facing_rotation};
+use crate::config::GameConfig;
 
 /// Show the nearest interactive object's name in the footer — pixel-accurate for all types.
 pub(crate) fn hover_hint_system(
@@ -23,6 +24,7 @@ pub(crate) fn hover_hint_system(
     map_events: Option<Res<MapEvents>>,
     mut footer: ResMut<FooterText>,
     ui_hovered: Option<Res<crate::screens::runtime::ScreenUiHovered>>,
+    cfg: Res<GameConfig>,
     #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]
@@ -36,7 +38,7 @@ pub(crate) fn hover_hint_system(
     let dir = cam_global.forward().as_vec3();
     let occluder_t = occluder_faces
         .as_mut()
-        .map(|of| of.min_hit_t_max(origin, dir, MAX_INTERACT_RANGE))
+        .map(|of| of.min_hit_t_max(origin, dir, cfg.draw_distance))
         .unwrap_or(f32::MAX);
 
     let mut nearest: Option<(f32, String)> = None;
@@ -99,9 +101,15 @@ pub(crate) fn hover_hint_system(
             ) && t < occluder_t
                 && t < MAX_INTERACT_RANGE
                 && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
-                && let Some(name) = resolve_event_name(info.event_id, &map_events)
             {
-                nearest = Some((t, name));
+                if info.event_id > 0 {
+                    let name = resolve_event_name(info.event_id, &map_events)
+                        .or_else(|| info.display_name.clone());
+
+                    if let Some(name) = name {
+                        nearest = Some((t, name));
+                    }
+                }
             }
             continue;
         }

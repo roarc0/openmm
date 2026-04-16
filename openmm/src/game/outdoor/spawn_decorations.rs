@@ -65,13 +65,11 @@ pub(super) fn spawn_decorations(
                 // Sprites are unlit — never receive shadows (skip shadow map sampling per pixel).
                 crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
                 commands.entity(ctx.terrain_entity).add_child(child_id);
-                if dec.event_id > 0 {
-                    commands
-                        .entity(child_id)
-                        .insert(crate::game::interaction::DecorationInfo::from_entry(
-                            dec, pos, dec_pos.y, 0.0, 0.0, None,
-                        ));
-                }
+                commands
+                    .entity(child_id)
+                    .insert(crate::game::interaction::DecorationInfo::from_entry(
+                        dec, pos, dec_pos.y, 0.0, 0.0, None,
+                    ));
                 if dec.trigger_radius > 0 && dec.event_id > 0 {
                     commands
                         .entity(child_id)
@@ -143,13 +141,11 @@ pub(super) fn spawn_decorations(
                 .id();
             crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
             commands.entity(ctx.terrain_entity).add_child(child_id);
-            if dec.event_id > 0 {
-                commands
-                    .entity(child_id)
-                    .insert(crate::game::interaction::DecorationInfo::from_entry(
-                        dec, pos, dec_pos.y, 0.0, 0.0, None,
-                    ));
-            }
+            commands
+                .entity(child_id)
+                .insert(crate::game::interaction::DecorationInfo::from_entry(
+                    dec, pos, dec_pos.y, 0.0, 0.0, None,
+                ));
             if dec.trigger_radius > 0 && dec.event_id > 0 {
                 commands
                     .entity(child_id)
@@ -211,18 +207,16 @@ pub(super) fn spawn_decorations(
                 .insert(InGame);
             crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
             commands.entity(ctx.terrain_entity).add_child(child_id);
-            if dec.event_id > 0 {
-                commands
-                    .entity(child_id)
-                    .insert(crate::game::interaction::DecorationInfo::from_entry(
-                        dec,
-                        pos,
-                        dec_pos.y,
-                        w / 2.0,
-                        h / 2.0,
-                        Some(mask),
-                    ));
-            }
+            commands
+                .entity(child_id)
+                .insert(crate::game::interaction::DecorationInfo::from_entry(
+                    dec,
+                    pos,
+                    dec_pos.y,
+                    w / 2.0,
+                    h / 2.0,
+                    Some(mask),
+                ));
             if dec.trigger_radius > 0 && dec.event_id > 0 {
                 commands
                     .entity(child_id)
