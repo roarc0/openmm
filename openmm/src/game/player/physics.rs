@@ -18,9 +18,11 @@ impl Plugin for PhysicsPlugin {
         app.add_systems(OnEnter(GameState::Game), setup_collision_data)
             .add_systems(
                 Update,
-                gravity_system
-                    .run_if(in_state(GameState::Game))
-                    .run_if(|ui: Res<crate::game::world::ui_state::UiState>| ui.mode == crate::game::world::ui_state::UiMode::World),
+                gravity_system.run_if(in_state(GameState::Game)).run_if(
+                    |ui: Res<crate::game::world::ui_state::UiState>| {
+                        ui.mode == crate::game::world::ui_state::UiMode::World
+                    },
+                ),
             );
     }
 }

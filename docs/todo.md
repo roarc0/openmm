@@ -24,8 +24,8 @@
 - [ ] **Deconstruct `hud/mod.rs`** — Split into `hud/layout.rs`, `hud/builder.rs`, `hud/constants.rs`
 
 ## Refactoring (High Impact)
-- [ ] **Deduplicate monster spawning (3 sites → 1 helper)** — `indoor/spawn.rs`, `outdoor/spawn_actors.rs` (DDM + ODM). Extract `spawn_monster_entity()`. ~200 lines saved.
-- [ ] **Deduplicate decoration spawning** — Indoor/outdoor implement same 3 decoration types with 80% identical logic. Extract shared spawner module. ~250 lines saved.
+- [x] **Deduplicate actor spawning (3 sites → 1 helper)** — Shared `spawn_actor()` in `game/spawn/monster.rs` covers monsters + NPCs. ~200 lines saved.
+- [x] **Deduplicate decoration spawning** ��� Shared `spawn_decoration()` in `game/spawn/decoration.rs`. Indoor gains triggers, flicker, material caching. ~250 lines saved.
 - [ ] **Split `loading.rs` (1211 lines)** — Indoor/outdoor share one file. Split into `loading/mod.rs` + `loading/outdoor.rs` + `loading/indoor.rs`. Extract `build_textured_mesh()` and `build_standard_material()` helpers.
 
 ## Refactoring (Medium Impact)
@@ -34,7 +34,7 @@
 
 ## Refactoring (Low Impact)
 - [ ] **Overlay image pattern** — `handle_speak_in_house` and `handle_open_chest` share identical OverlayImage + cursor logic. Extract helper.
-- [ ] **Indoor sprite caching** — Outdoor caches static decoration materials; indoor doesn't. Add caching for consistency.
+- [x] **Indoor sprite caching** — Now uses shared `DecSpriteCache` via `spawn_decoration()`.
 - [ ] **Texture size collection** — 2 near-identical HashMap-building loops for indoor vs outdoor texture sizes. Extract `collect_texture_sizes()`.
 
 ## Architecture (Bevy Best Practices)

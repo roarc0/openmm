@@ -5,9 +5,9 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
-use crate::game::world::ui_state::{UiMode, UiState, OverlayImage};
 use crate::game::sprites::loading::AlphaMask;
 use crate::game::world::EventQueue;
+use crate::game::world::ui_state::{OverlayImage, UiMode, UiState};
 
 pub mod clickable;
 mod hover;

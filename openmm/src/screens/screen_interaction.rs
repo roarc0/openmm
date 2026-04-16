@@ -8,11 +8,11 @@ use super::runtime::{
     ScreenLayers, ScreenUiHovered,
 };
 use super::setup::{hide_screen, load_screen_replace_all, show_screen};
+use super::ui_assets::UiAssets;
 use crate::GameState;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::optional::OptionalWrite;
-use super::ui_assets::UiAssets;
 
 // ── Interaction systems ─────────────────────────────────────────────────────
 

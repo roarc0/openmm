@@ -4,11 +4,11 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
 use crate::game::sprites::Billboard;
 use crate::game::sprites::tint_buffer::SpriteTintBuffers;
+use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::world::{CurrentMap, GameTime, is_outdoor};
 
 // ── Decoration point lights ─────────────────────────────────────────────────

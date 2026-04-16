@@ -45,22 +45,21 @@ pub(super) fn spawn_video_element(
         1.0 / 15.0
     };
 
-    if decoder.audio.is_some() {
-        if let Some(wav) = game_assets.smk_audio(&vid.video) {
-            if !wav.is_empty() {
-                let handle = audio_sources.add(AudioSource { bytes: wav.into() });
-                let mode = if vid.looping {
-                    bevy::audio::PlaybackMode::Loop
-                } else {
-                    bevy::audio::PlaybackMode::Despawn
-                };
-                commands.spawn((
-                    AudioPlayer(handle),
-                    PlaybackSettings { mode, ..default() },
-                    layer_tag.clone(),
-                ));
-            }
-        }
+    if decoder.audio.is_some()
+        && let Some(wav) = game_assets.smk_audio(&vid.video)
+        && !wav.is_empty()
+    {
+        let handle = audio_sources.add(AudioSource { bytes: wav.into() });
+        let mode = if vid.looping {
+            bevy::audio::PlaybackMode::Loop
+        } else {
+            bevy::audio::PlaybackMode::Despawn
+        };
+        commands.spawn((
+            AudioPlayer(handle),
+            PlaybackSettings { mode, ..default() },
+            layer_tag.clone(),
+        ));
     }
 
     let mut image = Image::new_fill(

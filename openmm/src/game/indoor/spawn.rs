@@ -272,9 +272,7 @@ fn spawn_decorations(
 
     for dec in prepared.decorations.entries() {
         let dec_pos = Vec3::from(mm6_position_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
-        crate::game::spawn::decoration::spawn_decoration(
-            commands, &mut ctx, dec, dec_pos, None, &mut dec_sprite_cache,
-        );
+        crate::game::spawn::decoration::spawn_decoration(commands, &mut ctx, dec, dec_pos, None, &mut dec_sprite_cache);
     }
 }
 

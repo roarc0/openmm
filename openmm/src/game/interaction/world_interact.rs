@@ -10,24 +10,41 @@ use crate::game::world::EventQueue;
 use crate::game::world::WorldState;
 use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
 
-use crate::game::world::ui_state::UiState;
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 use super::{
-    DecorationInfo, DecorationTrigger, MonsterInteractable, NpcInteractable, MAX_INTERACT_RANGE, check_interact_input,
+    DecorationInfo, DecorationTrigger, MAX_INTERACT_RANGE, MonsterInteractable, NpcInteractable, check_interact_input,
     facing_rotation,
 };
 use crate::config::GameConfig;
 use crate::game::player::Player;
+use crate::game::world::ui_state::UiState;
 
 use bevy::ecs::system::SystemParam;
 
 #[derive(SystemParam)]
 pub(crate) struct WorldInteractParams<'w, 's> {
     pub camera_query: Query<'w, 's, (&'static GlobalTransform, &'static Camera), With<PlayerCamera>>,
-    pub decorations: Query<'w, 's, (&'static DecorationInfo, &'static GlobalTransform, Option<&'static SpriteSheet>)>,
+    pub decorations: Query<
+        'w,
+        's,
+        (
+            &'static DecorationInfo,
+            &'static GlobalTransform,
+            Option<&'static SpriteSheet>,
+        ),
+    >,
     pub npcs: Query<'w, 's, (&'static NpcInteractable, &'static GlobalTransform, &'static SpriteSheet)>,
-    pub monsters: Query<'w, 's, (Entity, &'static MonsterInteractable, &'static GlobalTransform, &'static SpriteSheet)>,
+    pub monsters: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static MonsterInteractable,
+            &'static GlobalTransform,
+            &'static SpriteSheet,
+        ),
+    >,
     pub clickable_faces: Option<Res<'w, clickable::Faces>>,
     pub occluder_faces: Option<ResMut<'w, OccluderFaces>>,
     pub map_events: Option<Res<'w, MapEvents>>,
@@ -67,7 +84,8 @@ pub(crate) fn world_interact_system(
 
     let origin = cam_global.translation();
     let dir = cam_global.forward().as_vec3();
-    let occluder_t = params.occluder_faces
+    let occluder_t = params
+        .occluder_faces
         .as_mut()
         .map(|of| of.min_hit_t_max(origin, dir, params.cfg.draw_distance))
         .unwrap_or(f32::MAX);
@@ -102,7 +120,10 @@ pub(crate) fn world_interact_system(
     // narrows the candidate list to entities whose cell overlaps the interact
     // range, so the heavy matrix + polygon + mask work here only runs for a
     // handful of nearby entities instead of every `WorldEntity` on the map.
-    for entity in params.spatial.query_radius(origin.x, origin.z, params.cfg.draw_distance) {
+    for entity in params
+        .spatial
+        .query_radius(origin.x, origin.z, params.cfg.draw_distance)
+    {
         if let Ok((info, g_tf, sheet_opt)) = params.decorations.get(entity) {
             let center = g_tf.translation();
             if origin.distance_squared(center) > params.cfg.draw_distance * params.cfg.draw_distance {
@@ -131,8 +152,7 @@ pub(crate) fn world_interact_system(
                 && t < params.cfg.draw_distance
                 && nearest.as_ref().is_none_or(|n| t < n.0)
             {
-                let name = resolve_event_name(info.event_id, &params.map_events)
-                    .or_else(|| info.display_name.clone());
+                let name = resolve_event_name(info.event_id, &params.map_events).or_else(|| info.display_name.clone());
                 nearest = Some((t, Hit::Decoration(info.event_id, info.billboard_index, name)));
             }
             continue;
@@ -209,7 +229,8 @@ pub(crate) fn world_interact_system(
             }
             if dist < MAX_INTERACT_RANGE {
                 // ChangeEvent can redirect this decoration to a different script at runtime.
-                let effective_id = params.world_state
+                let effective_id = params
+                    .world_state
                     .as_ref()
                     .and_then(|ws| ws.game_vars.event_overrides.get(&billboard_idx))
                     .copied()
@@ -242,16 +263,18 @@ pub(crate) fn world_interact_system(
                     false
                 };
                 if !ran_event {
-                    params.event_queue.push_single(openmm_data::evt::GameEvent::SpeakNPC { npc_id: npc_id_i32 });
+                    params
+                        .event_queue
+                        .push_single(openmm_data::evt::GameEvent::SpeakNPC { npc_id: npc_id_i32 });
                 }
             }
         }
         Some((dist, Hit::Monster(entity, name))) => {
             params.ui.footer.set_status(&name, 2.0, now);
-            if dist < MAX_INTERACT_RANGE {
-                if let Some(mut ke) = params.kill_events {
-                    ke.write(KillActorEvent(entity));
-                }
+            if dist < MAX_INTERACT_RANGE
+                && let Some(mut ke) = params.kill_events
+            {
+                ke.write(KillActorEvent(entity));
             }
         }
         None => {}

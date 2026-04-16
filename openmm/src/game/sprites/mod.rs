@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::spatial_index::SpatialIndexSet;
+use crate::game::world::ui_state::{UiMode, UiState};
 
 pub mod loading;
 pub mod material;

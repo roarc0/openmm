@@ -6,8 +6,7 @@ use crate::game::InGame;
 use crate::game::actors::{Actor, ActorParams, MonsterAiMode, MonsterAiType};
 use crate::game::interaction::{MonsterInteractable, NpcInteractable};
 use crate::game::sprites::{
-    AnimationState, Billboard, EntityKind, WorldEntity,
-    apply_shadow_config,
+    AnimationState, Billboard, EntityKind, WorldEntity, apply_shadow_config,
     loading::{self as sprites, SpriteSheet},
 };
 

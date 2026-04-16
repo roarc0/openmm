@@ -10,26 +10,16 @@ use openmm_data::provider::decorations::DecorationEntry;
 use crate::game::InGame;
 use crate::game::interaction::{DecorationInfo, DecorationTrigger};
 use crate::game::rendering::lighting::{DecorationLight, decoration_point_light};
+use crate::game::sprites::material::SpriteMaterial;
 use crate::game::sprites::{
-    AnimationState, Billboard, DecorFlicker, EntityKind, FacingYaw, SelfLit, WorldEntity,
-    apply_shadow_config,
+    AnimationState, Billboard, DecorFlicker, EntityKind, FacingYaw, SelfLit, WorldEntity, apply_shadow_config,
     loading::{self as sprites, AlphaMask, SpriteSheet},
 };
-use crate::game::sprites::material::SpriteMaterial;
 
 use super::SpawnCtx;
 
 /// Cached static decoration materials: sprite name → (material, mesh, w, h, mask).
-pub type DecSpriteCache = HashMap<
-    String,
-    (
-        Handle<SpriteMaterial>,
-        Handle<Mesh>,
-        f32,
-        f32,
-        Arc<AlphaMask>,
-    ),
->;
+pub type DecSpriteCache = HashMap<String, (Handle<SpriteMaterial>, Handle<Mesh>, f32, f32, Arc<AlphaMask>)>;
 
 /// Spawn a decoration entity (directional, animated, or static).
 ///
@@ -129,8 +119,7 @@ fn spawn_animated(
 
     // Animated decorations are selflit if they have a ddeclist light or a luminous DSFT frame.
     let first = &frame_sprites[0];
-    let is_selflit =
-        dec.light_radius > 0 || (first.d_sft_frame.is_luminous() && first.d_sft_frame.light_radius > 0);
+    let is_selflit = dec.light_radius > 0 || (first.d_sft_frame.is_luminous() && first.d_sft_frame.light_radius > 0);
 
     let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
     let mut frame_mats = vec![];
@@ -205,10 +194,7 @@ fn spawn_static(
     let (mat, quad, w, h, mask) = if let Some((m, q, w, h, msk)) = cache.get(key) {
         (m.clone(), q.clone(), *w, *h, msk.clone())
     } else {
-        let sprite = match lod.billboard(key, dec.declist_id) {
-            Some(s) => s,
-            None => return None,
-        };
+        let sprite = lod.billboard(key, dec.declist_id)?;
         let (w, h) = sprite.dimensions();
         if w == 0.0 || h == 0.0 {
             return None;
@@ -285,12 +271,7 @@ fn attach_common(
 }
 
 /// Attach a ddeclist point light as a child entity + SelfLit marker.
-fn attach_light_as_child(
-    commands: &mut Commands,
-    ent: Entity,
-    dec: &DecorationEntry,
-    shadows: bool,
-) {
+fn attach_light_as_child(commands: &mut Commands, ent: Entity, dec: &DecorationEntry, shadows: bool) {
     if dec.light_radius > 0 {
         let light_id = commands
             .spawn(decoration_point_light(

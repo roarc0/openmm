@@ -107,12 +107,12 @@ impl SoundManager {
             return Some(handle.clone());
         }
 
-        if let Some(wav) = game_assets.smk_audio(video) {
-            if !wav.is_empty() {
-                let handle = audio_sources.add(AudioSource { bytes: wav.into() });
-                self.track_cache.insert(key, handle.clone());
-                return Some(handle);
-            }
+        if let Some(wav) = game_assets.smk_audio(video)
+            && !wav.is_empty()
+        {
+            let handle = audio_sources.add(AudioSource { bytes: wav.into() });
+            self.track_cache.insert(key, handle.clone());
+            return Some(handle);
         }
         None
     }
@@ -129,12 +129,12 @@ impl SoundManager {
             return Some(handle.clone());
         }
 
-        if let Some(bytes) = game_assets.music_bytes(track) {
-            if !bytes.is_empty() {
-                let handle = audio_sources.add(AudioSource { bytes: bytes.into() });
-                self.track_cache.insert(key, handle.clone());
-                return Some(handle);
-            }
+        if let Some(bytes) = game_assets.music_bytes(track)
+            && !bytes.is_empty()
+        {
+            let handle = audio_sources.add(AudioSource { bytes: bytes.into() });
+            self.track_cache.insert(key, handle.clone());
+            return Some(handle);
         }
         None
     }

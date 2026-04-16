@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 
-use crate::game::world::ui_state::UiState;
 use crate::game::indoor::OccluderFaces;
 use crate::game::player::PlayerCamera;
 use crate::game::spatial_index::EntitySpatialIndex;
 use crate::game::sprites::loading::SpriteSheet;
 use crate::game::world::MapEvents;
+use crate::game::world::ui_state::UiState;
 
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
@@ -101,14 +101,12 @@ pub(crate) fn hover_hint_system(
             ) && t < occluder_t
                 && t < MAX_INTERACT_RANGE
                 && (nearest.is_none() || t < nearest.as_ref().unwrap().0)
+                && info.event_id > 0
             {
-                if info.event_id > 0 {
-                    let name = resolve_event_name(info.event_id, &map_events)
-                        .or_else(|| info.display_name.clone());
+                let name = resolve_event_name(info.event_id, &map_events).or_else(|| info.display_name.clone());
 
-                    if let Some(name) = name {
-                        nearest = Some((t, name));
-                    }
+                if let Some(name) = name {
+                    nearest = Some((t, name));
                 }
             }
             continue;

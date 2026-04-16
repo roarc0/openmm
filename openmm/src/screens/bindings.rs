@@ -9,10 +9,10 @@ use bevy::window::PrimaryWindow;
 
 use super::REF_H;
 use super::REF_W;
+use super::ui_assets::UiAssets;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::game::player::Player;
-use super::ui_assets::UiAssets;
 
 // ── Components ─────────────────────────────────────────────────────────────
 

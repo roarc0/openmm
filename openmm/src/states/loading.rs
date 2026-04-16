@@ -1013,7 +1013,7 @@ fn step_preload_sprites(
         queue.sprite_idx = queue.sprite_roots.len();
         queue.billboard_idx = progress.decorations.as_ref().map_or(0, |d| d.len());
     }
-    if let Some(sprite_materials) = sprite_materials.as_deref_mut() {
+    if let Some(sprite_materials) = sprite_materials {
         let sprites_done = progress.preload_queue.as_ref().unwrap().sprite_idx
             >= progress.preload_queue.as_ref().unwrap().sprite_roots.len();
         if sprites_done {

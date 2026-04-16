@@ -8,12 +8,12 @@ pub(crate) mod indoor;
 pub(crate) mod interaction;
 pub(crate) mod optional;
 pub(crate) mod outdoor;
-pub(crate) mod rendering;
 pub(crate) mod party;
 pub(crate) mod player;
+pub(crate) mod rendering;
 pub(crate) mod sound;
-pub(crate) mod spawn;
 pub(crate) mod spatial_index;
+pub(crate) mod spawn;
 pub(crate) mod sprites;
 pub(crate) mod world;
 

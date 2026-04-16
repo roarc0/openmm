@@ -15,10 +15,10 @@ use std::time::Instant;
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::indoor::OccluderFaces;
 use crate::game::interaction::clickable;
 use crate::game::sprites::WorldEntity;
+use crate::game::world::ui_state::{UiMode, UiState};
 
 const REPORT_INTERVAL_SECS: f32 = 2.0;
 

@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 use bevy::prelude::*;
 
 use super::Screen;
+use super::ui_assets::UiAssets;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use super::ui_assets::UiAssets;
 
 /// Reference resolution for MM6 UI screens.
 pub const REF_W: f32 = 640.0;

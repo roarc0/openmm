@@ -22,12 +22,12 @@ use super::event_handlers;
 use super::events::MapEvents;
 use super::variables;
 use crate::game::actors::Actor;
-use crate::game::world::ui_state::UiState;
 use crate::game::interaction::DecorationInfo;
 use crate::game::optional::OptionalWrite;
 use crate::game::outdoor::ApplyTextureOutdoors;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
+use crate::game::world::ui_state::UiState;
 
 /// Bundles map entity queries to stay within Bevy's 16-param system limit.
 /// Wraps the decoration sprite-swap query and actor visibility/flag query.
@@ -524,13 +524,7 @@ fn process_events(
                 topic_index,
                 event_id,
             } => {
-                stub_event!(
-                    "SetNPCTopic",
-                    "npc={} topic={} event={}",
-                    npc_id,
-                    topic_index,
-                    event_id
-                );
+                stub_event!("SetNPCTopic", "npc={} topic={} event={}", npc_id, topic_index, event_id);
             }
             GameEvent::MoveNPC { npc_id, map_id } => {
                 stub_event!("MoveNPC", "npc={} map_id={}", npc_id, map_id);
@@ -663,9 +657,7 @@ fn process_events(
                 jump_step,
             } => {
                 let current = world_state.game_vars.item_count(*item_id);
-                if current >= *count
-                    && !execute_conditional_jump(steps, &mut pc, *jump_step, "CheckItemsCount jump")
-                {
+                if current >= *count && !execute_conditional_jump(steps, &mut pc, *jump_step, "CheckItemsCount jump") {
                     return;
                 }
             }
@@ -726,13 +718,7 @@ fn process_events(
                 }
             }
             GameEvent::ToggleChestFlag { chest_id, flag, on } => {
-                stub_event!(
-                    "ToggleChestFlag",
-                    "chest={} flag=0x{:x} on={}",
-                    chest_id,
-                    flag,
-                    on
-                );
+                stub_event!("ToggleChestFlag", "chest={} flag=0x{:x} on={}", chest_id, flag, on);
             }
             GameEvent::SetActorItem { actor_id, item_id, on } => {
                 stub_event!("SetActorItem", "actor={} item={} on={}", actor_id, item_id, on);

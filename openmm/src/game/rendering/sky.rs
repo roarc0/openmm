@@ -49,14 +49,8 @@ impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
         // ClearColor = fog/sky target. Updated each frame by update_sky_color.
         app.add_plugins(MaterialPlugin::<SkyMaterial>::default())
-            .add_systems(
-                OnEnter(GameState::Menu),
-                set_black_clear_color,
-            )
-            .add_systems(
-                OnEnter(GameState::Loading),
-                set_black_clear_color,
-            )
+            .add_systems(OnEnter(GameState::Menu), set_black_clear_color)
+            .add_systems(OnEnter(GameState::Loading), set_black_clear_color)
             .add_systems(
                 OnEnter(GameState::Game),
                 (

@@ -187,14 +187,13 @@ impl Plugin for PlayerPlugin {
             // Gate the system so it doesn't flicker the torch on/off during dialogues.
             .add_systems(
                 Update,
-                party_torch_system
-                    .run_if(in_state(GameState::Game))
-                    .run_if(|ui: Res<crate::game::world::ui_state::UiState>| ui.mode == crate::game::world::ui_state::UiMode::World),
+                party_torch_system.run_if(in_state(GameState::Game)).run_if(
+                    |ui: Res<crate::game::world::ui_state::UiState>| {
+                        ui.mode == crate::game::world::ui_state::UiMode::World
+                    },
+                ),
             )
-            .add_systems(
-                PostUpdate,
-                sync_player_to_world_state.run_if(in_state(GameState::Game)),
-            );
+            .add_systems(PostUpdate, sync_player_to_world_state.run_if(in_state(GameState::Game)));
     }
 }
 
