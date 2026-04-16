@@ -78,7 +78,7 @@ fn debug_setup(
     let (vp_left, vp_top) = windows
         .single()
         .map(|w| {
-            let (l, t, _, _) = crate::game::viewport::viewport_rect(w, &cfg, &ui_assets);
+            let (l, t, _, _) = crate::game::rendering::viewport::viewport_rect(w, &cfg, &ui_assets);
             (l, t)
         })
         .unwrap_or((0.0, 0.0));

@@ -1,5 +1,6 @@
 //! Player systems — spawn, physics, camera, torch, and key bindings.
 mod input;
+pub(crate) mod physics;
 
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};

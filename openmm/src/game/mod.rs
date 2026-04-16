@@ -10,12 +10,10 @@ pub(crate) mod optional;
 pub(crate) mod outdoor;
 pub(crate) mod rendering;
 pub(crate) mod party;
-pub(crate) mod player_physics;
 pub(crate) mod player;
 pub(crate) mod sound;
 pub(crate) mod spatial_index;
 pub(crate) mod sprites;
-pub(crate) mod viewport;
 pub(crate) mod world;
 
 /// Marker component for all entities spawned during the Game state.
@@ -74,7 +72,7 @@ impl Plugin for MapPlugin {
         app.add_plugins((
             outdoor::OdmPlugin,
             indoor::BlvPlugin,
-            player_physics::PhysicsPlugin,
+            player::physics::PhysicsPlugin,
             spatial_index::SpatialIndexPlugin,
             sprites::SpritesPlugin,
         ));
@@ -101,7 +99,7 @@ impl Plugin for UiPlugin {
         // Viewport clipping — keeps the 3D camera inside the HUD frame.
         .add_systems(
             Update,
-            viewport::update_viewport.run_if(in_state(crate::GameState::Game)),
+            rendering::viewport::update_viewport.run_if(in_state(crate::GameState::Game)),
         );
     }
 }

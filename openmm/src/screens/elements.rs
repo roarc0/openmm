@@ -432,7 +432,7 @@ pub(super) fn update_screen_crosshair(
     mut query: Query<(&mut Node, &mut Visibility), With<ScreenCrosshair>>,
 ) {
     let Ok((window, cursor)) = windows.single() else { return };
-    let (vp_left, vp_top, vp_w, vp_h) = crate::game::viewport::viewport_rect(window, &cfg, &ui_assets);
+    let (vp_left, vp_top, vp_w, vp_h) = crate::game::rendering::viewport::viewport_rect(window, &cfg, &ui_assets);
     let cx = vp_left + vp_w / 2.0;
     let cy = vp_top + vp_h / 2.0;
     let cursor_free = matches!(cursor.grab_mode, bevy::window::CursorGrabMode::None);
