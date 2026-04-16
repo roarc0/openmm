@@ -1,3 +1,4 @@
+//! Asset module — parsers for all MM6 data formats, with a flat re-export API surface.
 pub mod provider;
 
 #[cfg(test)]
@@ -5,10 +6,13 @@ pub fn test_lod() -> Option<crate::Assets> {
     crate::Assets::new(crate::get_data_path()).ok()
 }
 
+pub mod actor_enums;
 pub mod autonotes;
 pub mod awards;
 pub mod billboard;
 pub mod blv;
+pub mod blv_builder;
+pub mod blv_types;
 pub mod bsp_model;
 pub mod class;
 pub mod dchest;
@@ -18,13 +22,16 @@ pub mod dift;
 pub mod dlv;
 pub mod dmonlist;
 pub mod dobjlist;
+pub mod door_enums;
 pub mod doverlay;
 pub mod dpft;
 pub mod dsft;
 pub mod dsounds;
 pub mod dtile;
 pub mod enums;
+pub mod event_enums;
 pub mod evt;
+pub mod face_enums;
 pub mod font;
 pub mod image;
 pub mod items;
@@ -49,7 +56,9 @@ pub mod save;
 pub mod scroll;
 pub mod smk;
 pub mod snd;
+pub mod sound_enums;
 pub mod spells;
+pub mod sprite_enums;
 pub mod stats;
 pub mod terrain;
 pub mod tft;

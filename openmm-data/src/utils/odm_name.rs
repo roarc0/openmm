@@ -55,6 +55,16 @@ impl OdmName {
         Some(Self { x, y: self.y })
     }
 
+    /// Iterate over all valid outdoor map coordinates (a1..e3).
+    pub fn all() -> impl Iterator<Item = OdmName> {
+        ('a'..='e').flat_map(|x| ('1'..='3').map(move |y| OdmName { x, y }))
+    }
+
+    /// Base name without extension (e.g. `"oute3"`).
+    pub fn base_name(&self) -> String {
+        format!("out{}{}", self.x, self.y)
+    }
+
     fn map_name(x: char, y: char) -> String {
         format!("out{}{}.odm", x, y)
     }

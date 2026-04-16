@@ -141,7 +141,7 @@ fn minimap_scroll(
     let map_name = world_state
         .as_ref()
         .map(|ws| match &ws.map.name {
-            openmm_data::utils::MapName::Outdoor(odm) => format!("out{}{}", odm.x, odm.y),
+            openmm_data::utils::MapName::Outdoor(odm) => odm.base_name(),
             openmm_data::utils::MapName::Indoor(_) => String::new(),
         })
         .unwrap_or_default();
