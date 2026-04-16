@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use crate::game::InGame;
 use crate::game::coords::mm6_position_to_bevy;
 use crate::game::spawn::SpawnCtx;
-use crate::game::spawn::monster::{ActorKind, ActorSpawnParams, spawn_actor};
+use crate::game::spawn::actor::{ActorKind, ActorSpawnParams, spawn_actor};
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
 use crate::states::loading::PreparedIndoorWorld;
@@ -353,7 +353,7 @@ fn spawn_indoor_monsters(
             move_speed: mon.move_speed as f32,
             sound_ids: mon.sound_ids,
             tether_distance: mon.radius as f32 * 2.0,
-            attack_range: mon.body_radius as f32 * 2.0,
+            attack_range: mon.body_radius as f32,
             aggro_range: mon.aggro_range,
             recovery_secs: mon.recovery_secs,
             can_fly: mon.can_fly,

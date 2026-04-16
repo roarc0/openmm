@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 
 use crate::game::spawn::SpawnCtx;
-use crate::game::spawn::monster::{ActorKind, ActorSpawnParams, spawn_actor};
+use crate::game::spawn::actor::{ActorKind, ActorSpawnParams, spawn_actor};
 use crate::states::loading::PreparedWorld;
 
 use super::lazy_spawn::PendingSpawns;

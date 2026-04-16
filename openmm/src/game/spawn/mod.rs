@@ -4,8 +4,8 @@
 //! so entity construction stays consistent — same components, same light
 //! attachment strategy, same naming.
 
+pub mod actor;
 pub mod decoration;
-pub mod monster;
 
 use bevy::prelude::*;
 
