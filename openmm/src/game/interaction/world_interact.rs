@@ -10,7 +10,7 @@ use crate::game::world::EventQueue;
 use crate::game::world::WorldState;
 use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
 
-use crate::game::footer::FooterText;
+use crate::game::world::ui_state::UiState;
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 use super::{
@@ -35,7 +35,7 @@ pub(crate) struct WorldInteractParams<'w, 's> {
     pub event_queue: ResMut<'w, EventQueue>,
     pub kill_events: Option<bevy::ecs::message::MessageWriter<'w, KillActorEvent>>,
     pub world_state: Option<Res<'w, WorldState>>,
-    pub footer: ResMut<'w, FooterText>,
+    pub ui: ResMut<'w, UiState>,
     pub cfg: Res<'w, GameConfig>,
     pub time: Res<'w, Time>,
 }
@@ -192,7 +192,7 @@ pub(crate) fn world_interact_system(
     match nearest {
         Some((dist, Hit::Face(event_id, name))) => {
             if let Some(name) = name {
-                params.footer.set_status(&name, 2.0, now);
+                params.ui.footer.set_status(&name, 2.0, now);
             }
             if dist < MAX_INTERACT_RANGE {
                 info!("World interact: hit BSP face event_id={} at dist={:.0}", event_id, dist);
@@ -205,7 +205,7 @@ pub(crate) fn world_interact_system(
         }
         Some((dist, Hit::Decoration(event_id, billboard_idx, name))) => {
             if let Some(name) = name {
-                params.footer.set_status(&name, 2.0, now);
+                params.ui.footer.set_status(&name, 2.0, now);
             }
             if dist < MAX_INTERACT_RANGE {
                 // ChangeEvent can redirect this decoration to a different script at runtime.
@@ -222,7 +222,7 @@ pub(crate) fn world_interact_system(
             }
         }
         Some((dist, Hit::Npc(npc_id, name))) => {
-            params.footer.set_status(&name, 2.0, now);
+            params.ui.footer.set_status(&name, 2.0, now);
             if dist < MAX_INTERACT_RANGE {
                 let npc_id_i32 = npc_id as i32;
                 // For quest NPCs (from npcdata.txt), run their event_a script if available.
@@ -247,7 +247,7 @@ pub(crate) fn world_interact_system(
             }
         }
         Some((dist, Hit::Monster(entity, name))) => {
-            params.footer.set_status(&name, 2.0, now);
+            params.ui.footer.set_status(&name, 2.0, now);
             if dist < MAX_INTERACT_RANGE {
                 if let Some(mut ke) = params.kill_events {
                     ke.write(KillActorEvent(entity));

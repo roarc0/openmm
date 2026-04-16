@@ -13,8 +13,8 @@ use super::{
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
 use crate::fonts::GameFonts;
-use crate::game::footer::FooterText;
-use crate::game::ui_assets::UiAssets;
+use crate::game::world::ui_state::UiState;
+use crate::screens::ui_assets::UiAssets;
 
 // ── Element spawning ────────────────────────────────────────────────────────
 
@@ -281,7 +281,7 @@ pub(super) fn spawn_text_element(commands: &mut Commands, txt: &TextElement, lay
 
 /// Read data sources, re-render text when content changes, reposition every frame.
 pub(super) fn text_update(
-    footer: Res<FooterText>,
+    ui: Res<UiState>,
     world_state: Option<Res<crate::game::world::WorldState>>,
     loading_step: Option<Res<crate::states::loading::LoadingStep>>,
     game_fonts: Res<GameFonts>,
@@ -297,7 +297,7 @@ pub(super) fn text_update(
 
     for (mut rt, mut img_node, mut vis, mut node) in &mut query {
         let current = match rt.source.as_str() {
-            "footer_text" => footer.text().to_string(),
+            "footer_text" => ui.footer.text().to_string(),
             "gold" => world_state
                 .as_ref()
                 .map_or(String::new(), |ws| ws.game_vars.gold.to_string()),

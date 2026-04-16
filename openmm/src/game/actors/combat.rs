@@ -5,7 +5,7 @@ use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
 use crate::game::actors::Actor;
-use crate::game::hud_view::HudView;
+use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
@@ -52,7 +52,7 @@ impl Plugin for ActorCombatPlugin {
                 Update,
                 (monster_attack_system, monster_die_system, dying_to_dead_system)
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(HudView::World)),
+                    .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
             );
     }
 }

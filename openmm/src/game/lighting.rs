@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::hud_view::HudView;
+use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
 use crate::game::sprites::Billboard;
@@ -70,14 +70,14 @@ impl Plugin for LightingPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LightingState>()
             .add_systems(OnEnter(GameState::Game), (ambient_setup, sun_setup.run_if(is_outdoor)))
-            // Gate on HudView::World so day/night/ambient advance freezes in
+            // Gate on UiMode::World so day/night/ambient advance freezes in
             // dialogues, inventory, and overlays — otherwise GameTime pauses
             // but this system would still tick sun/ambient from stale values.
             .add_systems(
                 Update,
                 animate_day_cycle
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(HudView::World)),
+                    .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
             );
     }
 }

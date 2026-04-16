@@ -23,7 +23,7 @@ use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::hud_view::HudView;
+use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::player::Player;
 use crate::game::sprites::WorldEntity;
 
@@ -150,7 +150,7 @@ impl Plugin for SpatialIndexPlugin {
             rebuild_and_cull
                 .in_set(SpatialIndexSet)
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(HudView::World)),
+                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
         );
     }
 }

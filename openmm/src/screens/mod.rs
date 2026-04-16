@@ -9,6 +9,7 @@ pub(crate) mod runtime;
 mod screen_interaction;
 pub(crate) mod scripting;
 mod setup;
+pub mod ui_assets;
 mod video;
 
 pub use format::*;

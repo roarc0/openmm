@@ -15,7 +15,7 @@ use std::time::Instant;
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::hud_view::HudView;
+use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::indoor::OccluderFaces;
 use crate::game::interaction::clickable;
 use crate::game::sprites::WorldEntity;
@@ -159,7 +159,7 @@ impl Plugin for PerfLogPlugin {
                 Update,
                 (count_frame, perf_report.after(count_frame))
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(HudView::World)),
+                    .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
             );
         info!(
             "[PERF] perf_log enabled — reporting every {REPORT_INTERVAL_SECS}s, leak detection after {BASELINE_AFTER_REPORTS} reports"

@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
-use crate::game::hud_view::{HudView, OverlayImage};
+use crate::game::world::ui_state::{UiMode, UiState, OverlayImage};
 use crate::game::sprites::loading::AlphaMask;
 use crate::game::world::EventQueue;
 
@@ -115,19 +115,19 @@ impl Plugin for InteractionPlugin {
                 .chain()
                 .after(crate::game::spatial_index::SpatialIndexSet)
                 .run_if(in_state(GameState::Game))
-                .run_if(crate::game::hud_view::game_input_active),
+                .run_if(crate::game::world::ui_state::game_input_active),
         )
         .add_systems(
             Update,
             decoration_proximity_system
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(HudView::World)),
+                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
         )
         .add_systems(
             Update,
             interaction_input
                 .run_if(in_state(GameState::Game))
-                .run_if(|view: Res<HudView>| matches!(*view, HudView::Building | HudView::NpcDialogue | HudView::Chest))
+                .run_if(|ui: Res<UiState>| matches!(ui.mode, UiMode::Building | UiMode::NpcDialogue | UiMode::Chest))
                 .after(crate::game::player::PlayerInputSet),
         );
     }
@@ -176,7 +176,7 @@ fn facing_rotation(cam_origin: Vec3, center: Vec3) -> Quat {
 fn interaction_input(
     keys: Res<ButtonInput<KeyCode>>,
     gamepads: Query<&Gamepad>,
-    mut view: ResMut<HudView>,
+    mut view: ResMut<UiState>,
     mut commands: Commands,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut event_queue: ResMut<EventQueue>,
@@ -186,7 +186,7 @@ fn interaction_input(
         commands.remove_resource::<OverlayImage>();
         commands.remove_resource::<crate::game::world::npc_dialogue::NpcPortrait>();
         commands.remove_resource::<crate::game::world::npc_dialogue::NpcProfile>();
-        *view = HudView::World;
+        view.mode = UiMode::World;
         if let Ok(mut cursor) = cursor_query.single_mut() {
             cursor.grab_mode = CursorGrabMode::Confined;
             cursor.visible = false;

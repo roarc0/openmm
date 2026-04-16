@@ -4,8 +4,6 @@ pub(crate) mod actors;
 pub(crate) mod collision;
 pub mod coords;
 pub(crate) mod debug;
-pub(crate) mod footer;
-pub(crate) mod hud_view;
 pub(crate) mod indoor;
 pub(crate) mod interaction;
 pub(crate) mod lighting;
@@ -18,9 +16,12 @@ pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod spatial_index;
 pub(crate) mod sprites;
-pub(crate) mod ui_assets;
 pub(crate) mod viewport;
 pub(crate) mod world;
+
+pub mod ui_assets {
+    pub use crate::screens::ui_assets::*;
+}
 
 /// Marker component for all entities spawned during the Game state.
 /// Despawned automatically on OnExit(Game).
@@ -37,10 +38,11 @@ pub struct InGamePlugin;
 
 impl Plugin for InGamePlugin {
     fn build(&self, app: &mut App) {
-        // HudView / FooterText initialised at top level so run conditions
-        // like `resource_equals(HudView::World)` never fail.
-        app.init_resource::<hud_view::HudView>()
-            .init_resource::<footer::FooterText>()
+        // UiMode initialized at top level so run conditions like
+        // `|ui: Res<UiState>| ui.mode == UiMode::World` (if implemented) never fail.
+        app.init_resource::<world::ui_state::UiState>()
+            .init_resource::<crate::screens::ui_assets::UiAssets>()
+            .add_systems(Update, world::ui_state::tick_footer_text)
             .add_plugins((
                 RenderingPlugin,
                 MapPlugin,

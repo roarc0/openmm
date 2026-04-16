@@ -13,7 +13,7 @@ const SECS_PER_GAME_MINUTE: f64 = 1.0;
 /// Authoritative in-game clock.
 ///
 /// Runs at 1 real second = 1 in-game minute. A full 24-hour game day passes
-/// in 24 real minutes. The clock pauses while `HudView` is not `World`
+/// in 24 real minutes. The clock pauses while `UiMode` is not `World`
 /// (inventory, dialogue, chests, etc.) or when explicitly stopped via the
 /// console commands `time stop` / `time start`.
 ///
@@ -108,13 +108,13 @@ impl Plugin for GameTimePlugin {
             Update,
             advance_game_time
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(crate::game::hud_view::HudView::World)),
+                .run_if(|ui: Res<crate::game::world::ui_state::UiState>| ui.mode == crate::game::world::ui_state::UiMode::World),
         );
     }
 }
 
 /// Advance the game clock. 1 real second = 1 in-game minute.
-/// Does not run when `HudView` is not `World` (menus, dialogue, etc.) or when
+/// Does not run when `UiMode` is not `World` (menus, dialogue, etc.) or when
 /// the clock is explicitly paused via `GameTime::set_paused`.
 fn advance_game_time(time: Res<Time>, mut game_time: ResMut<GameTime>) {
     if !game_time.paused {

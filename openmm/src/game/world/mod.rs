@@ -22,6 +22,7 @@ pub mod npc_dialogue;
 pub mod scripting;
 pub mod state;
 pub mod time;
+pub mod ui_state;
 mod variables;
 
 pub use events::{GENERATED_NPC_ID_BASE, MapEvents, load_map_events};

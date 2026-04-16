@@ -5,7 +5,7 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
 use super::canvas::EditorScreen;
 use super::canvas::Selection;
-use super::format::ElementState;
+use crate::screens::ElementState;
 use crate::screens::ScreenElement;
 
 /// Draw the inspector egui window (always visible, anchored top-right).

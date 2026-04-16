@@ -175,7 +175,7 @@ fn loading_setup(
     commands.remove_resource::<crate::game::indoor::DoorColliders>();
     commands.remove_resource::<crate::game::indoor::TouchTriggerFaces>();
     commands.remove_resource::<crate::game::indoor::OccluderFaces>();
-    commands.remove_resource::<crate::game::hud_view::MapOverviewImage>();
+    commands.remove_resource::<crate::game::world::ui_state::MapOverviewImage>();
     commands.remove_resource::<CurrentMap>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.

@@ -25,7 +25,7 @@ use crate::game::actors::combat::{ActorDead, DyingTimer};
 use crate::game::actors::physics::{is_passable, snap_actor_y};
 use crate::game::actors::{Actor, MonsterAiType};
 use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
-use crate::game::hud_view::HudView;
+use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::indoor::DoorColliders;
 use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
@@ -64,7 +64,7 @@ impl Plugin for MonsterAiPlugin {
             Update,
             monster_ai_system
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(HudView::World)),
+                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
         );
     }
 }

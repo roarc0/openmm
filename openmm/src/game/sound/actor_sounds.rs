@@ -4,7 +4,7 @@ use openmm_data::ActorSoundSlot;
 use super::effects::PlayOnceSoundEvent;
 use crate::GameState;
 use crate::game::actors::Actor;
-use crate::game::hud_view::HudView;
+use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::player::Player;
 
 /// Hear actor fidget sounds within this radius (Bevy units).
@@ -31,7 +31,7 @@ impl Plugin for ActorSoundsPlugin {
             Update,
             actor_fidget_sounds
                 .run_if(in_state(GameState::Game))
-                .run_if(resource_equals(HudView::World)),
+                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
         );
     }
 }

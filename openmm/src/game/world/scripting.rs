@@ -22,8 +22,7 @@ use super::event_handlers;
 use super::events::MapEvents;
 use super::variables;
 use crate::game::actors::Actor;
-use crate::game::footer::FooterText;
-use crate::game::hud_view::HudView;
+use crate::game::world::ui_state::UiState;
 use crate::game::interaction::DecorationInfo;
 use crate::game::optional::OptionalWrite;
 use crate::game::outdoor::ApplyTextureOutdoors;
@@ -226,8 +225,7 @@ fn process_events(
     mut images: ResMut<Assets<Image>>,
     mut sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
     mut commands: Commands,
-    mut hud_view: ResMut<HudView>,
-    mut footer: ResMut<FooterText>,
+    mut ui: ResMut<UiState>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut transition: TransitionParams,
     mut blv_doors: Option<ResMut<crate::game::indoor::BlvDoors>>,
@@ -237,10 +235,8 @@ fn process_events(
     time: Res<Time>,
     mut entities: MapEntityParams,
 ) {
-    // Tick footer timer every frame
-    footer.tick(time.elapsed_secs_f64());
     // Don't process events while a UI overlay is blocking
-    if !matches!(*hud_view, HudView::World) {
+    if !matches!(ui.mode, crate::game::world::ui_state::UiMode::World) {
         return;
     }
 
@@ -278,7 +274,7 @@ fn process_events(
             // ── Already implemented (side-effects) ───────────────────
             GameEvent::Hint { str_id, text } => {
                 debug!("Hint(id={}): {}", str_id, text);
-                footer.set(text);
+                ui.footer.set(text);
             }
             GameEvent::SpeakInHouse { house_id } => {
                 event_handlers::handle_speak_in_house(
@@ -287,8 +283,7 @@ fn process_events(
                     &map_events,
                     &mut images,
                     &mut commands,
-                    &mut hud_view,
-                    &mut footer,
+                    &mut ui,
                     &mut cursor_query,
                     &time,
                 );
@@ -299,7 +294,7 @@ fn process_events(
                     &game_assets,
                     &mut images,
                     &mut commands,
-                    &mut hud_view,
+                    &mut ui,
                     &mut cursor_query,
                     &mut audio,
                 );
@@ -337,15 +332,15 @@ fn process_events(
             }
             GameEvent::StatusText { str_id, text } => {
                 debug!("StatusText(id={}): {}", str_id, text);
-                footer.set_status(text, 2.0, time.elapsed_secs_f64());
+                ui.footer.set_status(text, 2.0, time.elapsed_secs_f64());
             }
             GameEvent::LocationName { str_id, text } => {
                 debug!("LocationName(id={}): {}", str_id, text);
-                footer.set_status(text, 2.0, time.elapsed_secs_f64());
+                ui.footer.set_status(text, 2.0, time.elapsed_secs_f64());
             }
             GameEvent::ShowMessage { str_id, text } => {
                 debug!("ShowMessage(id={}): {}", str_id, text);
-                footer.set_status(text, 4.0, time.elapsed_secs_f64());
+                ui.footer.set_status(text, 4.0, time.elapsed_secs_f64());
             }
             GameEvent::PlayVideo { name, skippable: _ } => {
                 // TODO: wire PlayVideo through the screen system (InlineVideo).
@@ -402,7 +397,7 @@ fn process_events(
                     event_handlers::play_ui_sound_named("Quest", audio.sound_manager.as_deref(), &mut audio.ui_sound);
                 }
                 if show_note {
-                    event_handlers::show_autonote_text(*value, &game_assets, &mut footer, time.elapsed_secs_f64());
+                    event_handlers::show_autonote_text(*value, &game_assets, &mut ui, time.elapsed_secs_f64());
                 }
             }
             GameEvent::Subtract { var, value } => {
@@ -413,7 +408,7 @@ fn process_events(
                     *var == EvtVariable::AUTONOTES_BITS && *value != 0 && !world_state.game_vars.has_autonote(*value);
                 variables::set_variable(&mut world_state.game_vars, &mut party, *var, *value);
                 if show_note {
-                    event_handlers::show_autonote_text(*value, &game_assets, &mut footer, time.elapsed_secs_f64());
+                    event_handlers::show_autonote_text(*value, &game_assets, &mut ui, time.elapsed_secs_f64());
                 }
             }
 
@@ -547,7 +542,7 @@ fn process_events(
                     &map_events,
                     &mut images,
                     &mut commands,
-                    &mut hud_view,
+                    &mut ui,
                     &mut cursor_query,
                     &audio,
                     &world_state,

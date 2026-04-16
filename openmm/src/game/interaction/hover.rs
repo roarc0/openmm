@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::game::footer::FooterText;
+use crate::game::world::ui_state::UiState;
 use crate::game::indoor::OccluderFaces;
 use crate::game::player::PlayerCamera;
 use crate::game::spatial_index::EntitySpatialIndex;
@@ -22,7 +22,7 @@ pub(crate) fn hover_hint_system(
     monsters: Query<(&MonsterInteractable, &GlobalTransform, &SpriteSheet)>,
     spatial: Res<EntitySpatialIndex>,
     map_events: Option<Res<MapEvents>>,
-    mut footer: ResMut<FooterText>,
+    mut footer: ResMut<UiState>,
     ui_hovered: Option<Res<crate::screens::runtime::ScreenUiHovered>>,
     cfg: Res<GameConfig>,
     #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
@@ -165,12 +165,12 @@ pub(crate) fn hover_hint_system(
     }
 
     match nearest {
-        Some((_, name)) => footer.set(&name),
+        Some((_, name)) => footer.footer.set(&name),
         // Don't clear footer when a screen UI element is being hovered —
         // the screen system owns the hint text in that case.
         None => {
             if !ui_hovered {
-                footer.clear();
+                footer.footer.clear();
             }
         }
     }

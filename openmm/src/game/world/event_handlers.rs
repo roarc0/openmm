@@ -12,23 +12,22 @@ use openmm_data::utils::MapName;
 use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy};
-use crate::game::footer::FooterText;
-use crate::game::hud_view::{HudView, OverlayImage};
 use crate::game::optional::OptionalWrite;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::sprites::material::SpriteMaterial;
+use crate::game::world::ui_state::{OverlayImage, UiMode, UiState};
 use crate::states::loading::LoadRequest;
 
 use super::events::MapEvents;
 use super::scripting::{AudioParams, EventQueue, MapEntityParams, TransitionParams};
 
 /// Show the autonote text in the footer when a note is newly acquired.
-pub(super) fn show_autonote_text(id: i32, assets: &GameAssets, footer: &mut FooterText, time_secs: f64) {
+pub(super) fn show_autonote_text(id: i32, assets: &GameAssets, ui: &mut UiState, time_secs: f64) {
     if let Some(note) = assets.autonotes().and_then(|t| t.get(id as u16))
         && !note.text.is_empty()
     {
-        footer.set_status(&note.text, 4.0, time_secs);
+        ui.footer.set_status(&note.text, 4.0, time_secs);
     }
 }
 
@@ -61,8 +60,7 @@ pub(super) fn handle_speak_in_house(
     map_events: &Option<Res<MapEvents>>,
     images: &mut Assets<Image>,
     commands: &mut Commands,
-    hud_view: &mut HudView,
-    footer: &mut FooterText,
+    ui: &mut UiState,
     cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
     time: &Time,
 ) {
@@ -73,7 +71,7 @@ pub(super) fn handle_speak_in_house(
         .map(|e| e.description.clone())
         .filter(|s| !s.is_empty())
     {
-        footer.set_status(&desc, 4.0, time.elapsed_secs_f64());
+        ui.footer.set_status(&desc, 4.0, time.elapsed_secs_f64());
     }
     let image = map_events
         .as_ref()
@@ -81,8 +79,8 @@ pub(super) fn handle_speak_in_house(
         .or_else(|| game_assets.load_icon("evt02", images));
     if let Some(image) = image {
         commands.insert_resource(OverlayImage { image });
-        *hud_view = HudView::Building;
-        crate::game::hud_view::grab_cursor(cursor_query, false);
+        ui.mode = UiMode::Building;
+        crate::game::world::ui_state::grab_cursor(cursor_query, false);
     }
 }
 
@@ -92,7 +90,7 @@ pub(super) fn handle_open_chest(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
     commands: &mut Commands,
-    hud_view: &mut HudView,
+    ui: &mut UiState,
     cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
     audio: &mut AudioParams,
 ) {
@@ -106,8 +104,8 @@ pub(super) fn handle_open_chest(
             audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
         }
         commands.insert_resource(OverlayImage { image });
-        *hud_view = HudView::Chest;
-        crate::game::hud_view::grab_cursor(cursor_query, false);
+        ui.mode = UiMode::Chest;
+        crate::game::world::ui_state::grab_cursor(cursor_query, false);
     }
 }
 
@@ -252,7 +250,7 @@ pub(super) fn handle_speak_npc(
     map_events: &Option<Res<MapEvents>>,
     images: &mut Assets<Image>,
     commands: &mut Commands,
-    hud_view: &mut HudView,
+    ui: &mut UiState,
     cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
     audio: &AudioParams,
     world_state: &super::state::WorldState,
@@ -274,7 +272,7 @@ pub(super) fn handle_speak_npc(
     ) {
         commands.insert_resource(portrait);
         commands.insert_resource(profile);
-        *hud_view = HudView::NpcDialogue;
-        crate::game::hud_view::grab_cursor(cursor_query, false);
+        ui.mode = UiMode::NpcDialogue;
+        crate::game::world::ui_state::grab_cursor(cursor_query, false);
     }
 }

@@ -3,7 +3,7 @@
 use bevy_inspector_egui::bevy_egui::egui;
 
 use super::canvas::{EditorScreen, Selection};
-use super::format::ElementState;
+use crate::screens::ElementState;
 use crate::screens::TRANSPARENCY_OPTIONS;
 
 /// Draw the event editor window for the selected element.

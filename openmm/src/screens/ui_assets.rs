@@ -105,7 +105,7 @@ pub fn make_transparent_where(img: &mut DynamicImage, is_key: impl Fn(u8, u8, u8
 
 /// Load the overview image for `map_name` (e.g. `"oute3"`).
 /// Returns `None` for indoor maps or if no icon is found in the LOD.
-pub(crate) fn load_map_overview(
+pub fn load_map_overview(
     map_name: &str,
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
@@ -119,7 +119,7 @@ pub(crate) fn load_map_overview(
 
 /// Make green or red color-keyed pixels transparent for tap frame overlays.
 /// MM6 uses exact #00FF00 (green) and #FF0000 (red) as transparency keys.
-pub(crate) fn make_tap_key_transparent(img: &mut image::DynamicImage) {
+pub fn make_tap_key_transparent(img: &mut image::DynamicImage) {
     make_transparent_where(img, |r, g, b| {
         (r == 0 && g == 255 && b == 0) || (r == 255 && g == 0 && b == 0)
     });

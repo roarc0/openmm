@@ -2,7 +2,7 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::hud_view::HudView;
+use crate::game::world::ui_state::{UiMode, UiState};
 use crate::game::world::is_indoor;
 
 mod doors;
@@ -29,7 +29,7 @@ impl Plugin for BlvPlugin {
                     door_animation_system,
                 )
                     .run_if(in_state(GameState::Game))
-                    .run_if(resource_equals(HudView::World)),
+                    .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
             );
     }
 }
