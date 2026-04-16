@@ -7,6 +7,7 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
+use crate::game::spawn::SpawnCtx;
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
 use crate::states::loading::PreparedWorld;
@@ -59,22 +60,6 @@ pub(super) const SPAWN_BATCH_MAX: usize = 12;
 /// The loading-to-game transition masks this single long frame.
 pub(super) const EAGER_SPAWN_FRAMES: u32 = 1;
 
-/// Common context passed down into the per-kind spawn helpers, so each one
-/// only takes a handful of parameters instead of 14+.
-pub(super) struct SpawnCtx<'a> {
-    pub game_assets: &'a GameAssets,
-    pub images: &'a mut Assets<Image>,
-    pub meshes: &'a mut Assets<Mesh>,
-    pub sprite_materials: Option<&'a mut Assets<SpriteMaterial>>,
-    pub start: std::time::Instant,
-    pub time_budget: f32,
-    pub batch_max: usize,
-    pub terrain_entity: Entity,
-    pub shadows: bool,
-    pub billboard_shadows: bool,
-    pub actor_shadows: bool,
-}
-
 /// Sort indices by distance from player using MM6 coords (works with i16 or i32).
 pub(super) fn sort_by_distance_mm6<T>(
     items: &[T],
@@ -111,14 +96,8 @@ pub(super) fn lazy_spawn(
         return;
     };
 
-    // Sprite materials pull their day/night tint from the globally-shared
-    // `SpriteGlobalsBuffer` via their hand-written `AsBindGroup` impl — spawn
-    // sites only need to tell the material whether it's `selflit` (torches,
-    // campfires) or the regular ambient tint.
-
     let p = &mut *pending;
     let terrain_entity = p.terrain_entity;
-    let mut spawned = 0;
     let start = std::time::Instant::now();
 
     // On the first frame, spawn all entities with no budget — the loading-to-game
@@ -127,6 +106,7 @@ pub(super) fn lazy_spawn(
     let time_budget = if eager { f32::MAX } else { SPAWN_TIME_BUDGET_MS };
     let batch_max = if eager { usize::MAX } else { SPAWN_BATCH_MAX };
     p.frames_elapsed += 1;
+    let mut spawned = 0;
 
     let (bb_len, actor_len, monster_len) = (p.billboard_order.len(), p.actor_order.len(), p.monster_order.len());
     let mut bb_idx = p.idx.min(bb_len);
@@ -141,31 +121,67 @@ pub(super) fn lazy_spawn(
         );
     }
 
+    // Unwrap sprite_materials — the material plugin is always present in practice.
+    let sprite_mats = sprite_materials
+        .as_deref_mut()
+        .expect("SpriteMaterial asset store missing");
+
+    // Temporarily take the sprite cache out of PendingSpawns so it can live
+    // inside SpawnCtx without conflicting with the &mut PendingSpawns borrows
+    // that decorations/actors still need for their own fields.
+    let mut sprite_cache = std::mem::take(&mut p.sprite_cache);
+
     let mut ctx = SpawnCtx {
         game_assets: &game_assets,
         images: &mut images,
         meshes: &mut meshes,
-        sprite_materials: sprite_materials.as_deref_mut(),
-        start,
-        time_budget,
-        batch_max,
-        terrain_entity,
+        sprite_materials: sprite_mats,
+        sprite_cache: &mut sprite_cache,
         shadows: cfg.shadows,
         billboard_shadows: cfg.billboard_shadows,
         actor_shadows: cfg.actor_shadows,
     };
 
-    spawn_decorations(&mut commands, &mut ctx, p, &mut bb_idx, &mut spawned, &mut sound_events);
+    spawn_decorations(
+        &mut commands,
+        &mut ctx,
+        p,
+        start,
+        time_budget,
+        batch_max,
+        terrain_entity,
+        &mut bb_idx,
+        &mut spawned,
+        &mut sound_events,
+    );
     spawn_npc_actors(
         &mut commands,
         &mut ctx,
         p,
         &prepared,
+        start,
+        time_budget,
+        batch_max,
+        terrain_entity,
         &mut actor_idx,
         &mut spawned,
         &mut map_events,
     );
-    spawn_odm_monsters(&mut commands, &mut ctx, p, &prepared, &mut monster_idx, &mut spawned);
+    spawn_odm_monsters(
+        &mut commands,
+        &mut ctx,
+        p,
+        &prepared,
+        start,
+        time_budget,
+        batch_max,
+        terrain_entity,
+        &mut monster_idx,
+        &mut spawned,
+    );
+
+    // Put the sprite cache back.
+    p.sprite_cache = sprite_cache;
 
     p.idx = bb_idx + actor_idx + monster_idx;
     progress.done = p.idx;

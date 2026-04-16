@@ -5,23 +5,28 @@ use bevy::prelude::*;
 
 use crate::game::InGame;
 use crate::game::coords::mm6_position_to_bevy;
-use crate::game::rendering::lighting::{DecorationLight, decoration_point_light};
 use crate::game::optional::OptionalWrite;
+use crate::game::rendering::lighting::{DecorationLight, decoration_point_light};
+use crate::game::spawn::SpawnCtx;
 use crate::game::sprites::loading as sprites;
 
-use super::lazy_spawn::{PendingSpawns, SpawnCtx};
+use super::lazy_spawn::PendingSpawns;
 
 pub(super) fn spawn_decorations(
     commands: &mut Commands,
     ctx: &mut SpawnCtx,
     p: &mut PendingSpawns,
+    start: std::time::Instant,
+    time_budget: f32,
+    batch_max: usize,
+    terrain_entity: Entity,
     bb_idx: &mut usize,
     spawned: &mut usize,
     sound_events: &mut Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
 ) {
     let lod = ctx.game_assets.lod();
     let bb_len = p.billboard_order.len();
-    while *bb_idx < bb_len && *spawned < ctx.batch_max && ctx.start.elapsed().as_secs_f32() * 1000.0 < ctx.time_budget {
+    while *bb_idx < bb_len && *spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
         let dec_idx = p.billboard_order[*bb_idx];
         *bb_idx += 1;
         let dec = &p.decorations.entries()[dec_idx];
@@ -33,15 +38,12 @@ pub(super) fn spawn_decorations(
             // become SelfLit — pick the selflit shader variant so they don't
             // get dimmed at night. Non-lit directionals use the regular one.
             let is_selflit = dec.light_radius > 0;
-            let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
-                continue;
-            };
             let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
                 &dec.sprite_name,
                 ctx.game_assets.assets(),
                 ctx.images,
-                materials,
-                &mut Some(&mut p.sprite_cache),
+                ctx.sprite_materials,
+                &mut Some(ctx.sprite_cache),
                 is_selflit,
             );
             if px_w > 0.0 {
@@ -64,7 +66,7 @@ pub(super) fn spawn_decorations(
                     .id();
                 // Sprites are unlit — never receive shadows (skip shadow map sampling per pixel).
                 crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
-                commands.entity(ctx.terrain_entity).add_child(child_id);
+                commands.entity(terrain_entity).add_child(child_id);
                 commands
                     .entity(child_id)
                     .insert(crate::game::interaction::DecorationInfo::from_entry(
@@ -95,9 +97,7 @@ pub(super) fn spawn_decorations(
                 continue;
             }
         } else if dec.num_frames > 1 {
-            if ctx.sprite_materials.is_none() {
-                continue;
-            }
+            // sprite_materials always available via shared SpawnCtx
             let frame_sprites = lod.billboard_animation_frames(key, dec.declist_id);
             if frame_sprites.is_empty() {
                 continue;
@@ -117,10 +117,8 @@ pub(super) fn spawn_decorations(
             let mut frame_masks = vec![];
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
-                let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
-                    continue;
-                };
-                let (mat, msk) = sprites::sprite_to_material_with_mask(rgba, ctx.images, materials, is_selflit);
+                let (mat, msk) =
+                    sprites::sprite_to_material_with_mask(rgba, ctx.images, ctx.sprite_materials, is_selflit);
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
             }
@@ -140,7 +138,7 @@ pub(super) fn spawn_decorations(
                 ))
                 .id();
             crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
-            commands.entity(ctx.terrain_entity).add_child(child_id);
+            commands.entity(terrain_entity).add_child(child_id);
             commands
                 .entity(child_id)
                 .insert(crate::game::interaction::DecorationInfo::from_entry(
@@ -184,10 +182,8 @@ pub(super) fn spawn_decorations(
                 };
                 let (w, h) = sprite.dimensions();
                 let rgba = sprite.image.to_rgba8();
-                let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
-                    continue;
-                };
-                let (m, msk) = sprites::sprite_to_material_with_mask(rgba, ctx.images, materials, is_selflit);
+                let (m, msk) =
+                    sprites::sprite_to_material_with_mask(rgba, ctx.images, ctx.sprite_materials, is_selflit);
                 let q = ctx.meshes.add(Rectangle::new(w, h));
                 p.dec_sprite_cache
                     .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));
@@ -206,7 +202,7 @@ pub(super) fn spawn_decorations(
                 .insert(crate::game::sprites::Billboard)
                 .insert(InGame);
             crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
-            commands.entity(ctx.terrain_entity).add_child(child_id);
+            commands.entity(terrain_entity).add_child(child_id);
             commands
                 .entity(child_id)
                 .insert(crate::game::interaction::DecorationInfo::from_entry(
