@@ -7,13 +7,15 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
+use crate::game::coords::mm6_position_to_bevy;
+use crate::game::optional::OptionalWrite;
 use crate::game::spawn::SpawnCtx;
+use crate::game::spawn::decoration::{DecSpriteCache, spawn_decoration};
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
 use crate::states::loading::PreparedWorld;
 
 use super::spawn_actors::{spawn_npc_actors, spawn_odm_monsters};
-use super::spawn_decorations::spawn_decorations;
 
 /// Spawn progress visible to the debug HUD.
 #[derive(Resource, Default)]
@@ -31,16 +33,7 @@ pub(super) struct PendingSpawns {
     pub frames_elapsed: u32,
     pub sprite_cache: sprites::SpriteCache,
     /// Cached billboard materials: key = sprite name, value = (material, mesh, width, height, mask)
-    pub dec_sprite_cache: std::collections::HashMap<
-        String,
-        (
-            Handle<SpriteMaterial>,
-            Handle<Mesh>,
-            f32,
-            f32,
-            std::sync::Arc<crate::game::sprites::loading::AlphaMask>,
-        ),
-    >,
+    pub dec_sprite_cache: DecSpriteCache,
     /// Pre-resolved decoration entries for this map (directional detection, sprite names, dimensions).
     pub decorations: openmm_data::assets::Decorations,
     /// Pre-resolved DDM actors (NPCs only for outdoor maps) for this map.
@@ -142,18 +135,35 @@ pub(super) fn lazy_spawn(
         actor_shadows: cfg.actor_shadows,
     };
 
-    spawn_decorations(
-        &mut commands,
-        &mut ctx,
-        p,
-        start,
-        time_budget,
-        batch_max,
-        terrain_entity,
-        &mut bb_idx,
-        &mut spawned,
-        &mut sound_events,
-    );
+    // Decorations
+    {
+        let bb_len = p.billboard_order.len();
+        while bb_idx < bb_len && spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
+            let dec_idx = p.billboard_order[bb_idx];
+            bb_idx += 1;
+            let dec = &p.decorations.entries()[dec_idx];
+            let dec_pos = Vec3::from(mm6_position_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
+
+            if spawn_decoration(
+                &mut commands,
+                &mut ctx,
+                dec,
+                dec_pos,
+                Some(terrain_entity),
+                &mut p.dec_sprite_cache,
+            )
+            .is_some()
+            {
+                spawned += 1;
+            }
+            if dec.sound_id > 0 {
+                sound_events.try_write(crate::game::sound::effects::PlaySoundEvent {
+                    sound_id: dec.sound_id as u32,
+                    position: dec_pos,
+                });
+            }
+        }
+    }
     spawn_npc_actors(
         &mut commands,
         &mut ctx,

@@ -4,7 +4,6 @@
 //! - [`boundary`]: detect player crossing the play-area edge and queue the next map.
 //! - [`spawn`]: one-shot world spawning at `OnEnter(Game)` (terrain + BSP + spawn queues).
 //! - [`lazy_spawn`]: per-frame, time-budgeted spawning of decorations / NPCs / monsters.
-//! - [`spawn_decorations`]: billboard / animated / directional decoration spawning.
 //! - [`spawn_actors`]: NPC and monster entity spawning.
 //! - [`texture_swap`]: runtime texture replacement for outdoor BSP faces.
 
@@ -19,7 +18,6 @@ pub mod bsp_water;
 mod lazy_spawn;
 mod spawn;
 mod spawn_actors;
-mod spawn_decorations;
 pub mod spawn_terrain;
 mod texture_swap;
 
@@ -46,7 +44,9 @@ impl Plugin for OdmPlugin {
                     texture_swap::apply_texture_outdoors,
                 )
                     .run_if(in_state(GameState::Game))
-                    .run_if(|ui: Res<crate::game::world::ui_state::UiState>| ui.mode == crate::game::world::ui_state::UiMode::World)
+                    .run_if(|ui: Res<crate::game::world::ui_state::UiState>| {
+                        ui.mode == crate::game::world::ui_state::UiMode::World
+                    })
                     .run_if(is_outdoor),
             );
     }
