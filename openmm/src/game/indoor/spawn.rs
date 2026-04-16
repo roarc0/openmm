@@ -2,14 +2,10 @@
 
 use bevy::prelude::*;
 
-use openmm_data::provider::decorations::DecorationEntry;
-use openmm_data::provider::lod_decoder::LodDecoder;
-
 use crate::game::InGame;
 use crate::game::coords::mm6_position_to_bevy;
 use crate::game::spawn::SpawnCtx;
-use crate::game::spawn::monster::{ActorSpawnParams, ActorKind, spawn_actor};
-use crate::game::sprites::SelfLit;
+use crate::game::spawn::monster::{ActorKind, ActorSpawnParams, spawn_actor};
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
 use crate::states::loading::PreparedIndoorWorld;
@@ -250,8 +246,7 @@ fn spawn_ambient_light(commands: &mut Commands) {
     ));
 }
 
-/// Spawn decorations from BLV decoration list.
-/// Dispatches to directional, animated, or static helpers per decoration type.
+/// Spawn decorations from BLV decoration list using the shared spawn_decoration helper.
 fn spawn_decorations(
     prepared: &PreparedIndoorWorld,
     commands: &mut Commands,
@@ -261,269 +256,26 @@ fn spawn_decorations(
     game_assets: &crate::assets::GameAssets,
     cfg: &crate::config::GameConfig,
 ) {
-    let lod = game_assets.lod();
     let mut sprite_cache = sprites::SpriteCache::default();
+    let mut dec_sprite_cache = crate::game::spawn::decoration::DecSpriteCache::default();
+
+    let mut ctx = SpawnCtx {
+        game_assets,
+        images,
+        meshes,
+        sprite_materials,
+        sprite_cache: &mut sprite_cache,
+        shadows: cfg.shadows,
+        billboard_shadows: cfg.billboard_shadows,
+        actor_shadows: cfg.actor_shadows,
+    };
+
     for dec in prepared.decorations.entries() {
         let dec_pos = Vec3::from(mm6_position_to_bevy(dec.position[0], dec.position[1], dec.position[2]));
-        let key = &dec.sprite_name;
-        // sprite_center is set in each branch to the entity's world position (dec_pos + half-height).
-        // Used afterwards to place the point light at the sprite centre, not the floor.
-        let sprite_center;
-        let dec_entity;
-
-        if dec.is_directional {
-            let result = spawn_directional_decoration(
-                dec,
-                dec_pos,
-                key,
-                commands,
-                images,
-                meshes,
-                sprite_materials,
-                game_assets.assets(),
-                &lod,
-                cfg,
-                &mut sprite_cache,
-            );
-            let Some((center, entity)) = result else { continue };
-            sprite_center = center;
-            dec_entity = Some(entity);
-        } else if dec.num_frames > 1 {
-            let result =
-                spawn_animated_decoration(dec, dec_pos, key, commands, images, meshes, sprite_materials, cfg, &lod);
-            let Some((center, entity)) = result else { continue };
-            sprite_center = center;
-            dec_entity = Some(entity);
-        } else {
-            let result =
-                spawn_static_decoration(dec, dec_pos, key, commands, images, meshes, sprite_materials, cfg, &lod);
-            let Some((center, entity)) = result else { continue };
-            sprite_center = center;
-            dec_entity = Some(entity);
-        }
-
-        // Common: ddeclist point light + selflit marker.
-        if dec.light_radius > 0 {
-            commands.spawn((
-                crate::game::rendering::lighting::decoration_point_light(
-                    crate::game::rendering::lighting::DecorationLight::Ddeclist(dec.light_radius),
-                    false,
-                ),
-                Transform::from_translation(sprite_center),
-                InGame,
-            ));
-            // Mark this decoration sprite as self-lit so it isn't dimmed by the tint system.
-            if let Some(id) = dec_entity {
-                commands.entity(id).insert(SelfLit);
-            }
-        }
+        crate::game::spawn::decoration::spawn_decoration(
+            commands, &mut ctx, dec, dec_pos, None, &mut dec_sprite_cache,
+        );
     }
-}
-
-/// Spawn a directional decoration. Returns (sprite_center, entity_id) or None if skipped.
-fn spawn_directional_decoration(
-    dec: &DecorationEntry,
-    dec_pos: Vec3,
-    key: &str,
-    commands: &mut Commands,
-    images: &mut Assets<Image>,
-    meshes: &mut Assets<Mesh>,
-    sprite_materials: &mut Assets<SpriteMaterial>,
-    assets: &openmm_data::Assets,
-    lod: &LodDecoder<'_>,
-    cfg: &crate::config::GameConfig,
-    sprite_cache: &mut sprites::SpriteCache,
-) -> Option<(Vec3, Entity)> {
-    // Indoor directionals with a ddeclist light are selflit.
-    let is_selflit = dec.light_radius > 0;
-    let (dirs, dir_masks, px_w, px_h) = sprites::load_decoration_directions(
-        key,
-        assets,
-        images,
-        sprite_materials,
-        &mut Some(sprite_cache),
-        is_selflit,
-    );
-    if px_w == 0.0 {
-        return None;
-    }
-    let dsft_scale = lod.dsft_scale_for_group(key);
-    let sw = px_w * dsft_scale;
-    let sh = px_h * dsft_scale;
-    let initial_mat = dirs[0].clone();
-    let quad = meshes.add(Rectangle::new(sw, sh));
-    let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
-    let states = vec![vec![dirs]];
-    let state_masks = vec![vec![dir_masks]];
-    let ent_id = commands
-        .spawn((
-            Name::new(format!("decoration:{}", key)),
-            Mesh3d(quad),
-            MeshMaterial3d(initial_mat),
-            Transform::from_translation(pos),
-            crate::game::sprites::WorldEntity,
-            crate::game::sprites::EntityKind::Decoration,
-            crate::game::sprites::Billboard,
-            crate::game::sprites::AnimationState::Idle,
-            sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
-            crate::game::sprites::FacingYaw(dec.facing_yaw),
-            InGame,
-        ))
-        .id();
-    crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
-    commands
-        .entity(ent_id)
-        .insert(crate::game::interaction::DecorationInfo::from_entry(
-            dec, pos, dec_pos.y, 0.0, 0.0, None,
-        ));
-    Some((pos, ent_id))
-}
-
-/// Spawn an animated decoration. Returns (sprite_center, entity_id) or None if skipped.
-fn spawn_animated_decoration(
-    dec: &DecorationEntry,
-    dec_pos: Vec3,
-    key: &str,
-    commands: &mut Commands,
-    images: &mut Assets<Image>,
-    meshes: &mut Assets<Mesh>,
-    sprite_materials: &mut Assets<SpriteMaterial>,
-    cfg: &crate::config::GameConfig,
-    lod: &LodDecoder<'_>,
-) -> Option<(Vec3, Entity)> {
-    let frame_sprites = lod.billboard_animation_frames(key, dec.declist_id);
-    if frame_sprites.is_empty() {
-        return None;
-    }
-    let (w, h) = frame_sprites[0].dimensions();
-    if w == 0.0 || h == 0.0 {
-        return None;
-    }
-    let quad = meshes.add(Rectangle::new(w, h));
-    let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
-    // All indoor animated decorations (torches, campfires, cauldrons)
-    // are flame sources -> always selflit.
-    let mut frame_mats = vec![];
-    let mut frame_masks = vec![];
-    for sprite in &frame_sprites {
-        let rgba = sprite.image.to_rgba8();
-        let (mat, msk) = sprites::sprite_to_material_with_mask(rgba, images, sprite_materials, true);
-        frame_mats.push(std::array::from_fn(|_| mat.clone()));
-        frame_masks.push(std::array::from_fn(|_| msk.clone()));
-    }
-    let initial_mat = frame_mats[0][0].clone();
-    let mut sheet = sprites::SpriteSheet::new(vec![frame_mats], vec![(w, h)], vec![frame_masks]);
-    sheet.frame_duration = dec.frame_duration;
-    let ent_id = commands
-        .spawn((
-            Name::new(format!("decoration:{}", key)),
-            Mesh3d(quad),
-            MeshMaterial3d(initial_mat),
-            Transform::from_translation(pos),
-            crate::game::sprites::WorldEntity,
-            crate::game::sprites::EntityKind::Decoration,
-            crate::game::sprites::Billboard,
-            crate::game::sprites::AnimationState::Idle,
-            sheet,
-            InGame,
-        ))
-        .id();
-    crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
-    commands
-        .entity(ent_id)
-        .insert(crate::game::interaction::DecorationInfo::from_entry(
-            dec, pos, dec_pos.y, 0.0, 0.0, None,
-        ));
-    // Animated flame decorations do NOT get DecorFlicker — the frame cycling
-    // is already the visual effect. Adding visibility toggle on top makes them
-    // blink entirely off, which looks like a bug.
-    // All animated indoor decorations (torches, campfires, cauldrons) are fire
-    // sources — mark them so the tint system skips them.
-    commands.entity(ent_id).insert(SelfLit);
-
-    // Luminous animated decorations (campfires, braziers) carry their point-light
-    // radius in the DSFT frame, not in the ddeclist.light_radius field.
-    // Campfireon: DSFT light_radius=256, is_luminous=true.
-    let dsft_lr = lod.billboard_luminous_light_radius(dec.declist_id);
-    if dsft_lr > 0 {
-        commands.spawn((
-            crate::game::rendering::lighting::decoration_point_light(
-                crate::game::rendering::lighting::DecorationLight::AnimatedDsft(dsft_lr),
-                false,
-            ),
-            Transform::from_translation(pos),
-            InGame,
-        ));
-    }
-
-    Some((pos, ent_id))
-}
-
-/// Spawn a static single-frame decoration. Returns (sprite_center, entity_id) or None if skipped.
-fn spawn_static_decoration(
-    dec: &DecorationEntry,
-    dec_pos: Vec3,
-    key: &str,
-    commands: &mut Commands,
-    images: &mut Assets<Image>,
-    meshes: &mut Assets<Mesh>,
-    sprite_materials: &mut Assets<SpriteMaterial>,
-    cfg: &crate::config::GameConfig,
-    lod: &LodDecoder<'_>,
-) -> Option<(Vec3, Entity)> {
-    let sprite = lod.billboard(key, dec.declist_id)?;
-    let dsft_lr = lod.billboard_luminous_light_radius(dec.declist_id);
-    let (w, h) = sprite.dimensions();
-    if w == 0.0 || h == 0.0 {
-        return None;
-    }
-    // Luminous DSFT statics (chandeliers, crystals, sconces) and
-    // ddeclist-lit decorations are selflit.
-    let is_selflit = dec.light_radius > 0 || dsft_lr > 0;
-    let rgba = sprite.image.to_rgba8();
-    let (mat, mask) = sprites::sprite_to_material_with_mask(rgba, images, sprite_materials, is_selflit);
-    let quad = meshes.add(Rectangle::new(w, h));
-    let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
-    let ent_id = commands
-        .spawn((
-            Name::new(format!("decoration:{}", key)),
-            Mesh3d(quad),
-            MeshMaterial3d(mat),
-            Transform::from_translation(pos),
-            crate::game::sprites::WorldEntity,
-            crate::game::sprites::EntityKind::Decoration,
-            crate::game::sprites::Billboard,
-            crate::game::sprites::AnimationState::Idle,
-            InGame,
-        ))
-        .id();
-    crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
-    commands
-        .entity(ent_id)
-        .insert(crate::game::interaction::DecorationInfo::from_entry(
-            dec,
-            pos,
-            dec_pos.y,
-            w / 2.0,
-            h / 2.0,
-            Some(mask),
-        ));
-    // DSFT-luminous static decs (chandeliers, crystals, sconces) get SelfLit + light.
-    if dsft_lr > 0 {
-        commands.entity(ent_id).insert(SelfLit);
-    }
-    if dsft_lr > 0 {
-        commands.spawn((
-            crate::game::rendering::lighting::decoration_point_light(
-                crate::game::rendering::lighting::DecorationLight::StaticDsft(dsft_lr),
-                false,
-            ),
-            Transform::from_translation(pos),
-            InGame,
-        ));
-    }
-
-    Some((pos, ent_id))
 }
 
 /// Spawn BLV static point lights (designer-placed lights for campfires, cauldrons, etc.).
