@@ -1,0 +1,52 @@
+(
+    id: "npc_speak",
+    elements: [
+        Image((
+            id: "icons/EVPAN019",
+            position: (481.0, 0.0),
+            size: (152.0, 353.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/EVPAN019",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/edge_top",
+            position: (10.0, 304.0),
+            size: (512.0, 10.0),
+            z: 0,
+            states: {
+                "default": (
+                    texture: "icons/edge_top",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/NPC001",
+            position: (532.0, 24.0),
+            size: (63.0, 73.0),
+            z: 2,
+            states: {
+                "default": (
+                    texture: "icons/NPC001",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+    ],
+    editor: (
+        locked: [
+            "icons/NPC001",
+        ],
+    ),
+)

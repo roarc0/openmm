@@ -265,6 +265,184 @@
             },
             transparent_color: "black",
         )),
+        Image((
+            id: "icons/DEAD",
+            position: (135.0, 383.0),
+            size: (59.0, 79.0),
+            z: 11,
+            states: {
+                "default": (
+                    texture: "icons/DEAD",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/DEAD",
+            position: (248.0, 383.0),
+            size: (59.0, 79.0),
+            z: 12,
+            states: {
+                "default": (
+                    texture: "icons/DEAD",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/DEAD",
+            position: (360.0, 383.0),
+            size: (59.0, 79.0),
+            z: 13,
+            states: {
+                "default": (
+                    texture: "icons/DEAD",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/BUTTBK2",
+            position: (527.0, 270.0),
+            size: (31.0, 71.0),
+            z: 14,
+            states: {
+                "default": (
+                    texture: "icons/BUTTBK2",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "evt:Hint(\"?\")",
+            ],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/BUTTBK3",
+            position: (558.0, 270.0),
+            size: (32.0, 71.0),
+            z: 15,
+            states: {
+                "default": (
+                    texture: "icons/BUTTBK3",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "evt:Hint(\"Map\")",
+            ],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/BUTTBK4",
+            position: (590.0, 270.0),
+            size: (31.0, 71.0),
+            z: 16,
+            states: {
+                "default": (
+                    texture: "icons/BUTTBK4",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "evt:Hint(\"?\")",
+            ],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/BUTTREF",
+            position: (560.0, 399.0),
+            size: (28.0, 62.0),
+            z: 8,
+            states: {
+                "default": (
+                    texture: "icons/BUTTREF",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "evt:Hint(\"Ref\")",
+            ],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/GLOW05A",
+            position: (586.0, 332.0),
+            size: (54.0, 66.0),
+            z: 17,
+            states: {
+                "default": (
+                    texture: "icons/GLOW05A",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+        )),
+        Image((
+            id: "icons/HITSFULL",
+            position: (93.0, 383.0),
+            size: (6.0, 78.0),
+            z: 18,
+            states: {
+                "default": (
+                    texture: "icons/HITSFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/HITSCLRA",
+            position: (102.0, 383.0),
+            size: (6.0, 78.0),
+            z: 19,
+            states: {
+                "default": (
+                    texture: "icons/HITSCLRA",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/CCMALEA",
+            position: (22.0, 383.0),
+            size: (59.0, 79.0),
+            z: 2,
+            states: {
+                "default": (
+                    texture: "icons/CCMALEA",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/FACEMASK",
+            position: (20.0, 381.0),
+            size: (63.0, 83.0),
+            z: 20,
+            states: {
+                "default": (
+                    texture: "icons/FACEMASK",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+        )),
     ],
     editor: (
         locked: [
@@ -279,10 +457,16 @@
             "footer",
             "BUTTBK1",
             "icons/BUTTCAST",
-            "icons/BUTTMENU",
             "icons/COMPASS",
             "BORDER4",
             "icons/TAP1",
+            "icons/BUTTREF",
+            "icons/BUTTBK2",
+            "icons/BUTTBK3",
+            "icons/BUTTBK4",
+            "icons/BUTTMENU",
+            "icons/HITSFULL",
+            "icons/HITSCLRA",
         ],
     ),
 )

@@ -1,0 +1,19 @@
+(
+    id: "untitled",
+    elements: [
+        Image((
+            id: "icons/EVPAN019",
+            position: (481.0, 0.0),
+            size: (152.0, 353.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/EVPAN019",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+    ],
+)
