@@ -48,11 +48,22 @@ pub struct SkyPlugin;
 impl Plugin for SkyPlugin {
     fn build(&self, app: &mut App) {
         // ClearColor = fog/sky target. Updated each frame by update_sky_color.
-        app.insert_resource(ClearColor(Color::srgb(0.38, 0.43, 0.52)))
-            .add_plugins(MaterialPlugin::<SkyMaterial>::default())
+        app.add_plugins(MaterialPlugin::<SkyMaterial>::default())
+            .add_systems(
+                OnEnter(GameState::Menu),
+                set_black_clear_color,
+            )
+            .add_systems(
+                OnEnter(GameState::Loading),
+                set_black_clear_color,
+            )
             .add_systems(
                 OnEnter(GameState::Game),
-                (spawn_sky.run_if(is_outdoor), set_indoor_clear_color.run_if(is_indoor)),
+                (
+                    spawn_sky.run_if(is_outdoor),
+                    update_sky_color.run_if(is_outdoor),
+                    set_black_clear_color.run_if(is_indoor),
+                ),
             )
             .add_systems(
                 Update,
@@ -68,11 +79,9 @@ impl Plugin for SkyPlugin {
     }
 }
 
-/// Indoor equivalent of `spawn_sky` — dungeons have a pitch-black background
-/// instead of a sky dome. Set once on map enter; `update_sky_color` is gated
-/// off indoors so nothing overwrites it.
-fn set_indoor_clear_color(mut commands: Commands) {
-    commands.insert_resource(ClearColor(Color::BLACK));
+/// Reset the background color to black. Used for menus, loading, and dungeons.
+fn set_black_clear_color(mut clear_color: ResMut<ClearColor>) {
+    clear_color.0 = Color::BLACK;
 }
 
 /// Spawn the sky dome — a large inverted cylinder around the camera
