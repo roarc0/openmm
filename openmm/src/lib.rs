@@ -62,7 +62,7 @@ impl Plugin for GamePlugin {
             .insert_resource(game_assets)
             .insert_resource(game_fonts)
             .insert_resource(save_data)
-            .init_resource::<game::ui_assets::UiAssets>()
+            .init_resource::<screens::ui_assets::UiAssets>()
             .add_plugins(EngineConfigPlugin);
 
         #[cfg(feature = "editor")]

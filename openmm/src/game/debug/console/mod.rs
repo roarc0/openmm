@@ -15,7 +15,7 @@ use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::debug::hud::DebugHud;
 use crate::game::outdoor::OdmName;
-use crate::game::ui_assets::UiAssets;
+use crate::screens::ui_assets::UiAssets;
 use crate::game::viewport::viewport_inner_rect;
 use crate::game::world::WorldState;
 use crate::save::GameSave;

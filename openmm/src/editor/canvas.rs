@@ -9,7 +9,7 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, egui, input::EguiWantsInput};
 use super::io;
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use crate::game::ui_assets::UiAssets;
+use crate::screens::ui_assets::UiAssets;
 use crate::screens::{REF_H, REF_W, Screen, ScreenElement, load_texture_with_transparency, resolve_image_size};
 
 /// Resolve element size: uses crop dimensions when present, otherwise

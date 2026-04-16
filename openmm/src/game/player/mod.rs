@@ -189,6 +189,10 @@ impl Plugin for PlayerPlugin {
                 party_torch_system
                     .run_if(in_state(GameState::Game))
                     .run_if(|ui: Res<crate::game::world::ui_state::UiState>| ui.mode == crate::game::world::ui_state::UiMode::World),
+            )
+            .add_systems(
+                PostUpdate,
+                sync_player_to_world_state.run_if(in_state(GameState::Game)),
             );
     }
 }
@@ -443,5 +447,17 @@ fn party_torch_system(
         if (light.intensity - fill_target).abs() > 1.0 {
             light.intensity = fill_target;
         }
+    }
+}
+
+/// Copy Player entity transform → WorldState every frame (PostUpdate).
+fn sync_player_to_world_state(
+    mut world_state: ResMut<crate::game::world::WorldState>,
+    player_query: Query<&Transform, With<Player>>,
+) {
+    if let Ok(transform) = player_query.single() {
+        world_state.player.position = transform.translation;
+        let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
+        world_state.player.yaw = yaw;
     }
 }

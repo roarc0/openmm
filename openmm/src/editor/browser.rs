@@ -7,7 +7,7 @@ use super::canvas::EditorScreen;
 
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use crate::game::ui_assets::UiAssets;
+use crate::screens::ui_assets::UiAssets;
 use crate::screens::{ImageElement, REF_H, REF_W, ScreenElement, VideoElement};
 
 /// One archive and its file list.

@@ -6,22 +6,17 @@ pub mod coords;
 pub(crate) mod debug;
 pub(crate) mod indoor;
 pub(crate) mod interaction;
-pub(crate) mod lighting;
 pub(crate) mod optional;
 pub(crate) mod outdoor;
+pub(crate) mod rendering;
 pub(crate) mod party;
-pub(crate) mod physics;
+pub(crate) mod player_physics;
 pub(crate) mod player;
-pub(crate) mod sky;
 pub(crate) mod sound;
 pub(crate) mod spatial_index;
 pub(crate) mod sprites;
 pub(crate) mod viewport;
 pub(crate) mod world;
-
-pub mod ui_assets {
-    pub use crate::screens::ui_assets::*;
-}
 
 /// Marker component for all entities spawned during the Game state.
 /// Despawned automatically on OnExit(Game).
@@ -41,7 +36,6 @@ impl Plugin for InGamePlugin {
         // UiMode initialized at top level so run conditions like
         // `|ui: Res<UiState>| ui.mode == UiMode::World` (if implemented) never fail.
         app.init_resource::<world::ui_state::UiState>()
-            .init_resource::<crate::screens::ui_assets::UiAssets>()
             .add_systems(Update, world::ui_state::tick_footer_text)
             .add_plugins((
                 RenderingPlugin,
@@ -63,8 +57,8 @@ struct RenderingPlugin;
 impl Plugin for RenderingPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            lighting::LightingPlugin,
-            sky::SkyPlugin,
+            rendering::lighting::LightingPlugin,
+            rendering::sky::SkyPlugin,
             sprites::tint_buffer::SpriteTintBufferPlugin,
             MaterialPlugin::<outdoor::TerrainMaterial>::default(),
             MaterialPlugin::<outdoor::BspWaterMaterial>::default(),
@@ -80,7 +74,7 @@ impl Plugin for MapPlugin {
         app.add_plugins((
             outdoor::OdmPlugin,
             indoor::BlvPlugin,
-            physics::PhysicsPlugin,
+            player_physics::PhysicsPlugin,
             spatial_index::SpatialIndexPlugin,
             sprites::SpritesPlugin,
         ));

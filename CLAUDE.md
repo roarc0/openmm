@@ -148,9 +148,10 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### HUD views
 
-- `HudView` resource controls the active view: `World`, `Building`, `NpcDialogue`, `Chest`, `Inventory`, `Stats`, `Rest`
-- When `HudView` is not `World`: game time freezes (`Time<Virtual>` paused), player input disabled
-- Gate gameplay systems with `.run_if(resource_equals(HudView::World))`
+- `UiState` resource (`game/world/ui_state.rs`) holds `mode: UiMode` and `footer: FooterText`
+- `UiMode` controls active view: `World`, `Building`, `NpcDialogue`, `Chest`, `Inventory`, `Stats`, `Rest`
+- When `UiMode` is not `World`: game time freezes (`Time<Virtual>` paused), player input disabled
+- Gate gameplay systems with `.run_if(|ui: Res<UiState>| ui.mode == UiMode::World)`
 - Use `OverlayImage` resource to display a background image in the viewport inner area
 - `viewport_inner_rect()` returns the area inside all four HUD borders (for overlay positioning)
 - `viewport_rect()` returns the 3D camera viewport area (extends behind border4 on the left)
@@ -160,7 +161,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `GameEvent` enum in `openmm_data::evt`: SpeakInHouse, MoveToMap, OpenChest, Hint, ChangeDoorState, PlaySound, StatusText, LocationName
 - `EventQueue` resource — any system can push events, processed one per frame by `process_events`
 - Sub-events use `push_front()` for depth-first processing
-- UI-opening events (SpeakInHouse, OpenChest) block the queue until HudView returns to World
+- UI-opening events (SpeakInHouse, OpenChest) block the queue until UiMode returns to World
 - MoveToMap uses `LoadRequest` + `GameState::Loading` pipeline (same as boundary crossing and debug map switch)
 - `interaction.rs` is trigger-only — detects player interaction, pushes events to queue
 - `event_dispatch.rs` handles all event logic (image loading, view switching, map transitions)
@@ -237,7 +238,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - `time_of_day() -> f32`: 0.0 = midnight, 0.5 = noon, 0.75 = 6pm — consumed by lighting and sky.
 - `format_datetime() -> String`: e.g. `"Monday Jan 1 1000 9:00am"`.
 - `calendar_date() -> (year, month, day)`, `hour()`, `minute()`, `day_of_week()`.
-- Pauses automatically when `HudView ≠ World`; can be manually paused with console `time stop` / `time start`.
+- Pauses automatically when `UiMode ≠ World`; can be manually paused with console `time stop` / `time start`.
 - `GameTimePlugin` registered in `InGamePlugin`. Do NOT put time-related state in `WorldState`.
 
 ### WorldState and game variables
@@ -278,7 +279,7 @@ Files in `docs/` — keep this list in sync (Rule 2):
 - `docs/loading-pipeline.md` — LoadRequest, pipeline steps, PreparedWorld, spawn priorities
 - `docs/player-physics.md` — PlayerSettings, camera, input, gravity, collision, slopes, doors
 - `docs/game-state.md` — WorldState, GameVariables, Party, MapEvents, save system
-- `docs/hud-rendering.md` — HUD camera, elements, FooterText, minimap, lighting, sky, terrain shaders
+- `docs/hud-rendering.md` — HUD camera, elements, UiState/FooterText, minimap, lighting, sky, terrain shaders
 - `docs/openmm-data-crate.md` — full openmm-data crate module listing
 - `docs/todo.md` — upcoming work, ordered by priority
 - `docs/superpowers/plans/` — implementation plans for completed features (BLV, doors, HUD, events, sound, party, actors)
@@ -318,7 +319,7 @@ Known pitfalls that have caused bugs or wasted time — read before starting any
 - **`dynamic_linking` in release builds**: `bevy = { features = ["dynamic_linking", ...] }` is set unconditionally in `openmm/Cargo.toml`. This is intentional for fast dev iteration but **must not be used in release binaries** — the Bevy shared library won't be present on other machines. CI release builds must disable it (`--no-default-features` or a release feature flag). Do not add it to `openmm-data`.
 - **MM6 vs MM7 formats**: OpenEnroth documents MM7. Field offsets, struct layouts, and enum values are often different. Always verify against MMExtension or original MM6 data before trusting OpenEnroth.
 - **Stale map resources on reload**: `loading_setup` explicitly removes `PreparedWorld`, `PreparedIndoorWorld`, `BlvDoors`, `DoorColliders`, `ClickableFaces`, `TouchTriggerFaces`. If you add a new per-map resource, add it to that cleanup list or it will persist across map changes.
-- **HudView-gated systems**: any system that touches player state or game time must be gated with `.run_if(resource_equals(HudView::World))`. Forgetting this causes gameplay to run during dialogues and inventory.
+- **UiMode-gated systems**: any system that touches player state or game time must be gated with `.run_if(|ui: Res<UiState>| ui.mode == UiMode::World)`. Forgetting this causes gameplay to run during dialogues and inventory.
 - **`PlayerInputSet` ordering**: systems that read player position or react to player input must run `.after(PlayerInputSet)`. Incorrect ordering causes one-frame lag or missed input.
 - **Coordinate conversion direction**: MM6 Y is forward (into screen), Bevy Z is backward. The conversion is `bevy_z = -mm6_y`. Getting this sign wrong causes mirrored maps.
 - **Camera child vs Player root**: `SpatialListener` is on `PlayerCamera`, not `Player`. Spatial audio attached to the wrong entity will compute wrong distances.

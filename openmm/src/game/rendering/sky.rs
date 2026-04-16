@@ -213,7 +213,7 @@ fn update_sky_sun_dir(
     game_time: Res<crate::game::world::GameTime>,
     cfg: Res<crate::config::GameConfig>,
 ) {
-    let dir = crate::game::lighting::sun_direction_from_time(game_time.time_of_day());
+    let dir = crate::game::rendering::lighting::sun_direction_from_time(game_time.time_of_day());
     let visible = if cfg.visible_sun { 1.0 } else { 0.0 };
     let dir4 = Vec4::new(dir.x, dir.y, dir.z, visible);
     for (_, mat) in sky_materials.iter_mut() {

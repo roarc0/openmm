@@ -304,8 +304,8 @@ fn spawn_decorations(
         // Common: ddeclist point light + selflit marker.
         if dec.light_radius > 0 {
             commands.spawn((
-                crate::game::lighting::decoration_point_light(
-                    crate::game::lighting::DecorationLight::Ddeclist(dec.light_radius),
+                crate::game::rendering::lighting::decoration_point_light(
+                    crate::game::rendering::lighting::DecorationLight::Ddeclist(dec.light_radius),
                     false,
                 ),
                 Transform::from_translation(sprite_center),
@@ -446,8 +446,8 @@ fn spawn_animated_decoration(
     let dsft_lr = lod.billboard_luminous_light_radius(dec.declist_id);
     if dsft_lr > 0 {
         commands.spawn((
-            crate::game::lighting::decoration_point_light(
-                crate::game::lighting::DecorationLight::AnimatedDsft(dsft_lr),
+            crate::game::rendering::lighting::decoration_point_light(
+                crate::game::rendering::lighting::DecorationLight::AnimatedDsft(dsft_lr),
                 false,
             ),
             Transform::from_translation(pos),
@@ -513,8 +513,8 @@ fn spawn_static_decoration(
     }
     if dsft_lr > 0 {
         commands.spawn((
-            crate::game::lighting::decoration_point_light(
-                crate::game::lighting::DecorationLight::StaticDsft(dsft_lr),
+            crate::game::rendering::lighting::decoration_point_light(
+                crate::game::rendering::lighting::DecorationLight::StaticDsft(dsft_lr),
                 false,
             ),
             Transform::from_translation(pos),

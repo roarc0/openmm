@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 
-use crate::GameState;
 use crate::game::outdoor::OdmName;
-use crate::game::player::Player;
 use crate::save::GameSave;
 use openmm_data::utils::MapName;
 
@@ -230,16 +228,6 @@ pub struct WorldStatePlugin;
 
 impl Plugin for WorldStatePlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<WorldState>()
-            .add_systems(PostUpdate, sync_player_to_world_state.run_if(in_state(GameState::Game)));
-    }
-}
-
-/// Copy Player entity transform → WorldState every frame (PostUpdate).
-fn sync_player_to_world_state(mut world_state: ResMut<WorldState>, player_query: Query<&Transform, With<Player>>) {
-    if let Ok(transform) = player_query.single() {
-        world_state.player.position = transform.translation;
-        let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
-        world_state.player.yaw = yaw;
+        app.init_resource::<WorldState>();
     }
 }

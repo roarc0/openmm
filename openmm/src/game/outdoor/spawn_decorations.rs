@@ -5,7 +5,7 @@ use bevy::prelude::*;
 
 use crate::game::InGame;
 use crate::game::coords::mm6_position_to_bevy;
-use crate::game::lighting::{DecorationLight, decoration_point_light};
+use crate::game::rendering::lighting::{DecorationLight, decoration_point_light};
 use crate::game::optional::OptionalWrite;
 use crate::game::sprites::loading as sprites;
 

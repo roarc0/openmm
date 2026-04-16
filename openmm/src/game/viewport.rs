@@ -5,7 +5,7 @@ use bevy::window::PrimaryWindow;
 
 use crate::config::GameConfig;
 use crate::game::player::PlayerCamera;
-use crate::game::ui_assets::UiAssets;
+use crate::screens::ui_assets::UiAssets;
 
 /// Holds the render-to-texture state when `render_scale < 1.0`.
 /// The 3D camera renders to `image` at reduced resolution; `display_node`
