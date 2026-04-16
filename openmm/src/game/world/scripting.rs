@@ -180,6 +180,30 @@ fn log_tail_unreachable(steps: &[EvtStep], from_pc: usize) {
     }
 }
 
+/// Helper to handle conditional jumps in event scripts.
+/// Finds the target step index, logs skipped steps, and updates the program counter.
+/// Returns true if execution should continue, false if the sequence was terminated.
+fn execute_conditional_jump(steps: &[EvtStep], pc: &mut usize, jump_step: u8, reason: &str) -> bool {
+    if let Some(target_idx) = steps.iter().position(|s| s.step >= jump_step) {
+        log_skipped(steps, *pc, target_idx, reason);
+        *pc = target_idx;
+        true
+    } else {
+        log_tail_unreachable(steps, *pc);
+        false
+    }
+}
+
+/// Macro for concise stub logging in event arms.
+macro_rules! stub_event {
+    ($name:literal, $fmt:literal) => {
+        warn!(concat!("STUB ", $name, ": ", $fmt))
+    };
+    ($name:literal, $fmt:literal, $($arg:tt)*) => {
+        warn!(concat!("STUB ", $name, ": ", $fmt), $($arg)*)
+    };
+}
+
 /// Apply a single ActorAttributes flag change to a live actor entity.
 /// Handles VISIBLE -> Bevy Visibility and HOSTILE -> actor.hostile. Other bits
 /// in the MM6 `ActorAttributes` bitflag are not yet modelled in the runtime.
@@ -336,22 +360,13 @@ fn process_events(
             // ── Control flow (NOW WORKING) ───────────────────────────
             GameEvent::Compare { var, value, jump_step } => {
                 if variables::evaluate_compare(&world_state.game_vars, &party, audio.game_time.as_deref(), *var, *value)
+                    && !execute_conditional_jump(steps, &mut pc, *jump_step, "Compare true")
                 {
-                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                        log_skipped(steps, pc, target_idx, "Compare true");
-                        pc = target_idx;
-                    } else {
-                        log_tail_unreachable(steps, pc);
-                        return;
-                    }
+                    return;
                 }
             }
             GameEvent::Jmp { target_step } => {
-                if let Some(target_idx) = steps.iter().position(|s| s.step >= *target_step) {
-                    log_skipped(steps, pc, target_idx, "Jmp");
-                    pc = target_idx;
-                } else {
-                    log_tail_unreachable(steps, pc);
+                if !execute_conditional_jump(steps, &mut pc, *target_step, "Jmp") {
                     return;
                 }
             }
@@ -360,11 +375,7 @@ fn process_events(
                     let idx = (step as usize) % goto_steps.len();
                     let target_step = goto_steps[idx];
                     debug!("  RandomGoTo -> picked step {} from {:?}", target_step, goto_steps);
-                    if let Some(target_idx) = sequence.steps.iter().position(|s| s.step >= target_step) {
-                        log_skipped(steps, pc, target_idx, "RandomGoTo");
-                        pc = target_idx;
-                    } else {
-                        log_tail_unreachable(steps, pc);
+                    if !execute_conditional_jump(steps, &mut pc, target_step, "RandomGoTo") {
                         return;
                     }
                 }
@@ -411,7 +422,7 @@ fn process_events(
                 info!("SetSnow: on={} (no weather system)", on);
             }
             GameEvent::SetFacesBit { face_id, bit, on } => {
-                warn!("STUB SetFacesBit: face={} bit=0x{:x} on={}", face_id, bit, on);
+                stub_event!("SetFacesBit", "face={} bit=0x{:x} on={}", face_id, bit, on);
             }
             GameEvent::ToggleActorFlag { actor_id, flag, on } => {
                 let flag = *flag as u32;
@@ -434,7 +445,7 @@ fn process_events(
                 info!("ToggleActorFlag: actor={} flag=0x{:x} on={}", actor_id, flag, on);
             }
             GameEvent::SetTexture { face_id, texture_name } => {
-                warn!("STUB SetTexture: face={} tex='{}'", face_id, texture_name);
+                stub_event!("SetTexture", "face={} tex='{}'", face_id, texture_name);
             }
             GameEvent::SetSprite {
                 decoration_id,
@@ -451,7 +462,7 @@ fn process_events(
                 );
             }
             GameEvent::ToggleIndoorLight { light_id, on } => {
-                warn!("STUB ToggleIndoorLight: light={} on={}", light_id, on);
+                stub_event!("ToggleIndoorLight", "light={} on={}", light_id, on);
             }
 
             // ── Combat / items ───────────────────────────────────────
@@ -462,9 +473,14 @@ fn process_events(
                 y,
                 z,
             } => {
-                warn!(
-                    "STUB SummonMonsters: id={} count={} at ({},{},{})",
-                    monster_id, count, x, y, z
+                stub_event!(
+                    "SummonMonsters",
+                    "id={} count={} at ({},{},{})",
+                    monster_id,
+                    count,
+                    x,
+                    y,
+                    z
                 );
             }
             GameEvent::CastSpell {
@@ -478,13 +494,22 @@ fn process_events(
                 to_y,
                 to_z,
             } => {
-                warn!(
-                    "STUB CastSpell: spell={} level={} mastery={} from=({},{},{}) to=({},{},{})",
-                    spell_id, skill_level, skill_mastery, from_x, from_y, from_z, to_x, to_y, to_z
+                stub_event!(
+                    "CastSpell",
+                    "spell={} level={} mastery={} from=({},{},{}) to=({},{},{})",
+                    spell_id,
+                    skill_level,
+                    skill_mastery,
+                    from_x,
+                    from_y,
+                    from_z,
+                    to_x,
+                    to_y,
+                    to_z
                 );
             }
             GameEvent::ReceiveDamage { damage_type, amount } => {
-                warn!("STUB ReceiveDamage: type={} amount={}", damage_type, amount);
+                stub_event!("ReceiveDamage", "type={} amount={}", damage_type, amount);
             }
             GameEvent::ShowFace { player, expression } => {
                 debug!("ShowFace: player={} expr={} (no portrait UI)", player, expression);
@@ -504,13 +529,16 @@ fn process_events(
                 topic_index,
                 event_id,
             } => {
-                warn!(
-                    "STUB SetNPCTopic: npc={} topic={} event={}",
-                    npc_id, topic_index, event_id
+                stub_event!(
+                    "SetNPCTopic",
+                    "npc={} topic={} event={}",
+                    npc_id,
+                    topic_index,
+                    event_id
                 );
             }
             GameEvent::MoveNPC { npc_id, map_id } => {
-                warn!("STUB MoveNPC: npc={} map_id={}", npc_id, map_id);
+                stub_event!("MoveNPC", "npc={} map_id={}", npc_id, map_id);
             }
             GameEvent::SpeakNPC { npc_id } => {
                 event_handlers::handle_speak_npc(
@@ -526,7 +554,7 @@ fn process_events(
                 );
             }
             GameEvent::ChangeEvent { target, new_event_id } => {
-                warn!("STUB ChangeEvent: target={} event={}", target, new_event_id);
+                stub_event!("ChangeEvent", "target={} event={}", target, new_event_id);
             }
             GameEvent::SetNPCGreeting { npc_id, greeting_id } => {
                 info!("SetNPCGreeting: npc={} greeting={}", npc_id, greeting_id);
@@ -548,13 +576,19 @@ fn process_events(
                 hour,
                 minute,
             } => {
-                warn!(
-                    "STUB OnTimer trigger: {:04}-{:02}-{:02} (week {}) {:02}:{:02}",
-                    year, month, day, week, hour, minute
+                stub_event!(
+                    "OnTimer trigger",
+                    "{:04}-{:02}-{:02} (week {}) {:02}:{:02}",
+                    year,
+                    month,
+                    day,
+                    week,
+                    hour,
+                    minute
                 );
             }
             GameEvent::OnLongTimer { timer_data } => {
-                warn!("STUB OnLongTimer trigger: data={:02x?}", timer_data);
+                stub_event!("OnLongTimer trigger", "data={:02x?}", timer_data);
             }
             GameEvent::OnCanShowDialogItemCmp { var, value } => {
                 debug!("Marker: OnCanShowDialogItemCmp({:?} == {})", var, value);
@@ -580,14 +614,10 @@ fn process_events(
                     .get(actor_group)
                     .copied()
                     .unwrap_or(0);
-                if killed >= *count as u32 {
-                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                        log_skipped(steps, pc, target_idx, "IsActorKilled jump");
-                        pc = target_idx;
-                    } else {
-                        log_tail_unreachable(steps, pc);
-                        return;
-                    }
+                if killed >= *count as u32
+                    && !execute_conditional_jump(steps, &mut pc, *jump_step, "IsActorKilled jump")
+                {
+                    return;
                 }
             }
             GameEvent::CheckSkill {
@@ -598,18 +628,14 @@ fn process_events(
                 // Check skill level of current active character.
                 let var = openmm_data::enums::EvtVariable(0x38 + *skill_id);
                 let current = party.get_member_var(party.active_target, var);
-                if current >= *skill_level as i32 {
-                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                        log_skipped(steps, pc, target_idx, "CheckSkill jump");
-                        pc = target_idx;
-                    } else {
-                        log_tail_unreachable(steps, pc);
-                        return;
-                    }
+                if current >= *skill_level as i32
+                    && !execute_conditional_jump(steps, &mut pc, *jump_step, "CheckSkill jump")
+                {
+                    return;
                 }
             }
             GameEvent::SummonItem { item_id, x, y, z } => {
-                warn!("STUB SummonItem: id={} at ({},{},{})", item_id, x, y, z);
+                stub_event!("SummonItem", "id={} at ({},{},{})", item_id, x, y, z);
             }
             GameEvent::CharacterAnimation { player, anim_id } => {
                 debug!(
@@ -642,14 +668,10 @@ fn process_events(
                 jump_step,
             } => {
                 let current = world_state.game_vars.item_count(*item_id);
-                if current >= *count {
-                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                        log_skipped(steps, pc, target_idx, "CheckItemsCount jump");
-                        pc = target_idx;
-                    } else {
-                        log_tail_unreachable(steps, pc);
-                        return;
-                    }
+                if current >= *count
+                    && !execute_conditional_jump(steps, &mut pc, *jump_step, "CheckItemsCount jump")
+                {
+                    return;
                 }
             }
             GameEvent::RemoveItems { item_id, count } => {
@@ -657,17 +679,17 @@ fn process_events(
                 world_state.game_vars.remove_item(*item_id, *count);
             }
             GameEvent::InputString { params } => {
-                warn!("STUB InputString: params={:02x?}", params);
+                stub_event!("InputString", "params={:02x?}", params);
             }
             GameEvent::SetNPCGroupNews { npc_group, news_id } => {
-                warn!("STUB SetNPCGroupNews: group={} news={}", npc_group, news_id);
+                stub_event!("SetNPCGroupNews", "group={} news={}", npc_group, news_id);
             }
             GameEvent::SetActorGroup { actor_id, group_id } => {
                 info!("SetActorGroup: actor={} group={}", actor_id, group_id);
                 world_state.game_vars.actor_groups.insert(*actor_id, *group_id);
             }
             GameEvent::NPCSetItem { npc_id, item_id, on } => {
-                warn!("STUB NPCSetItem: npc={} item={} on={}", npc_id, item_id, on);
+                stub_event!("NPCSetItem", "npc={} item={} on={}", npc_id, item_id, on);
             }
             GameEvent::CanShowTopicIsActorKilled { actor_group, count } => {
                 debug!(
@@ -692,14 +714,10 @@ fn process_events(
             GameEvent::CheckSeason { season, jump_step } => {
                 // MM6 simplified season (0=winter?)
                 let current = (audio.game_time.as_ref().map(|gt| gt.calendar_date().1).unwrap_or(1) - 1) / 3;
-                if current as i32 == *season {
-                    if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                        log_skipped(steps, pc, target_idx, "CheckSeason jump");
-                        pc = target_idx;
-                    } else {
-                        log_tail_unreachable(steps, pc);
-                        return;
-                    }
+                if current as i32 == *season
+                    && !execute_conditional_jump(steps, &mut pc, *jump_step, "CheckSeason jump")
+                {
+                    return;
                 }
             }
             GameEvent::ToggleActorGroupFlag { group_id, flag, on } => {
@@ -713,49 +731,45 @@ fn process_events(
                 }
             }
             GameEvent::ToggleChestFlag { chest_id, flag, on } => {
-                warn!("STUB ToggleChestFlag: chest={} flag=0x{:x} on={}", chest_id, flag, on);
+                stub_event!(
+                    "ToggleChestFlag",
+                    "chest={} flag=0x{:x} on={}",
+                    chest_id,
+                    flag,
+                    on
+                );
             }
             GameEvent::SetActorItem { actor_id, item_id, on } => {
-                warn!("STUB SetActorItem: actor={} item={} on={}", actor_id, item_id, on);
+                stub_event!("SetActorItem", "actor={} item={} on={}", actor_id, item_id, on);
             }
             GameEvent::OnDateTimer { timer_data } => {
-                warn!("STUB OnDateTimer: data={:02x?}", timer_data);
+                stub_event!("OnDateTimer", "data={:02x?}", timer_data);
             }
             GameEvent::EnableDateTimer { timer_id, on } => {
-                warn!("STUB EnableDateTimer: id={} on={}", timer_id, on);
+                stub_event!("EnableDateTimer", "id={} on={}", timer_id, on);
             }
             GameEvent::StopAnimation { decoration_id } => {
-                warn!("STUB StopAnimation: deco={}", decoration_id);
+                stub_event!("StopAnimation", "deco={}", decoration_id);
             }
             GameEvent::SpecialJump { jump_value } => {
-                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_value as u8) {
-                    log_skipped(steps, pc, target_idx, "SpecialJump");
-                    pc = target_idx;
-                } else {
-                    log_tail_unreachable(steps, pc);
+                if !execute_conditional_jump(steps, &mut pc, *jump_value as u8, "SpecialJump") {
                     return;
                 }
             }
             GameEvent::IsNPCInParty { npc_id, jump_step } => {
-                warn!("STUB IsNPCInParty: npc={} (assuming fail)", npc_id);
-                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                    log_skipped(steps, pc, target_idx, "IsNPCInParty fail");
-                    pc = target_idx;
-                } else {
-                    log_tail_unreachable(steps, pc);
+                stub_event!("IsNPCInParty", "npc={} (assuming fail)", npc_id);
+                if !execute_conditional_jump(steps, &mut pc, *jump_step, "IsNPCInParty fail") {
                     return;
                 }
             }
             GameEvent::IsTotalBountyHuntingAwardInRange { min, max, jump_step } => {
-                warn!(
-                    "STUB IsTotalBountyHuntingAwardInRange: min={} max={} (assuming fail)",
-                    min, max
+                stub_event!(
+                    "IsTotalBountyHuntingAwardInRange",
+                    "min={} max={} (assuming fail)",
+                    min,
+                    max
                 );
-                if let Some(target_idx) = steps.iter().position(|s| s.step >= *jump_step) {
-                    log_skipped(steps, pc, target_idx, "BountyHuntingRange fail");
-                    pc = target_idx;
-                } else {
-                    log_tail_unreachable(steps, pc);
+                if !execute_conditional_jump(steps, &mut pc, *jump_step, "BountyHuntingRange fail") {
                     return;
                 }
             }

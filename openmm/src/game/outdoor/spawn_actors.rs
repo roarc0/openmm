@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 
 use crate::game::InGame;
-use crate::game::actors::actor;
+use crate::game::actors::{Actor, ActorParams, MonsterAiType};
 use crate::game::sprites::loading as sprites;
 use crate::states::loading::PreparedWorld;
 
@@ -90,7 +90,7 @@ pub(super) fn spawn_npc_actors(
                     name: actor.name.clone(),
                 })
                 .insert(crate::game::actors::MonsterAiMode::Wander)
-                .insert(actor::Actor::new(actor::ActorParams {
+                .insert(Actor::new(ActorParams {
                     name: actor.name.clone(),
                     hp: actor.hp,
                     move_speed: actor.move_speed as f32,
@@ -106,7 +106,7 @@ pub(super) fn spawn_npc_actors(
                     recovery_secs: actor.recovery_secs,
                     sprite_half_height: sh / 2.0,
                     can_fly: actor.can_fly,
-                    ai_type: actor.ai_type.clone(),
+                    ai_type: MonsterAiType::from_str(&actor.ai_type),
                 }))
                 .insert(InGame);
             crate::game::sprites::apply_shadow_config(commands, child_id, ctx.actor_shadows);
@@ -202,7 +202,7 @@ pub(super) fn spawn_npc_actors(
                 npc_id: effective_npc_id as i16,
             })
             .insert(crate::game::actors::MonsterAiMode::Wander)
-            .insert(actor::Actor::new(actor::ActorParams {
+            .insert(Actor::new(ActorParams {
                 name: actor.name.clone(),
                 hp: actor.hp,
                 move_speed: actor.move_speed as f32,
@@ -218,7 +218,7 @@ pub(super) fn spawn_npc_actors(
                 recovery_secs: actor.recovery_secs,
                 sprite_half_height: sh / 2.0,
                 can_fly: actor.can_fly,
-                ai_type: actor.ai_type.clone(),
+                ai_type: MonsterAiType::from_str(&actor.ai_type),
             }))
             .insert(InGame);
         crate::game::sprites::apply_shadow_config(commands, child_id, ctx.actor_shadows);
@@ -300,7 +300,7 @@ pub(super) fn spawn_odm_monsters(
             ))
             .insert(crate::game::interaction::MonsterInteractable { name: mon.name.clone() })
             .insert(crate::game::actors::MonsterAiMode::Wander)
-            .insert(actor::Actor::new(actor::ActorParams {
+            .insert(Actor::new(ActorParams {
                 name: mon.name.clone(),
                 hp: mon.hp,
                 move_speed: mon.move_speed as f32,
@@ -316,7 +316,7 @@ pub(super) fn spawn_odm_monsters(
                 recovery_secs: mon.recovery_secs,
                 sprite_half_height: sh / 2.0,
                 can_fly: mon.can_fly,
-                ai_type: mon.ai_type.clone(),
+                ai_type: MonsterAiType::from_str(&mon.ai_type),
             }))
             .insert(InGame);
         crate::game::sprites::apply_shadow_config(commands, child_id, ctx.actor_shadows);

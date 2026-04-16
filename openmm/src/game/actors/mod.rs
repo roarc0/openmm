@@ -15,7 +15,7 @@ pub mod ai;
 pub mod combat;
 pub mod physics;
 
-pub use actor::Actor;
+pub use actor::{Actor, MonsterAiType, ActorParams};
 pub use ai::MonsterAiMode;
 pub use combat::KillActorEvent;
 

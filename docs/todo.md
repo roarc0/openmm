@@ -236,12 +236,12 @@ The bug is purely a regression of commit `0676f4f`; the pre-A1 code wrote the ti
 
 #### Medium impact
 - [ ] **Split `sprites/loading.rs` (857 lines)** — Contains sprite frame decoding, sprite cache, alpha mask, animation update system, direction calculation. Animation runtime (`update_sprite_sheets`, 145 lines) is a different concern from load-time decoding. Split into `sprites/decode.rs` + `sprites/animation.rs`.
-- [ ] **EVT conditional jump helper** — `scripting.rs:337-765` has 10 identical `steps.iter().position(|s| s.step >= jump_step)` + `log_skipped` + `log_tail_unreachable` blocks. Extract `execute_conditional_jump(steps, pc, jump_step, reason) -> bool`.
-- [ ] **EVT stub macro** — 21 STUB event arms in `scripting.rs` with near-identical `warn!("STUB ...")` blocks. Replace with `stub_event!()` macro.
+- [x] **EVT conditional jump helper** — `scripting.rs:337-765` has 10 identical `steps.iter().position(|s| s.step >= jump_step)` + `log_skipped` + `log_tail_unreachable` blocks. Extract `execute_conditional_jump(steps, pc, jump_step, reason) -> bool`.
+- [x] **EVT stub macro** — 21 STUB event arms in `scripting.rs` with near-identical `warn!("STUB ...")` blocks. Replace with `stub_event!()` macro.
 - [ ] **`handle_move_to_map` split** — `event_handlers.rs:116-197` handles same-map teleport AND cross-map transition in one function. These are distinct operations that should be separate.
 
 #### Low impact
-- [ ] **`ai_type: String` → enum** — `Actor.ai_type` is always one of "Normal"/"Aggress"/"Wimp"/"Suicidal". Cloned at 4 spawn sites. Should be an enum.
+- [x] **`ai_type: String` → enum** — `Actor.ai_type` is always one of "Normal"/"Aggress"/"Wimp"/"Suicidal". Cloned at 4 spawn sites. Should be an enum.
 - [ ] **Overlay image pattern** — `handle_speak_in_house` and `handle_open_chest` in `event_handlers.rs` share identical OverlayImage + cursor logic. Extract helper.
 - [ ] **Indoor sprite caching** — Outdoor caches static decoration materials in `dec_sprite_cache`; indoor doesn't. Add caching to indoor for consistency.
 - [ ] **Texture size collection** — `loading.rs` has 2 near-identical HashMap-building loops for indoor vs outdoor texture sizes. Extract `collect_texture_sizes()` helper.

@@ -6,7 +6,7 @@ use openmm_data::provider::decorations::DecorationEntry;
 use openmm_data::provider::lod_decoder::LodDecoder;
 
 use crate::game::InGame;
-use crate::game::actors::actor;
+use crate::game::actors::{Actor, ActorParams, MonsterAiType};
 use crate::game::coords::mm6_position_to_bevy;
 use crate::game::sprites::SelfLit;
 use crate::game::sprites::loading as sprites;
@@ -617,7 +617,7 @@ fn spawn_indoor_monsters(
                 sprites::SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
                 crate::game::interaction::MonsterInteractable { name: mon.name.clone() },
                 crate::game::actors::MonsterAiMode::Wander,
-                actor::Actor::new(actor::ActorParams {
+                Actor::new(ActorParams {
                     name: mon.name.clone(),
                     hp: mon.hp,
                     move_speed: mon.move_speed as f32,
@@ -633,7 +633,7 @@ fn spawn_indoor_monsters(
                     recovery_secs: mon.recovery_secs,
                     sprite_half_height: sh / 2.0,
                     can_fly: mon.can_fly,
-                    ai_type: mon.ai_type.clone(),
+                    ai_type: MonsterAiType::from_str(&mon.ai_type),
                 }),
                 crate::game::sprites::Billboard,
                 InGame,

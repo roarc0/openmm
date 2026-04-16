@@ -21,9 +21,9 @@
 use bevy::{ecs::message::MessageWriter, prelude::*};
 
 use crate::GameState;
-use crate::game::actors::Actor;
 use crate::game::actors::combat::{ActorDead, DyingTimer};
 use crate::game::actors::physics::{is_passable, snap_actor_y};
+use crate::game::actors::{Actor, MonsterAiType};
 use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
 use crate::game::hud_view::HudView;
 use crate::game::indoor::DoorColliders;
@@ -238,10 +238,10 @@ fn monster_ai_system(
                 //   Wimp     → aggros only at 60% of normal range (cautious)
                 //   Suicidal → always aggros if in LOS (treat as very large range)
                 //   Normal   → base range
-                let effective_aggro = match actor.ai_type.as_str() {
-                    "Aggress" => actor.aggro_range * 1.5,
-                    "Wimp" => actor.aggro_range * 0.6,
-                    "Suicidal" => actor.aggro_range * 3.0,
+                let effective_aggro = match actor.ai_type {
+                    MonsterAiType::Aggress => actor.aggro_range,
+                    MonsterAiType::Wimp => actor.aggro_range * 0.25,
+                    MonsterAiType::Suicidal => actor.aggro_range * 1.0,
                     _ => actor.aggro_range,
                 };
                 let aggro_sq = effective_aggro * effective_aggro;

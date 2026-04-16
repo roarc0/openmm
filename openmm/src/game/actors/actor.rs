@@ -4,6 +4,30 @@ use bevy::prelude::*;
 
 /// Unified NPC/monster actor component.
 #[derive(Component)]
+/// AI behaviour type from monsters.txt: "Normal", "Aggress", "Wimp", "Suicidal".
+/// Controls aggro probability and flee behaviour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MonsterAiType {
+    #[default]
+    Normal,
+    Aggress,
+    Wimp,
+    Suicidal,
+}
+
+impl MonsterAiType {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "Aggress" => Self::Aggress,
+            "Wimp" => Self::Wimp,
+            "Suicidal" => Self::Suicidal,
+            _ => Self::Normal,
+        }
+    }
+}
+
+/// Unified NPC/monster actor component.
+#[derive(Component)]
 pub struct Actor {
     pub name: String,
     pub hp: i16,
@@ -43,9 +67,8 @@ pub struct Actor {
     pub can_fly: bool,
     /// Vertical velocity in world units/sec. Applied by the gravity system when airborne.
     pub vertical_velocity: f32,
-    /// AI behaviour type from monsters.txt: "Normal", "Aggress", "Wimp", "Suicidal".
-    /// Controls aggro probability and flee behaviour.
-    pub ai_type: String,
+    /// AI behaviour type from monsters.txt.
+    pub ai_type: MonsterAiType,
     /// Cached steering detour angle (radians, relative to base heading) from the last
     /// blocked frame. `None` means no cache — try the direct path fresh. When set, the
     /// steering probe tries this offset first so a monster hugging a wall doesn't need
@@ -72,7 +95,7 @@ pub struct ActorParams {
     pub recovery_secs: f32,
     pub sprite_half_height: f32,
     pub can_fly: bool,
-    pub ai_type: String,
+    pub ai_type: MonsterAiType,
 }
 
 impl Actor {
