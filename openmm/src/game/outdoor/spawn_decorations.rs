@@ -1,16 +1,13 @@
 //! Per-frame decoration spawning (static, animated, and directional billboards).
 
 use bevy::ecs::message::MessageWriter;
-use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
 
 use crate::game::InGame;
 use crate::game::coords::mm6_position_to_bevy;
+use crate::game::lighting::{DecorationLight, decoration_point_light};
 use crate::game::optional::OptionalWrite;
 use crate::game::sprites::loading as sprites;
-use crate::game::sprites::material::unlit_billboard_material;
-
-use crate::game::lighting::{DecorationLight, decoration_point_light};
 
 use super::lazy_spawn::{PendingSpawns, SpawnCtx};
 
@@ -66,24 +63,14 @@ pub(super) fn spawn_decorations(
                     ))
                     .id();
                 // Sprites are unlit — never receive shadows (skip shadow map sampling per pixel).
-                commands.entity(child_id).insert(NotShadowReceiver);
-                if !ctx.billboard_shadows {
-                    commands.entity(child_id).insert(NotShadowCaster);
-                }
+                crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
                 commands.entity(ctx.terrain_entity).add_child(child_id);
                 if dec.event_id > 0 {
                     commands
                         .entity(child_id)
-                        .insert(crate::game::interaction::DecorationInfo {
-                            event_id: dec.event_id as u16,
-                            position: pos,
-                            billboard_index: dec.billboard_index,
-                            declist_id: dec.declist_id,
-                            ground_y: dec_pos.y,
-                            half_w: 0.0,
-                            half_h: 0.0,
-                            mask: None,
-                        });
+                        .insert(crate::game::interaction::DecorationInfo::from_entry(
+                            dec, pos, dec_pos.y, 0.0, 0.0, None,
+                        ));
                 }
                 if dec.trigger_radius > 0 && dec.event_id > 0 {
                     commands
@@ -132,12 +119,10 @@ pub(super) fn spawn_decorations(
             let mut frame_masks = vec![];
             for sprite in &frame_sprites {
                 let rgba = sprite.image.to_rgba8();
-                let msk = std::sync::Arc::new(crate::game::sprites::loading::AlphaMask::from_image(&rgba));
-                let tex = ctx.images.add(crate::assets::rgba8_to_bevy_image(rgba));
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
                 };
-                let mat = materials.add(unlit_billboard_material(tex, is_selflit));
+                let (mat, msk) = sprites::sprite_to_material_with_mask(rgba, ctx.images, materials, is_selflit);
                 frame_mats.push(std::array::from_fn(|_| mat.clone()));
                 frame_masks.push(std::array::from_fn(|_| msk.clone()));
             }
@@ -156,24 +141,14 @@ pub(super) fn spawn_decorations(
                     sheet,
                 ))
                 .id();
-            commands.entity(child_id).insert(NotShadowReceiver);
-            if !ctx.billboard_shadows {
-                commands.entity(child_id).insert(NotShadowCaster);
-            }
+            crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
             commands.entity(ctx.terrain_entity).add_child(child_id);
             if dec.event_id > 0 {
                 commands
                     .entity(child_id)
-                    .insert(crate::game::interaction::DecorationInfo {
-                        event_id: dec.event_id as u16,
-                        position: pos,
-                        billboard_index: dec.billboard_index,
-                        declist_id: dec.declist_id,
-                        ground_y: dec_pos.y,
-                        half_w: 0.0,
-                        half_h: 0.0,
-                        mask: None,
-                    });
+                    .insert(crate::game::interaction::DecorationInfo::from_entry(
+                        dec, pos, dec_pos.y, 0.0, 0.0, None,
+                    ));
             }
             if dec.trigger_radius > 0 && dec.event_id > 0 {
                 commands
@@ -213,12 +188,10 @@ pub(super) fn spawn_decorations(
                 };
                 let (w, h) = sprite.dimensions();
                 let rgba = sprite.image.to_rgba8();
-                let msk = std::sync::Arc::new(crate::game::sprites::loading::AlphaMask::from_image(&rgba));
-                let tex = ctx.images.add(crate::assets::rgba8_to_bevy_image(rgba));
                 let Some(materials) = ctx.sprite_materials.as_deref_mut() else {
                     continue;
                 };
-                let m = materials.add(unlit_billboard_material(tex, is_selflit));
+                let (m, msk) = sprites::sprite_to_material_with_mask(rgba, ctx.images, materials, is_selflit);
                 let q = ctx.meshes.add(Rectangle::new(w, h));
                 p.dec_sprite_cache
                     .insert(key.clone(), (m.clone(), q.clone(), w, h, msk.clone()));
@@ -236,24 +209,19 @@ pub(super) fn spawn_decorations(
                 .insert(crate::game::sprites::EntityKind::Decoration)
                 .insert(crate::game::sprites::Billboard)
                 .insert(InGame);
-            commands.entity(child_id).insert(NotShadowReceiver);
-            if !ctx.billboard_shadows {
-                commands.entity(child_id).insert(NotShadowCaster);
-            }
+            crate::game::sprites::apply_shadow_config(commands, child_id, ctx.billboard_shadows);
             commands.entity(ctx.terrain_entity).add_child(child_id);
             if dec.event_id > 0 {
                 commands
                     .entity(child_id)
-                    .insert(crate::game::interaction::DecorationInfo {
-                        event_id: dec.event_id as u16,
-                        position: pos,
-                        billboard_index: dec.billboard_index,
-                        declist_id: dec.declist_id,
-                        ground_y: dec_pos.y,
-                        half_w: w / 2.0,
-                        half_h: h / 2.0,
-                        mask: Some(mask),
-                    });
+                    .insert(crate::game::interaction::DecorationInfo::from_entry(
+                        dec,
+                        pos,
+                        dec_pos.y,
+                        w / 2.0,
+                        h / 2.0,
+                        Some(mask),
+                    ));
             }
             if dec.trigger_radius > 0 && dec.event_id > 0 {
                 commands

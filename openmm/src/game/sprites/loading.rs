@@ -322,6 +322,20 @@ pub fn load_sprite_frames(
     (Vec::new(), Vec::new(), 0.0, 0.0)
 }
 
+/// Convert an RGBA sprite image into a billboard material and alpha mask.
+/// Centralises the rgba→mask→texture→material pipeline used by every sprite spawn site.
+pub fn sprite_to_material_with_mask(
+    rgba: image::RgbaImage,
+    images: &mut bevy::prelude::Assets<Image>,
+    materials: &mut bevy::prelude::Assets<SpriteMaterial>,
+    selflit: bool,
+) -> (bevy::prelude::Handle<SpriteMaterial>, Arc<AlphaMask>) {
+    let mask = Arc::new(AlphaMask::from_image(&rgba));
+    let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
+    let mat = materials.add(unlit_billboard_material(tex, selflit));
+    (mat, mask)
+}
+
 fn store_in_cache(
     key: &str,
     frames: &[[Handle<SpriteMaterial>; 5]],
@@ -466,11 +480,10 @@ fn decode_sprite_frames(
         let mut dir_masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
         for (dir, img_opt) in dir_imgs.into_iter().enumerate() {
             if let Some(img) = img_opt {
-                let rgba = img.into_rgba8();
-                let rgba = pad_sprite_image(rgba, max_w, max_h);
-                dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
-                let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-                dir_materials[dir] = materials.add(unlit_billboard_material(tex, selflit));
+                let rgba = pad_sprite_image(img.into_rgba8(), max_w, max_h);
+                let (mat, mask) = sprite_to_material_with_mask(rgba, images, materials, selflit);
+                dir_materials[dir] = mat;
+                dir_masks[dir] = mask;
             } else if dir > 0 {
                 dir_materials[dir] = dir_materials[0].clone();
                 dir_masks[dir] = dir_masks[0].clone();
@@ -762,11 +775,10 @@ pub fn load_decoration_directions(
     let mut dir_masks: [Arc<AlphaMask>; 5] = std::array::from_fn(|_| fallback_mask.clone());
     for (dir, img_opt) in raw.into_iter().enumerate() {
         if let Some(img) = img_opt {
-            let rgba = img.into_rgba8();
-            let rgba = pad_sprite_image(rgba, max_w, max_h);
-            dir_masks[dir] = Arc::new(AlphaMask::from_image(&rgba));
-            let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-            dirs[dir] = materials.add(unlit_billboard_material(tex, selflit));
+            let rgba = pad_sprite_image(img.into_rgba8(), max_w, max_h);
+            let (mat, mask) = sprite_to_material_with_mask(rgba, images, materials, selflit);
+            dirs[dir] = mat;
+            dir_masks[dir] = mask;
         } else if dir > 0 {
             dirs[dir] = dirs[0].clone();
             dir_masks[dir] = dir_masks[0].clone();

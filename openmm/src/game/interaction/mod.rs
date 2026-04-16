@@ -42,6 +42,30 @@ pub struct DecorationInfo {
     pub mask: Option<Arc<AlphaMask>>,
 }
 
+impl DecorationInfo {
+    /// Build from a decoration entry's common fields.
+    /// `position` = sprite centre, `ground_y` = floor Y (dec_pos.y before half-height offset).
+    pub fn from_entry(
+        dec: &openmm_data::provider::decorations::DecorationEntry,
+        position: Vec3,
+        ground_y: f32,
+        half_w: f32,
+        half_h: f32,
+        mask: Option<Arc<AlphaMask>>,
+    ) -> Self {
+        Self {
+            event_id: dec.event_id as u16,
+            position,
+            billboard_index: dec.billboard_index,
+            declist_id: dec.declist_id,
+            ground_y,
+            half_w,
+            half_h,
+            mask,
+        }
+    }
+}
+
 /// Component on decoration entities that fire an EVT event when the player enters their radius.
 /// Tracks whether the player was already in range to avoid re-firing every frame.
 #[derive(Component)]

@@ -99,6 +99,17 @@ impl DecorFlicker {
     }
 }
 
+// --- Helpers ---
+
+/// Apply standard billboard shadow settings: never receive shadows,
+/// optionally cast shadows based on config flag. Replaces 12+ identical blocks.
+pub fn apply_shadow_config(commands: &mut Commands, entity: Entity, cast_shadows: bool) {
+    commands.entity(entity).insert(bevy::light::NotShadowReceiver);
+    if !cast_shadows {
+        commands.entity(entity).insert(bevy::light::NotShadowCaster);
+    }
+}
+
 // --- Plugin ---
 
 pub struct SpritesPlugin;

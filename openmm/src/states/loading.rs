@@ -1039,10 +1039,12 @@ fn step_preload_sprites(
                         if let Some(sprite) = lod.billboard(&dec.sprite_name, dec.declist_id) {
                             let (w, h) = sprite.dimensions();
                             let rgba = sprite.image.to_rgba8();
-                            let mask = std::sync::Arc::new(crate::game::sprites::loading::AlphaMask::from_image(&rgba));
-                            let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-                            let m = sprite_materials
-                                .add(crate::game::sprites::material::unlit_billboard_material(tex, false));
+                            let (m, mask) = crate::game::sprites::loading::sprite_to_material_with_mask(
+                                rgba,
+                                images,
+                                sprite_materials,
+                                false,
+                            );
                             let q = meshes.add(Rectangle::new(w, h));
                             bb_cache.insert(dec.sprite_name.clone(), (m, q, w, h, mask));
                         }

@@ -1,6 +1,5 @@
 //! Indoor world spawning — meshes, doors, decorations, lights, monsters.
 
-use bevy::light::{NotShadowCaster, NotShadowReceiver};
 use bevy::prelude::*;
 
 use openmm_data::provider::decorations::DecorationEntry;
@@ -11,7 +10,7 @@ use crate::game::actors::actor;
 use crate::game::coords::mm6_position_to_bevy;
 use crate::game::sprites::SelfLit;
 use crate::game::sprites::loading as sprites;
-use crate::game::sprites::material::{SpriteMaterial, unlit_billboard_material};
+use crate::game::sprites::material::SpriteMaterial;
 use crate::states::loading::PreparedIndoorWorld;
 
 use super::types::{
@@ -355,36 +354,30 @@ fn spawn_directional_decoration(
     let pos = dec_pos + Vec3::new(0.0, sh / 2.0, 0.0);
     let states = vec![vec![dirs]];
     let state_masks = vec![vec![dir_masks]];
-    let mut ent = commands.spawn((
-        Name::new(format!("decoration:{}", key)),
-        Mesh3d(quad),
-        MeshMaterial3d(initial_mat),
-        Transform::from_translation(pos),
-        crate::game::sprites::WorldEntity,
-        crate::game::sprites::EntityKind::Decoration,
-        crate::game::sprites::Billboard,
-        crate::game::sprites::AnimationState::Idle,
-        sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
-        crate::game::sprites::FacingYaw(dec.facing_yaw),
-        InGame,
-    ));
-    ent.insert(NotShadowReceiver);
-    if !cfg.billboard_shadows {
-        ent.insert(NotShadowCaster);
-    }
+    let ent_id = commands
+        .spawn((
+            Name::new(format!("decoration:{}", key)),
+            Mesh3d(quad),
+            MeshMaterial3d(initial_mat),
+            Transform::from_translation(pos),
+            crate::game::sprites::WorldEntity,
+            crate::game::sprites::EntityKind::Decoration,
+            crate::game::sprites::Billboard,
+            crate::game::sprites::AnimationState::Idle,
+            sprites::SpriteSheet::new(states, vec![(sw, sh)], state_masks),
+            crate::game::sprites::FacingYaw(dec.facing_yaw),
+            InGame,
+        ))
+        .id();
+    crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
     if dec.event_id > 0 {
-        ent.insert(crate::game::interaction::DecorationInfo {
-            event_id: dec.event_id as u16,
-            position: pos,
-            billboard_index: dec.billboard_index,
-            declist_id: dec.declist_id,
-            ground_y: dec_pos.y,
-            half_w: 0.0,
-            half_h: 0.0,
-            mask: None,
-        });
+        commands
+            .entity(ent_id)
+            .insert(crate::game::interaction::DecorationInfo::from_entry(
+                dec, pos, dec_pos.y, 0.0, 0.0, None,
+            ));
     }
-    Some((pos, ent.id()))
+    Some((pos, ent_id))
 }
 
 /// Spawn an animated decoration. Returns (sprite_center, entity_id) or None if skipped.
@@ -415,50 +408,41 @@ fn spawn_animated_decoration(
     let mut frame_masks = vec![];
     for sprite in &frame_sprites {
         let rgba = sprite.image.to_rgba8();
-        let msk = std::sync::Arc::new(sprites::AlphaMask::from_image(&rgba));
-        let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-        let mat = sprite_materials.add(unlit_billboard_material(tex, true));
+        let (mat, msk) = sprites::sprite_to_material_with_mask(rgba, images, sprite_materials, true);
         frame_mats.push(std::array::from_fn(|_| mat.clone()));
         frame_masks.push(std::array::from_fn(|_| msk.clone()));
     }
     let initial_mat = frame_mats[0][0].clone();
     let mut sheet = sprites::SpriteSheet::new(vec![frame_mats], vec![(w, h)], vec![frame_masks]);
     sheet.frame_duration = dec.frame_duration;
-    let mut ent = commands.spawn((
-        Name::new(format!("decoration:{}", key)),
-        Mesh3d(quad),
-        MeshMaterial3d(initial_mat),
-        Transform::from_translation(pos),
-        crate::game::sprites::WorldEntity,
-        crate::game::sprites::EntityKind::Decoration,
-        crate::game::sprites::Billboard,
-        crate::game::sprites::AnimationState::Idle,
-        sheet,
-        InGame,
-    ));
-    ent.insert(NotShadowReceiver);
-    if !cfg.billboard_shadows {
-        ent.insert(NotShadowCaster);
-    }
+    let ent_id = commands
+        .spawn((
+            Name::new(format!("decoration:{}", key)),
+            Mesh3d(quad),
+            MeshMaterial3d(initial_mat),
+            Transform::from_translation(pos),
+            crate::game::sprites::WorldEntity,
+            crate::game::sprites::EntityKind::Decoration,
+            crate::game::sprites::Billboard,
+            crate::game::sprites::AnimationState::Idle,
+            sheet,
+            InGame,
+        ))
+        .id();
+    crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
     if dec.event_id > 0 {
-        ent.insert(crate::game::interaction::DecorationInfo {
-            event_id: dec.event_id as u16,
-            position: pos,
-            billboard_index: dec.billboard_index,
-            declist_id: dec.declist_id,
-            ground_y: dec_pos.y,
-            half_w: 0.0,
-            half_h: 0.0,
-            mask: None,
-        });
+        commands
+            .entity(ent_id)
+            .insert(crate::game::interaction::DecorationInfo::from_entry(
+                dec, pos, dec_pos.y, 0.0, 0.0, None,
+            ));
     }
     // Animated flame decorations do NOT get DecorFlicker — the frame cycling
     // is already the visual effect. Adding visibility toggle on top makes them
     // blink entirely off, which looks like a bug.
     // All animated indoor decorations (torches, campfires, cauldrons) are fire
     // sources — mark them so the tint system skips them.
-    ent.insert(SelfLit);
-    let ent_id = ent.id();
+    commands.entity(ent_id).insert(SelfLit);
 
     // Luminous animated decorations (campfires, braziers) carry their point-light
     // radius in the DSFT frame, not in the ddeclist.light_radius field.
@@ -500,44 +484,39 @@ fn spawn_static_decoration(
     // ddeclist-lit decorations are selflit.
     let is_selflit = dec.light_radius > 0 || dsft_lr > 0;
     let rgba = sprite.image.to_rgba8();
-    let mask = sprites::AlphaMask::from_image(&rgba);
-    let tex = images.add(crate::assets::rgba8_to_bevy_image(rgba));
-    let mat = sprite_materials.add(unlit_billboard_material(tex, is_selflit));
+    let (mat, mask) = sprites::sprite_to_material_with_mask(rgba, images, sprite_materials, is_selflit);
     let quad = meshes.add(Rectangle::new(w, h));
     let pos = dec_pos + Vec3::new(0.0, h / 2.0, 0.0);
-    let mut ent = commands.spawn((
-        Name::new(format!("decoration:{}", key)),
-        Mesh3d(quad),
-        MeshMaterial3d(mat),
-        Transform::from_translation(pos),
-        crate::game::sprites::WorldEntity,
-        crate::game::sprites::EntityKind::Decoration,
-        crate::game::sprites::Billboard,
-        crate::game::sprites::AnimationState::Idle,
-        InGame,
-    ));
-    ent.insert(NotShadowReceiver);
-    if !cfg.billboard_shadows {
-        ent.insert(NotShadowCaster);
-    }
+    let ent_id = commands
+        .spawn((
+            Name::new(format!("decoration:{}", key)),
+            Mesh3d(quad),
+            MeshMaterial3d(mat),
+            Transform::from_translation(pos),
+            crate::game::sprites::WorldEntity,
+            crate::game::sprites::EntityKind::Decoration,
+            crate::game::sprites::Billboard,
+            crate::game::sprites::AnimationState::Idle,
+            InGame,
+        ))
+        .id();
+    crate::game::sprites::apply_shadow_config(commands, ent_id, cfg.billboard_shadows);
     if dec.event_id > 0 {
-        ent.insert(crate::game::interaction::DecorationInfo {
-            event_id: dec.event_id as u16,
-            position: pos,
-            billboard_index: dec.billboard_index,
-            declist_id: dec.declist_id,
-            ground_y: dec_pos.y,
-            half_w: w / 2.0,
-            half_h: h / 2.0,
-            mask: Some(std::sync::Arc::new(mask)),
-        });
+        commands
+            .entity(ent_id)
+            .insert(crate::game::interaction::DecorationInfo::from_entry(
+                dec,
+                pos,
+                dec_pos.y,
+                w / 2.0,
+                h / 2.0,
+                Some(mask),
+            ));
     }
     // DSFT-luminous static decs (chandeliers, crystals, sconces) get SelfLit + light.
     if dsft_lr > 0 {
-        ent.insert(SelfLit);
+        commands.entity(ent_id).insert(SelfLit);
     }
-    let static_id = ent.id();
-    drop(ent);
     if dsft_lr > 0 {
         commands.spawn((
             crate::game::lighting::decoration_point_light(
@@ -549,7 +528,7 @@ fn spawn_static_decoration(
         ));
     }
 
-    Some((pos, static_id))
+    Some((pos, ent_id))
 }
 
 /// Spawn BLV static point lights (designer-placed lights for campfires, cauldrons, etc.).
@@ -666,10 +645,7 @@ fn spawn_indoor_monsters(
                 InGame,
             ))
             .id();
-        commands.entity(mon_id).insert(NotShadowReceiver);
-        if !cfg.actor_shadows {
-            commands.entity(mon_id).insert(NotShadowCaster);
-        }
+        crate::game::sprites::apply_shadow_config(commands, mon_id, cfg.actor_shadows);
         info!("Spawned indoor monster '{}' at {:?}", mon.name, pos);
     }
 }

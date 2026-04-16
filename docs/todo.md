@@ -220,6 +220,32 @@ The bug is purely a regression of commit `0676f4f`; the pre-A1 code wrote the ti
 9. **D1/D2/D4/D5/D6** — lower-impact cleanups, pick opportunistically.
 10. **C4** — add `EvtVariable::is_character_scoped()` in openmm-data, then replace the hardcoded range in `scripting.rs:250-252`.
 
+## 2026-04-16 Code Deduplication Audit
+
+### Done this session
+- [x] **`sprite_to_material_with_mask` helper** — `sprites/loading.rs`. Centralises the rgba→AlphaMask→texture→material pipeline used at 7 spawn sites (indoor, outdoor, loading preload). Eliminates 4-line boilerplate at each site.
+- [x] **`DecorationInfo::from_entry` constructor** — `interaction/mod.rs`. Replaces 6 inline 8-field struct constructions (3 indoor, 3 outdoor) with a one-liner.
+- [x] **`apply_shadow_config` helper** — `sprites/mod.rs`. Replaces 12 identical `NotShadowReceiver + conditional NotShadowCaster` blocks across 3 files.
+
+### Remaining refactoring (not yet implemented)
+
+#### High impact
+- [ ] **Deduplicate monster spawning (3 sites → 1 helper)** — `indoor/spawn.rs:582`, `outdoor/spawn_actors.rs:39` (DDM monsters), `outdoor/spawn_actors.rs:239` (ODM monsters) all do: `load_entity_sprites` → dsft_scale → mesh → Actor::new(ActorParams{17 fields}) → MonsterInteractable + MonsterAiMode + SpriteSheet + Billboard + shadow. Only difference: position calc (terrain probe vs mm6_to_bevy vs golden-angle). Extract `spawn_monster_entity(commands, pos, &MonsterData, &SpawnCtx) -> Entity`. ~200 lines saved.
+- [ ] **Deduplicate decoration spawning (indoor/outdoor → shared module)** — `indoor/spawn.rs:255-555` and `outdoor/spawn_decorations.rs:17-298` implement the same 3 decoration types (directional, animated, static) with 80% identical logic. Indoor has `InGame` marker; outdoor has `DecorationTrigger` + caching + sounds. Extract shared `spawn_directional()`, `spawn_animated()`, `spawn_static()` into a decoration spawner module. ~250 lines saved.
+- [ ] **Split `loading.rs` (1211 lines)** — Indoor and outdoor loading share one file. Mesh creation pattern repeated 3x, StandardMaterial configs repeated 3x. Split into `loading/mod.rs` (state machine), `loading/outdoor.rs` (PreparedWorld, ODM steps), `loading/indoor.rs` (PreparedIndoorWorld, BLV steps). Extract `build_textured_mesh()` and `build_standard_material(preset)` helpers. Single `finalize_loading()` path for both indoor and outdoor.
+
+#### Medium impact
+- [ ] **Split `sprites/loading.rs` (857 lines)** — Contains sprite frame decoding, sprite cache, alpha mask, animation update system, direction calculation. Animation runtime (`update_sprite_sheets`, 145 lines) is a different concern from load-time decoding. Split into `sprites/decode.rs` + `sprites/animation.rs`.
+- [ ] **EVT conditional jump helper** — `scripting.rs:337-765` has 10 identical `steps.iter().position(|s| s.step >= jump_step)` + `log_skipped` + `log_tail_unreachable` blocks. Extract `execute_conditional_jump(steps, pc, jump_step, reason) -> bool`.
+- [ ] **EVT stub macro** — 21 STUB event arms in `scripting.rs` with near-identical `warn!("STUB ...")` blocks. Replace with `stub_event!()` macro.
+- [ ] **`handle_move_to_map` split** — `event_handlers.rs:116-197` handles same-map teleport AND cross-map transition in one function. These are distinct operations that should be separate.
+
+#### Low impact
+- [ ] **`ai_type: String` → enum** — `Actor.ai_type` is always one of "Normal"/"Aggress"/"Wimp"/"Suicidal". Cloned at 4 spawn sites. Should be an enum.
+- [ ] **Overlay image pattern** — `handle_speak_in_house` and `handle_open_chest` in `event_handlers.rs` share identical OverlayImage + cursor logic. Extract helper.
+- [ ] **Indoor sprite caching** — Outdoor caches static decoration materials in `dec_sprite_cache`; indoor doesn't. Add caching to indoor for consistency.
+- [ ] **Texture size collection** — `loading.rs` has 2 near-identical HashMap-building loops for indoor vs outdoor texture sizes. Extract `collect_texture_sizes()` helper.
+
 ### Context for the next session
 - Project: OpenMM (MM6 reimplementation, Rust + Bevy 0.18). Workspace: `openmm-data/` (pure data), `openmm/` (game).
 - Always read `CLAUDE.md` first. Key rules: behaviour change ⇒ doc update, no hardcoded format constants in game code, bug fix ⇒ regression test, keep modules focused.
