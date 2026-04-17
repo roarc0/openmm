@@ -2,7 +2,6 @@ use bevy::prelude::*;
 
 use crate::GameState;
 use crate::game::map::spatial_index::SpatialIndexSet;
-use crate::game::ui::{UiMode, UiState};
 
 pub mod loading;
 pub mod material;
@@ -125,7 +124,7 @@ impl Plugin for SpritesPlugin {
                 .chain()
                 .after(SpatialIndexSet)
                 .run_if(in_state(GameState::Game))
-                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
+                .run_if(crate::game::ui::is_world_mode),
         );
     }
 }

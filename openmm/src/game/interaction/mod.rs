@@ -121,7 +121,7 @@ impl Plugin for InteractionPlugin {
             Update,
             decoration_proximity_system
                 .run_if(in_state(GameState::Game))
-                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
+                .run_if(crate::game::ui::is_world_mode),
         )
         .add_systems(
             Update,

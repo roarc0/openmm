@@ -159,7 +159,7 @@ impl Plugin for PerfLogPlugin {
                 Update,
                 (count_frame, perf_report.after(count_frame))
                     .run_if(in_state(GameState::Game))
-                    .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
+                    .run_if(crate::game::ui::is_world_mode),
             );
         info!(
             "[PERF] perf_log enabled — reporting every {REPORT_INTERVAL_SECS}s, leak detection after {BASELINE_AFTER_REPORTS} reports"

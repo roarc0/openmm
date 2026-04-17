@@ -108,7 +108,7 @@ impl Plugin for GameTimePlugin {
             Update,
             advance_game_time
                 .run_if(in_state(GameState::Game))
-                .run_if(|ui: Res<crate::game::ui::UiState>| ui.mode == crate::game::ui::UiMode::World),
+                .run_if(crate::game::ui::is_world_mode),
         );
     }
 }

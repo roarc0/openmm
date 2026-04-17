@@ -3,6 +3,13 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::screens::debug::console::ConsoleState;
 
+pub mod npc_dialogue;
+
+/// Run condition: UiMode is World. Use for systems that should pause during any overlay.
+pub fn is_world_mode(ui: Res<UiState>) -> bool {
+    ui.mode == UiMode::World
+}
+
 /// Run condition: game input is fully active — UiState mode is World and no console open.
 /// Use this on all player/world input systems instead of manual per-system checks.
 pub fn game_input_active(ui: Res<UiState>, console: Option<Res<ConsoleState>>) -> bool {

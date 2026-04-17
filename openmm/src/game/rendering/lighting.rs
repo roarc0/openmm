@@ -9,7 +9,6 @@ use crate::game::player::Player;
 use crate::game::sprites::Billboard;
 use crate::game::sprites::tint_buffer::SpriteTintBuffers;
 use crate::game::state::GameTime;
-use crate::game::ui::{UiMode, UiState};
 use crate::system::config::GameConfig;
 
 // ── Decoration point lights ─────────────────────────────────────────────────
@@ -78,7 +77,7 @@ impl Plugin for LightingPlugin {
                 Update,
                 animate_day_cycle
                     .run_if(in_state(GameState::Game))
-                    .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
+                    .run_if(crate::game::ui::is_world_mode),
             );
     }
 }

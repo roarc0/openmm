@@ -9,7 +9,6 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::actors::Actor;
 use crate::game::map::collision::{BuildingColliders, MAX_STEP_UP, TerrainHeightMap, WaterMap, sample_terrain_height};
-use crate::game::ui::{UiMode, UiState};
 
 /// Gravity acceleration for actors (world units/sec²). Matches player gravity.
 pub const ACTOR_GRAVITY: f32 = 9800.0;
@@ -26,7 +25,7 @@ impl Plugin for ActorPhysicsPlugin {
             Update,
             actor_gravity_system
                 .run_if(in_state(GameState::Game))
-                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
+                .run_if(crate::game::ui::is_world_mode),
         );
     }
 }

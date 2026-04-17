@@ -44,7 +44,7 @@ impl Plugin for OdmPlugin {
                     texture_swap::apply_texture_outdoors,
                 )
                     .run_if(in_state(GameState::Game))
-                    .run_if(|ui: Res<crate::game::ui::UiState>| ui.mode == crate::game::ui::UiMode::World)
+                    .run_if(crate::game::ui::is_world_mode)
                     .run_if(is_outdoor),
             );
     }

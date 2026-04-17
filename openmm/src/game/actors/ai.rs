@@ -30,7 +30,6 @@ use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
 use crate::game::sprites::{AnimationState, WorldEntity};
-use crate::game::ui::{UiMode, UiState};
 use openmm_data::ActorSoundSlot;
 
 /// Heading offsets (degrees) probed when the direct path is blocked and the
@@ -64,7 +63,7 @@ impl Plugin for MonsterAiPlugin {
             Update,
             monster_ai_system
                 .run_if(in_state(GameState::Game))
-                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
+                .run_if(crate::game::ui::is_world_mode),
         );
     }
 }

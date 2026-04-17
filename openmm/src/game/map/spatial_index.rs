@@ -25,7 +25,6 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::player::Player;
 use crate::game::sprites::WorldEntity;
-use crate::game::ui::{UiMode, UiState};
 
 /// World-space cell size. 1024 units ≈ 2 MM6 tiles.
 ///
@@ -150,7 +149,7 @@ impl Plugin for SpatialIndexPlugin {
             rebuild_and_cull
                 .in_set(SpatialIndexSet)
                 .run_if(in_state(GameState::Game))
-                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
+                .run_if(crate::game::ui::is_world_mode),
         );
     }
 }

@@ -9,7 +9,6 @@ use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
 use crate::game::sprites::AnimationState;
-use crate::game::ui::{UiMode, UiState};
 use openmm_data::ActorSoundSlot;
 
 /// Per-attack animation duration in seconds (approx 5 frames at 0.15s).
@@ -52,7 +51,7 @@ impl Plugin for ActorCombatPlugin {
                 Update,
                 (monster_attack_system, monster_die_system, dying_to_dead_system)
                     .run_if(in_state(GameState::Game))
-                    .run_if(|ui: Res<UiState>| ui.mode == UiMode::World),
+                    .run_if(crate::game::ui::is_world_mode),
             );
     }
 }

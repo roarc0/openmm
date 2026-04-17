@@ -10,7 +10,6 @@ use crate::GameState;
 use crate::game::map::coords::mm6_position_to_bevy;
 use crate::game::map::is_outdoor;
 use crate::game::state::GameTime;
-use crate::game::ui::{UiMode, UiState};
 use crate::prepare::loading::PreparedWorld;
 
 use super::effects::PlaySoundEvent;
@@ -33,7 +32,7 @@ impl Plugin for DecorationSoundsPlugin {
             Update,
             dawn_dusk_sound_system
                 .run_if(in_state(GameState::Game))
-                .run_if(|ui: Res<UiState>| ui.mode == UiMode::World)
+                .run_if(crate::game::ui::is_world_mode)
                 .run_if(is_outdoor),
         );
     }
