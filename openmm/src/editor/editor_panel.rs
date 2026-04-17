@@ -326,7 +326,6 @@ pub fn editor_panel_ui(
                 let mut font = txt.font.clone();
                 let mut color = txt.color.clone();
                 let mut align = txt.align.clone();
-                let mut txt_size = editor.screen.elements[sel_idx].size();
                 let mut changed = false;
 
                 ui.horizontal(|ui| {
@@ -374,21 +373,6 @@ pub fn editor_panel_ui(
                             }
                         });
                 });
-
-                let mut txt_size_changed = false;
-                ui.horizontal(|ui| {
-                    ui.label("Text size:");
-                    txt_size_changed |= ui
-                        .add(egui::DragValue::new(&mut txt_size.0).prefix("w: ").speed(1.0))
-                        .changed();
-                    txt_size_changed |= ui
-                        .add(egui::DragValue::new(&mut txt_size.1).prefix("h: ").speed(1.0))
-                        .changed();
-                });
-                if txt_size_changed {
-                    editor.screen.elements[sel_idx].set_size(txt_size);
-                    changed = true;
-                }
 
                 if changed {
                     let t = editor.screen.elements[sel_idx].as_text_mut().unwrap();
