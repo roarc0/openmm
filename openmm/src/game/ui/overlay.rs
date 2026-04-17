@@ -16,21 +16,28 @@ use crate::screens::runtime::ScreenActions;
 
 use super::{UiMode, UiState};
 
-/// Maps a UiMode to its screen .ron id. Returns None for World (no overlay).
-fn screen_for_mode(mode: UiMode) -> Option<&'static str> {
+/// Maps a UiMode to its overlay screen .ron id.
+///
+/// The base `ingame` screen is always visible (borders, frame).
+/// This returns the *middle layer* screen that swaps on top of it:
+/// - World → "playing" (buttons, food/gold labels, gameplay HUD)
+/// - NpcDialogue → "npc_speak" (panel, portrait, dialogue text)
+/// - Other modes → their respective screen .ron
+fn screen_for_mode(mode: UiMode) -> &'static str {
     match mode {
-        UiMode::World => None,
-        UiMode::NpcDialogue => Some("npc_speak"),
-        UiMode::Building => Some("building"),
-        UiMode::Chest => Some("chest"),
-        UiMode::Inventory => Some("inventory"),
-        UiMode::Stats => Some("stats"),
-        UiMode::Rest => Some("rest"),
-        UiMode::Map => Some("map"),
+        UiMode::World => "playing",
+        UiMode::NpcDialogue => "npc_speak",
+        UiMode::Building => "building",
+        UiMode::Chest => "chest",
+        UiMode::Inventory => "inventory",
+        UiMode::Stats => "stats",
+        UiMode::Rest => "rest",
+        UiMode::Map => "map",
     }
 }
 
-/// Tracks which overlay screen is currently shown (if any).
+/// Tracks which overlay screen is currently shown.
+/// Starts empty — first sync will show "playing".
 #[derive(Resource, Default)]
 pub struct ActiveOverlay(Option<&'static str>);
 
@@ -52,7 +59,7 @@ fn sync_overlay(
 ) {
     let desired = screen_for_mode(ui.mode);
 
-    if overlay.0 == desired {
+    if overlay.0 == Some(desired) {
         return;
     }
 
@@ -65,12 +72,10 @@ fn sync_overlay(
     }
 
     // Show new overlay.
-    if let Some(new_screen) = desired {
-        info!("overlay: showing '{}'", new_screen);
-        actions.try_write(ScreenActions {
-            actions: vec![format!("ShowScreen(\"{}\")", new_screen)],
-        });
-    }
+    info!("overlay: showing '{}'", desired);
+    actions.try_write(ScreenActions {
+        actions: vec![format!("ShowScreen(\"{}\")", desired)],
+    });
 
-    overlay.0 = desired;
+    overlay.0 = Some(desired);
 }
