@@ -89,6 +89,7 @@ impl Plugin for UiPlugin {
             crate::screens::debug::DebugPlugin,
             crate::screens::debug::console::ConsolePlugin,
             interaction::InteractionPlugin,
+            ui::overlay::OverlayPlugin,
             ui::npc_dialogue::NpcDialoguePlugin,
         ))
         // Viewport clipping — keeps the 3D camera inside the HUD frame.

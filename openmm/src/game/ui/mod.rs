@@ -4,6 +4,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use crate::screens::debug::console::ConsoleState;
 
 pub mod npc_dialogue;
+pub mod overlay;
 
 /// Run condition: UiMode is World. Use for systems that should pause during any overlay.
 pub fn is_world_mode(ui: Res<UiState>) -> bool {
