@@ -25,12 +25,12 @@
 ### Phase 2: Game Module Decoupling
 - [x] **Simulation State** — Rename `src/game/world/` → `src/game/state/` (Handles Time, Variables, Scripting)
 - [ ] **Map Umbrella**: Create `src/game/map/` and move `indoor/`, `outdoor/`, `collision.rs`, `coords.rs`, `spatial_index.rs` into it.
-- [ ] **Player/Party Umbrella**: Nest `src/game/party/` into `src/game/player/party/`.
+- [x] **Player/Party Umbrella**: Nest `src/game/party/` into `src/game/player/party/`.
 - [ ] **Spawning & Actor Logic**: Create `src/game/spawn/` with subfolders for specialized logic:
     - [ ] `actor/`: Nest all monster/npc logic here (`actors/`, `npc_dialogue.rs`)
     - [ ] `decoration/`: Nest prop spawning logic
     - [ ] `sprite/`: Nest world-sprite registration logic (move from `src/game/sprites/`)
-- [/] **Input & UI** — Create `src/game/controls/` and move `interaction/` into it (input.rs moved)
+- [x] **Input & UI** — Created `src/game/controls/` and moved `input.rs` there.
 
 ### Phase 3: Structural Refinements
 - [ ] **Scripting Split**: Split `scripting.rs` monolith → `src/game/state/scripting/` (Trigger vs Runtime)
