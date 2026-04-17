@@ -3,7 +3,7 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::collision::{
     BuildingColliders, MAX_STEP_UP, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
 };

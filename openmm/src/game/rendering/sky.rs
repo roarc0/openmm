@@ -205,7 +205,7 @@ fn update_sky_color(mut clear_color: ResMut<ClearColor>, game_time: Res<crate::g
 fn update_sky_sun_dir(
     mut sky_materials: ResMut<Assets<SkyMaterial>>,
     game_time: Res<crate::game::state::GameTime>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
 ) {
     let dir = crate::game::rendering::lighting::sun_direction_from_time(game_time.time_of_day());
     let visible = if cfg.visible_sun { 1.0 } else { 0.0 };

@@ -8,9 +8,9 @@ pub mod hud;
 #[cfg(feature = "perf_log")]
 pub mod perf_log;
 
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::player::Player;
-use crate::save::GameSave;
+use crate::system::save::GameSave;
 use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 pub struct DebugPlugin;

@@ -8,11 +8,11 @@ use bevy::prelude::*;
 
 use super::{ConsoleState, HELP_TEXT, NEEDS_RELOAD, parse_coords, parse_toggle, resolve_direction, set_filtering};
 use crate::GameState;
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::outdoor::{OdmName, PLAY_WIDTH};
 use crate::game::player::SpeedMultiplier;
 use crate::game::state::{GameTime, WorldState};
-use crate::save::GameSave;
+use crate::system::save::GameSave;
 use crate::prepare::loading::LoadRequest;
 use openmm_data::utils::MapName;
 

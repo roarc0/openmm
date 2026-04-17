@@ -11,7 +11,7 @@ use super::setup::{hide_screen, load_screen_replace_all, show_screen};
 use super::ui_assets::UiAssets;
 use crate::GameState;
 use crate::assets::GameAssets;
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::optional::OptionalWrite;
 
 // ── Interaction systems ─────────────────────────────────────────────────────

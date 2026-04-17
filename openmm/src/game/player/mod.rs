@@ -8,10 +8,10 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::InGame;
 use crate::game::collision::sample_terrain_height;
-use crate::save::GameSave;
+use crate::system::save::GameSave;
 use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
 
 use input::{cursor_grab, player_look, player_movement, toggle_fly_mode, toggle_mouse_look, toggle_run_mode};
@@ -222,7 +222,7 @@ fn spawn_player(
     prepared: Option<Res<PreparedWorld>>,
     indoor: Option<Res<PreparedIndoorWorld>>,
     settings: Res<PlayerSettings>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
     save_data: Res<GameSave>,
 ) {
     let is_indoor = indoor.is_some();

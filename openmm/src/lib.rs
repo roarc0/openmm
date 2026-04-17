@@ -2,14 +2,12 @@ use bevy::prelude::{App, AppExtStates, ClearColor, Color, Commands, Component, E
 use engine::EngineConfigPlugin;
 
 use assets::GameAssets;
-use config::GameConfig;
 use game::InGamePlugin;
 use prepare::loading::LoadingPlugin;
-use save::GameSave;
-use screens::fonts::GameFonts;
+use system::config::GameConfig;
+use system::save::GameSave;
 
 pub(crate) mod assets;
-pub mod config;
 #[cfg(feature = "editor")]
 pub(crate) mod editor;
 pub(crate) mod engine;
@@ -17,8 +15,8 @@ pub(crate) mod game;
 pub mod input;
 pub(crate) mod log;
 pub(crate) mod prepare;
-pub(crate) mod save;
 pub(crate) mod screens;
+pub(crate) mod system;
 
 const APP_NAME: &str = "openmm";
 

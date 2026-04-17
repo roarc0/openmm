@@ -1,4 +1,4 @@
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 
 /// Returns the bevy log level from config.
 pub fn log_level(cfg: &GameConfig) -> bevy::log::Level {

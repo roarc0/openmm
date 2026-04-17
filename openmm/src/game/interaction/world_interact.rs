@@ -16,7 +16,7 @@ use super::{
     DecorationInfo, DecorationTrigger, MAX_INTERACT_RANGE, MonsterInteractable, NpcInteractable, check_interact_input,
     facing_rotation,
 };
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::player::Player;
 use crate::game::state::ui_state::UiState;
 

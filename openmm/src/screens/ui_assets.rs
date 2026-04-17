@@ -3,7 +3,7 @@ use image::{DynamicImage, GenericImageView};
 use std::collections::HashMap;
 
 use crate::assets::{self, GameAssets};
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 
 /// Resolve the image sampler from the `hud_filtering` config value.
 ///

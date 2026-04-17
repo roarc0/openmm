@@ -94,7 +94,7 @@ pub struct SpatialIndexSet;
 /// `Visibility` at the same time. `set_if_neq` keeps this cheap: on frames
 /// where nothing crossed the draw boundary there are zero writes.
 pub fn rebuild_and_cull(
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
     player_query: Query<&GlobalTransform, With<Player>>,
     mut index: ResMut<EntitySpatialIndex>,
     mut entities: Query<(Entity, &GlobalTransform, &mut Visibility), With<WorldEntity>>,

@@ -17,25 +17,40 @@
 - [ ] **HUD GameTime integration** — Tap frame switching (morning/day/evening/night), date/time text
 - [ ] **Post-process AA fix** — FXAA/SMAA/TAA break terrain rendering
 
-## Module Organization
-- [ ] **Split `viewport.rs`** — Mixed concerns: camera rendering (`RenderScaleState`, `update_viewport`) + HUD layout (`HudDimensions`). Entangled via `viewport_base()`.
-- [ ] **Consolidate geometry utilities** — `collision.rs` 2D helpers + `interaction/raycast.rs` 3D equivalents → `game/geom.rs`
-- [ ] **Centralize input** — Create `game/input/` for KeyCode/MouseButton checks + high-level Action mapping
-- [ ] **Deconstruct `hud/mod.rs`** — Split into `hud/layout.rs`, `hud/builder.rs`, `hud/constants.rs`
+## Package Restructuring (Master Plan)
+### Phase 1: High-Level Organization
+- [x] **Infrastructure Move** — Move root `config.rs`, `save.rs` → `src/system/`
+- [ ] **Rendering Move**: Move root `engine.rs`, `fonts.rs` → `src/game/rendering/`
+- [x] **State Transition Rename** — Rename `src/states/` → `src/prepare/` (Transition/Loading states)
+
+### Phase 2: Game Module Decoupling
+- [x] **Simulation State** — Rename `src/game/world/` → `src/game/state/` (Handles Time, Variables, Scripting)
+- [ ] **Map Umbrella**: Create `src/game/map/` and move `indoor/`, `outdoor/`, `collision.rs`, `coords.rs`, `spatial_index.rs` into it.
+- [ ] **Player/Party Umbrella**: Nest `src/game/party/` into `src/game/player/party/`.
+- [ ] **Spawning & Actor Logic**: Create `src/game/spawn/` with subfolders for specialized logic:
+    - [ ] `actor/`: Nest all monster/npc logic here (`actors/`, `npc_dialogue.rs`)
+    - [ ] `decoration/`: Nest prop spawning logic
+    - [ ] `sprite/`: Nest world-sprite registration logic (move from `src/game/sprites/`)
+- [ ] **Input & UI**: Create `src/game/input/` and move root `input.rs`, `interaction/`, and `debug/` into it.
+
+### Phase 3: Structural Refinements
+- [ ] **Scripting Split**: Split `scripting.rs` monolith → `src/game/state/scripting/` (Trigger vs Runtime)
+- [ ] **Consolidate Geometries**: Move `collision.rs` 2D helpers + `interaction/raycast.rs` 3D equivalents → `game/map/geom.rs`
+- [ ] **Modular HUD**: Split `hud/mod.rs` into `layout.rs`, `builder.rs`, `constants.rs`
 
 ## Refactoring (High Impact)
 - [x] **Deduplicate actor spawning (3 sites → 1 helper)** — Shared `spawn_actor()` in `game/spawn/monster.rs` covers monsters + NPCs. ~200 lines saved.
 - [x] **Deduplicate decoration spawning** ��� Shared `spawn_decoration()` in `game/spawn/decoration.rs`. Indoor gains triggers, flicker, material caching. ~250 lines saved.
-- [ ] **Split `loading.rs` (1211 lines)** — Indoor/outdoor share one file. Split into `loading/mod.rs` + `loading/outdoor.rs` + `loading/indoor.rs`. Extract `build_textured_mesh()` and `build_standard_material()` helpers.
+- [x] **Split `loading.rs` (1211 lines)** — Split into `loading/mod.rs` + `loading/outdoor.rs` + `loading/indoor.rs` + `loading/helpers.rs`. Extracted `build_textured_mesh()`, `indoor_material()`, `outdoor_material()` helpers.
 
 ## Refactoring (Medium Impact)
 - [ ] **Split `sprites/loading.rs` (857 lines)** — Animation runtime (`update_sprite_sheets`) is different concern from load-time decoding. Split into `sprites/decode.rs` + `sprites/animation.rs`.
 - [ ] **`handle_move_to_map` split** — `event_handlers.rs` handles same-map teleport AND cross-map transition in one function. Separate them.
 
 ## Refactoring (Low Impact)
-- [ ] **Overlay image pattern** — `handle_speak_in_house` and `handle_open_chest` share identical OverlayImage + cursor logic. Extract helper.
+- [x] **Overlay image pattern** — `handle_speak_in_house` and `handle_open_chest` share identical OverlayImage + cursor logic. Extract helper.
 - [x] **Indoor sprite caching** — Now uses shared `DecSpriteCache` via `spawn_decoration()`.
-- [ ] **Texture size collection** — 2 near-identical HashMap-building loops for indoor vs outdoor texture sizes. Extract `collect_texture_sizes()`.
+- [x] **Texture size collection** — 2 near-identical HashMap-building loops for indoor vs outdoor texture sizes. Extract `collect_texture_sizes()`.
 
 ## Architecture (Bevy Best Practices)
 *Note: identified improvements, not immediate priority.*

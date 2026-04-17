@@ -5,7 +5,7 @@ mod outdoor;
 
 use bevy::prelude::*;
 
-use crate::{GameState, assets::GameAssets, config::GameConfig, despawn_all, game::state::CurrentMap};
+use crate::{GameState, assets::GameAssets, despawn_all, game::state::CurrentMap, system::config::GameConfig};
 use openmm_data::{
     blv::Blv,
     dtile::{Dtile, TileTable},
@@ -152,7 +152,7 @@ impl LoadingStep {
 fn loading_setup(
     mut commands: Commands,
     load_request: Option<Res<LoadRequest>>,
-    save_data: Res<crate::save::GameSave>,
+    save_data: Res<crate::system::save::GameSave>,
     cfg: Res<GameConfig>,
     mut world_state: ResMut<crate::game::state::WorldState>,
 ) {

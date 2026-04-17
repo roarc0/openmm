@@ -23,7 +23,7 @@ pub fn spawn_bsp_models(
     materials: &mut Assets<StandardMaterial>,
     mut bsp_water_materials: Option<&mut Assets<BspWaterMaterial>>,
     images: &mut Assets<Image>,
-    cfg: &crate::config::GameConfig,
+    cfg: &crate::system::config::GameConfig,
 ) {
     let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
     commands.entity(terrain_entity_id).with_children(|parent| {

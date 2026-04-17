@@ -83,7 +83,7 @@ pub(super) fn lazy_spawn(
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
     mut map_events: Option<ResMut<crate::game::state::MapEvents>>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
 ) {
     let Some(mut pending) = pending else {
         return;

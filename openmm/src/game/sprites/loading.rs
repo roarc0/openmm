@@ -535,7 +535,7 @@ fn load_sprite_with_palette_offset(
 /// the displayed (state, frame, direction) hasn't changed.
 pub fn update_sprite_sheets(
     time: Res<Time>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
     camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
     mut query: Query<(
         &mut SpriteSheet,

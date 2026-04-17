@@ -66,7 +66,7 @@ fn handle_play_music(
 }
 
 /// Sync music volume with config changes (from console commands).
-fn sync_music_volume(cfg: Res<crate::config::GameConfig>, mut music_sinks: Query<&mut AudioSink, With<MapMusic>>) {
+fn sync_music_volume(cfg: Res<crate::system::config::GameConfig>, mut music_sinks: Query<&mut AudioSink, With<MapMusic>>) {
     if !cfg.is_changed() {
         return;
     }

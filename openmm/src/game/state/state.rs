@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::game::outdoor::OdmName;
-use crate::save::GameSave;
+use crate::system::save::GameSave;
 use openmm_data::utils::MapName;
 
 /// Centralized live runtime state for the game world.

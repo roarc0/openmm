@@ -87,7 +87,7 @@ pub fn spawn_terrain(
 pub(super) fn prepare_terrain_textures(
     prepared: &PreparedWorld,
     images: &mut Assets<Image>,
-    cfg: &crate::config::GameConfig,
+    cfg: &crate::system::config::GameConfig,
 ) -> (Handle<Image>, Handle<Image>, Handle<Image>) {
     let mut terrain_texture = prepared.terrain_texture.clone();
     // Cyan markers have been replaced with neutral color by extract_water_mask(),

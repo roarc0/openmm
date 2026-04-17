@@ -10,7 +10,7 @@ use crate::game::state::ui_state::UiState;
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
 use super::{DecorationInfo, MAX_INTERACT_RANGE, MonsterInteractable, NpcInteractable, facing_rotation};
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 
 /// Show the nearest interactive object's name in the footer — pixel-accurate for all types.
 pub(crate) fn hover_hint_system(

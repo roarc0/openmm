@@ -51,7 +51,7 @@ fn footstep_system(
     mut audio_sources: ResMut<Assets<AudioSource>>,
     prepared: Res<PreparedWorld>,
     player_query: Query<&Transform, With<Player>>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
     world_state: Res<crate::game::state::WorldState>,
     mut state: Local<FootstepState>,
 ) {

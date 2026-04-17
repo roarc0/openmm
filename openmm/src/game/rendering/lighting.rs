@@ -2,7 +2,7 @@ use bevy::light::CascadeShadowConfigBuilder;
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::InGame;
 use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;

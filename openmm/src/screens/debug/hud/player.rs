@@ -1,5 +1,5 @@
 use super::common::*;
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::player::Player;
 use crate::prepare::loading::PreparedWorld;
 use bevy::prelude::*;

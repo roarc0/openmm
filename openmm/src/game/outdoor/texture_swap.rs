@@ -42,7 +42,7 @@ pub(super) fn apply_texture_outdoors(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut cache: ResMut<SwapMaterialCache>,
     game_assets: Res<GameAssets>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
 ) {
     for ev in events.read() {
         let Some((mut sub, mut mat_handle)) = query

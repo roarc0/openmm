@@ -24,7 +24,7 @@ pub(crate) fn spawn_indoor_world(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut sprite_materials: ResMut<Assets<SpriteMaterial>>,
     game_assets: Res<crate::assets::GameAssets>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
 ) {
     spawn_static_meshes(&prepared, &mut commands, &mut images, &mut meshes, &mut materials, &cfg);
     spawn_door_faces(&prepared, &mut commands, &mut images, &mut meshes, &mut materials);
@@ -62,7 +62,7 @@ fn spawn_static_meshes(
     images: &mut Assets<Image>,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
-    cfg: &crate::config::GameConfig,
+    cfg: &crate::system::config::GameConfig,
 ) {
     let model_sampler = crate::assets::sampler_for_filtering(&cfg.models_filtering);
     for model in &prepared.models {
@@ -254,7 +254,7 @@ fn spawn_decorations(
     meshes: &mut Assets<Mesh>,
     sprite_materials: &mut Assets<SpriteMaterial>,
     game_assets: &crate::assets::GameAssets,
-    cfg: &crate::config::GameConfig,
+    cfg: &crate::system::config::GameConfig,
 ) {
     let mut sprite_cache = sprites::SpriteCache::default();
     let mut dec_sprite_cache = crate::game::spawn::decoration::DecSpriteCache::default();
@@ -310,7 +310,7 @@ fn spawn_indoor_monsters(
     meshes: &mut Assets<Mesh>,
     sprite_materials: &mut Assets<SpriteMaterial>,
     game_assets: &crate::assets::GameAssets,
-    cfg: &crate::config::GameConfig,
+    cfg: &crate::system::config::GameConfig,
 ) {
     let mut sprite_cache = sprites::SpriteCache::default();
     let Some(ref monsters) = prepared.resolved_actors else {

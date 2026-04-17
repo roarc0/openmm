@@ -24,8 +24,8 @@ pub(super) fn spawn_world(
     mut terrain_materials: Option<ResMut<Assets<spawn_terrain::TerrainMaterial>>>,
     mut bsp_water_materials: Option<ResMut<Assets<super::bsp_water::BspWaterMaterial>>>,
     mut prepared: ResMut<PreparedWorld>,
-    save_data: Res<crate::save::GameSave>,
-    cfg: Res<crate::config::GameConfig>,
+    save_data: Res<crate::system::save::GameSave>,
+    cfg: Res<crate::system::config::GameConfig>,
     mut music_events: Option<bevy::ecs::message::MessageWriter<crate::game::sound::music::PlayMusicEvent>>,
 ) {
     let prepared = prepared.as_mut();

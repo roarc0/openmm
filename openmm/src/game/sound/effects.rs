@@ -80,7 +80,7 @@ fn handle_play_sound(
     mut sound_manager: Option<ResMut<SoundManager>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut events: MessageReader<PlaySoundEvent>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
 ) {
     let Some(ref mut sound_manager) = sound_manager else {
         for _ in events.read() {}
@@ -147,7 +147,7 @@ fn handle_play_once_sound(
     mut sound_manager: Option<ResMut<SoundManager>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut events: MessageReader<PlayOnceSoundEvent>,
-    cfg: Res<crate::config::GameConfig>,
+    cfg: Res<crate::system::config::GameConfig>,
 ) {
     let Some(ref mut sound_manager) = sound_manager else {
         for _ in events.read() {}

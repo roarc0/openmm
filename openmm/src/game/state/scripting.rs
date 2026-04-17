@@ -15,7 +15,7 @@ use crate::game::sprites::material::SpriteMaterial;
 /// Bundles save + state transition to stay within Bevy's 16-param system limit.
 #[derive(SystemParam)]
 pub(super) struct TransitionParams<'w> {
-    pub save_data: ResMut<'w, crate::save::GameSave>,
+    pub save_data: ResMut<'w, crate::system::save::GameSave>,
     pub game_state: ResMut<'w, NextState<GameState>>,
 }
 use super::event_handlers;

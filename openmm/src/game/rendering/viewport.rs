@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureFormat, TextureUsages};
 use bevy::window::PrimaryWindow;
 
-use crate::config::GameConfig;
+use crate::system::config::GameConfig;
 use crate::game::player::PlayerCamera;
 use crate::screens::ui_assets::UiAssets;
 
