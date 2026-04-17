@@ -5,7 +5,8 @@ use bevy::prelude::*;
 use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, TapBinding};
 use super::fonts::GameFonts;
 use super::runtime::{
-    HiddenByDefault, HoverOverlay, Pulsable, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer, ScreenMusic,
+    ClickedTexture, HiddenByDefault, HoverOverlay, Pulsable, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer,
+    ScreenMusic,
 };
 use super::video::spawn_video_element;
 use super::{
@@ -90,6 +91,21 @@ pub(super) fn spawn_image_element(
     };
 
     let hover_handle = img.states.get("hover").and_then(|state| {
+        if state.texture.is_empty() {
+            None
+        } else {
+            load_texture_with_transparency(
+                &state.texture,
+                &img.transparent_color,
+                ui_assets,
+                game_assets,
+                images,
+                cfg,
+            )
+        }
+    });
+
+    let clicked_handle = img.states.get("clicked").and_then(|state| {
         if state.texture.is_empty() {
             None
         } else {
@@ -194,9 +210,22 @@ pub(super) fn spawn_image_element(
     };
 
     if let Some(handle) = default_handle {
-        let mut entity = commands.spawn((ImageNode::new(handle), node, z, marker, layer_tag.clone(), initial_vis));
+        let mut entity = commands.spawn((
+            ImageNode::new(handle.clone()),
+            node,
+            z,
+            marker,
+            layer_tag.clone(),
+            initial_vis,
+        ));
         if has_interaction {
             entity.insert((Button, BackgroundColor(Color::NONE)));
+        }
+        if let Some(clicked) = clicked_handle {
+            entity.insert(ClickedTexture {
+                clicked,
+                default: handle,
+            });
         }
         if has_pulse {
             entity.insert(Pulsable);

@@ -4,8 +4,8 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
 use super::runtime::{
-    ClickFlash, HiddenByDefault, HoverOverlay, Pulsable, Pulsing, RuntimeElement, ScreenActions, ScreenLayer,
-    ScreenLayers, ScreenUiHovered,
+    ClickFlash, ClickedTexture, HiddenByDefault, HoverOverlay, Pulsable, Pulsing, RuntimeElement, ScreenActions,
+    ScreenLayer, ScreenLayers, ScreenUiHovered,
 };
 use super::setup::{hide_screen, load_screen_replace_all, show_screen};
 use super::ui_assets::UiAssets;
@@ -129,14 +129,23 @@ pub(super) fn pulse_animate(time: Res<Time>, mut query: Query<(&mut Pulsing, &mu
     }
 }
 
-/// On click: hide element briefly, then fire actions after the flash.
+/// On click: swap to "clicked" texture (or hide if none), then fire actions after 200ms.
 pub(super) fn screen_click(
     mut commands: Commands,
-    query: Query<(Entity, &Interaction, &RuntimeElement), (Changed<Interaction>, With<Button>)>,
+    mut query: Query<
+        (
+            Entity,
+            &Interaction,
+            &RuntimeElement,
+            &mut ImageNode,
+            Option<&ClickedTexture>,
+        ),
+        (Changed<Interaction>, With<Button>),
+    >,
     layers: Res<ScreenLayers>,
     flash_query: Query<&ClickFlash>,
 ) {
-    for (entity, interaction, rt_elem) in &query {
+    for (entity, interaction, rt_elem, mut image_node, clicked_tex) in &mut query {
         if *interaction != Interaction::Pressed {
             continue;
         }
@@ -152,13 +161,18 @@ pub(super) fn screen_click(
         }
 
         info!("screen click [{}/{}]", rt_elem.screen_id, elem.id());
-        commands.entity(entity).insert((
-            Visibility::Hidden,
-            ClickFlash {
-                timer: Timer::from_seconds(0.15, TimerMode::Once),
-                pending_actions: elem.on_click().to_vec(),
-            },
-        ));
+
+        // Swap to "clicked" texture if available, otherwise hide briefly.
+        if let Some(ct) = clicked_tex {
+            image_node.image = ct.clicked.clone();
+        } else {
+            commands.entity(entity).insert(Visibility::Hidden);
+        }
+
+        commands.entity(entity).insert(ClickFlash {
+            timer: Timer::from_seconds(0.2, TimerMode::Once),
+            pending_actions: elem.on_click().to_vec(),
+        });
     }
 }
 
@@ -185,20 +199,32 @@ pub(super) fn screen_keys(
     }
 }
 
-/// Tick flash timers -- collect actions into PendingActions for deferred processing.
+/// Tick flash timers — restore default texture/visibility and fire pending actions.
 pub(super) fn click_flash_tick(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut ClickFlash, &mut Visibility)>,
+    mut query: Query<(
+        Entity,
+        &mut ClickFlash,
+        &mut Visibility,
+        &mut ImageNode,
+        Option<&ClickedTexture>,
+    )>,
     mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
-    for (entity, mut flash, mut vis) in &mut query {
+    for (entity, mut flash, mut vis, mut image_node, clicked_tex) in &mut query {
         flash.timer.tick(time.delta());
         if !flash.timer.just_finished() {
             continue;
         }
 
-        *vis = Visibility::Inherited;
+        // Restore default texture or visibility.
+        if let Some(ct) = clicked_tex {
+            image_node.image = ct.default.clone();
+        } else {
+            *vis = Visibility::Inherited;
+        }
+
         let p_actions: Vec<String> = flash.pending_actions.drain(..).collect();
         commands.entity(entity).remove::<ClickFlash>();
 

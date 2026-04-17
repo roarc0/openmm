@@ -259,6 +259,36 @@ pub fn editor_panel_ui(
                 });
             }
 
+            // Clicked texture (image "clicked" state)
+            if is_image {
+                let mut clicked_tex = editor.screen.elements[sel_idx]
+                    .as_image()
+                    .unwrap()
+                    .states
+                    .get("clicked")
+                    .map(|s| s.texture.clone())
+                    .unwrap_or_default();
+                ui.horizontal(|ui| {
+                    ui.label("Clicked:");
+                    if ui.text_edit_singleline(&mut clicked_tex).changed() {
+                        let img = editor.screen.elements[sel_idx].as_image_mut().unwrap();
+                        if clicked_tex.is_empty() {
+                            img.states.remove("clicked");
+                        } else {
+                            img.states
+                                .entry("clicked".to_string())
+                                .and_modify(|s| s.texture = clicked_tex.clone())
+                                .or_insert(ElementState {
+                                    texture: clicked_tex,
+                                    condition: String::new(),
+                                    transparent_color: String::new(),
+                                });
+                        }
+                        editor.dirty = true;
+                    }
+                });
+            }
+
             // Video (only for Video variant)
             if is_video {
                 let mut video_name = editor.screen.elements[sel_idx].as_video().unwrap().video.clone();

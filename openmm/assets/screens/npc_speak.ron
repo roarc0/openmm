@@ -17,7 +17,7 @@
         )),
         Image((
             id: "icons/edge_top",
-            position: (9.0, 304.0),
+            position: (8.0, 304.0),
             size: (512.0, 10.0),
             z: 0,
             states: {
@@ -55,7 +55,7 @@
         )),
         Text((
             id: "npc_greeting",
-            position: (9.0, 314.0),
+            position: (8.0, 312.0),
             size: (468.0, 40.0),
             z: 3,
             source: "npc_greeting",
@@ -83,6 +83,8 @@
         locked: [
             "icons/EVPAN019",
             "npc_name",
+            "icons/edge_top",
+            "icons/BUTTESC1",
         ],
     ),
 )

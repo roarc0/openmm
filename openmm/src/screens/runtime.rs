@@ -90,9 +90,16 @@ pub(super) struct HoverOverlay;
 pub(super) struct ScreenMusic(pub(super) String);
 
 #[derive(Component)]
-pub(super) struct ClickFlash {
-    pub(super) timer: Timer,
-    pub(super) pending_actions: Vec<String>,
+pub(crate) struct ClickFlash {
+    pub(crate) timer: Timer,
+    pub(crate) pending_actions: Vec<String>,
+}
+
+/// Pre-loaded "clicked" state texture + the default texture handle for restoration.
+#[derive(Component)]
+pub(crate) struct ClickedTexture {
+    pub(crate) clicked: Handle<Image>,
+    pub(crate) default: Handle<Image>,
 }
 
 /// Marks a text element with its data source binding.
