@@ -1,4 +1,9 @@
-//! egui editor panel: screen properties, element editing, and guide lines.
+//! Editor panel — screen properties, element editing, and guide lines.
+//!
+//! Layout:
+//!   Screen section — ID, sound, on_load, + Add Text
+//!   Guides section — collapsible guide line manager
+//!   Element section — all properties of the selected element
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
@@ -10,7 +15,6 @@ use super::io::EditorConfig;
 use crate::screens::ElementState;
 use crate::screens::ScreenElement;
 
-/// Draw the editor egui window (moveable, position saved to config).
 pub fn editor_panel_ui(
     mut contexts: EguiContexts,
     mut editor: ResMut<EditorScreen>,
@@ -29,7 +33,7 @@ pub fn editor_panel_ui(
         .collapsible(true)
         .default_open(false)
         .show(ctx, |ui| {
-            // ── Screen-level ─────────────────────────────────────────
+            // ━━ Screen ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             ui.heading("Screen");
 
             let mut screen_id = editor.screen.id.clone();
@@ -41,33 +45,30 @@ pub fn editor_panel_ui(
                 }
             });
 
-            // Sound / Music
-            let mut soundId = editor.screen.sound.id().to_string();
+            let mut sound_id = editor.screen.sound.id().to_string();
             ui.horizontal(|ui| {
                 ui.label("Sound:");
-                if ui.text_edit_singleline(&mut soundId).changed() {
+                if ui.text_edit_singleline(&mut sound_id).changed() {
                     let old_start = editor.screen.sound.start_sec();
                     let old_loop = editor.screen.sound.looping();
-                    if soundId.is_empty() {
+                    if sound_id.is_empty() {
                         editor.screen.sound = crate::screens::Sound::None;
                     } else if old_start > 0.0 || !old_loop {
                         editor.screen.sound = crate::screens::Sound::Sound {
-                            id: soundId,
+                            id: sound_id,
                             start_sec: old_start,
                             looping: old_loop,
                         };
                     } else {
-                        editor.screen.sound = crate::screens::Sound::Id(soundId);
+                        editor.screen.sound = crate::screens::Sound::Id(sound_id);
                     }
                     editor.dirty = true;
                 }
             });
 
-            // Advanced sound settings
             let mut start_sec = editor.screen.sound.start_sec();
             let mut looping = editor.screen.sound.looping();
             let mut sound_changed = false;
-
             ui.horizontal(|ui| {
                 ui.label("Start (s):");
                 if ui
@@ -84,7 +85,6 @@ pub fn editor_panel_ui(
                     sound_changed = true;
                 }
             });
-
             if sound_changed {
                 editor.screen.sound = crate::screens::Sound::Sound {
                     id: editor.screen.sound.id().to_string(),
@@ -94,37 +94,15 @@ pub fn editor_panel_ui(
                 editor.dirty = true;
             }
 
-            // on_load actions (screen-level)
-            ui.collapsing("on_load actions", |ui| {
-                let mut to_remove: Option<usize> = None;
-                for i in 0..editor.screen.on_load.len() {
-                    let mut action = editor.screen.on_load[i].clone();
-                    ui.horizontal(|ui| {
-                        if ui.text_edit_singleline(&mut action).changed() {
-                            editor.screen.on_load[i] = action;
-                            editor.dirty = true;
-                        }
-                        if ui.small_button("\u{2715}").clicked() {
-                            to_remove = Some(i);
-                        }
-                    });
-                }
-                if let Some(i) = to_remove {
-                    editor.screen.on_load.remove(i);
-                    editor.dirty = true;
-                }
-                if ui.small_button("+ Add action").clicked() {
-                    editor.screen.on_load.push(String::new());
+            ui.collapsing("On Load", |ui| {
+                let mut actions = editor.screen.on_load.clone();
+                let mut dirty = false;
+                action_list_editor(ui, &mut actions, &mut dirty);
+                if dirty {
+                    editor.screen.on_load = actions;
                     editor.dirty = true;
                 }
             });
-
-            // ── Guides ─────────────────────────────────────────────
-            ui.collapsing("Guides", |ui| {
-                super::guides::guides_section(ui, &mut guides);
-            });
-
-            ui.separator();
 
             if ui.small_button("+ Add Text").clicked() {
                 let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
@@ -145,42 +123,37 @@ pub fn editor_panel_ui(
                 editor.dirty = true;
             }
 
+            // ━━ Guides ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            ui.separator();
+            ui.collapsing("Guides", |ui| {
+                super::guides::guides_section(ui, &mut guides);
+            });
+
+            // ━━ Element ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             ui.separator();
 
-            // ── Element ──────────────────────────────────────────────
             let Some(sel_idx) = selection.index else {
-                ui.label("No element selected.");
+                ui.weak("No element selected.");
                 return;
             };
             if sel_idx >= editor.screen.elements.len() {
-                ui.label("Selection out of range.");
+                ui.weak("Selection out of range.");
                 return;
             }
 
-            ui.heading("Element");
+            let kind = match &editor.screen.elements[sel_idx] {
+                ScreenElement::Image(_) => "Image",
+                ScreenElement::Video(_) => "Video",
+                ScreenElement::Text(_) => "Text",
+            };
+            ui.heading(format!("Element ({})", kind));
 
-            // Clone shared fields to avoid holding the mutable borrow across closures.
+            // -- Common fields --
             let mut elem_id = editor.screen.elements[sel_idx].id().to_string();
             let mut pos = editor.screen.elements[sel_idx].position();
             let mut size = editor.screen.elements[sel_idx].size();
             let mut z = editor.screen.elements[sel_idx].z();
-            let is_image = editor.screen.elements[sel_idx].as_image().is_some();
-            let is_video = editor.screen.elements[sel_idx].as_video().is_some();
-            let state_keys: Vec<String> = if is_image {
-                editor.screen.elements[sel_idx]
-                    .as_image()
-                    .unwrap()
-                    .states
-                    .keys()
-                    .cloned()
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            let actions_count = editor.screen.elements[sel_idx].on_click().len();
-            let hover_count = editor.screen.elements[sel_idx].on_hover().len();
 
-            // ID
             ui.horizontal(|ui| {
                 ui.label("ID:");
                 if ui.text_edit_singleline(&mut elem_id).changed() {
@@ -193,10 +166,9 @@ pub fn editor_panel_ui(
                 }
             });
 
-            // Position
             let mut pos_changed = false;
             ui.horizontal(|ui| {
-                ui.label("Position:");
+                ui.label("Pos:");
                 pos_changed |= ui
                     .add(egui::DragValue::new(&mut pos.0).prefix("x: ").speed(1.0))
                     .changed();
@@ -209,7 +181,6 @@ pub fn editor_panel_ui(
                 editor.dirty = true;
             }
 
-            // Size
             let mut size_changed = false;
             ui.horizontal(|ui| {
                 ui.label("Size:");
@@ -225,17 +196,19 @@ pub fn editor_panel_ui(
                 editor.dirty = true;
             }
 
-            // Z
             ui.horizontal(|ui| {
                 ui.label("Z:");
-                if ui.add(egui::DragValue::new(&mut z).prefix("z: ").speed(1.0)).changed() {
+                if ui.add(egui::DragValue::new(&mut z).speed(1.0)).changed() {
                     editor.screen.elements[sel_idx].set_z(z);
                     editor.dirty = true;
                 }
             });
 
-            // Texture (image default state)
-            if is_image {
+            // -- Image fields --
+            if let Some(_img) = editor.screen.elements[sel_idx].as_image() {
+                ui.separator();
+
+                // Default texture
                 let mut tex = editor.screen.elements[sel_idx]
                     .as_image()
                     .unwrap()
@@ -257,10 +230,8 @@ pub fn editor_panel_ui(
                         }
                     }
                 });
-            }
 
-            // Clicked texture (image "clicked" state)
-            if is_image {
+                // Clicked texture
                 let mut clicked_tex = editor.screen.elements[sel_idx]
                     .as_image()
                     .unwrap()
@@ -287,10 +258,93 @@ pub fn editor_panel_ui(
                         editor.dirty = true;
                     }
                 });
+
+                // States (advanced)
+                let state_keys: Vec<String> = editor.screen.elements[sel_idx]
+                    .as_image()
+                    .unwrap()
+                    .states
+                    .keys()
+                    .cloned()
+                    .collect();
+                ui.collapsing("All States", |ui| {
+                    let mut to_remove: Option<String> = None;
+                    for key in &state_keys {
+                        let mut tex = editor.screen.elements[sel_idx]
+                            .as_image()
+                            .unwrap()
+                            .states
+                            .get(key)
+                            .map(|s| s.texture.clone())
+                            .unwrap_or_default();
+                        ui.horizontal(|ui| {
+                            ui.label(key.as_str());
+                            if ui.text_edit_singleline(&mut tex).changed() {
+                                if let Some(state) = editor.screen.elements[sel_idx]
+                                    .as_image_mut()
+                                    .unwrap()
+                                    .states
+                                    .get_mut(key)
+                                {
+                                    state.texture = tex;
+                                    editor.dirty = true;
+                                }
+                            }
+                            if ui.small_button("\u{2715}").clicked() {
+                                to_remove = Some(key.clone());
+                            }
+                        });
+                    }
+                    if let Some(k) = to_remove {
+                        editor.screen.elements[sel_idx]
+                            .as_image_mut()
+                            .unwrap()
+                            .states
+                            .remove(&k);
+                        editor.dirty = true;
+                    }
+                    if ui.small_button("+ Add State").clicked() {
+                        let img = editor.screen.elements[sel_idx].as_image_mut().unwrap();
+                        let new_key = format!("state{}", img.states.len());
+                        img.states.insert(
+                            new_key,
+                            ElementState {
+                                texture: String::new(),
+                                condition: String::new(),
+                                transparent_color: String::new(),
+                            },
+                        );
+                        editor.dirty = true;
+                    }
+                });
+
+                // Actions
+                let on_click = editor.screen.elements[sel_idx].as_image().unwrap().on_click.clone();
+                let on_hover = editor.screen.elements[sel_idx].as_image().unwrap().on_hover.clone();
+                ui.collapsing("On Click", |ui| {
+                    let mut actions = on_click;
+                    let mut dirty = false;
+                    action_list_editor(ui, &mut actions, &mut dirty);
+                    if dirty {
+                        editor.screen.elements[sel_idx].as_image_mut().unwrap().on_click = actions;
+                        editor.dirty = true;
+                    }
+                });
+                ui.collapsing("On Hover", |ui| {
+                    let mut actions = on_hover;
+                    let mut dirty = false;
+                    action_list_editor(ui, &mut actions, &mut dirty);
+                    if dirty {
+                        editor.screen.elements[sel_idx].as_image_mut().unwrap().on_hover = actions;
+                        editor.dirty = true;
+                    }
+                });
             }
 
-            // Video (only for Video variant)
-            if is_video {
+            // -- Video fields --
+            if let Some(_vid) = editor.screen.elements[sel_idx].as_video() {
+                ui.separator();
+
                 let mut video_name = editor.screen.elements[sel_idx].as_video().unwrap().video.clone();
                 ui.horizontal(|ui| {
                     ui.label("Video:");
@@ -300,11 +354,11 @@ pub fn editor_panel_ui(
                     }
                 });
                 if !editor.screen.elements[sel_idx].as_video().unwrap().video.is_empty() {
-                    let mut looping = editor.screen.elements[sel_idx].as_video().unwrap().looping;
+                    let mut vid_loop = editor.screen.elements[sel_idx].as_video().unwrap().looping;
                     let mut skippable = editor.screen.elements[sel_idx].as_video().unwrap().skippable;
                     let mut changed = false;
                     ui.horizontal(|ui| {
-                        if ui.checkbox(&mut looping, "Loop").changed() {
+                        if ui.checkbox(&mut vid_loop, "Loop").changed() {
                             changed = true;
                         }
                         if ui.checkbox(&mut skippable, "Skippable").changed() {
@@ -313,15 +367,28 @@ pub fn editor_panel_ui(
                     });
                     if changed {
                         let vid = editor.screen.elements[sel_idx].as_video_mut().unwrap();
-                        vid.looping = looping;
+                        vid.looping = vid_loop;
                         vid.skippable = skippable;
                         editor.dirty = true;
                     }
                 }
+
+                let on_end = editor.screen.elements[sel_idx].as_video().unwrap().on_end.clone();
+                ui.collapsing("On End", |ui| {
+                    let mut actions = on_end;
+                    let mut dirty = false;
+                    action_list_editor(ui, &mut actions, &mut dirty);
+                    if dirty {
+                        editor.screen.elements[sel_idx].as_video_mut().unwrap().on_end = actions;
+                        editor.dirty = true;
+                    }
+                });
             }
 
-            // Text (only for Text variant)
+            // -- Text fields --
             if let Some(txt) = editor.screen.elements[sel_idx].as_text() {
+                ui.separator();
+
                 let mut source = txt.source.clone();
                 let mut font = txt.font.clone();
                 let mut color = txt.color.clone();
@@ -384,173 +451,12 @@ pub fn editor_panel_ui(
                 }
             }
 
+            // -- Debug --
             ui.separator();
-
-            // ── States (image-only) ─────────────────────────────────
-            if is_image {
-                ui.collapsing("States", |ui| {
-                    let mut to_remove: Option<String> = None;
-                    let mut to_add = false;
-
-                    for key in &state_keys {
-                        let mut tex = editor.screen.elements[sel_idx]
-                            .as_image()
-                            .unwrap()
-                            .states
-                            .get(key)
-                            .map(|s| s.texture.clone())
-                            .unwrap_or_default();
-                        ui.horizontal(|ui| {
-                            ui.label(key.as_str());
-                            if ui.text_edit_singleline(&mut tex).changed() {
-                                if let Some(state) = editor.screen.elements[sel_idx]
-                                    .as_image_mut()
-                                    .unwrap()
-                                    .states
-                                    .get_mut(key)
-                                {
-                                    state.texture = tex;
-                                    editor.dirty = true;
-                                }
-                            }
-                            if ui.small_button("\u{2715}").clicked() {
-                                to_remove = Some(key.clone());
-                            }
-                        });
-                    }
-                    if let Some(k) = to_remove {
-                        editor.screen.elements[sel_idx]
-                            .as_image_mut()
-                            .unwrap()
-                            .states
-                            .remove(&k);
-                        editor.dirty = true;
-                    }
-                    if ui.small_button("+ Add state").clicked() {
-                        to_add = true;
-                    }
-                    if to_add {
-                        let img = editor.screen.elements[sel_idx].as_image_mut().unwrap();
-                        let new_key = format!("state{}", img.states.len());
-                        img.states.insert(
-                            new_key,
-                            ElementState {
-                                texture: String::new(),
-                                condition: String::new(),
-                                transparent_color: String::new(),
-                            },
-                        );
-                        editor.dirty = true;
-                    }
-                });
-            }
-
-            // ── Actions (image-only) ─────────────────────────────────
-            if is_image {
-                ui.collapsing("on_click actions", |ui| {
-                    let mut to_remove: Option<usize> = None;
-                    for i in 0..actions_count {
-                        let mut action = editor.screen.elements[sel_idx].as_image().unwrap().on_click[i].clone();
-                        ui.horizontal(|ui| {
-                            if ui.text_edit_singleline(&mut action).changed() {
-                                editor.screen.elements[sel_idx].as_image_mut().unwrap().on_click[i] = action;
-                                editor.dirty = true;
-                            }
-                            if ui.small_button("\u{2715}").clicked() {
-                                to_remove = Some(i);
-                            }
-                        });
-                    }
-                    if let Some(i) = to_remove {
-                        editor.screen.elements[sel_idx]
-                            .as_image_mut()
-                            .unwrap()
-                            .on_click
-                            .remove(i);
-                        editor.dirty = true;
-                    }
-                    if ui.small_button("+ Add action").clicked() {
-                        editor.screen.elements[sel_idx]
-                            .as_image_mut()
-                            .unwrap()
-                            .on_click
-                            .push(String::new());
-                        editor.dirty = true;
-                    }
-                });
-
-                ui.collapsing("on_hover actions", |ui| {
-                    let mut to_remove: Option<usize> = None;
-                    for i in 0..hover_count {
-                        let mut action = editor.screen.elements[sel_idx].as_image().unwrap().on_hover[i].clone();
-                        ui.horizontal(|ui| {
-                            if ui.text_edit_singleline(&mut action).changed() {
-                                editor.screen.elements[sel_idx].as_image_mut().unwrap().on_hover[i] = action;
-                                editor.dirty = true;
-                            }
-                            if ui.small_button("\u{2715}").clicked() {
-                                to_remove = Some(i);
-                            }
-                        });
-                    }
-                    if let Some(i) = to_remove {
-                        editor.screen.elements[sel_idx]
-                            .as_image_mut()
-                            .unwrap()
-                            .on_hover
-                            .remove(i);
-                        editor.dirty = true;
-                    }
-                    if ui.small_button("+ Add action").clicked() {
-                        editor.screen.elements[sel_idx]
-                            .as_image_mut()
-                            .unwrap()
-                            .on_hover
-                            .push(String::new());
-                        editor.dirty = true;
-                    }
-                });
-            }
-
-            // ── on_end (video-only) ─────────────────────────────────
-            if is_video {
-                ui.collapsing("on_end actions", |ui| {
-                    let end_count = editor.screen.elements[sel_idx].as_video().unwrap().on_end.len();
-                    let mut to_remove: Option<usize> = None;
-                    for i in 0..end_count {
-                        let mut action = editor.screen.elements[sel_idx].as_video().unwrap().on_end[i].clone();
-                        ui.horizontal(|ui| {
-                            if ui.text_edit_singleline(&mut action).changed() {
-                                editor.screen.elements[sel_idx].as_video_mut().unwrap().on_end[i] = action;
-                                editor.dirty = true;
-                            }
-                            if ui.small_button("\u{2715}").clicked() {
-                                to_remove = Some(i);
-                            }
-                        });
-                    }
-                    if let Some(i) = to_remove {
-                        editor.screen.elements[sel_idx].as_video_mut().unwrap().on_end.remove(i);
-                        editor.dirty = true;
-                    }
-                    if ui.small_button("+ Add action").clicked() {
-                        editor.screen.elements[sel_idx]
-                            .as_video_mut()
-                            .unwrap()
-                            .on_end
-                            .push(String::new());
-                        editor.dirty = true;
-                    }
-                });
-            }
-
-            ui.separator();
-
-            // Debug label.
             let elem = &editor.screen.elements[sel_idx];
             let (w, h) = elem.size();
             let (px, py) = elem.position();
-            ui.small(format!("{}[{w:.0},{h:.0}]@({px:.0},{py:.0})", elem.id()));
+            ui.weak(format!("{}[{w:.0},{h:.0}]@({px:.0},{py:.0})", elem.id()));
         });
 
     // Save window position when dragged.
@@ -562,5 +468,30 @@ pub fn editor_panel_ui(
             cfg.editor_pos = Some(new_pos);
             cfg.save();
         }
+    }
+}
+
+/// Reusable action list editor (add/remove/edit string actions).
+fn action_list_editor(ui: &mut egui::Ui, actions: &mut Vec<String>, dirty: &mut bool) {
+    let mut to_remove: Option<usize> = None;
+    for i in 0..actions.len() {
+        let mut action = actions[i].clone();
+        ui.horizontal(|ui| {
+            if ui.text_edit_singleline(&mut action).changed() {
+                actions[i] = action;
+                *dirty = true;
+            }
+            if ui.small_button("\u{2715}").clicked() {
+                to_remove = Some(i);
+            }
+        });
+    }
+    if let Some(i) = to_remove {
+        actions.remove(i);
+        *dirty = true;
+    }
+    if ui.small_button("+ Add").clicked() {
+        actions.push(String::new());
+        *dirty = true;
     }
 }

@@ -55,13 +55,13 @@
         )),
         Text((
             id: "npc_greeting",
-            position: (8.0, 312.0),
-            size: (468.0, 40.0),
+            position: (8.0, 313.0),
+            size: (460.0, 39.0),
             z: 3,
             source: "npc_greeting",
             font: "smallnum",
             color: "white",
-            align: "left",
+            align: "center",
         )),
         Image((
             id: "icons/BUTTESC1",
