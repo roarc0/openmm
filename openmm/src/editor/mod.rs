@@ -1,8 +1,8 @@
 mod browser;
 pub mod canvas;
+mod editor_panel;
 mod element_editor;
 mod guides;
-mod inspector;
 pub mod io;
 
 use bevy::prelude::*;
@@ -78,7 +78,7 @@ impl Plugin for EditorPlugin {
                 EguiPrimaryContextPass,
                 (
                     browser::browser_ui,
-                    inspector::inspector_ui,
+                    editor_panel::editor_panel_ui,
                     editor_toolbar,
                     canvas::draw_overlays,
                 )

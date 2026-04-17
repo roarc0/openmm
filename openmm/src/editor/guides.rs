@@ -28,37 +28,27 @@ fn default_label() -> String {
     String::new()
 }
 
-/// All editor guide lines — persisted to `assets/screens/guides.ron`.
-#[derive(Resource, Default, Serialize, Deserialize)]
+/// All editor guide lines — persisted in `openmm-editor.toml`.
+#[derive(Resource, Default)]
 pub struct Guides {
     pub lines: Vec<GuideLine>,
     /// Whether guides are visible on canvas.
-    #[serde(skip)]
     pub visible: bool,
 }
 
-const GUIDES_PATH: &str = "openmm/assets/screens/guides.ron";
-
 impl Guides {
     pub fn load() -> Self {
-        let mut guides: Guides = std::fs::read_to_string(GUIDES_PATH)
-            .ok()
-            .and_then(|s| ron::from_str(&s).ok())
-            .unwrap_or_default();
-        guides.visible = true;
-        guides
+        let cfg = super::io::EditorConfig::load();
+        Guides {
+            lines: cfg.guides,
+            visible: true,
+        }
     }
 
     pub fn save(&self) {
-        let pretty = ron::ser::PrettyConfig::default();
-        match ron::ser::to_string_pretty(self, pretty) {
-            Ok(s) => {
-                if let Err(e) = std::fs::write(GUIDES_PATH, s) {
-                    error!("Failed to save guides: {}", e);
-                }
-            }
-            Err(e) => error!("Failed to serialize guides: {}", e),
-        }
+        let mut cfg = super::io::EditorConfig::load();
+        cfg.guides = self.lines.clone();
+        cfg.save();
     }
 }
 

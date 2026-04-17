@@ -19,6 +19,8 @@ pub struct EditorConfig {
     pub browser_pos: Option<[f32; 2]>,
     #[serde(default)]
     pub edt_pos: Option<[f32; 2]>,
+    #[serde(default)]
+    pub guides: Vec<super::guides::GuideLine>,
 }
 
 impl EditorConfig {

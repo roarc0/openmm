@@ -10,7 +10,7 @@ use crate::screens::ElementState;
 use crate::screens::ScreenElement;
 
 /// Draw the editor egui window (always visible, anchored top-right).
-pub fn inspector_ui(
+pub fn editor_panel_ui(
     mut contexts: EguiContexts,
     mut editor: ResMut<EditorScreen>,
     selection: Res<Selection>,
