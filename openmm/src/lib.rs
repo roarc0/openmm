@@ -1,5 +1,5 @@
 use bevy::prelude::{App, AppExtStates, ClearColor, Color, Commands, Component, Entity, Plugin, Query, States, With};
-use engine::EngineConfigPlugin;
+use game::rendering::engine::EngineConfigPlugin;
 
 use assets::GameAssets;
 use game::InGamePlugin;
@@ -10,10 +10,7 @@ use system::save::GameSave;
 pub(crate) mod assets;
 #[cfg(feature = "editor")]
 pub(crate) mod editor;
-pub(crate) mod engine;
 pub(crate) mod game;
-pub mod input;
-pub(crate) mod log;
 pub(crate) mod prepare;
 pub(crate) mod screens;
 pub(crate) mod system;

@@ -172,7 +172,7 @@ pub(super) fn screen_keys(
     // Check keyboard shortcuts defined in all active screens.
     for screen in layers.screens.values() {
         for (key_name, action_strings) in &screen.keys {
-            if let Some(code) = crate::input::parse_key_code(key_name)
+            if let Some(code) = crate::game::controls::parse_key_code(key_name)
                 && keys.just_pressed(code)
             {
                 info!("screen key [{}]: {}", screen.id, key_name);

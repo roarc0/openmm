@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crate::APP_NAME;
 use crate::system::config::GameConfig;
-use crate::log::{log_level, log_level_name};
+use crate::system::log::{log_level, log_level_name};
 
 /// Converts an `fps_cap` config value into the framepace limiter strategy.
 /// 0 disables limiting entirely.

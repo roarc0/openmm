@@ -10,11 +10,11 @@ use crate::game::state::EventQueue;
 use crate::game::state::ui_state::{OverlayImage, UiMode, UiState};
 
 pub mod clickable;
-mod hover;
+mod hint;
 pub mod raycast;
 mod world_interact;
 
-use hover::hover_hint_system;
+use hint::hover_hint_system;
 use world_interact::{decoration_proximity_system, world_interact_system};
 
 /// Max ray distance for all outdoor interaction (billboards, decorations, BSP faces).

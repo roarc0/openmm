@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 pub(crate) mod actors;
 pub(crate) mod collision;
+pub(crate) mod controls;
 pub mod coords;
 pub(crate) mod indoor;
 pub(crate) mod interaction;

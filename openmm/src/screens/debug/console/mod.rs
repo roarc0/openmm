@@ -574,7 +574,7 @@ fn sync_config_to_scene(
     }
 
     for (entity, existing_dof) in camera_q.iter() {
-        if let Some(dof) = crate::engine::camera_dof(&cfg) {
+        if let Some(dof) = crate::game::rendering::engine::camera_dof(&cfg) {
             commands.entity(entity).insert(dof);
         } else if existing_dof.is_some() {
             commands

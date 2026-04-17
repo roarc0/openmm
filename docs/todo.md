@@ -19,8 +19,7 @@
 
 ## Package Restructuring (Master Plan)
 ### Phase 1: High-Level Organization
-- [x] **Infrastructure Move** — Move root `config.rs`, `save.rs` → `src/system/`
-- [ ] **Rendering Move**: Move root `engine.rs`, `fonts.rs` → `src/game/rendering/`
+- [x] **Rendering Move** — Move root `engine.rs` → `src/game/rendering/`
 - [x] **State Transition Rename** — Rename `src/states/` → `src/prepare/` (Transition/Loading states)
 
 ### Phase 2: Game Module Decoupling
@@ -31,7 +30,7 @@
     - [ ] `actor/`: Nest all monster/npc logic here (`actors/`, `npc_dialogue.rs`)
     - [ ] `decoration/`: Nest prop spawning logic
     - [ ] `sprite/`: Nest world-sprite registration logic (move from `src/game/sprites/`)
-- [ ] **Input & UI**: Create `src/game/input/` and move root `input.rs`, `interaction/`, and `debug/` into it.
+- [/] **Input & UI** — Create `src/game/controls/` and move `interaction/` into it (input.rs moved)
 
 ### Phase 3: Structural Refinements
 - [ ] **Scripting Split**: Split `scripting.rs` monolith → `src/game/state/scripting/` (Trigger vs Runtime)

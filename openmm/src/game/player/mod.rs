@@ -295,7 +295,7 @@ fn spawn_player(
             PlayerCamera,
             Camera3d::default(),
             SpatialListener::new(4.0),
-            crate::engine::camera_msaa(&cfg),
+            crate::game::rendering::engine::camera_msaa(&cfg),
             Transform::from_rotation(Quat::from_rotation_x(10.0_f32.to_radians())),
             Projection::Perspective(PerspectiveProjection {
                 // MM6 FOV: 75 degrees outdoor, 60 degrees indoor (from OpenEnroth)
@@ -309,16 +309,16 @@ fn spawn_player(
                 ..Default::default()
             }),
         ));
-        if let Some(fxaa) = crate::engine::camera_fxaa(&cfg) {
+        if let Some(fxaa) = crate::game::rendering::engine::camera_fxaa(&cfg) {
             cam.insert(fxaa);
         }
-        if let Some(smaa) = crate::engine::camera_smaa(&cfg) {
+        if let Some(smaa) = crate::game::rendering::engine::camera_smaa(&cfg) {
             cam.insert(smaa);
         }
-        if let Some(taa) = crate::engine::camera_taa(&cfg) {
+        if let Some(taa) = crate::game::rendering::engine::camera_taa(&cfg) {
             cam.insert(taa);
         }
-        if let Some(bloom) = crate::engine::camera_bloom(&cfg) {
+        if let Some(bloom) = crate::game::rendering::engine::camera_bloom(&cfg) {
             cam.insert(bloom);
         }
         // Depth prepass is required by SSAO and DoF (both sample the depth buffer).
@@ -329,13 +329,13 @@ fn spawn_player(
         if cfg.ssao {
             cam.insert(bevy::core_pipeline::prepass::NormalPrepass);
         }
-        if let Some(ssao) = crate::engine::camera_ssao(&cfg) {
+        if let Some(ssao) = crate::game::rendering::engine::camera_ssao(&cfg) {
             cam.insert(ssao);
         }
-        if let Some(motion_blur) = crate::engine::camera_motion_blur(&cfg) {
+        if let Some(motion_blur) = crate::game::rendering::engine::camera_motion_blur(&cfg) {
             cam.insert(motion_blur);
         }
-        if let Some(dof) = crate::engine::camera_dof(&cfg) {
+        if let Some(dof) = crate::game::rendering::engine::camera_dof(&cfg) {
             cam.insert(dof);
         }
         // Always apply tonemapping + exposure for consistent physically-based rendering.
@@ -343,10 +343,10 @@ fn spawn_player(
         let tonemapping = if cfg.bloom && cfg.tonemapping == "none" {
             bevy::core_pipeline::tonemapping::Tonemapping::AgX
         } else {
-            crate::engine::camera_tonemapping(&cfg)
+            crate::game::rendering::engine::camera_tonemapping(&cfg)
         };
         cam.insert(tonemapping);
-        cam.insert(crate::engine::camera_exposure(&cfg));
+        cam.insert(crate::game::rendering::engine::camera_exposure(&cfg));
         if !is_indoor {
             // Outdoor: horizon haze blending into sky colour.
             cam.insert(DistanceFog {
