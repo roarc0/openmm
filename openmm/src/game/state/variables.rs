@@ -7,7 +7,7 @@
 use bevy::prelude::*;
 use openmm_data::enums::EvtVariable;
 
-use crate::game::party::Party;
+use crate::game::player::party::Party;
 
 use super::state::GameVariables;
 

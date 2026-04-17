@@ -9,7 +9,7 @@ use openmm_data::evt::{EvtFile, EvtStep, GameEvent};
 
 use crate::GameState;
 use crate::assets::GameAssets;
-use crate::game::party::Party;
+use crate::game::player::party::Party;
 use crate::game::sprites::material::SpriteMaterial;
 
 /// Bundles save + state transition to stay within Bevy's 16-param system limit.

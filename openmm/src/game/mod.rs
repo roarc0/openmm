@@ -8,7 +8,6 @@ pub(crate) mod indoor;
 pub(crate) mod interaction;
 pub(crate) mod optional;
 pub(crate) mod outdoor;
-pub(crate) mod party;
 pub(crate) mod player;
 pub(crate) mod rendering;
 pub(crate) mod sound;
@@ -84,7 +83,7 @@ impl Plugin for MapPlugin {
 struct GameplayPlugin;
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((player::PlayerPlugin, actors::ActorsPlugin, party::PartyPlugin));
+        app.add_plugins((player::PlayerPlugin, actors::ActorsPlugin, player::party::PartyPlugin));
     }
 }
 
