@@ -72,15 +72,15 @@ pub(super) struct ScreenCrosshair;
 
 /// Tags an entity as belonging to a specific screen layer.
 #[derive(Component, Clone)]
-pub(super) struct ScreenLayer(pub(super) String);
+pub(crate) struct ScreenLayer(pub(crate) String);
 
 /// Maps a Bevy entity to a screen element index within its layer.
 #[derive(Component)]
-pub(super) struct RuntimeElement {
-    pub(super) screen_id: String,
-    pub(super) index: usize,
+pub(crate) struct RuntimeElement {
+    pub(crate) screen_id: String,
+    pub(crate) index: usize,
     /// The RON element `id` field — for ShowSprite/HideSprite lookup.
-    pub(super) element_id: String,
+    pub(crate) element_id: String,
 }
 
 #[derive(Component)]
