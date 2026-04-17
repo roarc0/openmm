@@ -43,10 +43,31 @@
             on_hover: [],
             bindings: {},
         )),
+        Text((
+            id: "npc_name",
+            position: (497.0, 100.0),
+            size: (120.0, 14.0),
+            z: 3,
+            source: "npc_name",
+            font: "smallnum",
+            color: "blue",
+            align: "center",
+        )),
+        Text((
+            id: "npc_greeting",
+            position: (10.0, 314.0),
+            size: (468.0, 40.0),
+            z: 3,
+            source: "npc_greeting",
+            font: "smallnum",
+            color: "white",
+            align: "left",
+        )),
     ],
     editor: (
         locked: [
             "icons/NPC001",
+            "npc_name",
         ],
     ),
 )

@@ -11,8 +11,9 @@ use crate::screens::runtime::RuntimeElement;
 use super::{UiMode, UiState};
 
 const NPC_SPEAK_SCREEN: &str = "npc_speak";
-/// Element ID of the portrait placeholder in npc_speak.ron.
+/// Element IDs of dynamic elements in npc_speak.ron.
 const PORTRAIT_ELEMENT_ID: &str = "icons/NPC001";
+// Future: const EVPAN_ELEMENT_ID: &str = "icons/EVPAN019"; — swap per-NPC panel
 
 pub struct NpcDialoguePlugin;
 

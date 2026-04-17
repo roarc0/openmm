@@ -283,6 +283,7 @@ pub(super) fn spawn_text_element(commands: &mut Commands, txt: &TextElement, lay
 pub(super) fn text_update(
     ui: Res<UiState>,
     world_state: Option<Res<crate::game::state::WorldState>>,
+    npc_profile: Option<Res<crate::game::actors::npc_dialogue::NpcProfile>>,
     loading_step: Option<Res<crate::prepare::loading::LoadingStep>>,
     game_fonts: Res<GameFonts>,
     mut images: ResMut<Assets<Image>>,
@@ -305,6 +306,17 @@ pub(super) fn text_update(
                 .as_ref()
                 .map_or(String::new(), |ws| ws.game_vars.food.to_string()),
             "loading_step" => loading_step.as_ref().map_or(String::new(), |s| s.label().to_string()),
+            "npc_name" => npc_profile.as_ref().map_or(String::new(), |p| {
+                if let Some(ref prof) = p.profession {
+                    format!("{} the {}", p.name, prof)
+                } else {
+                    p.name.clone()
+                }
+            }),
+            "npc_greeting" => npc_profile
+                .as_ref()
+                .and_then(|p| p.greeting_text.clone())
+                .unwrap_or_default(),
             _ => String::new(),
         };
 
