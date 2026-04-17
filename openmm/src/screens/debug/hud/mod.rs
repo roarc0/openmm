@@ -13,7 +13,7 @@ pub mod player;
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::world::is_outdoor;
+use crate::game::state::is_outdoor;
 
 use self::chart::*;
 use self::common::*;
@@ -65,7 +65,7 @@ impl Plugin for DebugHudPlugin {
 fn debug_setup(
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
-    mut world_state: ResMut<crate::game::world::WorldState>,
+    mut world_state: ResMut<crate::game::state::WorldState>,
     cfg: Res<GameConfig>,
     ui_assets: Res<crate::screens::ui_assets::UiAssets>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,

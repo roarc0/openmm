@@ -2,8 +2,8 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::world::is_indoor;
-use crate::game::world::ui_state::{UiMode, UiState};
+use crate::game::state::is_indoor;
+use crate::game::state::ui_state::{UiMode, UiState};
 
 mod doors;
 mod interact;

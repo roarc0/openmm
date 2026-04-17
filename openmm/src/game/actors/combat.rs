@@ -9,7 +9,7 @@ use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
 use crate::game::sprites::AnimationState;
-use crate::game::world::ui_state::{UiMode, UiState};
+use crate::game::state::ui_state::{UiMode, UiState};
 use openmm_data::ActorSoundSlot;
 
 /// Per-attack animation duration in seconds (approx 5 frames at 0.15s).
@@ -137,7 +137,7 @@ fn monster_die_system(
     mut actors: Query<(&mut Actor, &Transform, &mut AnimationState), Without<DyingTimer>>,
     mut commands: Commands,
     mut sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
-    mut world_state: Option<ResMut<crate::game::world::WorldState>>,
+    mut world_state: Option<ResMut<crate::game::state::WorldState>>,
 ) {
     for KillActorEvent(entity) in kill_events.read() {
         let Ok((mut actor, transform, mut anim_state)) = actors.get_mut(*entity) else {

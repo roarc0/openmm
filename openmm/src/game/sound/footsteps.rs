@@ -4,8 +4,8 @@ use openmm_data::dtile::Tileset;
 use super::SoundManager;
 use crate::game::InGame;
 use crate::game::player::Player;
-use crate::game::world::is_outdoor;
-use crate::states::loading::PreparedWorld;
+use crate::game::state::is_outdoor;
+use crate::prepare::loading::PreparedWorld;
 
 /// Base terrain suffix used to build footstep sound names ("Walk<Suffix>" / "Run<Suffix>").
 fn terrain_suffix(tileset: Tileset) -> &'static str {
@@ -52,7 +52,7 @@ fn footstep_system(
     prepared: Res<PreparedWorld>,
     player_query: Query<&Transform, With<Player>>,
     cfg: Res<crate::config::GameConfig>,
-    world_state: Res<crate::game::world::WorldState>,
+    world_state: Res<crate::game::state::WorldState>,
     mut state: Local<FootstepState>,
 ) {
     let Ok(player_tf) = player_query.single() else { return };

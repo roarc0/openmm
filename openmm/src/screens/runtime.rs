@@ -19,7 +19,7 @@ pub struct ScreenRuntimePlugin;
 impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
         use super::elements::{text_update, update_screen_crosshair};
-        use super::screen_interaction::{
+        use super::interaction::{
             click_flash_tick, hover_actions, process_pending_actions, pulse_animate, pulse_hover, screen_click,
             screen_hover, screen_keys,
         };

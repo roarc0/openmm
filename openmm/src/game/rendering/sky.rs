@@ -11,8 +11,8 @@ use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::InGame;
 use crate::game::player::PlayerCamera;
-use crate::game::world::{is_indoor, is_outdoor};
-use crate::states::loading::PreparedWorld;
+use crate::game::state::{is_indoor, is_outdoor};
+use crate::prepare::loading::PreparedWorld;
 
 /// Marker for the sky dome entity.
 #[derive(Component)]
@@ -179,7 +179,7 @@ fn follow_camera(
 
 /// Update the clear color (sky background) based on time of day.
 /// Outdoor only — gated by `run_if` on `PreparedIndoorWorld` absence.
-fn update_sky_color(mut clear_color: ResMut<ClearColor>, game_time: Res<crate::game::world::GameTime>) {
+fn update_sky_color(mut clear_color: ResMut<ClearColor>, game_time: Res<crate::game::state::GameTime>) {
     let tod = game_time.time_of_day();
 
     let day_amount = 1.0 - (tod * 2.0 - 1.0).abs();
@@ -204,7 +204,7 @@ fn update_sky_color(mut clear_color: ResMut<ClearColor>, game_time: Res<crate::g
 /// `cfg.visible_sun` toggle is a single uniform write — no recompile needed.
 fn update_sky_sun_dir(
     mut sky_materials: ResMut<Assets<SkyMaterial>>,
-    game_time: Res<crate::game::world::GameTime>,
+    game_time: Res<crate::game::state::GameTime>,
     cfg: Res<crate::config::GameConfig>,
 ) {
     let dir = crate::game::rendering::lighting::sun_direction_from_time(game_time.time_of_day());

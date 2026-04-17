@@ -107,7 +107,7 @@ impl Plugin for GameTimePlugin {
         app.init_resource::<GameTime>().add_systems(
             Update,
             advance_game_time.run_if(in_state(GameState::Game)).run_if(
-                |ui: Res<crate::game::world::ui_state::UiState>| ui.mode == crate::game::world::ui_state::UiMode::World,
+                |ui: Res<crate::game::state::ui_state::UiState>| ui.mode == crate::game::state::ui_state::UiMode::World,
             ),
         );
     }

@@ -7,7 +7,7 @@ use crate::config::GameConfig;
 use crate::game::collision::{
     BuildingColliders, MAX_STEP_UP, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
 };
-use crate::states::loading::PreparedIndoorWorld;
+use crate::prepare::loading::PreparedIndoorWorld;
 
 use super::{
     MouseLookEnabled, MouseSensitivity, Player, PlayerCamera, PlayerKeyBindings, PlayerPhysics, PlayerSettings,
@@ -50,7 +50,7 @@ fn right_stick_with_fallback(gp: &Gamepad) -> Vec2 {
 pub(super) fn toggle_run_mode(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<PlayerKeyBindings>,
-    mut world_state: ResMut<crate::game::world::WorldState>,
+    mut world_state: ResMut<crate::game::state::WorldState>,
 ) {
     if keys.just_pressed(key_bindings.toggle_run) {
         world_state.player.is_running = !world_state.player.is_running;
@@ -63,7 +63,7 @@ pub(super) fn toggle_fly_mode(
     key_bindings: Res<PlayerKeyBindings>,
     gamepads: Query<&Gamepad>,
     physics_query: Query<&PlayerPhysics, With<Player>>,
-    mut world_state: ResMut<crate::game::world::WorldState>,
+    mut world_state: ResMut<crate::game::state::WorldState>,
 ) {
     let gamepad_toggle = gamepads.iter().any(|gp| gp.just_pressed(GamepadButton::Select));
     if keys.just_pressed(key_bindings.toggle_fly) || gamepad_toggle {
@@ -139,7 +139,7 @@ pub(super) fn player_movement(
     settings: Res<PlayerSettings>,
     cfg: Res<GameConfig>,
     key_bindings: Res<PlayerKeyBindings>,
-    world_state: Res<crate::game::world::WorldState>,
+    world_state: Res<crate::game::state::WorldState>,
     speed_mul: Res<SpeedMultiplier>,
     indoor_world: Option<Res<PreparedIndoorWorld>>,
     height_map: Option<Res<TerrainHeightMap>>,

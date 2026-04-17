@@ -4,8 +4,8 @@ use crate::game::indoor::OccluderFaces;
 use crate::game::player::PlayerCamera;
 use crate::game::spatial_index::EntitySpatialIndex;
 use crate::game::sprites::loading::SpriteSheet;
-use crate::game::world::MapEvents;
-use crate::game::world::ui_state::UiState;
+use crate::game::state::MapEvents;
+use crate::game::state::ui_state::UiState;
 
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
@@ -25,10 +25,10 @@ pub(crate) fn hover_hint_system(
     mut footer: ResMut<UiState>,
     ui_hovered: Option<Res<crate::screens::runtime::ScreenUiHovered>>,
     cfg: Res<GameConfig>,
-    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]
-    let _start = crate::game::debug::perf_log::perf_start();
+    let _start = crate::screens::debug::perf_log::perf_start();
 
     let ui_hovered = ui_hovered.as_ref().map(|r| r.0).unwrap_or(false);
     let Ok((cam_global, _)) = camera_query.single() else {
@@ -175,6 +175,6 @@ pub(crate) fn hover_hint_system(
 
     #[cfg(feature = "perf_log")]
     {
-        perf.time_hover_hint_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+        perf.time_hover_hint_us += crate::screens::debug::perf_log::perf_elapsed_us(_start);
     }
 }

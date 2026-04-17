@@ -4,20 +4,21 @@ use engine::EngineConfigPlugin;
 use assets::GameAssets;
 use config::GameConfig;
 use game::InGamePlugin;
+use prepare::loading::LoadingPlugin;
 use save::GameSave;
-use states::loading::LoadingPlugin;
+use screens::fonts::GameFonts;
 
 pub(crate) mod assets;
 pub mod config;
 #[cfg(feature = "editor")]
 pub(crate) mod editor;
 pub(crate) mod engine;
-pub(crate) mod fonts;
 pub(crate) mod game;
 pub mod input;
+pub(crate) mod log;
+pub(crate) mod prepare;
 pub(crate) mod save;
 pub(crate) mod screens;
-pub(crate) mod states;
 
 const APP_NAME: &str = "openmm";
 
@@ -37,7 +38,7 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         let cfg = GameConfig::load();
         let game_assets = GameAssets::new(openmm_data::get_data_path().into()).expect("unable to load game data files");
-        let game_fonts = fonts::GameFonts::load(&game_assets);
+        let game_fonts = screens::fonts::GameFonts::load(&game_assets);
         let save_data = GameSave::load_or_default();
 
         let editor_mode = cfg.editor;

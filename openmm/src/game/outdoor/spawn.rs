@@ -8,7 +8,7 @@ use bevy::prelude::*;
 
 use crate::game::optional::OptionalWrite;
 use crate::game::sprites::material::SpriteMaterial;
-use crate::states::loading::PreparedWorld;
+use crate::prepare::loading::PreparedWorld;
 
 use super::bsp;
 use super::spawn_terrain;

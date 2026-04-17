@@ -9,7 +9,7 @@ use crate::game::collision::{
 };
 use crate::game::coords::mm6_fixed_normal_to_bevy;
 use crate::game::player::{Player, PlayerPhysics, PlayerSettings};
-use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
+use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
 
 pub struct PhysicsPlugin;
 
@@ -19,8 +19,8 @@ impl Plugin for PhysicsPlugin {
             .add_systems(
                 Update,
                 gravity_system.run_if(in_state(GameState::Game)).run_if(
-                    |ui: Res<crate::game::world::ui_state::UiState>| {
-                        ui.mode == crate::game::world::ui_state::UiMode::World
+                    |ui: Res<crate::game::state::ui_state::UiState>| {
+                        ui.mode == crate::game::state::ui_state::UiMode::World
                     },
                 ),
             );
@@ -143,7 +143,7 @@ fn gravity_system(
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
     settings: Res<PlayerSettings>,
-    world_state: Res<crate::game::world::WorldState>,
+    world_state: Res<crate::game::state::WorldState>,
     mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
 ) {
     // Need at least one ground source

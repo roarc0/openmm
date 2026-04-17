@@ -79,7 +79,7 @@ pub(super) fn apply_texture_outdoors(
                 reflectance: 0.2,
                 specular_tint: Color::srgb(1.0, 0.95, 0.85),
                 metallic: 0.0,
-                emissive: crate::states::loading::texture_emissive(&ev.texture_name),
+                emissive: crate::prepare::loading::texture_emissive(&ev.texture_name),
                 ..default()
             };
             let h = materials.add(new_mat);

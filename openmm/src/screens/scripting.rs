@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use crate::game::world::state::GameVariables;
+use crate::game::state::state::GameVariables;
 
 /// Context for condition evaluation — game variables + config flags.
 pub struct ScriptContext<'a> {

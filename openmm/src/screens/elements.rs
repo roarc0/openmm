@@ -12,8 +12,8 @@ use super::{
 };
 use crate::assets::GameAssets;
 use crate::config::GameConfig;
-use crate::fonts::GameFonts;
-use crate::game::world::ui_state::UiState;
+use super::fonts::GameFonts;
+use crate::game::state::ui_state::UiState;
 use crate::screens::ui_assets::UiAssets;
 
 // ── Element spawning ────────────────────────────────────────────────────────
@@ -282,8 +282,8 @@ pub(super) fn spawn_text_element(commands: &mut Commands, txt: &TextElement, lay
 /// Read data sources, re-render text when content changes, reposition every frame.
 pub(super) fn text_update(
     ui: Res<UiState>,
-    world_state: Option<Res<crate::game::world::WorldState>>,
-    loading_step: Option<Res<crate::states::loading::LoadingStep>>,
+    world_state: Option<Res<crate::game::state::WorldState>>,
+    loading_step: Option<Res<crate::prepare::loading::LoadingStep>>,
     game_fonts: Res<GameFonts>,
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,

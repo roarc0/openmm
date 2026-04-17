@@ -13,7 +13,7 @@ use crate::game::spawn::SpawnCtx;
 use crate::game::spawn::decoration::{DecSpriteCache, spawn_decoration};
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
-use crate::states::loading::PreparedWorld;
+use crate::prepare::loading::PreparedWorld;
 
 use super::spawn_actors::{spawn_npc_actors, spawn_odm_monsters};
 
@@ -82,7 +82,7 @@ pub(super) fn lazy_spawn(
     mut sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
-    mut map_events: Option<ResMut<crate::game::world::MapEvents>>,
+    mut map_events: Option<ResMut<crate::game::state::MapEvents>>,
     cfg: Res<crate::config::GameConfig>,
 ) {
     let Some(mut pending) = pending else {

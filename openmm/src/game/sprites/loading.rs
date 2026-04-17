@@ -547,10 +547,10 @@ pub fn update_sprite_sheets(
         Option<&FacingYaw>,
         &Visibility,
     )>,
-    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]
-    let _start = crate::game::debug::perf_log::perf_start();
+    let _start = crate::screens::debug::perf_log::perf_start();
 
     let Ok(camera_gt) = camera_query.single() else {
         return;
@@ -675,7 +675,7 @@ pub fn update_sprite_sheets(
 
     #[cfg(feature = "perf_log")]
     {
-        perf.time_sprite_update_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+        perf.time_sprite_update_us += crate::screens::debug::perf_log::perf_elapsed_us(_start);
     }
 }
 

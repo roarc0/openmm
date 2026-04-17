@@ -13,10 +13,10 @@ use bevy::window::{PrimaryWindow, WindowMode};
 use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::InGame;
-use crate::game::debug::hud::DebugHud;
+use crate::screens::debug::hud::DebugHud;
 use crate::game::outdoor::OdmName;
 use crate::game::rendering::viewport::viewport_inner_rect;
-use crate::game::world::WorldState;
+use crate::game::state::WorldState;
 use crate::save::GameSave;
 use crate::screens::ui_assets::UiAssets;
 use openmm_data::utils::MapName;
@@ -178,7 +178,7 @@ fn console_input(
     mut cfg: ResMut<GameConfig>,
     mut wireframe_config: ResMut<WireframeConfig>,
     game_assets: Res<crate::GameAssets>,
-    mut game_time: ResMut<crate::game::world::GameTime>,
+    mut game_time: ResMut<crate::game::state::GameTime>,
     mut speed_mul: ResMut<crate::game::player::SpeedMultiplier>,
 ) {
     if !state.open {
@@ -313,7 +313,7 @@ fn execute_command(
     cfg: &mut GameConfig,
     wireframe_config: &mut WireframeConfig,
     game_assets: &crate::GameAssets,
-    game_time: &mut crate::game::world::GameTime,
+    game_time: &mut crate::game::state::GameTime,
     speed_mul: &mut crate::game::player::SpeedMultiplier,
 ) {
     let parts: Vec<&str> = cmd.split_whitespace().collect();

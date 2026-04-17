@@ -16,8 +16,8 @@ use crate::game::optional::OptionalWrite;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::sprites::material::SpriteMaterial;
-use crate::game::world::ui_state::{OverlayImage, UiMode, UiState};
-use crate::states::loading::LoadRequest;
+use crate::game::state::ui_state::{self, UiMode, UiState};
+use crate::prepare::loading::LoadRequest;
 
 use super::events::MapEvents;
 use super::scripting::{AudioParams, EventQueue, MapEntityParams, TransitionParams};
@@ -78,9 +78,7 @@ pub(super) fn handle_speak_in_house(
         .and_then(|me| super::events::resolve_building_image(house_id, me, game_assets, images))
         .or_else(|| game_assets.load_icon("evt02", images));
     if let Some(image) = image {
-        commands.insert_resource(OverlayImage { image });
-        ui.mode = UiMode::Building;
-        crate::game::world::ui_state::grab_cursor(cursor_query, false);
+        ui_state::set_overlay_mode(commands, ui, cursor_query, image, UiMode::Building);
     }
 }
 
@@ -103,9 +101,7 @@ pub(super) fn handle_open_chest(
         {
             audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
         }
-        commands.insert_resource(OverlayImage { image });
-        ui.mode = UiMode::Chest;
-        crate::game::world::ui_state::grab_cursor(cursor_query, false);
+        ui_state::set_overlay_mode(commands, ui, cursor_query, image, UiMode::Chest);
     }
 }
 
@@ -272,7 +268,6 @@ pub(super) fn handle_speak_npc(
     ) {
         commands.insert_resource(portrait);
         commands.insert_resource(profile);
-        ui.mode = UiMode::NpcDialogue;
-        crate::game::world::ui_state::grab_cursor(cursor_query, false);
+        ui_state::set_ui_mode(ui, cursor_query, UiMode::NpcDialogue);
     }
 }

@@ -27,7 +27,7 @@ use crate::game::optional::OptionalWrite;
 use crate::game::outdoor::ApplyTextureOutdoors;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
-use crate::game::world::ui_state::UiState;
+use crate::game::state::ui_state::UiState;
 
 /// Bundles map entity queries to stay within Bevy's 16-param system limit.
 /// Wraps the decoration sprite-swap query and actor visibility/flag query.
@@ -236,7 +236,7 @@ fn process_events(
     mut entities: MapEntityParams,
 ) {
     // Don't process events while a UI overlay is blocking
-    if !matches!(ui.mode, crate::game::world::ui_state::UiMode::World) {
+    if !matches!(ui.mode, crate::game::state::ui_state::UiMode::World) {
         return;
     }
 

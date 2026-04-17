@@ -30,7 +30,7 @@ use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
 use crate::game::sprites::{AnimationState, WorldEntity};
-use crate::game::world::ui_state::{UiMode, UiState};
+use crate::game::state::ui_state::{UiMode, UiState};
 use openmm_data::ActorSoundSlot;
 
 /// Heading offsets (degrees) probed when the direct path is blocked and the
@@ -169,10 +169,10 @@ fn monster_ai_system(
         ),
     >,
     mut sounds: Option<MessageWriter<PlayOnceSoundEvent>>,
-    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]
-    let _start = crate::game::debug::perf_log::perf_start();
+    let _start = crate::screens::debug::perf_log::perf_start();
 
     let Ok(player_tf) = player.single() else {
         return;
@@ -379,7 +379,7 @@ fn monster_ai_system(
     {
         perf.ai_iter += ai_count.load(std::sync::atomic::Ordering::Relaxed);
         perf.ai_steer_calls += steer_count.load(std::sync::atomic::Ordering::Relaxed);
-        perf.time_ai_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+        perf.time_ai_us += crate::screens::debug::perf_log::perf_elapsed_us(_start);
     }
 }
 

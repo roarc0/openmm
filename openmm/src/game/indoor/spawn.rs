@@ -8,7 +8,7 @@ use crate::game::spawn::SpawnCtx;
 use crate::game::spawn::actor::{ActorKind, ActorSpawnParams, spawn_actor};
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
-use crate::states::loading::PreparedIndoorWorld;
+use crate::prepare::loading::PreparedIndoorWorld;
 
 use super::types::{
     BlvDoors, DoorColliders, DoorCollisionFace, DoorFace, DoorRuntime, OccluderFaceInfo, OccluderFaces,

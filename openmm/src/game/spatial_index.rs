@@ -25,7 +25,7 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::player::Player;
 use crate::game::sprites::WorldEntity;
-use crate::game::world::ui_state::{UiMode, UiState};
+use crate::game::state::ui_state::{UiMode, UiState};
 
 /// World-space cell size. 1024 units ≈ 2 MM6 tiles.
 ///
@@ -98,10 +98,10 @@ pub fn rebuild_and_cull(
     player_query: Query<&GlobalTransform, With<Player>>,
     mut index: ResMut<EntitySpatialIndex>,
     mut entities: Query<(Entity, &GlobalTransform, &mut Visibility), With<WorldEntity>>,
-    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]
-    let _start = crate::game::debug::perf_log::perf_start();
+    let _start = crate::screens::debug::perf_log::perf_start();
 
     index.clear();
 
@@ -137,7 +137,7 @@ pub fn rebuild_and_cull(
 
     #[cfg(feature = "perf_log")]
     {
-        perf.time_spatial_rebuild_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+        perf.time_spatial_rebuild_us += crate::screens::debug::perf_log::perf_elapsed_us(_start);
     }
 }
 

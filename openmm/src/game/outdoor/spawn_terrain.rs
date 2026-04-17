@@ -5,7 +5,7 @@ use bevy::{
     shader::ShaderRef,
 };
 
-use crate::{game::InGame, states::loading::PreparedWorld};
+use crate::{game::InGame, prepare::loading::PreparedWorld};
 
 /// Type alias for the full terrain material (StandardMaterial + water extension).
 pub type TerrainMaterial = ExtendedMaterial<StandardMaterial, WaterExtension>;

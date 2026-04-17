@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use crate::game::spawn::SpawnCtx;
 use crate::game::spawn::actor::{ActorKind, ActorSpawnParams, spawn_actor};
-use crate::states::loading::PreparedWorld;
+use crate::prepare::loading::PreparedWorld;
 
 use super::lazy_spawn::PendingSpawns;
 
@@ -22,7 +22,7 @@ pub(super) fn spawn_npc_actors(
     terrain_entity: Entity,
     actor_idx: &mut usize,
     spawned: &mut usize,
-    map_events: &mut Option<ResMut<crate::game::world::MapEvents>>,
+    map_events: &mut Option<ResMut<crate::game::state::MapEvents>>,
 ) {
     let actor_len = p.actor_order.len();
     while *actor_idx < actor_len && *spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
@@ -84,7 +84,7 @@ pub(super) fn spawn_npc_actors(
         let ground_pos = Vec3::new(actor.position[0] as f32, ground_y, -(actor.position[1] as f32));
 
         let (display_name, effective_npc_id) = if actor.is_peasant {
-            let gid = crate::game::world::GENERATED_NPC_ID_BASE + i as i32;
+            let gid = crate::game::state::GENERATED_NPC_ID_BASE + i as i32;
             let name = map_events
                 .as_deref()
                 .and_then(|me| me.name_pool.as_ref())

@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 pub fn update_cpu_text(
     throttle: Res<HudThrottle>,
-    cpu_stats: Res<crate::game::debug::cpu_usage::CpuStats>,
+    cpu_stats: Res<crate::screens::debug::cpu_usage::CpuStats>,
     mut query: Query<&mut Text, With<CpuText>>,
 ) {
     if !throttle.0.just_finished() {

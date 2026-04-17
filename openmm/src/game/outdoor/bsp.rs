@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::game::coords::mm6_fixed_normal_to_bevy;
-use crate::states::loading::PreparedWorld;
+use crate::prepare::loading::PreparedWorld;
 
 use super::bsp_water::{BspWaterExtension, BspWaterMaterial, is_bsp_water_texture};
 use super::texture_swap::BspSubMesh;

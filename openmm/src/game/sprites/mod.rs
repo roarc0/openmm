@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::GameState;
 use crate::game::spatial_index::SpatialIndexSet;
-use crate::game::world::ui_state::{UiMode, UiState};
+use crate::game::state::ui_state::{UiMode, UiState};
 
 pub mod loading;
 pub mod material;
@@ -137,10 +137,10 @@ impl Plugin for SpritesPlugin {
 fn flicker_system(
     time: Res<Time>,
     mut query: Query<(&DecorFlicker, &mut Visibility)>,
-    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]
-    let _start = crate::game::debug::perf_log::perf_start();
+    let _start = crate::screens::debug::perf_log::perf_start();
 
     let elapsed = time.elapsed_secs();
     for (flicker, mut vis) in query.iter_mut() {
@@ -161,7 +161,7 @@ fn flicker_system(
 
     #[cfg(feature = "perf_log")]
     {
-        perf.time_flicker_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+        perf.time_flicker_us += crate::screens::debug::perf_log::perf_elapsed_us(_start);
     }
 }
 
@@ -174,10 +174,10 @@ fn billboard_face_camera(
         (&mut Transform, &GlobalTransform, &Visibility),
         (With<Billboard>, Without<loading::SpriteSheet>),
     >,
-    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::game::debug::perf_log::PerfCounters>,
+    #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]
-    let _start = crate::game::debug::perf_log::perf_start();
+    let _start = crate::screens::debug::perf_log::perf_start();
 
     let Ok(camera_gt) = camera_query.single() else {
         return;
@@ -212,7 +212,7 @@ fn billboard_face_camera(
 
     #[cfg(feature = "perf_log")]
     {
-        perf.time_billboard_face_us += crate::game::debug::perf_log::perf_elapsed_us(_start);
+        perf.time_billboard_face_us += crate::screens::debug::perf_log::perf_elapsed_us(_start);
     }
 }
 

@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use crate::APP_NAME;
 use crate::config::GameConfig;
+use crate::log::{log_level, log_level_name};
 
 /// Converts an `fps_cap` config value into the framepace limiter strategy.
 /// 0 disables limiting entirely.
@@ -62,7 +63,7 @@ impl Plugin for EngineConfigPlugin {
         // Build tracing filter: external crates → warn, our crates → configured level.
         // Format: "warn,openmm=info,lod=info"
         let level = log_level(&cfg);
-        let level_str = level_name(level);
+        let level_str = log_level_name(level);
         let log_filter = format!("warn,openmm={level_str},lod={level_str}");
 
         let plugins = DefaultPlugins
@@ -96,29 +97,6 @@ impl Plugin for EngineConfigPlugin {
             .add_plugins(FramepacePlugin)
             .insert_resource(initial_framepace)
             .add_systems(Update, sync_framepace_settings);
-    }
-}
-
-/// Returns the bevy log level from config.
-pub fn log_level(cfg: &GameConfig) -> bevy::log::Level {
-    match cfg.log_level.to_lowercase().as_str() {
-        "trace" => bevy::log::Level::TRACE,
-        "debug" => bevy::log::Level::DEBUG,
-        "info" => bevy::log::Level::INFO,
-        "warn" => bevy::log::Level::WARN,
-        "error" => bevy::log::Level::ERROR,
-        _ => bevy::log::Level::INFO,
-    }
-}
-
-/// Lowercase string form of a log level — for tracing filter directives.
-fn level_name(level: bevy::log::Level) -> &'static str {
-    match level {
-        bevy::log::Level::TRACE => "trace",
-        bevy::log::Level::DEBUG => "debug",
-        bevy::log::Level::INFO => "info",
-        bevy::log::Level::WARN => "warn",
-        bevy::log::Level::ERROR => "error",
     }
 }
 

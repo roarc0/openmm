@@ -12,7 +12,7 @@ use crate::config::GameConfig;
 use crate::game::InGame;
 use crate::game::collision::sample_terrain_height;
 use crate::save::GameSave;
-use crate::states::loading::{PreparedIndoorWorld, PreparedWorld};
+use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
 
 use input::{cursor_grab, player_look, player_movement, toggle_fly_mode, toggle_mouse_look, toggle_run_mode};
 
@@ -174,22 +174,22 @@ impl Plugin for PlayerPlugin {
                     .before(player_look)
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
-                    .run_if(crate::game::world::ui_state::game_input_active),
+                    .run_if(crate::game::state::ui_state::game_input_active),
             )
             .add_systems(
                 Update,
                 (player_movement, player_look, cursor_grab, log_gamepads)
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
-                    .run_if(crate::game::world::ui_state::game_input_active),
+                    .run_if(crate::game::state::ui_state::game_input_active),
             )
             // Torch visibility follows GameTime, which freezes while UiMode ≠ World.
             // Gate the system so it doesn't flicker the torch on/off during dialogues.
             .add_systems(
                 Update,
                 party_torch_system.run_if(in_state(GameState::Game)).run_if(
-                    |ui: Res<crate::game::world::ui_state::UiState>| {
-                        ui.mode == crate::game::world::ui_state::UiMode::World
+                    |ui: Res<crate::game::state::ui_state::UiState>| {
+                        ui.mode == crate::game::state::ui_state::UiMode::World
                     },
                 ),
             )
@@ -420,7 +420,7 @@ const TORCH_FILL_INTENSITY: f32 = 80_000_000.0;
 
 fn party_torch_system(
     indoor: Option<Res<PreparedIndoorWorld>>,
-    game_time: Option<Res<crate::game::world::GameTime>>,
+    game_time: Option<Res<crate::game::state::GameTime>>,
     mut torch_query: Query<&mut PointLight, With<PartyTorch>>,
     mut fill_query: Query<&mut PointLight, (With<PartyTorchFill>, Without<PartyTorch>)>,
 ) {
@@ -452,7 +452,7 @@ fn party_torch_system(
 
 /// Copy Player entity transform → WorldState every frame (PostUpdate).
 fn sync_player_to_world_state(
-    mut world_state: ResMut<crate::game::world::WorldState>,
+    mut world_state: ResMut<crate::game::state::WorldState>,
     player_query: Query<&Transform, With<Player>>,
 ) {
     if let Ok(transform) = player_query.single() {

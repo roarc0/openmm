@@ -6,9 +6,9 @@ use crate::game::indoor::OccluderFaces;
 use crate::game::player::PlayerCamera;
 use crate::game::spatial_index::EntitySpatialIndex;
 use crate::game::sprites::loading::SpriteSheet;
-use crate::game::world::EventQueue;
-use crate::game::world::WorldState;
-use crate::game::world::{GENERATED_NPC_ID_BASE, MapEvents};
+use crate::game::state::EventQueue;
+use crate::game::state::WorldState;
+use crate::game::state::{GENERATED_NPC_ID_BASE, MapEvents};
 
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
@@ -18,7 +18,7 @@ use super::{
 };
 use crate::config::GameConfig;
 use crate::game::player::Player;
-use crate::game::world::ui_state::UiState;
+use crate::game::state::ui_state::UiState;
 
 use bevy::ecs::system::SystemParam;
 

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use crate::game::debug::console::ConsoleState;
+use crate::screens::debug::console::ConsoleState;
 
 /// Run condition: game input is fully active — UiState mode is World and no console open.
 /// Use this on all player/world input systems instead of manual per-system checks.
@@ -20,6 +20,29 @@ pub fn grab_cursor(cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWind
             cursor.visible = true;
         }
     }
+}
+
+/// Transition to a UI mode that displays a fullscreen overlay image.
+/// Sets the mode, inserts the OverlayImage resource, and frees the cursor.
+pub fn set_overlay_mode(
+    commands: &mut Commands,
+    ui: &mut UiState,
+    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
+    image: Handle<Image>,
+    mode: UiMode,
+) {
+    commands.insert_resource(OverlayImage { image });
+    set_ui_mode(ui, cursor_query, mode);
+}
+
+/// Switch to a non-World UI mode and free the cursor.
+pub fn set_ui_mode(
+    ui: &mut UiState,
+    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
+    mode: UiMode,
+) {
+    ui.mode = mode;
+    grab_cursor(cursor_query, false);
 }
 
 /// Which view the HUD is currently displaying.

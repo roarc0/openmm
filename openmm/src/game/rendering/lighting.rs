@@ -8,8 +8,8 @@ use crate::game::outdoor::TerrainMaterial;
 use crate::game::player::Player;
 use crate::game::sprites::Billboard;
 use crate::game::sprites::tint_buffer::SpriteTintBuffers;
-use crate::game::world::ui_state::{UiMode, UiState};
-use crate::game::world::{CurrentMap, GameTime, is_outdoor};
+use crate::game::state::ui_state::{UiMode, UiState};
+use crate::game::state::{CurrentMap, GameTime, is_outdoor};
 
 // ── Decoration point lights ─────────────────────────────────────────────────
 
@@ -266,7 +266,7 @@ fn animate_day_cycle(
     mut terrain_materials: Option<ResMut<Assets<TerrainMaterial>>>,
     mut tint_buffers: ResMut<SpriteTintBuffers>,
     map: Res<CurrentMap>,
-    indoor: Option<Res<crate::states::loading::PreparedIndoorWorld>>,
+    indoor: Option<Res<crate::prepare::loading::PreparedIndoorWorld>>,
     // Non-billboard (terrain, BSP models) — toggled between lit/unlit on mode change.
     model_query: Query<&MeshMaterial3d<StandardMaterial>, Without<Billboard>>,
     mut sun_query: Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
@@ -357,7 +357,7 @@ fn update_sun_and_ambient(
     tod: f32,
     cfg: &GameConfig,
     is_indoor: bool,
-    indoor: Option<&crate::states::loading::PreparedIndoorWorld>,
+    indoor: Option<&crate::prepare::loading::PreparedIndoorWorld>,
     lighting_state: &mut LightingState,
     sun_query: &mut Query<(&mut Transform, &mut DirectionalLight), Without<Player>>,
     ambient_query: &mut Query<&mut AmbientLight, With<AmbientMarker>>,
@@ -414,7 +414,7 @@ fn update_sun_and_ambient(
 /// Uses `LightingState::last_sector_index` to short-circuit the common case
 /// where the player is still inside the previously-found sector.
 fn indoor_sector_ambient_brightness(
-    indoor: Option<&crate::states::loading::PreparedIndoorWorld>,
+    indoor: Option<&crate::prepare::loading::PreparedIndoorWorld>,
     player_query: &Query<&Transform, With<Player>>,
     lighting_state: &mut LightingState,
 ) -> f32 {
@@ -427,7 +427,7 @@ fn indoor_sector_ambient_brightness(
     };
     let pos = player_tf.translation;
 
-    let contains = |s: &crate::states::loading::SectorAmbient| {
+    let contains = |s: &crate::prepare::loading::SectorAmbient| {
         pos.x >= s.bbox_min.x
             && pos.x <= s.bbox_max.x
             && pos.y >= s.bbox_min.y

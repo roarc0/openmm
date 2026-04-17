@@ -11,11 +11,11 @@ pub const PLAY_WIDTH: f32 = openmm_data::odm::ODM_TILE_SCALE * openmm_data::odm:
 
 pub(super) fn check_map_boundary(
     mut commands: Commands,
-    mut world_state: ResMut<crate::game::world::WorldState>,
+    mut world_state: ResMut<crate::game::state::WorldState>,
     mut save_data: ResMut<crate::save::GameSave>,
     mut game_state: ResMut<NextState<GameState>>,
     player_query: Query<&Transform, With<crate::game::player::Player>>,
-    load_request: Option<Res<crate::states::loading::LoadRequest>>,
+    load_request: Option<Res<crate::prepare::loading::LoadRequest>>,
 ) {
     // Don't trigger boundary crossing if a map transition is already queued
     if load_request.is_some() {
@@ -64,7 +64,7 @@ pub(super) fn check_map_boundary(
     world_state.player.yaw = yaw;
     world_state.write_to_save(&mut save_data);
 
-    commands.insert_resource(crate::states::loading::LoadRequest {
+    commands.insert_resource(crate::prepare::loading::LoadRequest {
         map_name: world_state.map.name.clone(),
         spawn_position: None,
         spawn_yaw: None,

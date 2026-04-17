@@ -3,7 +3,6 @@ use bevy::prelude::*;
 pub(crate) mod actors;
 pub(crate) mod collision;
 pub mod coords;
-pub(crate) mod debug;
 pub(crate) mod indoor;
 pub(crate) mod interaction;
 pub(crate) mod optional;
@@ -15,7 +14,7 @@ pub(crate) mod sound;
 pub(crate) mod spatial_index;
 pub(crate) mod spawn;
 pub(crate) mod sprites;
-pub(crate) mod world;
+pub(crate) mod state;
 
 /// Marker component for all entities spawned during the Game state.
 /// Despawned automatically on OnExit(Game).
@@ -34,12 +33,12 @@ impl Plugin for InGamePlugin {
     fn build(&self, app: &mut App) {
         // UiMode initialized at top level so run conditions like
         // `|ui: Res<UiState>| ui.mode == UiMode::World` (if implemented) never fail.
-        app.init_resource::<world::ui_state::UiState>()
-            .add_systems(Update, world::ui_state::tick_footer_text)
+        app.init_resource::<state::ui_state::UiState>()
+            .add_systems(Update, state::ui_state::tick_footer_text)
             .add_plugins((
                 RenderingPlugin,
                 MapPlugin,
-                world::WorldPlugin,
+                state::WorldPlugin,
                 GameplayPlugin,
                 UiPlugin,
                 AudioPlugin,
@@ -93,8 +92,8 @@ struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            debug::DebugPlugin,
-            debug::console::ConsolePlugin,
+            crate::screens::debug::DebugPlugin,
+            crate::screens::debug::console::ConsolePlugin,
             interaction::InteractionPlugin,
         ))
         // Viewport clipping — keeps the 3D camera inside the HUD frame.

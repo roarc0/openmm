@@ -125,7 +125,7 @@ fn compass_scroll(
 fn minimap_scroll(
     player_q: Query<&Transform, With<Player>>,
     windows: Query<&Window, With<PrimaryWindow>>,
-    world_state: Option<Res<crate::game::world::WorldState>>,
+    world_state: Option<Res<crate::game::state::WorldState>>,
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     cfg: Res<GameConfig>,
@@ -267,7 +267,7 @@ fn arrow_update(
 fn tap_update(
     mut query: Query<&mut ImageNode, With<TapBinding>>,
     tap_handles: Option<Res<TapHandles>>,
-    game_time: Option<Res<crate::game::world::time::GameTime>>,
+    game_time: Option<Res<crate::game::state::time::GameTime>>,
     game_assets: Res<GameAssets>,
     mut ui_assets: ResMut<UiAssets>,
     mut images: ResMut<Assets<Image>>,
@@ -330,7 +330,7 @@ fn tap_update(
 /// frame is shown, it stays visible.
 fn loading_anim_update(
     time: Res<Time>,
-    loading_step: Option<Res<crate::states::loading::LoadingStep>>,
+    loading_step: Option<Res<crate::prepare::loading::LoadingStep>>,
     mut anim: Local<Option<LoadingAnimState>>,
     mut query: Query<(&LoadingFrameBinding, &mut Visibility)>,
 ) {

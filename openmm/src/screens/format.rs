@@ -407,10 +407,10 @@ impl TextElement {
 
     pub fn color_rgba(&self) -> [u8; 4] {
         match self.color.as_str() {
-            "yellow" => crate::fonts::YELLOW,
-            "red" => crate::fonts::RED,
-            "green" => crate::fonts::GREEN,
-            _ => crate::fonts::WHITE,
+            "yellow" => super::fonts::YELLOW,
+            "red" => super::fonts::RED,
+            "green" => super::fonts::GREEN,
+            _ => super::fonts::WHITE,
         }
     }
 }

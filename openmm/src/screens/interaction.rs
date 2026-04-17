@@ -222,8 +222,8 @@ pub(super) fn process_pending_actions(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
-    world_state: Option<Res<crate::game::world::WorldState>>,
-    mut event_queue: Option<ResMut<crate::game::world::scripting::EventQueue>>,
+    world_state: Option<Res<crate::game::state::WorldState>>,
+    mut event_queue: Option<ResMut<crate::game::state::scripting::EventQueue>>,
     _time: Res<Time>,
 ) {
     use super::scripting::Action;
@@ -235,7 +235,7 @@ pub(super) fn process_pending_actions(
         let action_strings = event.actions.clone();
 
         // Build script context from available resources.
-        let default_vars = crate::game::world::state::GameVariables::default();
+        let default_vars = crate::game::state::state::GameVariables::default();
         let vars = world_state.as_ref().map(|ws| &ws.game_vars).unwrap_or(&default_vars);
         let config_flags = build_config_flags(&cfg);
         let ctx = super::scripting::ScriptContext {
@@ -356,7 +356,7 @@ fn build_config_flags(cfg: &GameConfig) -> std::collections::HashSet<String> {
 }
 
 /// Proxy an `evt:` action string to the EVT EventQueue.
-fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::world::scripting::EventQueue) {
+fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::state::scripting::EventQueue) {
     use openmm_data::evt::GameEvent;
 
     let s = evt_str.trim();

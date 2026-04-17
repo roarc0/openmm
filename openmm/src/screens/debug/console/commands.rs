@@ -11,9 +11,9 @@ use crate::GameState;
 use crate::config::GameConfig;
 use crate::game::outdoor::{OdmName, PLAY_WIDTH};
 use crate::game::player::SpeedMultiplier;
-use crate::game::world::{GameTime, WorldState};
+use crate::game::state::{GameTime, WorldState};
 use crate::save::GameSave;
-use crate::states::loading::LoadRequest;
+use crate::prepare::loading::LoadRequest;
 use openmm_data::utils::MapName;
 
 // --- Map loading ---
