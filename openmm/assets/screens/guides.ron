@@ -1,0 +1,24 @@
+(
+    lines: [
+        (
+            axis: Horizontal,
+            position: 8.0,
+            label: "",
+        ),
+        (
+            axis: Horizontal,
+            position: 352.0,
+            label: "",
+        ),
+        (
+            axis: Vertical,
+            position: 8.0,
+            label: "",
+        ),
+        (
+            axis: Vertical,
+            position: 468.0,
+            label: "",
+        ),
+    ],
+)

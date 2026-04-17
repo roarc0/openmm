@@ -1,0 +1,19 @@
+(
+    id: "options_main",
+    elements: [
+        Image((
+            id: "icons/Options",
+            position: (9.0, 8.0),
+            size: (460.0, 344.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/Options",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+    ],
+)

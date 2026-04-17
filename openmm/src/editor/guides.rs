@@ -62,9 +62,9 @@ impl Guides {
     }
 }
 
-/// Guide line color — cyan dashed, easy to spot against dark backgrounds.
-const GUIDE_COLOR: egui::Color32 = egui::Color32::from_rgba_premultiplied(0, 200, 220, 180);
-const GUIDE_LABEL_COLOR: egui::Color32 = egui::Color32::from_rgba_premultiplied(0, 200, 220, 140);
+/// Guide line color — red dashed, easy to spot against dark backgrounds.
+const GUIDE_COLOR: egui::Color32 = egui::Color32::from_rgba_premultiplied(220, 50, 50, 180);
+const GUIDE_LABEL_COLOR: egui::Color32 = egui::Color32::from_rgba_premultiplied(220, 50, 50, 140);
 const DASH_LEN: f32 = 6.0;
 const GAP_LEN: f32 = 4.0;
 
@@ -126,69 +126,61 @@ fn draw_dashed_line(painter: &egui::Painter, from: egui::Pos2, to: egui::Pos2, s
     }
 }
 
-/// Egui panel for managing guide lines. Shows in the toolbar area.
-pub fn guides_panel(ctx: &egui::Context, guides: &mut Guides) {
-    egui::Window::new("Guides")
-        .id(egui::Id::new("guides_panel"))
-        .resizable(false)
-        .anchor(egui::Align2::RIGHT_TOP, egui::vec2(-4.0, 4.0))
-        .show(ctx, |ui| {
-            ui.checkbox(&mut guides.visible, "Show guides");
-            ui.separator();
+/// Draw guides section inline inside a parent `egui::Ui` (collapsible).
+pub fn guides_section(ui: &mut egui::Ui, guides: &mut Guides) {
+    ui.checkbox(&mut guides.visible, "Show guides");
 
-            let mut to_remove = None;
-            let mut changed = false;
-            for (i, guide) in guides.lines.iter_mut().enumerate() {
-                ui.horizontal(|ui| {
-                    let axis_label = match guide.axis {
-                        GuideAxis::Horizontal => "H",
-                        GuideAxis::Vertical => "V",
-                    };
-                    ui.label(axis_label);
-                    if ui
-                        .add(egui::DragValue::new(&mut guide.position).speed(1.0).suffix("px"))
-                        .changed()
-                    {
-                        changed = true;
-                    }
-                    if ui
-                        .add(egui::TextEdit::singleline(&mut guide.label).desired_width(60.0))
-                        .changed()
-                    {
-                        changed = true;
-                    }
-                    if ui.small_button("x").clicked() {
-                        to_remove = Some(i);
-                    }
-                });
-            }
-            if let Some(i) = to_remove {
-                guides.lines.remove(i);
+    let mut to_remove = None;
+    let mut changed = false;
+    for (i, guide) in guides.lines.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
+            let axis_label = match guide.axis {
+                GuideAxis::Horizontal => "H",
+                GuideAxis::Vertical => "V",
+            };
+            ui.label(axis_label);
+            if ui
+                .add(egui::DragValue::new(&mut guide.position).speed(1.0).suffix("px"))
+                .changed()
+            {
                 changed = true;
             }
-
-            ui.separator();
-            ui.horizontal(|ui| {
-                if ui.button("+ H").clicked() {
-                    guides.lines.push(GuideLine {
-                        axis: GuideAxis::Horizontal,
-                        position: REF_H / 2.0,
-                        label: String::new(),
-                    });
-                    changed = true;
-                }
-                if ui.button("+ V").clicked() {
-                    guides.lines.push(GuideLine {
-                        axis: GuideAxis::Vertical,
-                        position: REF_W / 2.0,
-                        label: String::new(),
-                    });
-                    changed = true;
-                }
-            });
-
-            if changed {
-                guides.save();
+            if ui
+                .add(egui::TextEdit::singleline(&mut guide.label).desired_width(60.0))
+                .changed()
+            {
+                changed = true;
+            }
+            if ui.small_button("x").clicked() {
+                to_remove = Some(i);
             }
         });
+    }
+    if let Some(i) = to_remove {
+        guides.lines.remove(i);
+        changed = true;
+    }
+
+    ui.horizontal(|ui| {
+        if ui.button("+ H").clicked() {
+            guides.lines.push(GuideLine {
+                axis: GuideAxis::Horizontal,
+                position: REF_H / 2.0,
+                label: String::new(),
+            });
+            changed = true;
+        }
+        if ui.button("+ V").clicked() {
+            guides.lines.push(GuideLine {
+                axis: GuideAxis::Vertical,
+                position: REF_W / 2.0,
+                label: String::new(),
+            });
+            changed = true;
+        }
+    });
+
+    if changed {
+        guides.save();
+    }
 }

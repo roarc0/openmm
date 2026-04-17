@@ -1,0 +1,19 @@
+(
+    id: "options_controls_menu",
+    elements: [
+        Image((
+            id: "icons/controlbg",
+            position: (10.0, 125.0),
+            size: (460.0, 220.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/controlbg",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+    ],
+)

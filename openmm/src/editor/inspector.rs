@@ -1,18 +1,24 @@
-//! egui inspector panel: edit selected element properties.
+//! egui editor panel: screen properties, element editing, and guide lines.
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
 use super::canvas::EditorScreen;
 use super::canvas::Selection;
+use super::guides::Guides;
 use crate::screens::ElementState;
 use crate::screens::ScreenElement;
 
-/// Draw the inspector egui window (always visible, anchored top-right).
-pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>, selection: Res<Selection>) {
+/// Draw the editor egui window (always visible, anchored top-right).
+pub fn inspector_ui(
+    mut contexts: EguiContexts,
+    mut editor: ResMut<EditorScreen>,
+    selection: Res<Selection>,
+    mut guides: ResMut<Guides>,
+) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
-    egui::Window::new("Inspector")
+    egui::Window::new("Editor")
         .anchor(egui::Align2::RIGHT_TOP, egui::Vec2::new(-10.0, 10.0))
         .resizable(true)
         .default_width(240.0)
@@ -108,6 +114,13 @@ pub fn inspector_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>
                     editor.dirty = true;
                 }
             });
+
+            // ── Guides ─────────────────────────────────────────────
+            ui.collapsing("Guides", |ui| {
+                super::guides::guides_section(ui, &mut guides);
+            });
+
+            ui.separator();
 
             if ui.small_button("+ Add Text").clicked() {
                 let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
