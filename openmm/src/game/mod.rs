@@ -35,11 +35,11 @@ impl Plugin for InGamePlugin {
             .add_plugins((
                 RenderingPlugin,
                 MapPlugin,
-                state::WorldPlugin,
+                state::GameStatePlugin,
                 events::EventDispatchPlugin,
                 GameplayPlugin,
                 UiPlugin,
-                AudioPlugin,
+                sound::SoundPlugin,
             ));
     }
 }
@@ -97,13 +97,5 @@ impl Plugin for UiPlugin {
             Update,
             rendering::viewport::update_viewport.run_if(in_state(crate::GameState::Game)),
         );
-    }
-}
-
-/// Audio: sound effects, music, spatial audio.
-struct AudioPlugin;
-impl Plugin for AudioPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(sound::SoundPlugin);
     }
 }

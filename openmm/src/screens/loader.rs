@@ -29,6 +29,18 @@ pub fn load_screen(id: &str) -> Result<Screen, String> {
     ron::from_str(&contents).map_err(|e| format!("RON parse error {}: {e}", path.display()))
 }
 
+/// Delete a screen's .ron file by ID.
+pub fn delete_screen(id: &str) {
+    let path = screen_path(id);
+    if path.exists() {
+        if let Err(e) = fs::remove_file(&path) {
+            bevy::log::warn!("failed to delete old screen file {}: {e}", path.display());
+        } else {
+            bevy::log::info!("deleted old screen file {}", path.display());
+        }
+    }
+}
+
 pub fn save_screen(screen: &Screen) -> Result<(), String> {
     let _ = fs::create_dir_all(SCREENS_DIR);
     let path = screen_path(&screen.id);

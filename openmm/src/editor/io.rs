@@ -5,7 +5,7 @@ use std::fs;
 
 use serde::{Deserialize, Serialize};
 
-pub use crate::screens::{Screen, list_screens, load_screen, save_screen, screen_path};
+pub use crate::screens::{Screen, delete_screen, list_screens, load_screen, save_screen, screen_path};
 
 const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";
 

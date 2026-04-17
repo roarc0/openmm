@@ -12,6 +12,10 @@ fn editor_section_is_empty(s: &EditorSection) -> bool {
     s.locked.is_empty()
 }
 
+fn is_default_kind(k: &ScreenKind) -> bool {
+    matches!(k, ScreenKind::Base)
+}
+
 fn is_zero(v: &f32) -> bool {
     *v == 0.0
 }
@@ -158,10 +162,26 @@ impl<'de> serde::Deserialize<'de> for Sound {
     }
 }
 
+/// Screen layer kind — controls stacking priority and mutual exclusivity.
+///
+/// - `Hud`: persistent layer, lowest key priority (e.g. playing, ingame)
+/// - `Modal`: exclusive overlay, highest key priority (e.g. options_main, npc_speak)
+/// - `Base`: default — splash screens, menus
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ScreenKind {
+    #[default]
+    Base,
+    Hud,
+    Modal,
+}
+
 /// A UI screen definition — the root of a .screen.ron file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Screen {
     pub id: String,
+    /// Screen layer kind — controls key priority and stacking behavior.
+    #[serde(default, skip_serializing_if = "is_default_kind")]
+    pub kind: ScreenKind,
     /// Background music track (e.g. "15" or Sound(id: "15", start_sec: 1.5, looping: true)).
     #[serde(
         default,
@@ -433,6 +453,7 @@ impl Screen {
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),
+            kind: ScreenKind::default(),
             sound: Sound::None,
             keys: BTreeMap::new(),
             on_load: Vec::new(),

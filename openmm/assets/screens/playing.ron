@@ -1,14 +1,23 @@
 (
     id: "playing",
+    kind: Hud,
+    keys: {
+        "Escape": [
+            "ShowScreen(\"options_main\")",
+        ],
+    },
     elements: [
         Image((
-            id: "BUTTBK1",
-            position: (496.0, 270.0),
+            id: "icons/BUTTBK1",
+            position: (495.0, 270.0),
             size: (31.0, 72.0),
-            z: 0,
+            z: 14,
             states: {
+                "clicked": (
+                    texture: "icons/BUTTBK1",
+                ),
                 "default": (
-                    texture: "BUTTBK1",
+                    texture: "",
                 ),
             },
             on_click: [],
@@ -72,12 +81,15 @@
         )),
         Image((
             id: "icons/BUTTBK2",
-            position: (527.0, 270.0),
+            position: (526.0, 270.0),
             size: (31.0, 71.0),
             z: 14,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/BUTTBK2",
+                ),
+                "default": (
+                    texture: "",
                 ),
             },
             on_click: [],
@@ -88,12 +100,15 @@
         )),
         Image((
             id: "icons/BUTTBK3",
-            position: (558.0, 270.0),
+            position: (557.0, 270.0),
             size: (32.0, 71.0),
-            z: 15,
+            z: 14,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/BUTTBK3",
+                ),
+                "default": (
+                    texture: "",
                 ),
             },
             on_click: [],
@@ -104,12 +119,15 @@
         )),
         Image((
             id: "icons/BUTTBK4",
-            position: (590.0, 270.0),
+            position: (589.0, 270.0),
             size: (31.0, 71.0),
             z: 16,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/BUTTBK4",
+                ),
+                "default": (
+                    texture: "",
                 ),
             },
             on_click: [],
@@ -123,11 +141,11 @@
         locked: [
             "minimap",
             "icons/MAPDIR2",
-            "BUTTBK1",
             "icons/COMPASS",
-            "icons/BUTTBK2",
-            "icons/BUTTBK3",
             "icons/BUTTBK4",
+            "icons/BUTTBK3",
+            "icons/BUTTBK2",
+            "icons/BUTTBK1",
         ],
     ),
 )

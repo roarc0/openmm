@@ -156,7 +156,7 @@ pub(super) fn screen_click(
             continue;
         };
         let elem = &screen.elements[rt_elem.index];
-        if elem.on_click().is_empty() {
+        if elem.on_click().is_empty() && clicked_tex.is_none() {
             continue;
         }
 
@@ -183,8 +183,15 @@ pub(super) fn screen_keys(
     layers: Res<ScreenLayers>,
     mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
-    // Check keyboard shortcuts defined in all active screens.
+    // Check keyboard shortcuts — Modal screens block lower-priority screens.
+    use crate::screens::ScreenKind;
+    let has_modal = layers.screens.values().any(|s| s.kind == ScreenKind::Modal);
+
     for screen in layers.screens.values() {
+        // When a Modal screen is active, only Modal screens handle keys.
+        if has_modal && screen.kind != ScreenKind::Modal {
+            continue;
+        }
         for (key_name, action_strings) in &screen.keys {
             if let Some(code) = crate::game::controls::parse_key_code(key_name)
                 && keys.just_pressed(code)
@@ -220,7 +227,10 @@ pub(super) fn click_flash_tick(
 
         // Restore default texture or visibility.
         if let Some(ct) = clicked_tex {
-            image_node.image = ct.default.clone();
+            match ct.default {
+                Some(ref default) => image_node.image = default.clone(),
+                None => *image_node = ImageNode::default(),
+            }
         } else {
             *vis = Visibility::Inherited;
         }

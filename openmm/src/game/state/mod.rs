@@ -10,9 +10,9 @@ pub use time::GameTime;
 use bevy::prelude::*;
 
 /// Core world state plugin: time and persistent state.
-pub struct WorldPlugin;
+pub struct GameStatePlugin;
 
-impl Plugin for WorldPlugin {
+impl Plugin for GameStatePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((time::GameTimePlugin, state::WorldStatePlugin));
     }

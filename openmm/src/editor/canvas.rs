@@ -97,6 +97,8 @@ fn generate_stripes(images: &mut Assets<Image>) -> Handle<Image> {
 pub struct EditorScreen {
     pub screen: Screen,
     pub dirty: bool,
+    /// ID at load time — used to detect renames and delete the old .ron file on save.
+    pub original_id: Option<String>,
 }
 
 /// Marker component on each spawned element node.
@@ -500,7 +502,7 @@ pub fn draw_overlays(
 
     // Event editor window — one at a time, for the selected element.
     if selection.edt_open {
-        super::element_editor::draw_event_editor(ctx, &mut editor, &mut selection);
+        super::element_editor::draw_element_editor(ctx, &mut editor, &mut selection);
     }
     // Variant editor window.
     if selection.var_open {
@@ -618,7 +620,7 @@ pub fn selection_system(
 
     let new_sel = best.map(|(idx, _)| idx);
     if new_sel != selection.index {
-        selection.edt_open = false;
+        selection.edt_open = new_sel.is_some();
         selection.var_open = false;
         selection.preview_state = None;
     }
@@ -921,9 +923,16 @@ pub fn tab_cycle_system(keys: Res<ButtonInput<KeyCode>>, editor: Res<EditorScree
 pub fn save_shortcut_system(keys: Res<ButtonInput<KeyCode>>, mut editor: ResMut<EditorScreen>) {
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     if ctrl && keys.just_pressed(KeyCode::KeyS) {
+        // Delete old file if screen was renamed.
+        if let Some(old) = &editor.original_id {
+            if *old != editor.screen.id {
+                io::delete_screen(old);
+            }
+        }
         match io::save_screen(&editor.screen) {
             Ok(()) => {
                 editor.dirty = false;
+                editor.original_id = Some(editor.screen.id.clone());
                 info!("screen '{}' saved", editor.screen.id);
             }
             Err(e) => error!("save failed: {e}"),

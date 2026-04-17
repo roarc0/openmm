@@ -1,5 +1,6 @@
 (
     id: "npc_speak",
+    kind: Modal,
     elements: [
         Image((
             id: "icons/EVPAN019",
@@ -69,12 +70,19 @@
             size: (61.0, 28.0),
             z: 7,
             states: {
+                "clicked": (
+                    texture: "icons/BUTTESC2",
+                ),
                 "default": (
                     texture: "icons/BUTTESC1",
                 ),
             },
-            on_click: [],
-            on_hover: [],
+            on_click: [
+                "evt:NpcSpeakClose()",
+            ],
+            on_hover: [
+                "evt:Hint(\"close\")",
+            ],
             bindings: {},
             transparent_color: "cyan",
         )),

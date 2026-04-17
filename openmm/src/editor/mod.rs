@@ -47,7 +47,14 @@ impl Plugin for EditorPlugin {
             .init_resource::<browser::BrowserState>()
             .init_resource::<UiVisible>()
             .init_resource::<canvas::OverlayAction>()
-            .insert_resource(canvas::EditorScreen { screen, dirty: false })
+            .insert_resource({
+                let original_id = Some(screen.id.clone());
+                canvas::EditorScreen {
+                    screen,
+                    dirty: false,
+                    original_id,
+                }
+            })
             .init_resource::<canvas::ElementEditorState>()
             .insert_resource(guides::Guides::load())
             .add_systems(OnEnter(GameState::Editor), editor_setup)
@@ -132,6 +139,7 @@ fn editor_toolbar(
                 if ui.button("New").clicked() {
                     editor.screen = Screen::new("untitled");
                     editor.dirty = false;
+                    editor.original_id = None;
                     editor_state.hidden.clear();
                     io::set_last_screen("untitled");
                 }
@@ -147,6 +155,7 @@ fn editor_toolbar(
                                         Ok(s) => {
                                             editor.screen = s;
                                             editor.dirty = false;
+                                            editor.original_id = Some(name.to_string());
                                             editor_state.hidden.clear();
                                             io::set_last_screen(name);
                                             info!("loaded screen '{name}'");
@@ -162,9 +171,16 @@ fn editor_toolbar(
 
                 if ui.button("Save").clicked() {
                     editor.screen.prune_locked_elements();
+                    // Delete old file if screen was renamed.
+                    if let Some(old) = &editor.original_id {
+                        if *old != editor.screen.id {
+                            io::delete_screen(old);
+                        }
+                    }
                     match io::save_screen(&editor.screen) {
                         Ok(()) => {
                             editor.dirty = false;
+                            editor.original_id = Some(editor.screen.id.clone());
                             info!("screen '{}' saved", editor.screen.id);
                         }
                         Err(e) => error!("save failed: {e}"),

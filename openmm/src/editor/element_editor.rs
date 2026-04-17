@@ -1,48 +1,63 @@
-//! Event editor and variant editor windows extracted from canvas overlays.
+//! Element editor window — all properties for the selected element.
+//!
+//! Common fields (ID, pos, size, z) + type-specific fields (texture, text, video).
 
 use bevy_inspector_egui::bevy_egui::egui;
 
 use super::canvas::{EditorScreen, Selection};
-use crate::screens::ElementState;
-use crate::screens::TRANSPARENCY_OPTIONS;
+use crate::screens::{ElementState, ScreenElement, TRANSPARENCY_OPTIONS};
 
-/// Draw the event editor window for the selected element.
-/// Returns true if the window was closed this frame.
-pub fn draw_event_editor(ctx: &egui::Context, editor: &mut EditorScreen, selection: &mut Selection) {
+/// Draw the element editor window for the selected element.
+pub fn draw_element_editor(ctx: &egui::Context, editor: &mut EditorScreen, selection: &mut Selection) {
     let Some(sel) = selection.index else { return };
     if sel >= editor.screen.elements.len() {
         return;
     }
 
+    let kind = match &editor.screen.elements[sel] {
+        ScreenElement::Image(_) => "Image",
+        ScreenElement::Video(_) => "Video",
+        ScreenElement::Text(_) => "Text",
+    };
     let elem_id = editor.screen.elements[sel].id().to_string();
+
     let mut open = true;
-    let evt_id = egui::Id::new("edt_editor");
-    let mut win = egui::Window::new("Edit")
-        .id(evt_id)
+    let win_id = egui::Id::new("edt_editor");
+    let mut win = egui::Window::new(format!("{} — {}", kind, elem_id))
+        .id(win_id)
         .resizable(true)
-        .collapsible(false)
+        .collapsible(true)
         .default_width(320.0)
         .open(&mut open);
-    // Restore position from config on first open.
     let cfg = super::io::EditorConfig::load();
     if let Some([x, y]) = cfg.edt_pos {
         win = win.default_pos(egui::pos2(x, y));
     }
     win.show(ctx, |ui| {
-        ui.strong(&elem_id);
+        draw_common_fields(ui, editor, sel);
         ui.separator();
 
-        draw_video_properties(ui, editor, sel);
-        draw_image_transparency(ui, editor, sel);
-        draw_image_actions(ui, editor, sel);
-        draw_video_actions(ui, editor, sel);
-        draw_image_bindings(ui, editor, sel);
+        match &editor.screen.elements[sel] {
+            ScreenElement::Image(_) => {
+                draw_image_textures(ui, editor, sel);
+                draw_image_transparency(ui, editor, sel);
+                draw_image_actions(ui, editor, sel);
+                draw_image_bindings(ui, editor, sel);
+            }
+            ScreenElement::Video(_) => {
+                draw_video_properties(ui, editor, sel);
+                draw_video_actions(ui, editor, sel);
+            }
+            ScreenElement::Text(_) => {
+                draw_text_fields(ui, editor, sel);
+            }
+        }
     });
     if !open {
         selection.edt_open = false;
     }
     // Save position on drag.
-    if let Some(rect) = ctx.memory(|m: &egui::Memory| m.area_rect(evt_id)) {
+    if let Some(rect) = ctx.memory(|m: &egui::Memory| m.area_rect(win_id)) {
         let pos = rect.left_top();
         let mut cfg = super::io::EditorConfig::load();
         let new_pos = [pos.x, pos.y];
@@ -93,7 +108,7 @@ pub fn draw_variant_editor(ctx: &egui::Context, editor: &mut EditorScreen, selec
                     let img = editor.screen.elements[sel].as_image().unwrap();
                     let mut tex = img.states.get(key).map(|s| s.texture.clone()).unwrap_or_default();
                     ui.horizontal(|ui| {
-                        ui.label("texture:");
+                        ui.label("Texture:");
                         if ui.text_edit_singleline(&mut tex).changed() {
                             if let Some(state) = editor.screen.elements[sel].as_image_mut().unwrap().states.get_mut(key)
                             {
@@ -106,7 +121,7 @@ pub fn draw_variant_editor(ctx: &egui::Context, editor: &mut EditorScreen, selec
                     let img = editor.screen.elements[sel].as_image().unwrap();
                     let mut cond = img.states.get(key).map(|s| s.condition.clone()).unwrap_or_default();
                     ui.horizontal(|ui| {
-                        ui.label("condition:");
+                        ui.label("Condition:");
                         if ui.text_edit_singleline(&mut cond).changed() {
                             if let Some(state) = editor.screen.elements[sel].as_image_mut().unwrap().states.get_mut(key)
                             {
@@ -147,6 +162,247 @@ pub fn draw_variant_editor(ctx: &egui::Context, editor: &mut EditorScreen, selec
 }
 
 // ── Private helpers ──────────────────────────────────────────────────────────
+
+/// Common element fields: ID, position, size, z-order.
+fn draw_common_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
+    let mut elem_id = editor.screen.elements[sel].id().to_string();
+    let mut pos = editor.screen.elements[sel].position();
+    let mut size = editor.screen.elements[sel].size();
+    let mut z = editor.screen.elements[sel].z();
+
+    ui.horizontal(|ui| {
+        ui.label("ID:");
+        if ui.text_edit_singleline(&mut elem_id).changed() {
+            match &mut editor.screen.elements[sel] {
+                ScreenElement::Image(img) => img.id = elem_id.clone(),
+                ScreenElement::Video(vid) => vid.id = elem_id.clone(),
+                ScreenElement::Text(txt) => txt.id = elem_id.clone(),
+            }
+            editor.dirty = true;
+        }
+    });
+
+    let mut pos_changed = false;
+    ui.horizontal(|ui| {
+        ui.label("Pos:");
+        pos_changed |= ui
+            .add(egui::DragValue::new(&mut pos.0).prefix("x: ").speed(1.0))
+            .changed();
+        pos_changed |= ui
+            .add(egui::DragValue::new(&mut pos.1).prefix("y: ").speed(1.0))
+            .changed();
+    });
+    if pos_changed {
+        editor.screen.elements[sel].set_position(pos);
+        editor.dirty = true;
+    }
+
+    let mut size_changed = false;
+    ui.horizontal(|ui| {
+        ui.label("Size:");
+        size_changed |= ui
+            .add(egui::DragValue::new(&mut size.0).prefix("w: ").speed(1.0))
+            .changed();
+        size_changed |= ui
+            .add(egui::DragValue::new(&mut size.1).prefix("h: ").speed(1.0))
+            .changed();
+    });
+    if size_changed {
+        editor.screen.elements[sel].set_size(size);
+        editor.dirty = true;
+    }
+
+    ui.horizontal(|ui| {
+        ui.label("Z:");
+        if ui.add(egui::DragValue::new(&mut z).speed(1.0)).changed() {
+            editor.screen.elements[sel].set_z(z);
+            editor.dirty = true;
+        }
+    });
+}
+
+/// Image texture fields: default texture, clicked texture, all states.
+fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
+    let Some(_img) = editor.screen.elements[sel].as_image() else {
+        return;
+    };
+
+    // Default texture (may not exist — e.g. image only has a clicked state)
+    let mut tex = editor.screen.elements[sel]
+        .as_image()
+        .unwrap()
+        .states
+        .get("default")
+        .map(|s| s.texture.clone())
+        .unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.label("Default Texture:");
+        if ui.text_edit_singleline(&mut tex).changed() {
+            let img = editor.screen.elements[sel].as_image_mut().unwrap();
+            if tex.is_empty() {
+                img.states.remove("default");
+            } else {
+                img.states
+                    .entry("default".to_string())
+                    .and_modify(|s| s.texture = tex.clone())
+                    .or_insert(ElementState {
+                        texture: tex,
+                        condition: String::new(),
+                        transparent_color: String::new(),
+                    });
+            }
+            editor.dirty = true;
+        }
+    });
+
+    // Clicked texture
+    let mut clicked_tex = editor.screen.elements[sel]
+        .as_image()
+        .unwrap()
+        .states
+        .get("clicked")
+        .map(|s| s.texture.clone())
+        .unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.label("Clicked Texture:");
+        if ui.text_edit_singleline(&mut clicked_tex).changed() {
+            let img = editor.screen.elements[sel].as_image_mut().unwrap();
+            if clicked_tex.is_empty() {
+                img.states.remove("clicked");
+            } else {
+                img.states
+                    .entry("clicked".to_string())
+                    .and_modify(|s| s.texture = clicked_tex.clone())
+                    .or_insert(ElementState {
+                        texture: clicked_tex,
+                        condition: String::new(),
+                        transparent_color: String::new(),
+                    });
+            }
+            editor.dirty = true;
+        }
+    });
+
+    // All states (advanced)
+    let state_keys: Vec<String> = editor.screen.elements[sel]
+        .as_image()
+        .unwrap()
+        .states
+        .keys()
+        .cloned()
+        .collect();
+    ui.collapsing("All States", |ui| {
+        let mut to_remove: Option<String> = None;
+        for key in &state_keys {
+            let mut tex = editor.screen.elements[sel]
+                .as_image()
+                .unwrap()
+                .states
+                .get(key)
+                .map(|s| s.texture.clone())
+                .unwrap_or_default();
+            ui.horizontal(|ui| {
+                ui.label(key.as_str());
+                if ui.text_edit_singleline(&mut tex).changed() {
+                    if let Some(state) = editor.screen.elements[sel].as_image_mut().unwrap().states.get_mut(key) {
+                        state.texture = tex;
+                        editor.dirty = true;
+                    }
+                }
+                if ui.small_button("\u{2715}").clicked() {
+                    to_remove = Some(key.clone());
+                }
+            });
+        }
+        if let Some(k) = to_remove {
+            editor.screen.elements[sel].as_image_mut().unwrap().states.remove(&k);
+            editor.dirty = true;
+        }
+        if ui.small_button("+ Add State").clicked() {
+            let img = editor.screen.elements[sel].as_image_mut().unwrap();
+            let new_key = format!("state{}", img.states.len());
+            img.states.insert(
+                new_key,
+                ElementState {
+                    texture: String::new(),
+                    condition: String::new(),
+                    transparent_color: String::new(),
+                },
+            );
+            editor.dirty = true;
+        }
+    });
+
+    ui.separator();
+}
+
+/// Text element fields: source, font, color, alignment.
+fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
+    let Some(txt) = editor.screen.elements[sel].as_text() else {
+        return;
+    };
+
+    let mut source = txt.source.clone();
+    let mut font = txt.font.clone();
+    let mut color = txt.color.clone();
+    let mut align = txt.align.clone();
+    let mut changed = false;
+
+    ui.horizontal(|ui| {
+        ui.label("Source:");
+        egui::ComboBox::from_id_salt("txt_source")
+            .selected_text(&source)
+            .show_ui(ui, |ui| {
+                for &s in crate::screens::TEXT_SOURCES {
+                    if ui.selectable_label(source == s, s).clicked() {
+                        source = s.to_string();
+                        changed = true;
+                    }
+                }
+            });
+    });
+    ui.horizontal(|ui| {
+        ui.label("Font:");
+        if ui.text_edit_singleline(&mut font).changed() {
+            changed = true;
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.label("Color:");
+        egui::ComboBox::from_id_salt("txt_color")
+            .selected_text(&color)
+            .show_ui(ui, |ui| {
+                for &c in crate::screens::TEXT_COLORS {
+                    if ui.selectable_label(color == c, c).clicked() {
+                        color = c.to_string();
+                        changed = true;
+                    }
+                }
+            });
+    });
+    ui.horizontal(|ui| {
+        ui.label("Align:");
+        egui::ComboBox::from_id_salt("txt_align")
+            .selected_text(&align)
+            .show_ui(ui, |ui| {
+                for &a in crate::screens::TEXT_ALIGNS {
+                    if ui.selectable_label(align == a, a).clicked() {
+                        align = a.to_string();
+                        changed = true;
+                    }
+                }
+            });
+    });
+
+    if changed {
+        let t = editor.screen.elements[sel].as_text_mut().unwrap();
+        t.source = source;
+        t.font = font;
+        t.color = color;
+        t.align = align;
+        editor.dirty = true;
+    }
+}
 
 fn draw_video_properties(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
     let Some(vid) = editor.screen.elements[sel].as_video() else {
@@ -230,7 +486,7 @@ fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
     let click_count = img_ref.on_click.len();
     let hover_count = img_ref.on_hover.len();
 
-    ui.heading("on_click");
+    ui.heading("On Click");
     let mut click_remove: Option<usize> = None;
     for i in 0..click_count {
         let mut action = editor.screen.elements[sel].as_image().unwrap().on_click[i].clone();
@@ -249,7 +505,7 @@ fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         editor.screen.elements[sel].as_image_mut().unwrap().on_click.remove(i);
         editor.dirty = true;
     }
-    if ui.small_button("+ Add on_click").clicked() {
+    if ui.small_button("+ Add").clicked() {
         editor.screen.elements[sel]
             .as_image_mut()
             .unwrap()
@@ -260,7 +516,7 @@ fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
 
     ui.separator();
 
-    ui.heading("on_hover");
+    ui.heading("On Hover");
     let mut hover_remove: Option<usize> = None;
     for i in 0..hover_count {
         let mut action = editor.screen.elements[sel].as_image().unwrap().on_hover[i].clone();
@@ -279,7 +535,7 @@ fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         editor.screen.elements[sel].as_image_mut().unwrap().on_hover.remove(i);
         editor.dirty = true;
     }
-    if ui.small_button("+ Add on_hover").clicked() {
+    if ui.small_button("+ Add").clicked() {
         editor.screen.elements[sel]
             .as_image_mut()
             .unwrap()
@@ -294,7 +550,7 @@ fn draw_video_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         return;
     };
 
-    ui.heading("on_end");
+    ui.heading("On End");
     let end_count = vid_ref.on_end.len();
     let mut end_remove: Option<usize> = None;
     for i in 0..end_count {
@@ -314,7 +570,7 @@ fn draw_video_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         editor.screen.elements[sel].as_video_mut().unwrap().on_end.remove(i);
         editor.dirty = true;
     }
-    if ui.small_button("+ Add on_end").clicked() {
+    if ui.small_button("+ Add").clicked() {
         editor.screen.elements[sel]
             .as_video_mut()
             .unwrap()
@@ -330,7 +586,7 @@ fn draw_image_bindings(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
     }
 
     ui.separator();
-    ui.heading("bindings");
+    ui.heading("Bindings");
     ui.small("property \u{2192} variable (e.g. scroll_x \u{2192} player.compass_yaw)");
     let bind_keys: Vec<String> = editor.screen.elements[sel]
         .as_image()

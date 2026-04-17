@@ -1,9 +1,13 @@
 (
     id: "options_main",
+    kind: Modal,
+    keys: {
+        "Escape": ["HideScreen(\"options_main\")"],
+    },
     elements: [
         Image((
             id: "icons/Options",
-            position: (9.0, 8.0),
+            position: (8.0, 8.0),
             size: (460.0, 344.0),
             z: 1,
             states: {
@@ -12,6 +16,44 @@
                 ),
             },
             on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/Quit1",
+            position: (242.0, 266.0),
+            size: (215.0, 39.0),
+            z: 2,
+            states: {
+                "clicked": (
+                    texture: "icons/Quit1",
+                ),
+                "default": (
+                    texture: "",
+                ),
+            },
+            on_click: [
+                "Quit()",
+            ],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/Resume1",
+            position: (18.0, 160.0),
+            size: (219.0, 39.0),
+            z: 3,
+            states: {
+                "clicked": (
+                    texture: "icons/Resume1",
+                ),
+                "default": (
+                    texture: "",
+                ),
+            },
+            on_click: [
+                "Resume()",
+            ],
             on_hover: [],
             bindings: {},
         )),

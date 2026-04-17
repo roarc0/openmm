@@ -1,5 +1,5 @@
 (
-    id: "ingame_controls_menu",
+    id: "controls_menu",
     elements: [
         Image((
             id: "icons/controlbg",

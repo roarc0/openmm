@@ -74,13 +74,16 @@
             bindings: {},
         )),
         Image((
-            id: "BUTTCAMP",
+            id: "icons/BUTTCAMP",
             position: (525.0, 399.0),
             size: (29.0, 61.0),
             z: 3,
             states: {
+                "clicked": (
+                    texture: "icons/BUTTCAMP",
+                ),
                 "default": (
-                    texture: "BUTTCAMP",
+                    texture: "",
                 ),
             },
             on_click: [],
@@ -123,8 +126,11 @@
             size: (29.0, 61.0),
             z: 7,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/BUTTMENU",
+                ),
+                "default": (
+                    texture: "",
                 ),
             },
             on_click: [],
@@ -137,13 +143,18 @@
             id: "icons/BUTTCAST",
             position: (491.0, 399.0),
             size: (29.0, 61.0),
-            z: 6,
+            z: 21,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/BUTTCAST",
                 ),
+                "default": (
+                    texture: "",
+                ),
             },
-            on_click: [],
+            on_click: [
+                "ShowScreen(\"spells\")",
+            ],
             on_hover: [
                 "evt:Hint(\"Cast a Spell\")",
             ],
@@ -244,8 +255,11 @@
             size: (28.0, 62.0),
             z: 9,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/BUTTREF",
+                ),
+                "default": (
+                    texture: "",
                 ),
             },
             on_click: [],
@@ -318,12 +332,9 @@
             "FOOTER",
             "icons/Border2.pcx",
             "BORDER3",
-            "BUTTCAMP",
             "footer",
-            "icons/BUTTCAST",
             "BORDER4",
             "icons/BUTTREF",
-            "icons/BUTTMENU",
             "icons/HITSFULL",
             "icons/HITSCLRA",
             "icons/TAP1",

@@ -99,7 +99,8 @@ pub(crate) struct ClickFlash {
 #[derive(Component)]
 pub(crate) struct ClickedTexture {
     pub(crate) clicked: Handle<Image>,
-    pub(crate) default: Handle<Image>,
+    /// None when element has no default texture (restore to hidden).
+    pub(crate) default: Option<Handle<Image>>,
 }
 
 /// Marks a text element with its data source binding.

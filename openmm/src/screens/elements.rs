@@ -195,7 +195,8 @@ pub(super) fn spawn_image_element(
         return;
     }
 
-    let has_interaction = hover_handle.is_some() || !img.on_click.is_empty() || !img.on_hover.is_empty();
+    let has_interaction =
+        hover_handle.is_some() || clicked_handle.is_some() || !img.on_click.is_empty() || !img.on_hover.is_empty();
     let has_pulse = img.on_hover.iter().any(|a| a.trim() == "PulseSprite()");
     let z = ZIndex(img.z);
     let marker = RuntimeElement {
@@ -224,7 +225,7 @@ pub(super) fn spawn_image_element(
         if let Some(clicked) = clicked_handle {
             entity.insert(ClickedTexture {
                 clicked,
-                default: handle,
+                default: Some(handle),
             });
         }
         if has_pulse {
@@ -265,9 +266,12 @@ pub(super) fn spawn_image_element(
             });
         }
     } else {
-        let mut entity = commands.spawn((node, z, marker, layer_tag.clone(), initial_vis));
+        let mut entity = commands.spawn((ImageNode::default(), node, z, marker, layer_tag.clone(), initial_vis));
         if has_interaction {
             entity.insert((Button, BackgroundColor(Color::NONE)));
+        }
+        if let Some(clicked) = clicked_handle {
+            entity.insert(ClickedTexture { clicked, default: None });
         }
         if has_pulse {
             entity.insert(Pulsable);
