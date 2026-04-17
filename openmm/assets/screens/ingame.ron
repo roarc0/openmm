@@ -74,38 +74,6 @@
             bindings: {},
         )),
         Image((
-            id: "BUTTCAMP",
-            position: (525.0, 399.0),
-            size: (29.0, 61.0),
-            z: 2,
-            states: {
-                "default": (
-                    texture: "BUTTCAMP",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Rest\")",
-            ],
-            bindings: {},
-        )),
-        Image((
-            id: "BUTTBK1",
-            position: (496.0, 270.0),
-            size: (31.0, 72.0),
-            z: 0,
-            states: {
-                "default": (
-                    texture: "BUTTBK1",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Quests\")",
-            ],
-            bindings: {},
-        )),
-        Image((
             id: "icons/Border2.pcx",
             position: (0.0, 371.0),
             size: (469.0, 109.0),
@@ -134,38 +102,6 @@
             bindings: {},
         )),
         Image((
-            id: "icons/BUTTMENU",
-            position: (594.0, 399.0),
-            size: (29.0, 61.0),
-            z: 6,
-            states: {
-                "default": (
-                    texture: "icons/BUTTMENU",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Save\")",
-            ],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/BUTTCAST",
-            position: (491.0, 399.0),
-            size: (29.0, 61.0),
-            z: 5,
-            states: {
-                "default": (
-                    texture: "icons/BUTTCAST",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Cast a Spell\")",
-            ],
-            bindings: {},
-        )),
-        Image((
             id: "icons/TAP1",
             position: (468.0, 0.0),
             size: (172.0, 142.0),
@@ -191,79 +127,6 @@
             font: "smallnum",
             color: "white",
             align: "center",
-        )),
-        Text((
-            id: "food",
-            position: (511.0, 357.0),
-            size: (35.0, 12.0),
-            z: 6,
-            source: "food",
-            font: "smallnum",
-            color: "yellow",
-            align: "right",
-        )),
-        Text((
-            id: "gold",
-            position: (551.0, 357.0),
-            size: (60.0, 12.0),
-            z: 7,
-            source: "gold",
-            font: "smallnum",
-            color: "yellow",
-            align: "right",
-        )),
-        Image((
-            id: "icons/COMPASS",
-            position: (538.0, 10.0),
-            size: (325.0, 9.0),
-            z: 2,
-            states: {
-                "default": (
-                    texture: "icons/COMPASS",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {
-                "source": "compass",
-            },
-            crop_w: 38.0,
-            crop_h: 9.0,
-        )),
-        Image((
-            id: "minimap",
-            position: (468.0, 0.0),
-            size: (512.0, 512.0),
-            z: 1,
-            states: {
-                "default": (
-                    texture: "",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {
-                "source": "minimap",
-            },
-            crop_w: 172.0,
-            crop_h: 142.0,
-        )),
-        Image((
-            id: "icons/MAPDIR2",
-            position: (553.5, 87.5),
-            size: (7.0, 7.0),
-            z: 9,
-            states: {
-                "default": (
-                    texture: "icons/MAPDIR2",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {
-                "source": "arrow",
-            },
-            transparent_color: "black",
         )),
         Image((
             id: "icons/DEAD",
@@ -306,85 +169,6 @@
             on_click: [],
             on_hover: [],
             bindings: {},
-        )),
-        Image((
-            id: "icons/BUTTBK2",
-            position: (527.0, 270.0),
-            size: (31.0, 71.0),
-            z: 14,
-            states: {
-                "default": (
-                    texture: "icons/BUTTBK2",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"?\")",
-            ],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/BUTTBK3",
-            position: (558.0, 270.0),
-            size: (32.0, 71.0),
-            z: 15,
-            states: {
-                "default": (
-                    texture: "icons/BUTTBK3",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Map\")",
-            ],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/BUTTBK4",
-            position: (590.0, 270.0),
-            size: (31.0, 71.0),
-            z: 16,
-            states: {
-                "default": (
-                    texture: "icons/BUTTBK4",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"?\")",
-            ],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/BUTTREF",
-            position: (560.0, 399.0),
-            size: (28.0, 62.0),
-            z: 8,
-            states: {
-                "default": (
-                    texture: "icons/BUTTREF",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Ref\")",
-            ],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/GLOW05A",
-            position: (586.0, 332.0),
-            size: (54.0, 66.0),
-            z: 17,
-            states: {
-                "default": (
-                    texture: "icons/GLOW05A",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
-            transparent_color: "cyan",
         )),
         Image((
             id: "icons/HITSFULL",
@@ -449,22 +233,9 @@
             "BORDER6",
             "FOOTER",
             "icons/Border2.pcx",
-            "icons/Border1.pcx",
             "BORDER3",
-            "minimap",
-            "BUTTCAMP",
-            "icons/MAPDIR2",
             "footer",
-            "BUTTBK1",
-            "icons/BUTTCAST",
-            "icons/COMPASS",
             "BORDER4",
-            "icons/TAP1",
-            "icons/BUTTREF",
-            "icons/BUTTBK2",
-            "icons/BUTTBK3",
-            "icons/BUTTBK4",
-            "icons/BUTTMENU",
             "icons/HITSFULL",
             "icons/HITSCLRA",
         ],

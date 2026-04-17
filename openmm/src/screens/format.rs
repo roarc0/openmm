@@ -410,6 +410,7 @@ impl TextElement {
             "yellow" => super::fonts::YELLOW,
             "red" => super::fonts::RED,
             "green" => super::fonts::GREEN,
+            "blue" => super::fonts::BLUE,
             _ => super::fonts::WHITE,
         }
     }

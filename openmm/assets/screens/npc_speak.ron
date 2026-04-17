@@ -5,7 +5,7 @@
             id: "icons/EVPAN019",
             position: (481.0, 0.0),
             size: (152.0, 353.0),
-            z: 1,
+            z: 4,
             states: {
                 "default": (
                     texture: "icons/EVPAN019",
@@ -17,7 +17,7 @@
         )),
         Image((
             id: "icons/edge_top",
-            position: (10.0, 304.0),
+            position: (9.0, 304.0),
             size: (512.0, 10.0),
             z: 0,
             states: {
@@ -31,9 +31,9 @@
         )),
         Image((
             id: "icons/NPC001",
-            position: (532.0, 24.0),
+            position: (528.0, 24.0),
             size: (63.0, 73.0),
-            z: 2,
+            z: 5,
             states: {
                 "default": (
                     texture: "icons/NPC001",
@@ -45,9 +45,9 @@
         )),
         Text((
             id: "npc_name",
-            position: (497.0, 100.0),
+            position: (498.0, 100.0),
             size: (120.0, 14.0),
-            z: 3,
+            z: 5,
             source: "npc_name",
             font: "smallnum",
             color: "blue",
@@ -55,7 +55,7 @@
         )),
         Text((
             id: "npc_greeting",
-            position: (10.0, 314.0),
+            position: (9.0, 314.0),
             size: (468.0, 40.0),
             z: 3,
             source: "npc_greeting",
@@ -66,7 +66,7 @@
     ],
     editor: (
         locked: [
-            "icons/NPC001",
+            "icons/EVPAN019",
             "npc_name",
         ],
     ),
