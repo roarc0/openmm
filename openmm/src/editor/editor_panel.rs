@@ -6,10 +6,11 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 use super::canvas::EditorScreen;
 use super::canvas::Selection;
 use super::guides::Guides;
+use super::io::EditorConfig;
 use crate::screens::ElementState;
 use crate::screens::ScreenElement;
 
-/// Draw the editor egui window (always visible, anchored top-right).
+/// Draw the editor egui window (moveable, position saved to config).
 pub fn editor_panel_ui(
     mut contexts: EguiContexts,
     mut editor: ResMut<EditorScreen>,
@@ -18,8 +19,11 @@ pub fn editor_panel_ui(
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
-    egui::Window::new("Editor")
-        .anchor(egui::Align2::RIGHT_TOP, egui::Vec2::new(-10.0, 10.0))
+    let cfg = EditorConfig::load();
+    let default_pos = cfg.editor_pos.unwrap_or([430.0, 10.0]);
+
+    let resp = egui::Window::new("Editor")
+        .default_pos(egui::pos2(default_pos[0], default_pos[1]))
         .resizable(true)
         .default_width(240.0)
         .collapsible(true)
@@ -230,6 +234,31 @@ pub fn editor_panel_ui(
                 }
             });
 
+            // Texture (image default state)
+            if is_image {
+                let mut tex = editor.screen.elements[sel_idx]
+                    .as_image()
+                    .unwrap()
+                    .states
+                    .get("default")
+                    .map(|s| s.texture.clone())
+                    .unwrap_or_default();
+                ui.horizontal(|ui| {
+                    ui.label("Texture:");
+                    if ui.text_edit_singleline(&mut tex).changed() {
+                        if let Some(state) = editor.screen.elements[sel_idx]
+                            .as_image_mut()
+                            .unwrap()
+                            .states
+                            .get_mut("default")
+                        {
+                            state.texture = tex;
+                            editor.dirty = true;
+                        }
+                    }
+                });
+            }
+
             // Video (only for Video variant)
             if is_video {
                 let mut video_name = editor.screen.elements[sel_idx].as_video().unwrap().video.clone();
@@ -267,6 +296,7 @@ pub fn editor_panel_ui(
                 let mut font = txt.font.clone();
                 let mut color = txt.color.clone();
                 let mut align = txt.align.clone();
+                let mut txt_size = editor.screen.elements[sel_idx].size();
                 let mut changed = false;
 
                 ui.horizontal(|ui| {
@@ -314,6 +344,21 @@ pub fn editor_panel_ui(
                             }
                         });
                 });
+
+                let mut txt_size_changed = false;
+                ui.horizontal(|ui| {
+                    ui.label("Text size:");
+                    txt_size_changed |= ui
+                        .add(egui::DragValue::new(&mut txt_size.0).prefix("w: ").speed(1.0))
+                        .changed();
+                    txt_size_changed |= ui
+                        .add(egui::DragValue::new(&mut txt_size.1).prefix("h: ").speed(1.0))
+                        .changed();
+                });
+                if txt_size_changed {
+                    editor.screen.elements[sel_idx].set_size(txt_size);
+                    changed = true;
+                }
 
                 if changed {
                     let t = editor.screen.elements[sel_idx].as_text_mut().unwrap();
@@ -493,4 +538,15 @@ pub fn editor_panel_ui(
             let (px, py) = elem.position();
             ui.small(format!("{}[{w:.0},{h:.0}]@({px:.0},{py:.0})", elem.id()));
         });
+
+    // Save window position when dragged.
+    if let Some(inner) = resp {
+        let pos = inner.response.rect.min;
+        let new_pos = [pos.x, pos.y];
+        let mut cfg = EditorConfig::load();
+        if cfg.editor_pos != Some(new_pos) {
+            cfg.editor_pos = Some(new_pos);
+            cfg.save();
+        }
+    }
 }
