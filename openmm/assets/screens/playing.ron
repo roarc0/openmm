@@ -2,22 +2,6 @@
     id: "playing",
     elements: [
         Image((
-            id: "BUTTCAMP",
-            position: (525.0, 399.0),
-            size: (29.0, 61.0),
-            z: 2,
-            states: {
-                "default": (
-                    texture: "BUTTCAMP",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Rest\")",
-            ],
-            bindings: {},
-        )),
-        Image((
             id: "BUTTBK1",
             position: (496.0, 270.0),
             size: (31.0, 72.0),
@@ -32,58 +16,6 @@
                 "evt:Hint(\"Quests\")",
             ],
             bindings: {},
-        )),
-        Image((
-            id: "icons/BUTTMENU",
-            position: (594.0, 399.0),
-            size: (29.0, 61.0),
-            z: 6,
-            states: {
-                "default": (
-                    texture: "icons/BUTTMENU",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Save\")",
-            ],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/BUTTCAST",
-            position: (491.0, 399.0),
-            size: (29.0, 61.0),
-            z: 5,
-            states: {
-                "default": (
-                    texture: "icons/BUTTCAST",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Cast a Spell\")",
-            ],
-            bindings: {},
-        )),
-        Text((
-            id: "food",
-            position: (511.0, 357.0),
-            size: (35.0, 12.0),
-            z: 6,
-            source: "food",
-            font: "smallnum",
-            color: "yellow",
-            align: "right",
-        )),
-        Text((
-            id: "gold",
-            position: (551.0, 357.0),
-            size: (60.0, 12.0),
-            z: 7,
-            source: "gold",
-            font: "smallnum",
-            color: "yellow",
-            align: "right",
         )),
         Image((
             id: "icons/COMPASS",
@@ -186,51 +118,16 @@
             ],
             bindings: {},
         )),
-        Image((
-            id: "icons/BUTTREF",
-            position: (560.0, 399.0),
-            size: (28.0, 62.0),
-            z: 8,
-            states: {
-                "default": (
-                    texture: "icons/BUTTREF",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "evt:Hint(\"Ref\")",
-            ],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/GLOW05A",
-            position: (586.0, 332.0),
-            size: (54.0, 66.0),
-            z: 17,
-            states: {
-                "default": (
-                    texture: "icons/GLOW05A",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
-            transparent_color: "cyan",
-        )),
     ],
     editor: (
         locked: [
             "minimap",
-            "BUTTCAMP",
             "icons/MAPDIR2",
             "BUTTBK1",
-            "icons/BUTTCAST",
             "icons/COMPASS",
-            "icons/BUTTREF",
             "icons/BUTTBK2",
             "icons/BUTTBK3",
             "icons/BUTTBK4",
-            "icons/BUTTMENU",
         ],
     ),
 )

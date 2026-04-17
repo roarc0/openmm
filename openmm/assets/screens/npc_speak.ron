@@ -63,6 +63,21 @@
             color: "white",
             align: "left",
         )),
+        Image((
+            id: "icons/BUTTESC1",
+            position: (527.0, 308.0),
+            size: (61.0, 28.0),
+            z: 7,
+            states: {
+                "default": (
+                    texture: "icons/BUTTESC1",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+        )),
     ],
     editor: (
         locked: [

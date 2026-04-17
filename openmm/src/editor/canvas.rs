@@ -311,6 +311,7 @@ pub fn draw_overlays(
     ui_assets: Res<UiAssets>,
     mut overlay_action: ResMut<OverlayAction>,
     editor_state: Res<ElementEditorState>,
+    guides: Res<super::guides::Guides>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     let Ok(window) = windows.single() else { return };
@@ -321,6 +322,9 @@ pub fn draw_overlays(
         egui::Order::Foreground,
         egui::Id::new("canvas_overlays"),
     ));
+
+    // Draw guide lines first (behind selection overlays).
+    super::guides::draw_guides(&painter, &guides, win_w, win_h);
 
     for (i, elem) in editor.screen.elements.iter().enumerate() {
         let (w, h) = resolve_elem_size(elem, &ui_assets);

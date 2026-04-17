@@ -1,6 +1,7 @@
 mod browser;
 pub mod canvas;
 mod element_editor;
+mod guides;
 mod inspector;
 pub mod io;
 
@@ -48,6 +49,7 @@ impl Plugin for EditorPlugin {
             .init_resource::<canvas::OverlayAction>()
             .insert_resource(canvas::EditorScreen { screen, dirty: false })
             .init_resource::<canvas::ElementEditorState>()
+            .insert_resource(guides::Guides::load())
             .add_systems(OnEnter(GameState::Editor), editor_setup)
             .add_systems(
                 Update,
@@ -78,6 +80,7 @@ impl Plugin for EditorPlugin {
                     browser::browser_ui,
                     inspector::inspector_ui,
                     editor_toolbar,
+                    guides_ui,
                     canvas::draw_overlays,
                 )
                     .run_if(in_state(GameState::Editor))
@@ -105,6 +108,12 @@ fn toggle_ui(keys: Res<ButtonInput<KeyCode>>, mut visible: ResMut<UiVisible>, ti
         visible.0 = !visible.0;
         info!("UI visible: {}", visible.0);
     }
+}
+
+/// Guides management panel.
+fn guides_ui(mut contexts: EguiContexts, mut guide_res: ResMut<guides::Guides>) {
+    let Ok(ctx) = contexts.ctx_mut() else { return };
+    guides::guides_panel(ctx, &mut guide_res);
 }
 
 /// Top toolbar: name indicator, New/Open/Save buttons, help text.

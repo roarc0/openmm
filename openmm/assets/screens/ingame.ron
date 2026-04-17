@@ -74,6 +74,22 @@
             bindings: {},
         )),
         Image((
+            id: "BUTTCAMP",
+            position: (525.0, 399.0),
+            size: (29.0, 61.0),
+            z: 3,
+            states: {
+                "default": (
+                    texture: "BUTTCAMP",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "evt:Hint(\"Rest\")",
+            ],
+            bindings: {},
+        )),
+        Image((
             id: "icons/Border2.pcx",
             position: (0.0, 371.0),
             size: (469.0, 109.0),
@@ -91,7 +107,7 @@
             id: "icons/Border1.pcx",
             position: (468.0, 141.0),
             size: (172.0, 339.0),
-            z: 0,
+            z: 1,
             states: {
                 "default": (
                     texture: "icons/Border1.pcx",
@@ -99,6 +115,38 @@
             },
             on_click: [],
             on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/BUTTMENU",
+            position: (594.0, 399.0),
+            size: (29.0, 61.0),
+            z: 7,
+            states: {
+                "default": (
+                    texture: "icons/BUTTMENU",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "evt:Hint(\"Save\")",
+            ],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/BUTTCAST",
+            position: (491.0, 399.0),
+            size: (29.0, 61.0),
+            z: 6,
+            states: {
+                "default": (
+                    texture: "icons/BUTTCAST",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "evt:Hint(\"Cast a Spell\")",
+            ],
             bindings: {},
         )),
         Image((
@@ -127,6 +175,26 @@
             font: "smallnum",
             color: "white",
             align: "center",
+        )),
+        Text((
+            id: "food",
+            position: (511.0, 357.0),
+            size: (35.0, 12.0),
+            z: 7,
+            source: "food",
+            font: "smallnum",
+            color: "yellow",
+            align: "right",
+        )),
+        Text((
+            id: "gold",
+            position: (551.0, 357.0),
+            size: (60.0, 12.0),
+            z: 7,
+            source: "gold",
+            font: "smallnum",
+            color: "yellow",
+            align: "right",
         )),
         Image((
             id: "icons/DEAD",
@@ -168,6 +236,22 @@
             },
             on_click: [],
             on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/BUTTREF",
+            position: (560.0, 399.0),
+            size: (28.0, 62.0),
+            z: 9,
+            states: {
+                "default": (
+                    texture: "icons/BUTTREF",
+                ),
+            },
+            on_click: [],
+            on_hover: [
+                "evt:Hint(\"Ref\")",
+            ],
             bindings: {},
         )),
         Image((
@@ -234,10 +318,17 @@
             "FOOTER",
             "icons/Border2.pcx",
             "BORDER3",
+            "BUTTCAMP",
             "footer",
+            "icons/BUTTCAST",
             "BORDER4",
+            "icons/BUTTREF",
+            "icons/BUTTMENU",
             "icons/HITSFULL",
             "icons/HITSCLRA",
+            "icons/TAP1",
+            "gold",
+            "food",
         ],
     ),
 )
