@@ -3,11 +3,11 @@ use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use crate::system::config::GameConfig;
-use crate::game::collision::{
+use crate::game::map::collision::{
     BuildingColliders, MAX_STEP_UP, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
 };
 use crate::prepare::loading::PreparedIndoorWorld;
+use crate::system::config::GameConfig;
 
 use super::{
     MouseLookEnabled, MouseSensitivity, Player, PlayerCamera, PlayerKeyBindings, PlayerPhysics, PlayerSettings,
@@ -99,7 +99,7 @@ fn move_with_substeps(
     radius: f32,
     eye_height: f32,
     colliders: Option<&BuildingColliders>,
-    door_colliders: Option<&crate::game::indoor::DoorColliders>,
+    door_colliders: Option<&crate::game::map::indoor::DoorColliders>,
 ) -> Vec3 {
     let movement = dest - from;
     let dist = movement.length();
@@ -144,7 +144,7 @@ pub(super) fn player_movement(
     indoor_world: Option<Res<PreparedIndoorWorld>>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
-    door_colliders: Option<Res<crate::game::indoor::DoorColliders>>,
+    door_colliders: Option<Res<crate::game::map::indoor::DoorColliders>>,
     water_map: Option<Res<WaterMap>>,
     water_walking: Option<Res<WaterWalking>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,

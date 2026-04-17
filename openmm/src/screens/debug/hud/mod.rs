@@ -11,9 +11,9 @@ pub mod fps;
 pub mod player;
 
 use crate::GameState;
-use crate::system::config::GameConfig;
 use crate::game::InGame;
-use crate::game::state::is_outdoor;
+use crate::game::map::is_outdoor;
+use crate::system::config::GameConfig;
 
 use self::chart::*;
 use self::common::*;

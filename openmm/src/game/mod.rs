@@ -1,20 +1,18 @@
 use bevy::prelude::*;
 
 pub(crate) mod actors;
-pub(crate) mod collision;
 pub(crate) mod controls;
-pub mod coords;
-pub(crate) mod indoor;
+pub(crate) mod events;
 pub(crate) mod interaction;
+pub(crate) mod map;
 pub(crate) mod optional;
-pub(crate) mod outdoor;
 pub(crate) mod player;
 pub(crate) mod rendering;
 pub(crate) mod sound;
-pub(crate) mod spatial_index;
 pub(crate) mod spawn;
 pub(crate) mod sprites;
 pub(crate) mod state;
+pub(crate) mod ui;
 
 /// Marker component for all entities spawned during the Game state.
 /// Despawned automatically on OnExit(Game).
@@ -31,14 +29,14 @@ pub struct InGamePlugin;
 
 impl Plugin for InGamePlugin {
     fn build(&self, app: &mut App) {
-        // UiMode initialized at top level so run conditions like
-        // `|ui: Res<UiState>| ui.mode == UiMode::World` (if implemented) never fail.
-        app.init_resource::<state::ui_state::UiState>()
-            .add_systems(Update, state::ui_state::tick_footer_text)
+        // UiMode initialized at top level so run conditions never fail.
+        app.init_resource::<ui::UiState>()
+            .add_systems(Update, ui::tick_footer_text)
             .add_plugins((
                 RenderingPlugin,
                 MapPlugin,
                 state::WorldPlugin,
+                events::EventDispatchPlugin,
                 GameplayPlugin,
                 UiPlugin,
                 AudioPlugin,
@@ -47,10 +45,6 @@ impl Plugin for InGamePlugin {
 }
 
 /// Rendering: lighting, sky, custom material pipelines.
-///
-/// `MaterialPlugin<TerrainMaterial>` and `MaterialPlugin<SpriteMaterial>` can
-/// be removed individually for headless / minimal builds — the rest of the
-/// game falls back to plain `StandardMaterial` via the optional-plugin guards.
 struct RenderingPlugin;
 impl Plugin for RenderingPlugin {
     fn build(&self, app: &mut App) {
@@ -58,8 +52,8 @@ impl Plugin for RenderingPlugin {
             rendering::lighting::LightingPlugin,
             rendering::sky::SkyPlugin,
             sprites::tint_buffer::SpriteTintBufferPlugin,
-            MaterialPlugin::<outdoor::TerrainMaterial>::default(),
-            MaterialPlugin::<outdoor::BspWaterMaterial>::default(),
+            MaterialPlugin::<map::outdoor::TerrainMaterial>::default(),
+            MaterialPlugin::<map::outdoor::BspWaterMaterial>::default(),
             MaterialPlugin::<sprites::material::SpriteMaterial>::default(),
         ));
     }
@@ -70,10 +64,10 @@ struct MapPlugin;
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
-            outdoor::OdmPlugin,
-            indoor::BlvPlugin,
+            map::outdoor::OdmPlugin,
+            map::indoor::BlvPlugin,
             player::physics::PhysicsPlugin,
-            spatial_index::SpatialIndexPlugin,
+            map::spatial_index::SpatialIndexPlugin,
             sprites::SpritesPlugin,
         ));
     }

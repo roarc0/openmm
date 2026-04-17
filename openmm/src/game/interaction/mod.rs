@@ -5,9 +5,9 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::GameState;
+use crate::game::events::EventQueue;
 use crate::game::sprites::loading::AlphaMask;
-use crate::game::state::EventQueue;
-use crate::game::state::ui_state::{OverlayImage, UiMode, UiState};
+use crate::game::ui::{OverlayImage, UiMode, UiState};
 
 pub mod clickable;
 mod hint;
@@ -113,9 +113,9 @@ impl Plugin for InteractionPlugin {
             Update,
             (hover_hint_system, world_interact_system)
                 .chain()
-                .after(crate::game::spatial_index::SpatialIndexSet)
+                .after(crate::game::map::spatial_index::SpatialIndexSet)
                 .run_if(in_state(GameState::Game))
-                .run_if(crate::game::state::ui_state::game_input_active),
+                .run_if(crate::game::ui::game_input_active),
         )
         .add_systems(
             Update,
@@ -184,8 +184,8 @@ fn interaction_input(
     if check_exit_input(&keys, &gamepads) {
         event_queue.clear();
         commands.remove_resource::<OverlayImage>();
-        commands.remove_resource::<crate::game::state::npc_dialogue::NpcPortrait>();
-        commands.remove_resource::<crate::game::state::npc_dialogue::NpcProfile>();
+        commands.remove_resource::<crate::game::actors::npc_dialogue::NpcPortrait>();
+        commands.remove_resource::<crate::game::actors::npc_dialogue::NpcProfile>();
         view.mode = UiMode::World;
         if let Ok(mut cursor) = cursor_query.single_mut() {
             cursor.grab_mode = CursorGrabMode::Confined;

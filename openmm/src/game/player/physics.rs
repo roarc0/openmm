@@ -3,11 +3,11 @@ use bevy::prelude::*;
 use openmm_data::enums::PolygonType;
 
 use crate::GameState;
-use crate::game::collision::{
+use crate::game::map::collision::{
     BuildingColliders, CollisionTriangle, CollisionWall, TerrainHeightMap, WaterMap, WaterWalking,
     sample_terrain_height,
 };
-use crate::game::coords::mm6_fixed_normal_to_bevy;
+use crate::game::map::coords::mm6_fixed_normal_to_bevy;
 use crate::game::player::{Player, PlayerPhysics, PlayerSettings};
 use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
 
@@ -18,11 +18,9 @@ impl Plugin for PhysicsPlugin {
         app.add_systems(OnEnter(GameState::Game), setup_collision_data)
             .add_systems(
                 Update,
-                gravity_system.run_if(in_state(GameState::Game)).run_if(
-                    |ui: Res<crate::game::state::ui_state::UiState>| {
-                        ui.mode == crate::game::state::ui_state::UiMode::World
-                    },
-                ),
+                gravity_system
+                    .run_if(in_state(GameState::Game))
+                    .run_if(|ui: Res<crate::game::ui::UiState>| ui.mode == crate::game::ui::UiMode::World),
             );
     }
 }
@@ -167,7 +165,7 @@ fn gravity_system(
                     transform.translation.x,
                     transform.translation.z,
                     feet_y,
-                    crate::game::collision::MAX_STEP_UP,
+                    crate::game::map::collision::MAX_STEP_UP,
                 )
             })
             .unwrap_or(f32::MIN);

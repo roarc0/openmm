@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::game::coords::mm6_fixed_normal_to_bevy;
+use crate::game::map::coords::mm6_fixed_normal_to_bevy;
 use crate::prepare::loading::PreparedWorld;
 
 use super::bsp_water::{BspWaterExtension, BspWaterMaterial, is_bsp_water_texture};
@@ -96,7 +96,7 @@ pub fn spawn_bsp_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
                     vertices: verts.clone(),
                 });
             }
-            outdoor_occluders.push(crate::game::indoor::OccluderFaceInfo {
+            outdoor_occluders.push(crate::game::map::indoor::OccluderFaceInfo {
                 normal,
                 plane_dist,
                 vertices: verts,
@@ -110,6 +110,6 @@ pub fn spawn_bsp_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
         });
     }
     if !outdoor_occluders.is_empty() {
-        commands.insert_resource(crate::game::indoor::OccluderFaces::new(outdoor_occluders));
+        commands.insert_resource(crate::game::map::indoor::OccluderFaces::new(outdoor_occluders));
     }
 }

@@ -36,6 +36,17 @@ Cargo workspace with two crates:
 
 - **`openmm-data`** — Library for reading MM6 data formats: LOD archives, ODM (outdoor maps), BSP models, tile tables, palettes, sprites/billboards, images. we should not include openmm here.
 - **`openmm`** — Bevy 0.18 game engine application
+  - `game/map/` — indoor (BLV), outdoor (ODM), collision, coords, spatial index
+  - `game/state/` — WorldState, GameVariables, GameTime
+  - `game/events/` — EVT scripting, event dispatch, event handlers
+  - `game/actors/` — AI, combat, physics, NPC dialogue
+  - `game/ui/` — UiState, UiMode, FooterText, OverlayImage
+  - `game/sprites/` — sprite loading, material, animation
+  - `game/sound/` — audio effects, music, spatial
+  - `game/rendering/` — lighting, sky, viewport
+  - `game/player/` — input, physics, party
+  - `game/spawn/` — shared actor/decoration spawning
+  - `game/interaction/` — click/hover detection, raycasting
 
 ## Useful Resources
 
@@ -148,7 +159,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### HUD views
 
-- `UiState` resource (`game/world/ui_state.rs`) holds `mode: UiMode` and `footer: FooterText`
+- `UiState` resource (`game/ui/mod.rs`) holds `mode: UiMode` and `footer: FooterText`
 - `UiMode` controls active view: `World`, `Building`, `NpcDialogue`, `Chest`, `Inventory`, `Stats`, `Rest`
 - When `UiMode` is not `World`: game time freezes (`Time<Virtual>` paused), player input disabled
 - Gate gameplay systems with `.run_if(|ui: Res<UiState>| ui.mode == UiMode::World)`
@@ -163,8 +174,8 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 - Sub-events use `push_front()` for depth-first processing
 - UI-opening events (SpeakInHouse, OpenChest) block the queue until UiMode returns to World
 - MoveToMap uses `LoadRequest` + `GameState::Loading` pipeline (same as boundary crossing and debug map switch)
-- `interaction.rs` is trigger-only — detects player interaction, pushes events to queue
-- `event_dispatch.rs` handles all event logic (image loading, view switching, map transitions)
+- `game/interaction/` is trigger-only — detects player interaction, pushes events to queue
+- `game/events/` handles all event logic (scripting, event handlers, map transitions)
 - `ChangeDoorState` triggers door open/close/toggle via `BlvDoors` resource
 
 ### Screen scripting
@@ -233,7 +244,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### In-game clock (GameTime)
 
-- `GameTime` resource in `game/game_time.rs` — authoritative in-game clock, 1 real second = 1 game minute.
+- `GameTime` resource in `game/state/time.rs` — authoritative in-game clock, 1 real second = 1 game minute.
 - Epoch: midnight, January 1, Year 1000 (Monday). Default start: 9:00am.
 - `time_of_day() -> f32`: 0.0 = midnight, 0.5 = noon, 0.75 = 6pm — consumed by lighting and sky.
 - `format_datetime() -> String`: e.g. `"Monday Jan 1 1000 9:00am"`.

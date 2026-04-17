@@ -8,9 +8,9 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, egui, input::EguiWantsInput};
 
 use super::io;
 use crate::assets::GameAssets;
-use crate::system::config::GameConfig;
 use crate::screens::ui_assets::UiAssets;
 use crate::screens::{REF_H, REF_W, Screen, ScreenElement, load_texture_with_transparency, resolve_image_size};
+use crate::system::config::GameConfig;
 
 /// Resolve element size: uses crop dimensions when present, otherwise
 /// delegates to `resolve_image_size` for images, falls back to explicit size for videos.

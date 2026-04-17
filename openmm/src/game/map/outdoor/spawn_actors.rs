@@ -22,7 +22,7 @@ pub(super) fn spawn_npc_actors(
     terrain_entity: Entity,
     actor_idx: &mut usize,
     spawned: &mut usize,
-    map_events: &mut Option<ResMut<crate::game::state::MapEvents>>,
+    map_events: &mut Option<ResMut<crate::game::events::MapEvents>>,
 ) {
     let actor_len = p.actor_order.len();
     while *actor_idx < actor_len && *spawned < batch_max && start.elapsed().as_secs_f32() * 1000.0 < time_budget {
@@ -34,7 +34,7 @@ pub(super) fn spawn_npc_actors(
         };
 
         if actor.is_monster() {
-            let ground_y = crate::game::collision::probe_ground_height(
+            let ground_y = crate::game::map::collision::probe_ground_height(
                 &prepared.map.height_map[..],
                 None,
                 actor.position[0] as f32,
@@ -74,7 +74,7 @@ pub(super) fn spawn_npc_actors(
 
         // --- NPC branch: peasant identity logic stays, entity spawn delegated ---
 
-        let ground_y = crate::game::collision::probe_ground_height(
+        let ground_y = crate::game::map::collision::probe_ground_height(
             &prepared.map.height_map[..],
             None,
             actor.position[0] as f32,
@@ -84,7 +84,7 @@ pub(super) fn spawn_npc_actors(
         let ground_pos = Vec3::new(actor.position[0] as f32, ground_y, -(actor.position[1] as f32));
 
         let (display_name, effective_npc_id) = if actor.is_peasant {
-            let gid = crate::game::state::GENERATED_NPC_ID_BASE + i as i32;
+            let gid = crate::game::events::GENERATED_NPC_ID_BASE + i as i32;
             let name = map_events
                 .as_deref()
                 .and_then(|me| me.name_pool.as_ref())
@@ -180,7 +180,7 @@ pub(super) fn spawn_odm_monsters(
             mon.spawn_position[0] as f32 + mon.spawn_radius as f32 * angle.cos(),
             -(mon.spawn_position[1] as f32 + mon.spawn_radius as f32 * angle.sin()),
         );
-        let ground_y = crate::game::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
+        let ground_y = crate::game::map::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
         let ground_pos = Vec3::new(wx, ground_y, wz);
 
         let params = ActorSpawnParams {

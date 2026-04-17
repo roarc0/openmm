@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::game::coords::mm6_position_to_bevy;
+use crate::game::map::coords::mm6_position_to_bevy;
 use openmm_data::blv::Blv;
 
 /// Convert a BLV face normal from MM6 fixed-point to Bevy world-space.
@@ -29,11 +29,11 @@ pub(crate) fn extract_blv_collision(
     blv: &Blv,
     door_faces: &std::collections::HashSet<usize>,
 ) -> (
-    Vec<crate::game::collision::CollisionWall>,
-    Vec<crate::game::collision::CollisionTriangle>,
-    Vec<crate::game::collision::CollisionTriangle>,
+    Vec<crate::game::map::collision::CollisionWall>,
+    Vec<crate::game::map::collision::CollisionTriangle>,
+    Vec<crate::game::map::collision::CollisionTriangle>,
 ) {
-    use crate::game::collision::{CollisionTriangle, CollisionWall};
+    use crate::game::map::collision::{CollisionTriangle, CollisionWall};
     use openmm_data::enums::PolygonType;
 
     let mut walls = Vec::new();

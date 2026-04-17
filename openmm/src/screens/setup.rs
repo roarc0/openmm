@@ -7,8 +7,8 @@ use super::runtime::{ScreenActions, ScreenLayer, ScreenLayers};
 use super::ui_assets::UiAssets;
 use super::{Screen, ScreenElement, load_screen};
 use crate::assets::GameAssets;
-use crate::system::config::GameConfig;
 use crate::game::optional::OptionalWrite;
+use crate::system::config::GameConfig;
 
 use super::elements::{spawn_runtime_element, spawn_screen_crosshair, spawn_screen_music};
 

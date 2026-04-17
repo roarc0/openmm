@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 
 use crate::game::InGame;
-use crate::game::coords::mm6_position_to_bevy;
+use crate::game::map::coords::mm6_position_to_bevy;
 use crate::game::spawn::SpawnCtx;
 use crate::game::spawn::actor::{ActorKind, ActorSpawnParams, spawn_actor};
 use crate::game::sprites::loading as sprites;

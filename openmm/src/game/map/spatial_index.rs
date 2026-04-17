@@ -25,7 +25,7 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::player::Player;
 use crate::game::sprites::WorldEntity;
-use crate::game::state::ui_state::{UiMode, UiState};
+use crate::game::ui::{UiMode, UiState};
 
 /// World-space cell size. 1024 units ≈ 2 MM6 tiles.
 ///

@@ -5,7 +5,7 @@ use super::effects::PlayOnceSoundEvent;
 use crate::GameState;
 use crate::game::actors::Actor;
 use crate::game::player::Player;
-use crate::game::state::ui_state::{UiMode, UiState};
+use crate::game::ui::{UiMode, UiState};
 
 /// Hear actor fidget sounds within this radius (Bevy units).
 const ACTOR_SOUND_RANGE: f32 = 1500.0;

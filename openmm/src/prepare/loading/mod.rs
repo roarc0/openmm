@@ -5,7 +5,7 @@ mod outdoor;
 
 use bevy::prelude::*;
 
-use crate::{GameState, assets::GameAssets, despawn_all, game::state::CurrentMap, system::config::GameConfig};
+use crate::{GameState, assets::GameAssets, despawn_all, game::map::CurrentMap, system::config::GameConfig};
 use openmm_data::{
     blv::Blv,
     dtile::{Dtile, TileTable},
@@ -160,11 +160,11 @@ fn loading_setup(
     commands.remove_resource::<PreparedWorld>();
     commands.remove_resource::<PreparedIndoorWorld>();
     commands.remove_resource::<crate::game::interaction::clickable::Faces>();
-    commands.remove_resource::<crate::game::indoor::BlvDoors>();
-    commands.remove_resource::<crate::game::indoor::DoorColliders>();
-    commands.remove_resource::<crate::game::indoor::TouchTriggerFaces>();
-    commands.remove_resource::<crate::game::indoor::OccluderFaces>();
-    commands.remove_resource::<crate::game::state::ui_state::MapOverviewImage>();
+    commands.remove_resource::<crate::game::map::indoor::BlvDoors>();
+    commands.remove_resource::<crate::game::map::indoor::DoorColliders>();
+    commands.remove_resource::<crate::game::map::indoor::TouchTriggerFaces>();
+    commands.remove_resource::<crate::game::map::indoor::OccluderFaces>();
+    commands.remove_resource::<crate::game::ui::MapOverviewImage>();
     commands.remove_resource::<CurrentMap>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
-use crate::game::state::{GENERATED_NPC_ID_BASE, MapEvents};
+use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
 
 /// Resource holding an NPC portrait image to display at actual size.
 #[derive(Resource)]

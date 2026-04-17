@@ -2,14 +2,15 @@ use bevy::light::CascadeShadowConfigBuilder;
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::system::config::GameConfig;
 use crate::game::InGame;
-use crate::game::outdoor::TerrainMaterial;
+use crate::game::map::outdoor::TerrainMaterial;
+use crate::game::map::{CurrentMap, is_outdoor};
 use crate::game::player::Player;
 use crate::game::sprites::Billboard;
 use crate::game::sprites::tint_buffer::SpriteTintBuffers;
-use crate::game::state::ui_state::{UiMode, UiState};
-use crate::game::state::{CurrentMap, GameTime, is_outdoor};
+use crate::game::state::GameTime;
+use crate::game::ui::{UiMode, UiState};
+use crate::system::config::GameConfig;
 
 // ── Decoration point lights ─────────────────────────────────────────────────
 

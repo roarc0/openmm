@@ -6,9 +6,9 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 use super::canvas::EditorScreen;
 
 use crate::assets::GameAssets;
-use crate::system::config::GameConfig;
 use crate::screens::ui_assets::UiAssets;
 use crate::screens::{ImageElement, REF_H, REF_W, ScreenElement, VideoElement};
+use crate::system::config::GameConfig;
 
 /// One archive and its file list.
 struct LodFolder {

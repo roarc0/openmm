@@ -1,7 +1,7 @@
 use super::common::*;
-use crate::system::config::GameConfig;
 use crate::game::player::Player;
 use crate::prepare::loading::PreparedWorld;
+use crate::system::config::GameConfig;
 use bevy::prelude::*;
 
 pub fn update_map_info_text(
@@ -51,7 +51,7 @@ pub fn update_position_text(
     throttle: Res<HudThrottle>,
     cfg: Res<GameConfig>,
     _world_state: Res<crate::game::state::WorldState>,
-    spawn_progress: Res<crate::game::outdoor::SpawnProgress>,
+    spawn_progress: Res<crate::game::map::outdoor::SpawnProgress>,
     player_query: Query<&Transform, With<Player>>,
     mut query: Query<&mut Text, With<PosSpan>>,
 ) {

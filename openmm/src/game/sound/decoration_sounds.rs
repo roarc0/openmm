@@ -7,9 +7,10 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::coords::mm6_position_to_bevy;
-use crate::game::state::ui_state::{UiMode, UiState};
-use crate::game::state::{GameTime, is_outdoor};
+use crate::game::map::coords::mm6_position_to_bevy;
+use crate::game::map::is_outdoor;
+use crate::game::state::GameTime;
+use crate::game::ui::{UiMode, UiState};
 use crate::prepare::loading::PreparedWorld;
 
 use super::effects::PlaySoundEvent;

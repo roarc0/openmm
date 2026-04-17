@@ -3,9 +3,9 @@ use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureFormat, TextureUsages};
 use bevy::window::PrimaryWindow;
 
-use crate::system::config::GameConfig;
 use crate::game::player::PlayerCamera;
 use crate::screens::ui_assets::UiAssets;
+use crate::system::config::GameConfig;
 
 /// Holds the render-to-texture state when `render_scale < 1.0`.
 /// The 3D camera renders to `image` at reduced resolution; `display_node`

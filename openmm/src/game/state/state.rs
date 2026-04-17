@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::game::outdoor::OdmName;
+use crate::game::map::outdoor::OdmName;
 use crate::system::save::GameSave;
 use openmm_data::utils::MapName;
 

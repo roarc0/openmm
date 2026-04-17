@@ -272,7 +272,7 @@ pub(crate) fn door_animation_system(
             }
 
             let plane_dist = cf.normal.dot(unique_verts[0]);
-            new_walls.push(crate::game::collision::CollisionWall::new(
+            new_walls.push(crate::game::map::collision::CollisionWall::new(
                 cf.normal,
                 plane_dist,
                 &unique_verts,
@@ -312,7 +312,7 @@ pub(crate) fn door_animation_system(
                         }
                     })
                     .collect();
-                new_ceilings.push(crate::game::collision::CollisionTriangle::new(
+                new_ceilings.push(crate::game::map::collision::CollisionTriangle::new(
                     v[0], v[1], v[2], cf.normal,
                 ));
             }

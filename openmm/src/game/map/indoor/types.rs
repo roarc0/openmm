@@ -67,10 +67,10 @@ pub struct DoorColliders {
     /// Source data for horizontal door faces (floor/ceiling panels that block passage).
     pub horizontal_face_data: Vec<DoorCollisionFace>,
     /// Current collision walls (rebuilt from face_data + door positions).
-    pub walls: Vec<crate::game::collision::CollisionWall>,
+    pub walls: Vec<crate::game::map::collision::CollisionWall>,
     /// Current dynamic ceiling triangles (rebuilt from horizontal_face_data when closed).
     /// Used to block the player from walking through closed horizontal panels.
-    pub dynamic_ceilings: Vec<crate::game::collision::CollisionTriangle>,
+    pub dynamic_ceilings: Vec<crate::game::map::collision::CollisionTriangle>,
 }
 
 impl DoorColliders {

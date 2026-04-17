@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
+use crate::game::events::MapEvents;
 use crate::game::sprites::loading::AlphaMask;
-use crate::game::state::MapEvents;
 
 /// Resolve a human-readable label for an event ID from its EVT steps.
 /// Returns the first non-empty text found, scanning steps in their script order —

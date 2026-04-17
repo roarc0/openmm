@@ -11,12 +11,14 @@ use openmm_data::utils::MapName;
 
 use crate::GameState;
 use crate::assets::GameAssets;
-use crate::game::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy};
+use crate::game::actors::npc_dialogue;
+use crate::game::map::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy};
 use crate::game::optional::OptionalWrite;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::sprites::material::SpriteMaterial;
-use crate::game::state::ui_state::{self, UiMode, UiState};
+use crate::game::state::WorldState;
+use crate::game::ui::{self, UiMode, UiState};
 use crate::prepare::loading::LoadRequest;
 
 use super::events::MapEvents;
@@ -78,7 +80,7 @@ pub(super) fn handle_speak_in_house(
         .and_then(|me| super::events::resolve_building_image(house_id, me, game_assets, images))
         .or_else(|| game_assets.load_icon("evt02", images));
     if let Some(image) = image {
-        ui_state::set_overlay_mode(commands, ui, cursor_query, image, UiMode::Building);
+        ui::set_overlay_mode(commands, ui, cursor_query, image, UiMode::Building);
     }
 }
 
@@ -101,7 +103,7 @@ pub(super) fn handle_open_chest(
         {
             audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
         }
-        ui_state::set_overlay_mode(commands, ui, cursor_query, image, UiMode::Chest);
+        ui::set_overlay_mode(commands, ui, cursor_query, image, UiMode::Chest);
     }
 }
 
@@ -117,7 +119,7 @@ pub(super) fn handle_move_to_map(
     audio: &mut AudioParams,
     entities: &mut MapEntityParams,
     transition: &mut TransitionParams,
-    world_state: &mut super::state::WorldState,
+    world_state: &mut WorldState,
     commands: &mut Commands,
 ) {
     // A name with no letters (e.g. "0") means same-map teleport — just
@@ -249,7 +251,7 @@ pub(super) fn handle_speak_npc(
     ui: &mut UiState,
     cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
     audio: &AudioParams,
-    world_state: &super::state::WorldState,
+    world_state: &WorldState,
 ) {
     // day_of_week: GameTime uses 0=Monday epoch; proftext uses 0=Sunday.
     // Shift by 6 to convert: Monday(0)->1, ..., Sunday(6)->0.
@@ -258,7 +260,7 @@ pub(super) fn handle_speak_npc(
         .as_ref()
         .map(|gt| (gt.day_of_week() + 6) % 7)
         .unwrap_or(0);
-    if let Some((portrait, profile)) = super::npc_dialogue::prepare_npc_dialogue(
+    if let Some((portrait, profile)) = npc_dialogue::prepare_npc_dialogue(
         npc_id,
         map_events,
         game_assets,
@@ -268,6 +270,6 @@ pub(super) fn handle_speak_npc(
     ) {
         commands.insert_resource(portrait);
         commands.insert_resource(profile);
-        ui_state::set_ui_mode(ui, cursor_query, UiMode::NpcDialogue);
+        ui::set_ui_mode(ui, cursor_query, UiMode::NpcDialogue);
     }
 }

@@ -489,6 +489,8 @@ impl LodSerialise for Blv {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::{Assets, get_data_path};
 

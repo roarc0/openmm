@@ -3,11 +3,11 @@
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+use crate::game::events::EventQueue;
+use crate::game::events::MapEvents;
 use crate::game::interaction::check_interact_input;
 use crate::game::interaction::raycast::{point_in_polygon, ray_plane_intersect};
 use crate::game::player::PlayerCamera;
-use crate::game::state::EventQueue;
-use crate::game::state::MapEvents;
 
 use super::types::TouchTriggerFaces;
 

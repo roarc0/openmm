@@ -24,13 +24,13 @@ use crate::GameState;
 use crate::game::actors::combat::{ActorDead, DyingTimer};
 use crate::game::actors::physics::{is_passable, snap_actor_y};
 use crate::game::actors::{Actor, MonsterAiType};
-use crate::game::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
-use crate::game::indoor::DoorColliders;
+use crate::game::map::collision::{BuildingColliders, TerrainHeightMap, WaterMap};
+use crate::game::map::indoor::DoorColliders;
 use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
 use crate::game::sprites::{AnimationState, WorldEntity};
-use crate::game::state::ui_state::{UiMode, UiState};
+use crate::game::ui::{UiMode, UiState};
 use openmm_data::ActorSoundSlot;
 
 /// Heading offsets (degrees) probed when the direct path is blocked and the

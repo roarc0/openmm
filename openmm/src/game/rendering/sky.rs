@@ -10,8 +10,8 @@ use bevy::{
 use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::InGame;
+use crate::game::map::{is_indoor, is_outdoor};
 use crate::game::player::PlayerCamera;
-use crate::game::state::{is_indoor, is_outdoor};
 use crate::prepare::loading::PreparedWorld;
 
 /// Marker for the sky dome entity.

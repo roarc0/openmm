@@ -10,7 +10,7 @@
 use bevy::prelude::*;
 
 use crate::GameState;
-use crate::game::state::is_outdoor;
+use crate::game::map::is_outdoor;
 
 mod boundary;
 mod bsp;
@@ -44,9 +44,7 @@ impl Plugin for OdmPlugin {
                     texture_swap::apply_texture_outdoors,
                 )
                     .run_if(in_state(GameState::Game))
-                    .run_if(|ui: Res<crate::game::state::ui_state::UiState>| {
-                        ui.mode == crate::game::state::ui_state::UiMode::World
-                    })
+                    .run_if(|ui: Res<crate::game::ui::UiState>| ui.mode == crate::game::ui::UiMode::World)
                     .run_if(is_outdoor),
             );
     }

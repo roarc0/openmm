@@ -26,11 +26,11 @@ pub struct PreparedIndoorWorld {
     pub models: Vec<PreparedModel>,
     pub start_points: Vec<StartPoint>,
     /// Wall collision geometry extracted from BLV faces.
-    pub collision_walls: Vec<crate::game::collision::CollisionWall>,
+    pub collision_walls: Vec<crate::game::map::collision::CollisionWall>,
     /// Floor collision geometry extracted from BLV faces.
-    pub collision_floors: Vec<crate::game::collision::CollisionTriangle>,
+    pub collision_floors: Vec<crate::game::map::collision::CollisionTriangle>,
     /// Ceiling collision geometry extracted from BLV faces.
-    pub collision_ceilings: Vec<crate::game::collision::CollisionTriangle>,
+    pub collision_ceilings: Vec<crate::game::map::collision::CollisionTriangle>,
     /// Door definitions from DLV.
     pub doors: Vec<openmm_data::blv::BlvDoor>,
     /// Individual door face meshes for animation.

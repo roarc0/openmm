@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 
 use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, TapBinding};
+use super::fonts::GameFonts;
 use super::runtime::{
     HiddenByDefault, HoverOverlay, Pulsable, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer, ScreenMusic,
 };
@@ -11,10 +12,9 @@ use super::{
     ImageElement, REF_H, REF_W, ScreenElement, TextElement, load_texture_with_transparency, resolve_image_size,
 };
 use crate::assets::GameAssets;
-use crate::system::config::GameConfig;
-use super::fonts::GameFonts;
-use crate::game::state::ui_state::UiState;
+use crate::game::ui::UiState;
 use crate::screens::ui_assets::UiAssets;
+use crate::system::config::GameConfig;
 
 // ── Element spawning ────────────────────────────────────────────────────────
 

@@ -6,10 +6,8 @@ use bevy::{
 };
 use openmm_data::odm::OdmData;
 
-use super::{
-    LoadRequest, LoadingProgress, PreparedModel, PreparedSubMesh, PreparedWorld, StartPoint, helpers,
-};
-use crate::{GameState, assets::GameAssets, game::coords::mm6_position_to_bevy, game::state::CurrentMap};
+use super::{LoadRequest, LoadingProgress, PreparedModel, PreparedSubMesh, PreparedWorld, StartPoint, helpers};
+use crate::{GameState, assets::GameAssets, game::map::CurrentMap, game::map::coords::mm6_position_to_bevy};
 
 pub(super) fn step_build_terrain(progress: &mut LoadingProgress) {
     if let (Some(odm), Some(tile_table)) = (&progress.odm, &progress.tile_table) {
@@ -169,7 +167,7 @@ pub(super) fn step_done(
             openmm_data::utils::MapName::Outdoor(odm) => odm.base_name(),
             other => other.to_string(),
         };
-        crate::game::state::load_map_events(commands, game_assets, &map_base, false);
+        crate::game::events::load_map_events(commands, game_assets, &map_base, false);
         commands.insert_resource(PreparedWorld {
             map,
             terrain_mesh: mesh,

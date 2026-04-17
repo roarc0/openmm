@@ -7,7 +7,7 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
-use crate::game::coords::mm6_position_to_bevy;
+use crate::game::map::coords::mm6_position_to_bevy;
 use crate::game::optional::OptionalWrite;
 use crate::game::spawn::SpawnCtx;
 use crate::game::spawn::decoration::{DecSpriteCache, spawn_decoration};
@@ -82,7 +82,7 @@ pub(super) fn lazy_spawn(
     mut sprite_materials: Option<ResMut<Assets<SpriteMaterial>>>,
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
-    mut map_events: Option<ResMut<crate::game::state::MapEvents>>,
+    mut map_events: Option<ResMut<crate::game::events::MapEvents>>,
     cfg: Res<crate::system::config::GameConfig>,
 ) {
     let Some(mut pending) = pending else {

@@ -24,10 +24,15 @@
 
 ### Phase 2: Game Module Decoupling
 - [x] **Simulation State** — Rename `src/game/world/` → `src/game/state/` (Handles Time, Variables, Scripting)
-- [ ] **Map Umbrella**: Create `src/game/map/` and move `indoor/`, `outdoor/`, `collision.rs`, `coords.rs`, `spatial_index.rs` into it.
+- [x] **Map Umbrella**: Created `src/game/map/` — moved `indoor/`, `outdoor/`, `collision.rs`, `coords.rs`, `spatial_index.rs` into it.
 - [x] **Player/Party Umbrella**: Nest `src/game/party/` into `src/game/player/party/`.
+- [x] **State Decomposition**: Split `state/` into focused modules:
+    - [x] `game/events/` — EVT scripting, event handlers, MapEvents (from `state/scripting.rs`, `state/event_handlers.rs`, `state/events.rs`)
+    - [x] `game/ui/` — UiState, UiMode, FooterText, OverlayImage (from `state/ui_state.rs`)
+    - [x] `game/actors/npc_dialogue.rs` — NPC dialogue data prep (from `state/npc_dialogue.rs`)
+    - `state/` now holds only: WorldState, GameVariables, GameTime, variables
 - [ ] **Spawning & Actor Logic**: Create `src/game/spawn/` with subfolders for specialized logic:
-    - [ ] `actor/`: Nest all monster/npc logic here (`actors/`, `npc_dialogue.rs`)
+    - [ ] `actor/`: Nest all monster/npc logic here (`actors/`)
     - [ ] `decoration/`: Nest prop spawning logic
     - [ ] `sprite/`: Nest world-sprite registration logic (move from `src/game/sprites/`)
 - [x] **Input & UI** — Created `src/game/controls/` and moved `input.rs` there.

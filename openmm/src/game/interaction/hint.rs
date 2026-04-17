@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 
-use crate::game::indoor::OccluderFaces;
+use crate::game::events::MapEvents;
+use crate::game::map::indoor::OccluderFaces;
+use crate::game::map::spatial_index::EntitySpatialIndex;
 use crate::game::player::PlayerCamera;
-use crate::game::spatial_index::EntitySpatialIndex;
 use crate::game::sprites::loading::SpriteSheet;
-use crate::game::state::MapEvents;
-use crate::game::state::ui_state::UiState;
+use crate::game::ui::UiState;
 
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};

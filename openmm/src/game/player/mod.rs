@@ -9,11 +9,11 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
-use crate::system::config::GameConfig;
 use crate::game::InGame;
-use crate::game::collision::sample_terrain_height;
-use crate::system::save::GameSave;
+use crate::game::map::collision::sample_terrain_height;
 use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
+use crate::system::config::GameConfig;
+use crate::system::save::GameSave;
 
 use input::{cursor_grab, player_look, player_movement, toggle_fly_mode, toggle_mouse_look, toggle_run_mode};
 
@@ -175,24 +175,22 @@ impl Plugin for PlayerPlugin {
                     .before(player_look)
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
-                    .run_if(crate::game::state::ui_state::game_input_active),
+                    .run_if(crate::game::ui::game_input_active),
             )
             .add_systems(
                 Update,
                 (player_movement, player_look, cursor_grab, log_gamepads)
                     .in_set(PlayerInputSet)
                     .run_if(in_state(GameState::Game))
-                    .run_if(crate::game::state::ui_state::game_input_active),
+                    .run_if(crate::game::ui::game_input_active),
             )
             // Torch visibility follows GameTime, which freezes while UiMode ≠ World.
             // Gate the system so it doesn't flicker the torch on/off during dialogues.
             .add_systems(
                 Update,
-                party_torch_system.run_if(in_state(GameState::Game)).run_if(
-                    |ui: Res<crate::game::state::ui_state::UiState>| {
-                        ui.mode == crate::game::state::ui_state::UiMode::World
-                    },
-                ),
+                party_torch_system
+                    .run_if(in_state(GameState::Game))
+                    .run_if(|ui: Res<crate::game::ui::UiState>| ui.mode == crate::game::ui::UiMode::World),
             )
             .add_systems(PostUpdate, sync_player_to_world_state.run_if(in_state(GameState::Game)));
     }

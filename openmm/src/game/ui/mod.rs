@@ -36,11 +36,7 @@ pub fn set_overlay_mode(
 }
 
 /// Switch to a non-World UI mode and free the cursor.
-pub fn set_ui_mode(
-    ui: &mut UiState,
-    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
-    mode: UiMode,
-) {
+pub fn set_ui_mode(ui: &mut UiState, cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>, mode: UiMode) {
     ui.mode = mode;
     grab_cursor(cursor_query, false);
 }

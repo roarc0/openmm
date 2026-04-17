@@ -11,14 +11,14 @@ use bevy::prelude::*;
 use bevy::window::{PrimaryWindow, WindowMode};
 
 use crate::GameState;
-use crate::system::config::GameConfig;
 use crate::game::InGame;
-use crate::screens::debug::hud::DebugHud;
-use crate::game::outdoor::OdmName;
+use crate::game::map::outdoor::OdmName;
 use crate::game::rendering::viewport::viewport_inner_rect;
 use crate::game::state::WorldState;
-use crate::system::save::GameSave;
+use crate::screens::debug::hud::DebugHud;
 use crate::screens::ui_assets::UiAssets;
+use crate::system::config::GameConfig;
+use crate::system::save::GameSave;
 use openmm_data::utils::MapName;
 
 mod commands;

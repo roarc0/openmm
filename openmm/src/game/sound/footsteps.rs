@@ -3,8 +3,8 @@ use openmm_data::dtile::Tileset;
 
 use super::SoundManager;
 use crate::game::InGame;
+use crate::game::map::is_outdoor;
 use crate::game::player::Player;
-use crate::game::state::is_outdoor;
 use crate::prepare::loading::PreparedWorld;
 
 /// Base terrain suffix used to build footstep sound names ("Walk<Suffix>" / "Run<Suffix>").

@@ -13,6 +13,7 @@ use bevy::prelude::*;
 pub mod actor;
 pub mod ai;
 pub mod combat;
+pub mod npc_dialogue;
 pub mod physics;
 
 pub use actor::{Actor, ActorParams, MonsterAiType};

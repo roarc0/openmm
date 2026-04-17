@@ -12,7 +12,7 @@ use crate::game::player::party::Party;
 use super::state::GameVariables;
 
 /// Read a game variable's current value.
-pub(super) fn get_variable(
+pub(in crate::game) fn get_variable(
     vars: &GameVariables,
     party: &Party,
     game_time: Option<&super::time::GameTime>,
@@ -64,12 +64,12 @@ pub(super) fn get_variable(
 }
 
 /// Returns true if this variable is per-character (not global).
-pub(super) fn is_character_var(var: EvtVariable) -> bool {
+pub(in crate::game) fn is_character_var(var: EvtVariable) -> bool {
     var.is_character_scoped()
 }
 
 /// Write a value to a game variable.
-pub(super) fn set_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
+pub(in crate::game) fn set_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
     if var.is_map_var() {
         let idx = var.map_var_index().unwrap() as usize;
         info!("  {} = {} (was {})", var, value, vars.map_vars[idx]);
@@ -123,7 +123,7 @@ pub(super) fn set_variable(vars: &mut GameVariables, party: &mut Party, var: Evt
 }
 
 /// Add to a game variable.
-pub(super) fn add_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
+pub(in crate::game) fn add_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
     if var.is_map_var() {
         let idx = var.map_var_index().unwrap() as usize;
         let old = vars.map_vars[idx];
@@ -170,7 +170,7 @@ pub(super) fn add_variable(vars: &mut GameVariables, party: &mut Party, var: Evt
 }
 
 /// Subtract from a game variable.
-pub(super) fn subtract_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
+pub(in crate::game) fn subtract_variable(vars: &mut GameVariables, party: &mut Party, var: EvtVariable, value: i32) {
     if var.is_map_var() {
         let idx = var.map_var_index().unwrap() as usize;
         let old = vars.map_vars[idx];
@@ -212,7 +212,7 @@ pub(super) fn subtract_variable(vars: &mut GameVariables, party: &mut Party, var
 
 /// Evaluate a Compare condition. Returns true if condition is met (JUMP to jump_step).
 /// MM6 Compare semantics: jump when condition is TRUE (e.g. "already done" -> skip).
-pub(super) fn evaluate_compare(
+pub(in crate::game) fn evaluate_compare(
     vars: &GameVariables,
     party: &Party,
     game_time: Option<&super::time::GameTime>,

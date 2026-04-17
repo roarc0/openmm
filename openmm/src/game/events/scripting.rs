@@ -20,14 +20,14 @@ pub(super) struct TransitionParams<'w> {
 }
 use super::event_handlers;
 use super::events::MapEvents;
-use super::variables;
 use crate::game::actors::Actor;
 use crate::game::interaction::DecorationInfo;
+use crate::game::map::outdoor::ApplyTextureOutdoors;
 use crate::game::optional::OptionalWrite;
-use crate::game::outdoor::ApplyTextureOutdoors;
 use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
-use crate::game::state::ui_state::UiState;
+use crate::game::state::variables;
+use crate::game::ui::UiState;
 
 /// Bundles map entity queries to stay within Bevy's 16-param system limit.
 /// Wraps the decoration sprite-swap query and actor visibility/flag query.
@@ -55,7 +55,7 @@ pub(super) struct AudioParams<'w> {
     pub ui_sound: Option<bevy::ecs::message::MessageWriter<'w, PlayUiSoundEvent>>,
     pub texture_outdoors: bevy::ecs::message::MessageWriter<'w, ApplyTextureOutdoors>,
     pub sound_manager: Option<Res<'w, SoundManager>>,
-    pub game_time: Option<Res<'w, super::time::GameTime>>,
+    pub game_time: Option<Res<'w, crate::game::state::GameTime>>,
     pub meshes: ResMut<'w, Assets<Mesh>>,
 }
 
@@ -228,15 +228,15 @@ fn process_events(
     mut ui: ResMut<UiState>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut transition: TransitionParams,
-    mut blv_doors: Option<ResMut<crate::game::indoor::BlvDoors>>,
+    mut blv_doors: Option<ResMut<crate::game::map::indoor::BlvDoors>>,
     mut audio: AudioParams,
-    mut world_state: ResMut<super::state::WorldState>,
+    mut world_state: ResMut<crate::game::state::WorldState>,
     mut party: ResMut<Party>,
     time: Res<Time>,
     mut entities: MapEntityParams,
 ) {
     // Don't process events while a UI overlay is blocking
-    if !matches!(ui.mode, crate::game::state::ui_state::UiMode::World) {
+    if !matches!(ui.mode, crate::game::ui::UiMode::World) {
         return;
     }
 
@@ -324,7 +324,7 @@ fn process_events(
             GameEvent::ChangeDoorState { door_id, action } => {
                 debug!("ChangeDoorState door_id={} action={}", door_id, action);
                 if let Some(ref mut doors) = blv_doors {
-                    crate::game::indoor::trigger_door(doors, *door_id as u32, action.as_u8());
+                    crate::game::map::indoor::trigger_door(doors, *door_id as u32, action.as_u8());
                 }
             }
             GameEvent::PlaySound { sound_id } => {

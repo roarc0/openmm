@@ -4,14 +4,13 @@ use openmm_data::{blv::Blv, utils::OdmName};
 
 use super::{
     ClickableFaceData, LoadRequest, LoadingProgress, OccluderFaceData, PreparedDoorCollision, PreparedDoorFace,
-    PreparedIndoorWorld, PreparedModel, PreparedSubMesh, SectorAmbient, StartPoint, TouchTriggerFaceData,
-    helpers,
+    PreparedIndoorWorld, PreparedModel, PreparedSubMesh, SectorAmbient, StartPoint, TouchTriggerFaceData, helpers,
 };
 use crate::prepare::build_indoor::{blv_face_normal, blv_face_verts, extract_blv_collision};
 use crate::{
     GameState,
     assets::GameAssets,
-    game::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy},
+    game::map::coords::{mm6_binary_angle_to_radians, mm6_position_to_bevy},
 };
 
 /// Build indoor (BLV) geometry: meshes, doors, collision, clickable/touch/occluder faces,
@@ -302,7 +301,7 @@ pub(super) fn step_build_models_indoor(
     )
     .ok();
 
-    crate::game::state::load_map_events(commands, game_assets, &map_base, true);
+    crate::game::events::load_map_events(commands, game_assets, &map_base, true);
     commands.insert_resource(PreparedIndoorWorld {
         models,
         start_points,
@@ -321,7 +320,7 @@ pub(super) fn step_build_models_indoor(
         blv_lights,
         sector_ambients,
     });
-    commands.insert_resource(crate::game::state::CurrentMap(load_request.map_name.clone()));
+    commands.insert_resource(crate::game::map::CurrentMap(load_request.map_name.clone()));
     commands.remove_resource::<LoadingProgress>();
     commands.remove_resource::<LoadRequest>();
     game_state.set(GameState::Game);

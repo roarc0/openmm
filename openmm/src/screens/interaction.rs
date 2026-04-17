@@ -11,8 +11,8 @@ use super::setup::{hide_screen, load_screen_replace_all, show_screen};
 use super::ui_assets::UiAssets;
 use crate::GameState;
 use crate::assets::GameAssets;
-use crate::system::config::GameConfig;
 use crate::game::optional::OptionalWrite;
+use crate::system::config::GameConfig;
 
 // ── Interaction systems ─────────────────────────────────────────────────────
 
@@ -223,7 +223,7 @@ pub(super) fn process_pending_actions(
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
     world_state: Option<Res<crate::game::state::WorldState>>,
-    mut event_queue: Option<ResMut<crate::game::state::scripting::EventQueue>>,
+    mut event_queue: Option<ResMut<crate::game::events::scripting::EventQueue>>,
     _time: Res<Time>,
 ) {
     use super::scripting::Action;
@@ -356,7 +356,7 @@ fn build_config_flags(cfg: &GameConfig) -> std::collections::HashSet<String> {
 }
 
 /// Proxy an `evt:` action string to the EVT EventQueue.
-fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::state::scripting::EventQueue) {
+fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::events::scripting::EventQueue) {
     use openmm_data::evt::GameEvent;
 
     let s = evt_str.trim();

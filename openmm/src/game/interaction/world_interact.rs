@@ -2,13 +2,13 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::game::actors::KillActorEvent;
-use crate::game::indoor::OccluderFaces;
+use crate::game::events::EventQueue;
+use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
+use crate::game::map::indoor::OccluderFaces;
+use crate::game::map::spatial_index::EntitySpatialIndex;
 use crate::game::player::PlayerCamera;
-use crate::game::spatial_index::EntitySpatialIndex;
 use crate::game::sprites::loading::SpriteSheet;
-use crate::game::state::EventQueue;
 use crate::game::state::WorldState;
-use crate::game::state::{GENERATED_NPC_ID_BASE, MapEvents};
 
 use super::clickable;
 use super::raycast::{billboard_hit_test, point_in_polygon, ray_plane_intersect, resolve_event_name};
@@ -16,9 +16,9 @@ use super::{
     DecorationInfo, DecorationTrigger, MAX_INTERACT_RANGE, MonsterInteractable, NpcInteractable, check_interact_input,
     facing_rotation,
 };
-use crate::system::config::GameConfig;
 use crate::game::player::Player;
-use crate::game::state::ui_state::UiState;
+use crate::game::ui::UiState;
+use crate::system::config::GameConfig;
 
 use bevy::ecs::system::SystemParam;
 
