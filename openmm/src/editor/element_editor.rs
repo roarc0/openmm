@@ -365,11 +365,19 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
     };
 
     let mut source = txt.source.clone();
+    let mut text = txt.text.clone();
     let mut font = txt.font.clone();
     let mut font_size = txt.font_size;
     let mut color = txt.color.clone();
     let mut align = txt.align.clone();
     let mut changed = false;
+
+    ui.horizontal(|ui| {
+        ui.label("Text:");
+        if ui.text_edit_multiline(&mut text).changed() {
+            changed = true;
+        }
+    });
 
     ui.horizontal(|ui| {
         ui.label("Source:");
@@ -434,6 +442,7 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
     if changed {
         let t = editor.screen.elements[sel].as_text_mut().unwrap();
         t.source = source;
+        t.text = text;
         t.font = font;
         t.font_size = font_size;
         t.color = color;

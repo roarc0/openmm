@@ -433,6 +433,7 @@ pub(super) fn spawn_text_element(
         marker,
         RuntimeText {
             source: txt.source.clone(),
+            text: txt.text.clone(),
             font: txt.font.clone(),
             font_size: txt.font_size,
             color: txt.color_rgba(),
@@ -491,7 +492,7 @@ pub(super) fn text_update(
                 .unwrap_or_default(),
             "shop_name" => house_profile.as_ref().map_or(String::new(), |p| p.name.clone()),
             "armorer_name" => house_profile.as_ref().map_or(String::new(), |p| p.owner_name.clone()),
-            _ => String::new(),
+            _ => rt.text.clone(),
         };
 
         // Re-render when text or color changed.

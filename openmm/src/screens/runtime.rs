@@ -116,6 +116,7 @@ pub(crate) struct FrameAnimation {
 #[derive(Component)]
 pub(super) struct RuntimeText {
     pub(super) source: String,
+    pub(super) text: String,
     pub(super) font: String,
     pub(super) font_size: f32,
     pub(super) color: [u8; 4],

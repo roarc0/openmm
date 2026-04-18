@@ -410,6 +410,9 @@ pub struct TextElement {
     /// Data source binding (e.g. "footer_text", "gold", "food").
     #[serde(default)]
     pub source: String,
+    /// Default static text if source is missing or empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub text: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_click: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
