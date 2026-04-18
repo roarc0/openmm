@@ -1,4 +1,6 @@
-//! Data-driven screen bindings: components spawned from RON `bindings` field,
+//! Data-driven screen bindings and frame animations.
+//!
+//! Components spawned from RON `bindings` field,
 //! systems that update them each frame based on game state (player position,
 //! yaw, current map, etc.).
 //!
@@ -79,7 +81,13 @@ impl Plugin for BindingsPlugin {
         use crate::GameState;
         app.add_systems(
             Update,
-            (compass_scroll, minimap_scroll, arrow_update, tap_update)
+            (
+                compass_scroll,
+                minimap_scroll,
+                arrow_update,
+                tap_update,
+                frame_animation_tick,
+            )
                 .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
         )
         .add_systems(Update, loading_anim_update.run_if(in_state(GameState::Loading)));
@@ -363,5 +371,23 @@ fn loading_anim_update(
         } else {
             Visibility::Hidden
         });
+    }
+}
+
+// ── Frame animation ────────────────────────────────────────────────────────
+
+/// Tick frame animations — cycles through pre-loaded texture handles at the configured FPS.
+pub(super) fn frame_animation_tick(
+    time: Res<Time>,
+    mut query: Query<(&mut super::runtime::FrameAnimation, &mut ImageNode)>,
+) {
+    for (mut anim, mut image_node) in &mut query {
+        anim.elapsed += time.delta_secs();
+        let frame_duration = 1.0 / anim.fps;
+        if anim.elapsed >= frame_duration {
+            anim.elapsed -= frame_duration;
+            anim.current_frame = (anim.current_frame + 1) % anim.handles.len();
+            image_node.image = anim.handles[anim.current_frame].clone();
+        }
     }
 }

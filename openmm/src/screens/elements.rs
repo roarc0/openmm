@@ -5,8 +5,8 @@ use bevy::prelude::*;
 use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, TapBinding};
 use super::fonts::GameFonts;
 use super::runtime::{
-    ClickedTexture, HiddenByDefault, HoverOverlay, Pulsable, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer,
-    ScreenMusic,
+    ClickedTexture, FrameAnimation, HiddenByDefault, HoverOverlay, Pulsable, RuntimeElement, RuntimeText,
+    ScreenCrosshair, ScreenLayer, ScreenMusic,
 };
 use super::video::spawn_video_element;
 use super::{
@@ -251,6 +251,9 @@ pub(super) fn spawn_image_element(
             }
             _ => {}
         }
+        if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
+            entity.insert(anim);
+        }
         if let Some(h_handle) = hover_handle {
             entity.with_children(|parent| {
                 parent.spawn((
@@ -279,7 +282,63 @@ pub(super) fn spawn_image_element(
         if img.hidden {
             entity.insert(HiddenByDefault);
         }
+        if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
+            entity.insert(anim);
+        }
     }
+}
+
+/// Load animation frame handles from an image element's animation descriptor.
+fn load_animation(
+    img: &super::ImageElement,
+    ui_assets: &mut UiAssets,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    cfg: &GameConfig,
+) -> Option<FrameAnimation> {
+    let anim = img.animation.as_ref()?;
+    let mut handles = Vec::with_capacity(anim.frames as usize);
+    for i in 1..=anim.frames {
+        let name = format_animation_frame(&anim.pattern, i);
+        match load_texture_with_transparency(&name, &img.transparent_color, ui_assets, game_assets, images, cfg) {
+            Some(handle) => handles.push(handle),
+            None => {
+                bevy::log::warn!("animation frame '{}' not found, skipping animation for '{}'", name, img.id);
+                return None;
+            }
+        }
+    }
+    if handles.is_empty() {
+        return None;
+    }
+    bevy::log::info!("loaded {} animation frames for '{}'", handles.len(), img.id);
+    Some(FrameAnimation {
+        handles,
+        fps: anim.fps,
+        elapsed: 0.0,
+        current_frame: 0,
+    })
+}
+
+/// Expand a printf-style pattern like `"icons/Watwalk%02d"` with a frame number.
+/// Supports `%d`, `%0Nd` (zero-padded to N digits).
+fn format_animation_frame(pattern: &str, frame: u32) -> String {
+    // Find %d or %0Nd
+    if let Some(pos) = pattern.find('%') {
+        let rest = &pattern[pos + 1..];
+        if rest.starts_with('d') {
+            return format!("{}{}{}", &pattern[..pos], frame, &rest[1..]);
+        }
+        // %02d, %03d, etc.
+        if let Some(d_pos) = rest.find('d') {
+            let width_str = &rest[..d_pos];
+            if let Ok(width) = width_str.trim_start_matches('0').parse::<usize>() {
+                return format!("{}{:0>width$}{}", &pattern[..pos], frame, &rest[d_pos + 1..]);
+            }
+        }
+    }
+    // Fallback: append frame number
+    format!("{}{}", pattern, frame)
 }
 
 // ── Text elements ───────────────────────────────────────────────────────────

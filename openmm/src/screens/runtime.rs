@@ -103,6 +103,15 @@ pub(crate) struct ClickedTexture {
     pub(crate) default: Option<Handle<Image>>,
 }
 
+/// Frame animation — cycles through numbered textures at a given FPS.
+#[derive(Component)]
+pub(crate) struct FrameAnimation {
+    pub(crate) handles: Vec<Handle<Image>>,
+    pub(crate) fps: f32,
+    pub(crate) elapsed: f32,
+    pub(crate) current_frame: usize,
+}
+
 /// Marks a text element with its data source binding.
 #[derive(Component)]
 pub(super) struct RuntimeText {

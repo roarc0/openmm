@@ -1,0 +1,25 @@
+(
+    id: "waterwalk",
+    elements: [
+        Image((
+            id: "icons/Watwalk",
+            position: (407.0, 9.0),
+            size: (60.0, 34.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/Watwalk01",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            animation: Some((
+                pattern: "icons/Watwalk%02d",
+                frames: 6,
+                fps: 4.0,
+            )),
+            transparent_color: "cyan",
+        )),
+    ],
+)

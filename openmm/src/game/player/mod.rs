@@ -10,6 +10,7 @@ use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
 use crate::game::InGame;
+use crate::game::optional::OptionalWrite;
 use crate::game::map::collision::sample_terrain_height;
 use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
 use crate::system::config::GameConfig;
@@ -192,7 +193,13 @@ impl Plugin for PlayerPlugin {
                     .run_if(in_state(GameState::Game))
                     .run_if(crate::game::ui::is_world_mode),
             )
-            .add_systems(PostUpdate, sync_player_to_world_state.run_if(in_state(GameState::Game)));
+            .add_systems(PostUpdate, sync_player_to_world_state.run_if(in_state(GameState::Game)))
+            .add_systems(
+                Update,
+                water_overlay_system
+                    .after(PlayerInputSet)
+                    .run_if(in_state(GameState::Game)),
+            );
     }
 }
 
@@ -458,5 +465,40 @@ fn sync_player_to_world_state(
         world_state.player.position = transform.translation;
         let (yaw, _, _) = transform.rotation.to_euler(EulerRot::YXZ);
         world_state.player.yaw = yaw;
+    }
+}
+
+/// Show waterwalk overlay when player is on a pure water tile (no bridge above).
+fn water_overlay_system(
+    player_query: Query<(&Transform, &PlayerPhysics), With<Player>>,
+    water_map: Option<Res<crate::game::map::collision::WaterMap>>,
+    colliders: Option<Res<crate::game::map::collision::BuildingColliders>>,
+    settings: Res<PlayerSettings>,
+    mut actions: Option<bevy::ecs::message::MessageWriter<crate::screens::runtime::ScreenActions>>,
+    mut showing: Local<bool>,
+) {
+    let Ok((transform, physics)) = player_query.single() else { return };
+    let Some(ref wm) = water_map else { return };
+
+    let pos = transform.translation;
+    let on_water_tile = wm.is_water_at(pos.x, pos.z);
+    let feet_y = pos.y - settings.eye_height;
+    let on_bridge = colliders
+        .as_ref()
+        .and_then(|c| c.floor_height_at(pos.x, pos.z, feet_y, crate::game::map::collision::MAX_STEP_UP))
+        .is_some();
+
+    let should_show = on_water_tile && physics.on_ground && !on_bridge;
+
+    if should_show != *showing {
+        *showing = should_show;
+        let action = if should_show {
+            "ShowScreen(\"waterwalk\")"
+        } else {
+            "HideScreen(\"waterwalk\")"
+        };
+        actions.try_write(crate::screens::runtime::ScreenActions {
+            actions: vec![action.to_string()],
+        });
     }
 }

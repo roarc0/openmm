@@ -341,6 +341,9 @@ pub struct ImageElement {
     /// Start hidden.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
+    /// Frame animation: cycles through prefix01, prefix02, ... textures.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub animation: Option<Animation>,
     /// Color key for transparency.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub transparent_color: String,
@@ -436,6 +439,27 @@ impl TextElement {
     }
 }
 
+/// Frame animation descriptor — cycles through numbered textures.
+///
+/// `pattern` is a printf-style format string with one `%d` placeholder:
+///   - `"icons/Watwalk%02d"` → Watwalk01, Watwalk02, ...
+///   - `"icons/spell%03d"`   → spell001, spell002, ...
+///   - `"icons/fire%d"`      → fire1, fire2, ...
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Animation {
+    /// Printf-style pattern with `%d`, `%02d`, `%03d`, etc.
+    pub pattern: String,
+    /// Total frame count (1-indexed: 1..=frames).
+    pub frames: u32,
+    /// Frames per second.
+    #[serde(default = "default_fps")]
+    pub fps: f32,
+}
+
+fn default_fps() -> f32 {
+    10.0
+}
+
 /// Visual state of an element — texture + optional trigger condition.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ElementState {
@@ -490,6 +514,7 @@ impl ImageElement {
             on_hover: Vec::new(),
             bindings: BTreeMap::new(),
             hidden: false,
+            animation: None,
             transparent_color: String::new(),
             crop_w: 0.0,
             crop_h: 0.0,
