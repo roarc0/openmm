@@ -87,6 +87,14 @@ pub struct OverlayImage {
 #[derive(Resource, Default)]
 pub struct BuildingScreen(pub String);
 
+/// Active building's display metadata for screen element bindings.
+/// Inserted by handle_speak_in_house, removed by interaction_input on exit.
+#[derive(Resource, Default)]
+pub struct HouseProfile {
+    pub name: String,
+    pub owner_name: String,
+}
+
 /// Handle to the current map's overview image for the M-key fullscreen overlay.
 /// `None` for indoor maps (no overview icon exists).
 #[derive(Resource)]

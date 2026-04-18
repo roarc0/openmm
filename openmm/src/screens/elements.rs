@@ -49,7 +49,7 @@ pub(super) fn spawn_runtime_element(
             spawn_video_element(commands, images, audio_sources, vid, layer_tag, game_assets);
         }
         ScreenElement::Text(txt) => {
-            spawn_text_element(commands, txt, layer_tag);
+            spawn_text_element(commands, txt, index, screen_id, layer_tag);
         }
     }
 }
@@ -401,7 +401,13 @@ fn format_animation_frame(pattern: &str, frame: u32) -> String {
 
 // ── Text elements ───────────────────────────────────────────────────────────
 
-pub(super) fn spawn_text_element(commands: &mut Commands, txt: &TextElement, layer_tag: &ScreenLayer) {
+pub(super) fn spawn_text_element(
+    commands: &mut Commands,
+    txt: &TextElement,
+    index: usize,
+    screen_id: &str,
+    layer_tag: &ScreenLayer,
+) {
     // Text starts hidden. Width/position set dynamically by text_update.
     let node = Node {
         position_type: PositionType::Absolute,
@@ -412,22 +418,36 @@ pub(super) fn spawn_text_element(commands: &mut Commands, txt: &TextElement, lay
         ..default()
     };
 
-    commands.spawn((
+    let marker = RuntimeElement {
+        screen_id: screen_id.to_string(),
+        index,
+        element_id: txt.id.clone(),
+    };
+
+    let mut entity = commands.spawn((
         ImageNode::new(Handle::default()),
         node,
         ZIndex(txt.z),
         Visibility::Hidden,
         layer_tag.clone(),
+        marker,
         RuntimeText {
             source: txt.source.clone(),
             font: txt.font.clone(),
             font_size: txt.font_size,
             color: txt.color_rgba(),
+            base_color: txt.color_rgba(),
+            hover_color: txt.hover_rgba(),
             align: txt.align.clone(),
             bounds: (txt.position.0, txt.position.1, txt.size.0, txt.size.1),
             last_text: "\x00".to_string(), // sentinel — forces first update
+            last_color: txt.color_rgba(),
         },
     ));
+
+    if !txt.on_click.is_empty() || !txt.on_hover.is_empty() || txt.hover_color.is_some() {
+        entity.insert((Button, Interaction::None, BackgroundColor(Color::NONE)));
+    }
 }
 
 /// Read data sources, re-render text when content changes, reposition every frame.
@@ -435,6 +455,7 @@ pub(super) fn text_update(
     ui: Res<UiState>,
     world_state: Option<Res<crate::game::state::WorldState>>,
     npc_profile: Option<Res<crate::game::actors::npc_dialogue::NpcProfile>>,
+    house_profile: Option<Res<crate::game::ui::HouseProfile>>,
     loading_step: Option<Res<crate::prepare::loading::LoadingStep>>,
     game_fonts: Res<GameFonts>,
     mut images: ResMut<Assets<Image>>,
@@ -468,12 +489,15 @@ pub(super) fn text_update(
                 .as_ref()
                 .and_then(|p| p.greeting_text.clone())
                 .unwrap_or_default(),
+            "shop_name" => house_profile.as_ref().map_or(String::new(), |p| p.name.clone()),
+            "armorer_name" => house_profile.as_ref().map_or(String::new(), |p| p.owner_name.clone()),
             _ => String::new(),
         };
 
-        // Re-render only when text changed.
-        if current != rt.last_text {
+        // Re-render when text or color changed.
+        if current != rt.last_text || rt.color != rt.last_color {
             rt.last_text = current.clone();
+            rt.last_color = rt.color;
 
             if current.is_empty() {
                 *vis = Visibility::Hidden;

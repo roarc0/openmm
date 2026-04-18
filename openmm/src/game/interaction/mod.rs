@@ -186,6 +186,7 @@ fn interaction_input(
         commands.remove_resource::<OverlayImage>();
         commands.remove_resource::<crate::game::actors::npc_dialogue::NpcPortrait>();
         commands.remove_resource::<crate::game::actors::npc_dialogue::NpcProfile>();
+        commands.remove_resource::<crate::game::ui::HouseProfile>();
         view.mode = UiMode::World;
         if let Ok(mut cursor) = cursor_query.single_mut() {
             cursor.grab_mode = CursorGrabMode::Confined;

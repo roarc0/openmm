@@ -54,6 +54,7 @@ pub fn draw_element_editor(
             }
             ScreenElement::Text(_) => {
                 draw_text_fields(ui, editor, sel);
+                draw_text_actions(ui, editor, sel);
             }
         }
     });
@@ -439,6 +440,42 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
         t.align = align;
         editor.dirty = true;
     }
+
+    let mut hover_color = editor.screen.elements[sel]
+        .as_text()
+        .unwrap()
+        .hover_color
+        .clone()
+        .unwrap_or_else(|| "none".to_string());
+    let mut hover_changed = false;
+
+    ui.horizontal(|ui| {
+        ui.label("Hover Color:");
+        egui::ComboBox::from_id_salt("txt_hover_color")
+            .selected_text(&hover_color)
+            .show_ui(ui, |ui| {
+                if ui.selectable_label(hover_color == "none", "none").clicked() {
+                    hover_color = "none".to_string();
+                    hover_changed = true;
+                }
+                for &c in crate::screens::TEXT_COLORS {
+                    if ui.selectable_label(hover_color == c, c).clicked() {
+                        hover_color = c.to_string();
+                        hover_changed = true;
+                    }
+                }
+            });
+    });
+
+    if hover_changed {
+        let t = editor.screen.elements[sel].as_text_mut().unwrap();
+        t.hover_color = if hover_color == "none" {
+            None
+        } else {
+            Some(hover_color)
+        };
+        editor.dirty = true;
+    }
 }
 
 fn draw_video_properties(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
@@ -553,6 +590,32 @@ fn draw_video_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
     super::editor_panel::action_list_editor(ui, &mut ends, &mut dirty);
     if dirty {
         editor.screen.elements[sel].as_video_mut().unwrap().on_end = ends;
+        editor.dirty = true;
+    }
+}
+
+fn draw_text_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
+    let Some(_) = editor.screen.elements[sel].as_text() else {
+        return;
+    };
+
+    ui.heading("On Click");
+    let mut clicks = editor.screen.elements[sel].as_text().unwrap().on_click.clone();
+    let mut dirty = false;
+    super::editor_panel::action_list_editor(ui, &mut clicks, &mut dirty);
+    if dirty {
+        editor.screen.elements[sel].as_text_mut().unwrap().on_click = clicks;
+        editor.dirty = true;
+    }
+
+    ui.separator();
+
+    ui.heading("On Hover");
+    let mut hovers = editor.screen.elements[sel].as_text().unwrap().on_hover.clone();
+    let mut dirty = false;
+    super::editor_panel::action_list_editor(ui, &mut hovers, &mut dirty);
+    if dirty {
+        editor.screen.elements[sel].as_text_mut().unwrap().on_hover = hovers;
         editor.dirty = true;
     }
 }

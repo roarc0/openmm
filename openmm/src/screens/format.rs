@@ -278,13 +278,15 @@ impl ScreenElement {
     pub fn on_click(&self) -> &[String] {
         match self {
             Self::Image(e) => &e.on_click,
-            Self::Video(_) | Self::Text(_) => &[],
+            Self::Text(e) => &e.on_click,
+            Self::Video(_) => &[],
         }
     }
     pub fn on_hover(&self) -> &[String] {
         match self {
             Self::Image(e) => &e.on_hover,
-            Self::Video(_) | Self::Text(_) => &[],
+            Self::Text(e) => &e.on_hover,
+            Self::Video(_) => &[],
         }
     }
     pub fn as_image(&self) -> Option<&ImageElement> {
@@ -408,6 +410,10 @@ pub struct TextElement {
     /// Data source binding (e.g. "footer_text", "gold", "food").
     #[serde(default)]
     pub source: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_click: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_hover: Vec<String>,
     /// MM6 font name (e.g. "smallnum", "arrus", "book").
     #[serde(default = "TextElement::default_font")]
     pub font: String,
@@ -417,6 +423,9 @@ pub struct TextElement {
     /// Text color: "white", "yellow", "red", "green".
     #[serde(default = "TextElement::default_color")]
     pub color: String,
+    /// Color to swap to when the mouse is over the text (optional).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hover_color: Option<String>,
     /// Text alignment: "left", "center", "right".
     /// - "left": position is the left edge, text grows right (default)
     /// - "center": position is the center point, text grows both ways
@@ -430,7 +439,7 @@ pub const TEXT_SOURCES: &[&str] = &["footer_text", "gold", "food"];
 /// Valid text alignments.
 pub const TEXT_ALIGNS: &[&str] = &["left", "center", "right"];
 /// Valid text colors.
-pub const TEXT_COLORS: &[&str] = &["white", "yellow", "red", "green"];
+pub const TEXT_COLORS: &[&str] = &["white", "yellow", "red", "green", "blue"];
 
 impl TextElement {
     fn default_font() -> String {
@@ -444,7 +453,15 @@ impl TextElement {
     }
 
     pub fn color_rgba(&self) -> [u8; 4] {
-        match self.color.as_str() {
+        Self::resolve_color(&self.color)
+    }
+
+    pub fn hover_rgba(&self) -> Option<[u8; 4]> {
+        self.hover_color.as_ref().map(|c| Self::resolve_color(c))
+    }
+
+    fn resolve_color(name: &str) -> [u8; 4] {
+        match name {
             "yellow" => super::fonts::YELLOW,
             "red" => super::fonts::RED,
             "green" => super::fonts::GREEN,
@@ -615,6 +632,36 @@ mod tests {
         assert!(v.looping);
         assert!(v.skippable);
         assert_eq!(v.on_end.len(), 1);
+    }
+
+    #[test]
+    fn round_trip_text_element() {
+        let txt = TextElement {
+            id: "status".to_string(),
+            position: (10.0, 10.0),
+            size: (100.0, 20.0),
+            z: 20,
+            hidden: false,
+            source: "gold".to_string(),
+            font: "arrus".to_string(),
+            font_size: 14.0,
+            color: "yellow".to_string(),
+            align: "right".to_string(),
+            on_click: vec!["PlaySound 1".to_string()],
+            on_hover: vec!["evt:Hint(\"Gold\")".to_string()],
+        };
+
+        let mut screen = Screen::new("stats");
+        screen.elements = vec![ScreenElement::Text(txt)];
+
+        let ron_str = ron::ser::to_string_pretty(&screen, ron::ser::PrettyConfig::default()).unwrap();
+        let parsed: Screen = ron::from_str(&ron_str).unwrap();
+
+        let t = parsed.elements[0].as_text().unwrap();
+        assert_eq!(t.id, "status");
+        assert_eq!(t.on_click.len(), 1);
+        assert_eq!(t.on_hover.len(), 1);
+        assert_eq!(t.font, "arrus");
     }
 
     #[test]

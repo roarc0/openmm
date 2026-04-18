@@ -157,36 +157,58 @@ pub(super) fn video_tick(
         }
 
         vid.frame_timer += time.delta_secs();
-        if vid.frame_timer < vid.spf {
-            continue;
-        }
-        vid.frame_timer -= vid.spf;
 
-        match vid.decoder.next_frame() {
-            Some(rgba) => {
-                if let Some(img) = images.get_mut(&vid.image_handle) {
-                    img.data = Some(rgba);
+        // Process all frames that should have occurred since the last update.
+        // Using a while loop ensures we catch up if the game frame rate hits a snag.
+        while vid.frame_timer >= vid.spf {
+            vid.frame_timer -= vid.spf;
+
+            match vid.decoder.next_frame() {
+                Some(rgba) => {
+                    if let Some(img) = images.get_mut(&vid.image_handle) {
+                        img.data = Some(rgba);
+                    }
                 }
-            }
-            None => {
-                if vid.looping {
-                    // Restart decoder from beginning.
-                    if let Ok(new_dec) = SmkDecoder::new(vid.smk_bytes.clone()) {
-                        vid.decoder = new_dec;
-                        vid.frame_timer = 0.0;
+                None => {
+                    if vid.looping {
+                        // Restart decoder from beginning.
+                        match SmkDecoder::new(vid.smk_bytes.clone()) {
+                            Ok(mut new_dec) => {
+                                // Immediately fetch the first frame of the new loop to prevent
+                                // a one-frame "blank" or "last-frame" gap.
+                                if let Some(rgba) = new_dec.next_frame() {
+                                    if let Some(img) = images.get_mut(&vid.image_handle) {
+                                        img.data = Some(rgba);
+                                    }
+                                }
+                                vid.decoder = new_dec;
+                                // Note: we keep the remaining frame_timer to preserve timing alignment.
+                            }
+                            Err(e) => {
+                                warn!("video element '{}': loop restart failed: {e}", vid.id_str());
+                                vid.finished = true;
+                                break;
+                            }
+                        }
                     } else {
                         vid.finished = true;
+                        if !vid.on_end.is_empty() {
+                            actions.try_write(ScreenActions {
+                                actions: vid.on_end.clone(),
+                            });
+                        }
+                        commands.entity(entity).despawn();
+                        break; // Stop processing frames for this despawned entity.
                     }
-                } else {
-                    vid.finished = true;
-                    if !vid.on_end.is_empty() {
-                        actions.try_write(ScreenActions {
-                            actions: vid.on_end.clone(),
-                        });
-                    }
-                    commands.entity(entity).despawn();
                 }
             }
         }
+    }
+}
+
+impl InlineVideo {
+    fn id_str(&self) -> &str {
+        // Simple helper for error logging since InlineVideo doesn't store the ID string directly.
+        "InlineVideo"
     }
 }

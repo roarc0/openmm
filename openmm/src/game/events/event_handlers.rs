@@ -18,7 +18,7 @@ use crate::game::sound::SoundManager;
 use crate::game::sound::effects::PlayUiSoundEvent;
 use crate::game::sprites::material::SpriteMaterial;
 use crate::game::state::WorldState;
-use crate::game::ui::{self, UiMode, UiState};
+use crate::game::ui::{self, HouseProfile, UiMode, UiState};
 use crate::prepare::loading::LoadRequest;
 
 use super::events::MapEvents;
@@ -83,6 +83,16 @@ pub(super) fn handle_speak_in_house(
         .map(|entry| super::events::building_screen_for_type(&entry.building_type))
         .unwrap_or("building");
     commands.insert_resource(ui::BuildingScreen(screen_name.to_string()));
+    if let Some(entry) = map_events
+        .as_ref()
+        .and_then(|me| me.houses.as_ref())
+        .and_then(|h| h.houses.get(&house_id))
+    {
+        commands.insert_resource(HouseProfile {
+            name: entry.name.clone(),
+            owner_name: "Armorer".to_string(),
+        });
+    }
 
     let image = map_events
         .as_ref()

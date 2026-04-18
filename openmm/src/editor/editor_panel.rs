@@ -145,7 +145,10 @@ pub fn editor_panel_ui(
                         font: "smallnum".to_string(),
                         font_size: 14.0,
                         color: "white".to_string(),
+                        hover_color: None,
                         align: "center".to_string(),
+                        on_click: vec![],
+                        on_hover: vec![],
                     }));
                 editor.dirty = true;
             }

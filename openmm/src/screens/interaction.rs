@@ -35,6 +35,21 @@ pub(super) fn screen_hover(
     }
 }
 
+pub(super) fn text_hover(
+    mut query: Query<(&Interaction, &mut super::runtime::RuntimeText), Changed<Interaction>>,
+) {
+    for (interaction, mut rt) in &mut query {
+        let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
+        if hovering {
+            if let Some(hover_color) = rt.hover_color {
+                rt.color = hover_color;
+            }
+        } else {
+            rt.color = rt.base_color;
+        }
+    }
+}
+
 /// Dispatch on_hover actions via PendingActions on hover start.
 /// Only active when the cursor is free (not grabbed by gameplay crosshair).
 /// Maintains ScreenUiHovered flag every frame (not just on change)
@@ -138,7 +153,7 @@ pub(super) fn screen_click(
             Entity,
             &Interaction,
             &RuntimeElement,
-            &mut ImageNode,
+            Option<&mut ImageNode>,
             Option<&ClickedTexture>,
         ),
         (Changed<Interaction>, With<Button>),
@@ -174,8 +189,10 @@ pub(super) fn screen_click(
         }
 
         // Swap to "clicked" texture if available, otherwise hide briefly.
-        if let Some(ct) = clicked_tex {
-            image_node.image = ct.clicked.clone();
+        if let Some(ct) = clicked_tex
+            && let Some(ref mut node) = image_node
+        {
+            node.image = ct.clicked.clone();
         } else {
             commands.entity(entity).insert(Visibility::Hidden);
         }
@@ -225,22 +242,24 @@ pub(super) fn click_flash_tick(
         Entity,
         &mut ClickFlash,
         &mut Visibility,
-        &mut ImageNode,
+        Option<&mut ImageNode>,
         Option<&ClickedTexture>,
     )>,
     mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
-    for (entity, mut flash, mut vis, mut image_node, clicked_tex) in &mut query {
+    for (entity, mut flash, mut vis, image_node, clicked_tex) in &mut query {
         flash.timer.tick(time.delta());
         if !flash.timer.just_finished() {
             continue;
         }
 
         // Restore default texture or visibility.
-        if let Some(ct) = clicked_tex {
+        if let Some(ct) = clicked_tex
+            && let Some(mut node) = image_node
+        {
             match ct.default {
-                Some(ref default) => image_node.image = default.clone(),
-                None => *image_node = ImageNode::default(),
+                Some(ref default) => node.image = default.clone(),
+                None => *node = ImageNode::default(),
             }
         } else {
             *vis = Visibility::Inherited;

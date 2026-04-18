@@ -21,7 +21,7 @@ impl Plugin for ScreenRuntimePlugin {
         use super::elements::{text_update, update_screen_crosshair};
         use super::interaction::{
             click_flash_tick, hover_actions, process_pending_actions, pulse_animate, pulse_hover, screen_click,
-            screen_hover, screen_keys,
+            screen_hover, screen_keys, text_hover,
         };
         use super::setup::{game_screen_setup, loading_screen_setup, menu_screen_setup, screen_teardown};
         use super::video::video_tick;
@@ -58,12 +58,12 @@ impl Plugin for ScreenRuntimePlugin {
                     click_flash_tick,
                     process_pending_actions,
                     update_screen_crosshair,
+                    text_hover,
                 )
                     .run_if(screen_states),
             );
     }
 }
-
 // ── Components & resources ──────────────────────────────────────────────────
 
 /// Marks the screen-system crosshair entity.
@@ -119,11 +119,15 @@ pub(super) struct RuntimeText {
     pub(super) font: String,
     pub(super) font_size: f32,
     pub(super) color: [u8; 4],
+    pub(super) base_color: [u8; 4],
+    pub(super) hover_color: Option<[u8; 4]>,
     pub(super) align: String,
     /// Bounding box in reference pixels: (x, y, w, h).
     pub(super) bounds: (f32, f32, f32, f32),
     /// Last rendered text — skip re-render if unchanged.
     pub(super) last_text: String,
+    /// Last rendered color — skip re-render if unchanged.
+    pub(super) last_color: [u8; 4],
 }
 
 /// Element starts hidden (from `hidden: true` in RON). Restored to Hidden on unhover.
