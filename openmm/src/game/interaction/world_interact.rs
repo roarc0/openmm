@@ -223,7 +223,7 @@ pub(crate) fn world_interact_system(
                         params.event_queue.push_all(event_id, evt);
                     }
                 } else {
-                    params.ui.footer.set_status("Nothing there", 2.0, now);
+                    params.ui.footer.set_status("Nothing here", 2.0, now);
                 }
             }
         }
