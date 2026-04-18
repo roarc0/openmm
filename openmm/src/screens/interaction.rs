@@ -326,7 +326,15 @@ pub(super) fn screen_keys(
     keys: Res<ButtonInput<KeyCode>>,
     layers: Res<ScreenLayers>,
     mut actions: Option<MessageWriter<ScreenActions>>,
+    console_state: Option<Res<super::debug::console::ConsoleState>>,
 ) {
+    // If console is open, block all screen key bindings.
+    if let Some(state) = console_state {
+        if state.open {
+            return;
+        }
+    }
+
     // Check keyboard shortcuts — Modal screens block lower-priority screens.
     use crate::screens::ScreenKind;
     let has_modal = layers.screens.values().any(|s| s.kind == ScreenKind::Modal);
