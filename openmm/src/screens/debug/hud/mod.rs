@@ -109,7 +109,7 @@ fn debug_setup(
             parent.spawn((
                 Text::new("FPS: --"),
                 TextFont {
-                    font_size: 22.0,
+                    font_size: 18.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
@@ -118,7 +118,7 @@ fn debug_setup(
             parent.spawn((
                 Text::new(" CPU: --%"),
                 TextFont {
-                    font_size: 22.0,
+                    font_size: 18.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
@@ -127,7 +127,7 @@ fn debug_setup(
             parent.spawn((
                 Text::new(""),
                 TextFont {
-                    font_size: 22.0,
+                    font_size: 18.0,
                     ..default()
                 },
                 TextColor(Color::srgb(0.3, 0.6, 1.0)),
@@ -136,7 +136,7 @@ fn debug_setup(
             parent.spawn((
                 Text::new(""),
                 TextFont {
-                    font_size: 22.0,
+                    font_size: 18.0,
                     ..default()
                 },
                 TextColor(Color::srgb(1.0, 0.7, 0.2)),
@@ -145,7 +145,7 @@ fn debug_setup(
             parent.spawn((
                 Text::new(""),
                 TextFont {
-                    font_size: 22.0,
+                    font_size: 18.0,
                     ..default()
                 },
                 TextColor(Color::srgb(0.85, 0.85, 0.85)),
@@ -154,7 +154,7 @@ fn debug_setup(
             parent.spawn((
                 Text::new(""),
                 TextFont {
-                    font_size: 22.0,
+                    font_size: 18.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),

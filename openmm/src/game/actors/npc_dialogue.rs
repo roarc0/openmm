@@ -42,6 +42,7 @@ pub fn prepare_npc_dialogue(
     game_assets: &GameAssets,
     images: &mut Assets<Image>,
     day_of_week: u32,
+    hour: u32,
     npc_greetings: &std::collections::HashMap<i32, i32>,
 ) -> Option<(NpcPortrait, NpcProfile)> {
     let (portrait_name, display_name) = if npc_id >= GENERATED_NPC_ID_BASE {
@@ -151,6 +152,16 @@ pub fn prepare_npc_dialogue(
         .and_then(|n| n.split_whitespace().next())
         .unwrap_or_default()
         .to_string();
+
+    // Expand %XX placeholders in greeting text.
+    let greeting_text = greeting_text.map(|text| {
+        let ctx = super::npc_text::SubstitutionContext {
+            npc_name: first_name.clone(),
+            hour,
+        };
+        super::npc_text::substitute_npc_text(&text, &ctx)
+    });
+
     let profile = NpcProfile {
         name: first_name,
         profession: prof_entry.map(|p| p.name.clone()),

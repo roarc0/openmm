@@ -260,12 +260,14 @@ pub(super) fn handle_speak_npc(
         .as_ref()
         .map(|gt| (gt.day_of_week() + 6) % 7)
         .unwrap_or(0);
+    let hour = audio.game_time.as_ref().map(|gt| gt.hour()).unwrap_or(9);
     if let Some((portrait, profile)) = npc_dialogue::prepare_npc_dialogue(
         npc_id,
         map_events,
         game_assets,
         images,
         dow,
+        hour,
         &world_state.game_vars.npc_greetings,
     ) {
         commands.insert_resource(portrait);

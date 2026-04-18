@@ -14,6 +14,7 @@ pub mod actor;
 pub mod ai;
 pub mod combat;
 pub mod npc_dialogue;
+pub mod npc_text;
 pub mod physics;
 
 pub use actor::{Actor, ActorParams, MonsterAiType};

@@ -76,6 +76,21 @@ pub fn date(total_minutes: u64) -> (u32, u32, u32) {
     (year, month, day)
 }
 
+/// Time-of-day greeting word for the given hour (0–23).
+///
+/// - 5–11  → "morning"
+/// - 12–17 → "day"
+/// - 18–21 → "evening"
+/// - 22–4  → "night"
+pub fn time_of_day_word(hour: u32) -> &'static str {
+    match hour {
+        5..=11 => "morning",
+        12..=17 => "day",
+        18..=21 => "evening",
+        _ => "night",
+    }
+}
+
 pub fn format(total_minutes: u64) -> String {
     let (y, m, d) = date(total_minutes);
     let dow = DAY_NAMES[day_of_week(total_minutes) as usize];

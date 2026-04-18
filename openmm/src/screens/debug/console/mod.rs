@@ -23,7 +23,7 @@ use openmm_data::utils::MapName;
 
 mod commands;
 
-const FONT_SIZE: f32 = 16.0;
+const FONT_SIZE: f32 = 14.0;
 const MAX_OUTPUT_LINES: usize = 50;
 pub(super) const NEEDS_RELOAD: &str = "(run 'reload' to apply)";
 const CONSOLE_HEIGHT_FRACTION: f32 = 0.6;
