@@ -354,6 +354,9 @@ pub struct ImageElement {
     /// Crop viewport height in reference pixels.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub crop_h: f32,
+    /// When true and explicit size is set, crop the texture to size instead of stretching.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub crop: bool,
 }
 
 /// A video element that plays an SMK file.
@@ -399,6 +402,9 @@ pub struct TextElement {
     /// MM6 font name (e.g. "smallnum", "arrus", "book").
     #[serde(default = "TextElement::default_font")]
     pub font: String,
+    /// Glyph height in reference pixels. 0 = use `size.1`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub font_size: f32,
     /// Text color: "white", "yellow", "red", "green".
     #[serde(default = "TextElement::default_color")]
     pub color: String,
@@ -486,6 +492,11 @@ impl Screen {
         }
     }
 
+    /// Highest z-order among all elements, or 0 if empty.
+    pub fn max_z(&self) -> i32 {
+        self.elements.iter().map(|e| e.z()).max().unwrap_or(0)
+    }
+
     /// Prune the locked list to only include current element IDs.
     pub fn prune_locked_elements(&mut self) {
         let element_ids: std::collections::HashSet<_> = self.elements.iter().map(|e| e.id().to_string()).collect();
@@ -518,6 +529,7 @@ impl ImageElement {
             transparent_color: String::new(),
             crop_w: 0.0,
             crop_h: 0.0,
+            crop: false,
         }
     }
 

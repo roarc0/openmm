@@ -3,7 +3,9 @@ pub mod canvas;
 mod editor_panel;
 mod element_editor;
 mod guides;
+mod input;
 pub mod io;
+mod overlay;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
@@ -39,14 +41,15 @@ impl Plugin for EditorPlugin {
             app.add_plugins(EguiPlugin::default());
         }
 
-        // Load screen eagerly so resources exist from frame 0.
-        let screen = io::load_last_screen();
+        // Load config once and keep as resource.
+        let cfg = io::EditorConfig::load_from_disk();
+        let screen = io::load_last_screen(&cfg);
         info!("screen editor — editing '{}'", screen.id);
 
         app.init_resource::<canvas::Selection>()
             .init_resource::<browser::BrowserState>()
             .init_resource::<UiVisible>()
-            .init_resource::<canvas::OverlayAction>()
+            .init_resource::<overlay::OverlayAction>()
             .insert_resource({
                 let original_id = Some(screen.id.clone());
                 canvas::EditorScreen {
@@ -56,24 +59,26 @@ impl Plugin for EditorPlugin {
                 }
             })
             .init_resource::<canvas::ElementEditorState>()
-            .insert_resource(guides::Guides::load())
+            .insert_resource(guides::Guides::from_config(&cfg))
+            .insert_resource(cfg)
             .add_systems(OnEnter(GameState::Editor), editor_setup)
             .add_systems(
                 Update,
                 (
                     canvas::rebuild_canvas,
-                    (canvas::selection_system, canvas::drag_system).chain(),
+                    (input::selection_system, input::drag_system).chain(),
                     canvas::sync_element_positions,
-                    canvas::apply_overlay_actions,
-                    canvas::save_shortcut_system,
+                    overlay::apply_overlay_actions,
+                    input::save_shortcut_system,
                     browser::init_browser,
+                    io::flush_config,
                     // Keyboard systems — disabled when typing in egui text fields.
                     (
-                        canvas::z_order_system,
-                        canvas::arrow_nudge_system,
-                        canvas::z_shortcut_system,
-                        canvas::delete_system,
-                        canvas::tab_cycle_system,
+                        input::z_order_system,
+                        input::arrow_nudge_system,
+                        input::shortcut_system,
+                        input::delete_system,
+                        input::tab_cycle_system,
                         browser::toggle_browser,
                         toggle_ui,
                     )
@@ -87,7 +92,7 @@ impl Plugin for EditorPlugin {
                     browser::browser_ui,
                     editor_panel::editor_panel_ui,
                     editor_toolbar,
-                    canvas::draw_overlays,
+                    overlay::draw_overlays,
                 )
                     .run_if(in_state(GameState::Editor))
                     .run_if(|vis: Res<UiVisible>| vis.0),
@@ -121,6 +126,7 @@ fn editor_toolbar(
     mut contexts: EguiContexts,
     mut editor: ResMut<canvas::EditorScreen>,
     mut editor_state: ResMut<canvas::ElementEditorState>,
+    mut cfg: ResMut<io::EditorConfig>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
@@ -141,7 +147,7 @@ fn editor_toolbar(
                     editor.dirty = false;
                     editor.original_id = None;
                     editor_state.hidden.clear();
-                    io::set_last_screen("untitled");
+                    io::set_last_screen(&mut cfg, "untitled");
                 }
 
                 let screens = io::list_screens();
@@ -157,7 +163,7 @@ fn editor_toolbar(
                                             editor.dirty = false;
                                             editor.original_id = Some(name.to_string());
                                             editor_state.hidden.clear();
-                                            io::set_last_screen(name);
+                                            io::set_last_screen(&mut cfg, name);
                                             info!("loaded screen '{name}'");
                                         }
                                         Err(e) => error!("load failed: {e}"),
@@ -170,21 +176,7 @@ fn editor_toolbar(
                 }
 
                 if ui.button("Save").clicked() {
-                    editor.screen.prune_locked_elements();
-                    // Delete old file if screen was renamed.
-                    if let Some(old) = &editor.original_id {
-                        if *old != editor.screen.id {
-                            io::delete_screen(old);
-                        }
-                    }
-                    match io::save_screen(&editor.screen) {
-                        Ok(()) => {
-                            editor.dirty = false;
-                            editor.original_id = Some(editor.screen.id.clone());
-                            info!("screen '{}' saved", editor.screen.id);
-                        }
-                        Err(e) => error!("save failed: {e}"),
-                    }
+                    input::save_editor_screen(&mut editor);
                 }
 
                 ui.separator();

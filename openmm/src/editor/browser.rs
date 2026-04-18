@@ -30,11 +30,17 @@ pub struct BrowserState {
     pub hovered_file: Option<String>,
     /// Cached preview egui texture id.
     preview_tex: Option<(String, egui::TextureId, (u32, u32))>,
+    /// Last search needle used to compute `filtered` — avoids recomputing every frame.
+    last_search: String,
     initialized: bool,
 }
 
 /// Load LOD archive structure once and restore browser state from config.
-pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserState>) {
+pub fn init_browser(
+    game_assets: Res<GameAssets>,
+    mut browser: ResMut<BrowserState>,
+    cfg: Res<super::io::EditorConfig>,
+) {
     if browser.initialized {
         return;
     }
@@ -83,18 +89,20 @@ pub fn init_browser(game_assets: Res<GameAssets>, mut browser: ResMut<BrowserSta
 
     browser.filtered.clear();
 
-    let cfg = super::io::EditorConfig::load();
     browser.open = cfg.browser_open;
     browser.default_pos = cfg.browser_pos;
 }
 
 /// F2 toggles the browser open/closed.
-pub fn toggle_browser(keys: Res<ButtonInput<KeyCode>>, mut browser: ResMut<BrowserState>) {
+pub fn toggle_browser(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut browser: ResMut<BrowserState>,
+    mut cfg: ResMut<super::io::EditorConfig>,
+) {
     if keys.just_pressed(KeyCode::F2) {
         browser.open = !browser.open;
-        let mut cfg = super::io::EditorConfig::load();
         cfg.browser_open = browser.open;
-        cfg.save();
+        cfg.mark_dirty();
     }
 }
 
@@ -107,6 +115,7 @@ pub fn browser_ui(
     game_assets: Res<GameAssets>,
     mut images: ResMut<Assets<Image>>,
     cfg: Res<GameConfig>,
+    mut editor_cfg: ResMut<super::io::EditorConfig>,
 ) {
     if !browser.open {
         return;
@@ -165,6 +174,7 @@ pub fn browser_ui(
                     if ui.button(&label).clicked() {
                         browser.current_folder = Some(i);
                         browser.search.clear();
+                        browser.last_search.clear();
                         browser.filtered = browser.folders[i].files.clone();
                     }
                 }
@@ -177,6 +187,7 @@ pub fn browser_ui(
                     if ui.button("<- Back").clicked() {
                         browser.current_folder = None;
                         browser.search.clear();
+                        browser.last_search.clear();
                         browser.filtered.clear();
                     }
                     ui.strong(&folder_name);
@@ -187,17 +198,21 @@ pub fn browser_ui(
                     ui.text_edit_singleline(&mut browser.search);
                 });
 
-                let needle = browser.search.to_lowercase();
-                browser.filtered = if needle.is_empty() {
-                    browser.folders[folder_idx].files.clone()
-                } else {
-                    browser.folders[folder_idx]
-                        .files
-                        .iter()
-                        .filter(|n| n.to_lowercase().contains(&needle))
-                        .cloned()
-                        .collect()
-                };
+                // Only recompute filtered list when search text changes.
+                if browser.search != browser.last_search || browser.filtered.is_empty() {
+                    let needle = browser.search.to_lowercase();
+                    browser.filtered = if needle.is_empty() {
+                        browser.folders[folder_idx].files.clone()
+                    } else {
+                        browser.folders[folder_idx]
+                            .files
+                            .iter()
+                            .filter(|n| n.to_lowercase().contains(&needle))
+                            .cloned()
+                            .collect()
+                    };
+                    browser.last_search = browser.search.clone();
+                }
 
                 ui.label(format!("{} files", browser.filtered.len()));
                 ui.separator();
@@ -272,9 +287,8 @@ pub fn browser_ui(
             let id = egui::Id::new("lod_browser");
             if let Some(rect) = resp.ctx.memory(|m: &egui::Memory| m.area_rect(id)) {
                 let pos = rect.left_top();
-                let mut cfg = super::io::EditorConfig::load();
-                cfg.browser_pos = Some([pos.x, pos.y]);
-                cfg.save();
+                editor_cfg.browser_pos = Some([pos.x, pos.y]);
+                editor_cfg.mark_dirty();
             }
         }
     }
@@ -289,7 +303,7 @@ fn place_element(
     images: &mut Assets<Image>,
     cfg: &GameConfig,
 ) {
-    let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
+    let max_z = editor.screen.max_z();
 
     let mut img = ImageElement::new(name, name, (REF_W / 2.0, REF_H / 2.0));
     img.z = max_z + 1;
@@ -312,7 +326,7 @@ fn place_element(
 
 /// Create a new video element from a VID archive entry.
 fn place_video_element(name: &str, editor: &mut EditorScreen) {
-    let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
+    let max_z = editor.screen.max_z();
     // Strip extension if present (e.g. "3dologo.smk" -> "3dologo").
     let video_name = name
         .strip_suffix(".smk")

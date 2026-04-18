@@ -13,10 +13,14 @@ use super::canvas::EditorScreen;
 use super::guides::Guides;
 use super::io::EditorConfig;
 
-pub fn editor_panel_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScreen>, mut guides: ResMut<Guides>) {
+pub fn editor_panel_ui(
+    mut contexts: EguiContexts,
+    mut editor: ResMut<EditorScreen>,
+    mut guides: ResMut<Guides>,
+    mut cfg: ResMut<EditorConfig>,
+) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
-    let cfg = EditorConfig::load();
     let default_pos = cfg.editor_pos.unwrap_or([430.0, 10.0]);
 
     let resp = egui::Window::new("Editor")
@@ -117,7 +121,7 @@ pub fn editor_panel_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScre
             });
 
             if ui.small_button("+ Add Text").clicked() {
-                let max_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0);
+                let max_z = editor.screen.max_z();
                 editor
                     .screen
                     .elements
@@ -129,6 +133,7 @@ pub fn editor_panel_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScre
                         hidden: false,
                         source: "footer_text".to_string(),
                         font: "smallnum".to_string(),
+                        font_size: 14.0,
                         color: "white".to_string(),
                         align: "center".to_string(),
                     }));
@@ -138,7 +143,7 @@ pub fn editor_panel_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScre
             // ━━ Guides ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             ui.separator();
             ui.collapsing("Guides", |ui| {
-                super::guides::guides_section(ui, &mut guides);
+                super::guides::guides_section(ui, &mut guides, &mut cfg);
             });
         });
 
@@ -146,16 +151,15 @@ pub fn editor_panel_ui(mut contexts: EguiContexts, mut editor: ResMut<EditorScre
     if let Some(inner) = resp {
         let pos = inner.response.rect.min;
         let new_pos = [pos.x, pos.y];
-        let mut cfg = EditorConfig::load();
         if cfg.editor_pos != Some(new_pos) {
             cfg.editor_pos = Some(new_pos);
-            cfg.save();
+            cfg.mark_dirty();
         }
     }
 }
 
 /// Reusable action list editor (add/remove/edit string actions).
-fn action_list_editor(ui: &mut egui::Ui, actions: &mut Vec<String>, dirty: &mut bool) {
+pub fn action_list_editor(ui: &mut egui::Ui, actions: &mut Vec<String>, dirty: &mut bool) {
     let mut to_remove: Option<usize> = None;
     for i in 0..actions.len() {
         let mut action = actions[i].clone();

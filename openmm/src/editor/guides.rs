@@ -37,18 +37,18 @@ pub struct Guides {
 }
 
 impl Guides {
-    pub fn load() -> Self {
-        let cfg = super::io::EditorConfig::load();
+    /// Build from an already-loaded config (no disk I/O).
+    pub fn from_config(cfg: &super::io::EditorConfig) -> Self {
         Guides {
-            lines: cfg.guides,
+            lines: cfg.guides.clone(),
             visible: true,
         }
     }
 
-    pub fn save(&self) {
-        let mut cfg = super::io::EditorConfig::load();
+    /// Sync guide lines back to the config resource.
+    pub fn sync_to_config(&self, cfg: &mut super::io::EditorConfig) {
         cfg.guides = self.lines.clone();
-        cfg.save();
+        cfg.mark_dirty();
     }
 }
 
@@ -117,7 +117,7 @@ fn draw_dashed_line(painter: &egui::Painter, from: egui::Pos2, to: egui::Pos2, s
 }
 
 /// Draw guides section inline inside a parent `egui::Ui` (collapsible).
-pub fn guides_section(ui: &mut egui::Ui, guides: &mut Guides) {
+pub fn guides_section(ui: &mut egui::Ui, guides: &mut Guides, cfg: &mut super::io::EditorConfig) {
     ui.checkbox(&mut guides.visible, "Show guides");
 
     let mut to_remove = None;
@@ -171,6 +171,6 @@ pub fn guides_section(ui: &mut egui::Ui, guides: &mut Guides) {
     });
 
     if changed {
-        guides.save();
+        guides.sync_to_config(cfg);
     }
 }

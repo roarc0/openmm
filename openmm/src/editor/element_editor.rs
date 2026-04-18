@@ -8,7 +8,12 @@ use super::canvas::{EditorScreen, Selection};
 use crate::screens::{ElementState, ScreenElement, TRANSPARENCY_OPTIONS};
 
 /// Draw the element editor window for the selected element.
-pub fn draw_element_editor(ctx: &egui::Context, editor: &mut EditorScreen, selection: &mut Selection) {
+pub fn draw_element_editor(
+    ctx: &egui::Context,
+    editor: &mut EditorScreen,
+    selection: &mut Selection,
+    cfg: &mut super::io::EditorConfig,
+) {
     let Some(sel) = selection.index else { return };
     if sel >= editor.screen.elements.len() {
         return;
@@ -29,7 +34,6 @@ pub fn draw_element_editor(ctx: &egui::Context, editor: &mut EditorScreen, selec
         .collapsible(true)
         .default_width(320.0)
         .open(&mut open);
-    let cfg = super::io::EditorConfig::load();
     if let Some([x, y]) = cfg.edt_pos {
         win = win.default_pos(egui::pos2(x, y));
     }
@@ -59,11 +63,10 @@ pub fn draw_element_editor(ctx: &egui::Context, editor: &mut EditorScreen, selec
     // Save position on drag.
     if let Some(rect) = ctx.memory(|m: &egui::Memory| m.area_rect(win_id)) {
         let pos = rect.left_top();
-        let mut cfg = super::io::EditorConfig::load();
         let new_pos = [pos.x, pos.y];
         if cfg.edt_pos != Some(new_pos) {
             cfg.edt_pos = Some(new_pos);
-            cfg.save();
+            cfg.mark_dirty();
         }
     }
 }
@@ -212,6 +215,15 @@ fn draw_common_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         editor.dirty = true;
     }
 
+    // Crop toggle — only for image elements with explicit size.
+    if let Some(img) = editor.screen.elements[sel].as_image_mut() {
+        if img.size.0 > 0.0 && img.size.1 > 0.0 {
+            if ui.checkbox(&mut img.crop, "Crop (don't stretch)").changed() {
+                editor.dirty = true;
+            }
+        }
+    }
+
     ui.horizontal(|ui| {
         ui.label("Z:");
         if ui.add(egui::DragValue::new(&mut z).speed(1.0)).changed() {
@@ -344,6 +356,7 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
 
     let mut source = txt.source.clone();
     let mut font = txt.font.clone();
+    let mut font_size = txt.font_size;
     let mut color = txt.color.clone();
     let mut align = txt.align.clone();
     let mut changed = false;
@@ -364,6 +377,20 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
     ui.horizontal(|ui| {
         ui.label("Font:");
         if ui.text_edit_singleline(&mut font).changed() {
+            changed = true;
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.label("Font Size:");
+        if ui
+            .add(
+                egui::DragValue::new(&mut font_size)
+                    .speed(0.5)
+                    .range(0.0..=256.0)
+                    .suffix(" px (0=box)"),
+            )
+            .changed()
+        {
             changed = true;
         }
     });
@@ -398,6 +425,7 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
         let t = editor.screen.elements[sel].as_text_mut().unwrap();
         t.source = source;
         t.font = font;
+        t.font_size = font_size;
         t.color = color;
         t.align = align;
         editor.dirty = true;
@@ -480,102 +508,42 @@ fn draw_image_transparency(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: us
 }
 
 fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
-    let Some(img_ref) = editor.screen.elements[sel].as_image() else {
+    let Some(_) = editor.screen.elements[sel].as_image() else {
         return;
     };
-    let click_count = img_ref.on_click.len();
-    let hover_count = img_ref.on_hover.len();
 
     ui.heading("On Click");
-    let mut click_remove: Option<usize> = None;
-    for i in 0..click_count {
-        let mut action = editor.screen.elements[sel].as_image().unwrap().on_click[i].clone();
-        ui.horizontal(|ui| {
-            ui.label(format!("{}:", i));
-            if ui.text_edit_singleline(&mut action).changed() {
-                editor.screen.elements[sel].as_image_mut().unwrap().on_click[i] = action;
-                editor.dirty = true;
-            }
-            if ui.small_button("\u{2715}").clicked() {
-                click_remove = Some(i);
-            }
-        });
-    }
-    if let Some(i) = click_remove {
-        editor.screen.elements[sel].as_image_mut().unwrap().on_click.remove(i);
-        editor.dirty = true;
-    }
-    if ui.small_button("+ Add").clicked() {
-        editor.screen.elements[sel]
-            .as_image_mut()
-            .unwrap()
-            .on_click
-            .push(String::new());
+    let mut clicks = editor.screen.elements[sel].as_image().unwrap().on_click.clone();
+    let mut dirty = false;
+    super::editor_panel::action_list_editor(ui, &mut clicks, &mut dirty);
+    if dirty {
+        editor.screen.elements[sel].as_image_mut().unwrap().on_click = clicks;
         editor.dirty = true;
     }
 
     ui.separator();
 
     ui.heading("On Hover");
-    let mut hover_remove: Option<usize> = None;
-    for i in 0..hover_count {
-        let mut action = editor.screen.elements[sel].as_image().unwrap().on_hover[i].clone();
-        ui.horizontal(|ui| {
-            ui.label(format!("{}:", i));
-            if ui.text_edit_singleline(&mut action).changed() {
-                editor.screen.elements[sel].as_image_mut().unwrap().on_hover[i] = action;
-                editor.dirty = true;
-            }
-            if ui.small_button("\u{2715}").clicked() {
-                hover_remove = Some(i);
-            }
-        });
-    }
-    if let Some(i) = hover_remove {
-        editor.screen.elements[sel].as_image_mut().unwrap().on_hover.remove(i);
-        editor.dirty = true;
-    }
-    if ui.small_button("+ Add").clicked() {
-        editor.screen.elements[sel]
-            .as_image_mut()
-            .unwrap()
-            .on_hover
-            .push(String::new());
+    let mut hovers = editor.screen.elements[sel].as_image().unwrap().on_hover.clone();
+    let mut dirty = false;
+    super::editor_panel::action_list_editor(ui, &mut hovers, &mut dirty);
+    if dirty {
+        editor.screen.elements[sel].as_image_mut().unwrap().on_hover = hovers;
         editor.dirty = true;
     }
 }
 
 fn draw_video_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
-    let Some(vid_ref) = editor.screen.elements[sel].as_video() else {
+    if editor.screen.elements[sel].as_video().is_none() {
         return;
-    };
+    }
 
     ui.heading("On End");
-    let end_count = vid_ref.on_end.len();
-    let mut end_remove: Option<usize> = None;
-    for i in 0..end_count {
-        let mut action = editor.screen.elements[sel].as_video().unwrap().on_end[i].clone();
-        ui.horizontal(|ui| {
-            ui.label(format!("{}:", i));
-            if ui.text_edit_singleline(&mut action).changed() {
-                editor.screen.elements[sel].as_video_mut().unwrap().on_end[i] = action;
-                editor.dirty = true;
-            }
-            if ui.small_button("\u{2715}").clicked() {
-                end_remove = Some(i);
-            }
-        });
-    }
-    if let Some(i) = end_remove {
-        editor.screen.elements[sel].as_video_mut().unwrap().on_end.remove(i);
-        editor.dirty = true;
-    }
-    if ui.small_button("+ Add").clicked() {
-        editor.screen.elements[sel]
-            .as_video_mut()
-            .unwrap()
-            .on_end
-            .push(String::new());
+    let mut ends = editor.screen.elements[sel].as_video().unwrap().on_end.clone();
+    let mut dirty = false;
+    super::editor_panel::action_list_editor(ui, &mut ends, &mut dirty);
+    if dirty {
+        editor.screen.elements[sel].as_video_mut().unwrap().on_end = ends;
         editor.dirty = true;
     }
 }

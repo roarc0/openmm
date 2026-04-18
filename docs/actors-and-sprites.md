@@ -293,6 +293,7 @@ At spawn time, each peasant gets an identity from `npcdata.txt` entries with pea
 
 - **Status text (hover crosshair)**: Shows the **actor type** — generic category name. Peasants → "Peasant". Quest NPCs → first name from npcdata.txt. Monsters → monster type name (e.g. "Goblin"). Never shows the personal name for peasants.
 - **NPC dialogue HUD (on click)**: Shows portrait + **first name** (e.g. "Alice") + **"the Profession"** (e.g. "the Farmer").
+- NPC greeting text visual scale is controlled by `Text.font_size` in `openmm/assets/screens/npc_speak.ron` (`id: "npc_greeting"`). Use `font_size: 0.0` to fall back to the text box height (`size.y`).
 
 ### Components
 

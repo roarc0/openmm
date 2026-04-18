@@ -1,12 +1,8 @@
-//! Canvas rendering: element spawning, selection, drag-move, z-order, debug labels.
+//! Canvas rendering: element spawning, sync, and core data types.
 
-use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::picking::Pickable;
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
-use bevy_inspector_egui::bevy_egui::{EguiContexts, egui, input::EguiWantsInput};
 
-use super::io;
 use crate::assets::GameAssets;
 use crate::screens::ui_assets::UiAssets;
 use crate::screens::{REF_H, REF_W, Screen, ScreenElement, load_texture_with_transparency, resolve_image_size};
@@ -14,7 +10,7 @@ use crate::system::config::GameConfig;
 
 /// Resolve element size: uses crop dimensions when present, otherwise
 /// delegates to `resolve_image_size` for images, falls back to explicit size for videos.
-fn resolve_elem_size(elem: &ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
+pub fn resolve_elem_size(elem: &ScreenElement, ui_assets: &UiAssets) -> (f32, f32) {
     if let Some(img) = elem.as_image() {
         // Crop dimensions override — editor shows the clipped viewport size.
         if img.crop_w > 0.0 && img.crop_h > 0.0 {
@@ -257,7 +253,37 @@ fn spawn_element(
             None
         };
         if let Some(handle) = maybe_handle {
-            commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
+            // Crop mode: clip container + inner image at native texture size.
+            if img.crop && img.size.0 > 0.0 && img.size.1 > 0.0 {
+                let bare = tex_name
+                    .strip_prefix("icons/")
+                    .unwrap_or_else(|| tex_name.split('/').next_back().unwrap_or(&tex_name));
+                let native = ui_assets.dimensions(bare).or_else(|| ui_assets.dimensions(&tex_name));
+                if let Some((tw, th)) = native {
+                    let (tw, th) = (tw as f32, th as f32);
+                    let clip_node = Node {
+                        overflow: Overflow::clip(),
+                        ..node.clone()
+                    };
+                    commands
+                        .spawn((label, clip_node, z, marker, Pickable::IGNORE))
+                        .with_children(|parent| {
+                            parent.spawn((
+                                ImageNode::new(handle),
+                                Node {
+                                    width: Val::Percent(tw / w * 100.0),
+                                    height: Val::Percent(th / h * 100.0),
+                                    ..default()
+                                },
+                                Pickable::IGNORE,
+                            ));
+                        });
+                } else {
+                    commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
+                }
+            } else {
+                commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
+            };
         } else if img.bindings.get("source").is_some() {
             // Bound element (minimap, etc.) — texture loaded at runtime, show transparent placeholder.
             commands.spawn((
@@ -282,409 +308,6 @@ fn spawn_element(
                 Pickable::IGNORE,
             ));
         }
-    }
-}
-
-// ─── Debug overlays (egui painter) ──────────────────────────────────────────
-
-/// Draw selection borders and labels via egui painter. Runs in EguiPrimaryContextPass.
-/// Pending action from overlay buttons, applied next frame.
-#[derive(Resource, Default)]
-pub struct OverlayAction {
-    pub action: Option<OverlayCmd>,
-}
-
-pub enum OverlayCmd {
-    BringToTop(usize),
-    SendToBottom(usize),
-    MoveUp(usize),
-    MoveDown(usize),
-    Remove(usize),
-    ToggleVisibility(usize),
-    ToggleLock(usize),
-}
-
-/// Draw selection borders, labels, and z-order toolbar via egui. Runs in EguiPrimaryContextPass.
-pub fn draw_overlays(
-    mut contexts: EguiContexts,
-    mut editor: ResMut<EditorScreen>,
-    mut selection: ResMut<Selection>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    ui_assets: Res<UiAssets>,
-    mut overlay_action: ResMut<OverlayAction>,
-    editor_state: Res<ElementEditorState>,
-    guides: Res<super::guides::Guides>,
-) {
-    let Ok(ctx) = contexts.ctx_mut() else { return };
-    let Ok(window) = windows.single() else { return };
-    let win_w = window.width();
-    let win_h = window.height();
-
-    let painter = ctx.layer_painter(egui::LayerId::new(
-        egui::Order::Foreground,
-        egui::Id::new("canvas_overlays"),
-    ));
-
-    // Draw guide lines first (behind selection overlays).
-    super::guides::draw_guides(&painter, &guides, win_w, win_h);
-
-    for (i, elem) in editor.screen.elements.iter().enumerate() {
-        let (w, h) = resolve_elem_size(elem, &ui_assets);
-        let pos = elem.position();
-
-        let sx = pos.0 / REF_W * win_w;
-        let sy = pos.1 / REF_H * win_h;
-        let sw = w / REF_W * win_w;
-        let sh = h / REF_H * win_h;
-
-        let rect = egui::Rect::from_min_size(egui::pos2(sx, sy), egui::vec2(sw, sh));
-
-        let is_selected = selection.index == Some(i);
-        let is_video = elem.as_video().is_some();
-        let is_text = elem.as_text().is_some();
-        let (stroke, text_color) = if is_selected {
-            (
-                egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 0, 255)),
-                egui::Color32::from_rgb(255, 0, 255),
-            )
-        } else if is_video {
-            (
-                egui::Stroke::new(1.5, egui::Color32::from_rgb(255, 60, 60)),
-                egui::Color32::from_rgb(255, 60, 60),
-            )
-        } else if is_text {
-            (
-                egui::Stroke::new(1.5, egui::Color32::from_rgb(100, 180, 255)),
-                egui::Color32::from_rgb(100, 180, 255),
-            )
-        } else {
-            (
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 255, 0)),
-                egui::Color32::from_rgb(0, 255, 0),
-            )
-        };
-
-        painter.rect_stroke(rect, 0.0, stroke, egui::StrokeKind::Inside);
-
-        let is_hidden = editor_state.hidden.contains(&i);
-
-        // Label: id[w,h]@(x,y) z=N [TYPE] [H]
-        let mut flags = String::new();
-        if is_video {
-            flags.push_str(" [VID]");
-        }
-        if is_text {
-            flags.push_str(" [TXT]");
-        }
-        if is_hidden {
-            flags.push_str(" [H]");
-        }
-        let label = format!(
-            "{}[{},{}]@({},{}) z={}{}",
-            elem.id(),
-            w as i32,
-            h as i32,
-            pos.0 as i32,
-            pos.1 as i32,
-            elem.z(),
-            flags,
-        );
-        painter.text(
-            rect.left_top() + egui::vec2(3.0, 2.0),
-            egui::Align2::LEFT_TOP,
-            label,
-            egui::FontId::proportional(13.0),
-            text_color,
-        );
-
-        // Status stamps at bottom-right inside the element.
-        let is_locked = editor.screen.editor.locked.contains(&elem.id().to_string());
-        let evt_count =
-            elem.on_click().len() + elem.on_hover().len() + elem.as_image().map_or(0, |img| img.bindings.len());
-        let mut stamps: Vec<String> = Vec::new();
-        if is_locked {
-            stamps.push("LCK".into());
-        }
-        if evt_count > 0 {
-            stamps.push(format!("EVT({})", evt_count));
-        }
-        if let Some(img) = elem.as_image() {
-            if img.states.len() > 1 {
-                stamps.push(format!("VAR({})", img.states.len()));
-            }
-        }
-        if !stamps.is_empty() {
-            let text = stamps.join(" ");
-            // Draw background pill for readability.
-            let font = egui::FontId::monospace(13.0);
-            let galley = painter.layout_no_wrap(text.clone(), font.clone(), egui::Color32::WHITE);
-            let text_size = galley.size();
-            let pad = egui::vec2(4.0, 2.0);
-            let text_pos = rect.right_bottom() - egui::vec2(text_size.x + pad.x * 2.0, text_size.y + pad.y * 2.0)
-                + egui::vec2(-2.0, -2.0);
-            let bg_rect = egui::Rect::from_min_size(text_pos, text_size + pad * 2.0);
-            painter.rect_filled(bg_rect, 3.0, egui::Color32::from_rgba_unmultiplied(120, 0, 200, 180));
-            painter.text(
-                bg_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                text,
-                font,
-                egui::Color32::WHITE,
-            );
-        }
-    }
-
-    // Toolbar buttons for selected element — positioned below the element.
-    if let Some(sel) = selection.index {
-        if let Some(elem) = editor.screen.elements.get(sel) {
-            let (w, h) = resolve_elem_size(elem, &ui_assets);
-            let pos = elem.position();
-            let sx = pos.0 / REF_W * win_w;
-            let sy = pos.1 / REF_H * win_h;
-            let sh = h / REF_H * win_h;
-            let _sw = w / REF_W * win_w;
-
-            // Place toolbar inside the element, at the bottom.
-            let toolbar_y = (sy + sh - 20.0).max(sy);
-            let toolbar_x = sx + 2.0;
-
-            egui::Area::new(egui::Id::new("elem_toolbar"))
-                .fixed_pos(egui::pos2(toolbar_x, toolbar_y))
-                .order(egui::Order::Foreground)
-                .show(ctx, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.style_mut().spacing.item_spacing = egui::vec2(2.0, 0.0);
-                        let btn = |ui: &mut egui::Ui, text: &str| -> bool { ui.small_button(text).clicked() };
-                        if btn(ui, "Top") {
-                            overlay_action.action = Some(OverlayCmd::BringToTop(sel));
-                        }
-                        if btn(ui, "Up") {
-                            overlay_action.action = Some(OverlayCmd::MoveUp(sel));
-                        }
-                        if btn(ui, "Dn") {
-                            overlay_action.action = Some(OverlayCmd::MoveDown(sel));
-                        }
-                        if btn(ui, "Bot") {
-                            overlay_action.action = Some(OverlayCmd::SendToBottom(sel));
-                        }
-                        let vis_label = if editor_state.hidden.contains(&sel) {
-                            "Show"
-                        } else {
-                            "Vis"
-                        };
-                        if btn(ui, vis_label) {
-                            overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
-                        }
-                        let is_locked = editor.screen.editor.locked.contains(&elem.id().to_string());
-                        if btn(ui, if is_locked { "Unlk" } else { "Lock" }) {
-                            overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
-                        }
-                        if btn(ui, "Edt") {
-                            selection.edt_open = !selection.edt_open;
-                        }
-                        let var_count = elem.as_image().map_or(0, |img| img.states.len());
-                        let var_label = if var_count > 1 {
-                            format!("Var({})", var_count)
-                        } else {
-                            "Var".to_string()
-                        };
-                        if btn(ui, &var_label) {
-                            selection.var_open = !selection.var_open;
-                        }
-                        if btn(ui, "X") {
-                            overlay_action.action = Some(OverlayCmd::Remove(sel));
-                        }
-                        ui.weak(format!("z={}", elem.z()));
-                    });
-                });
-        }
-    }
-
-    // Event editor window — one at a time, for the selected element.
-    if selection.edt_open {
-        super::element_editor::draw_element_editor(ctx, &mut editor, &mut selection);
-    }
-    // Variant editor window.
-    if selection.var_open {
-        super::element_editor::draw_variant_editor(ctx, &mut editor, &mut selection);
-    }
-}
-
-/// Apply pending overlay actions (runs in Update, after egui pass).
-pub fn apply_overlay_actions(
-    mut action: ResMut<OverlayAction>,
-    mut editor: ResMut<EditorScreen>,
-    mut selection: ResMut<Selection>,
-    mut elem_q: Query<(&CanvasElement, &mut ZIndex)>,
-    mut editor_state: ResMut<ElementEditorState>,
-) {
-    let Some(cmd) = action.action.take() else { return };
-    match cmd {
-        OverlayCmd::Remove(idx) => {
-            if idx < editor.screen.elements.len() {
-                let id = editor.screen.elements[idx].id().to_string();
-                editor.screen.elements.remove(idx);
-                editor.dirty = true;
-                selection.index = None;
-                editor_state.hidden.remove(&idx);
-                editor.screen.editor.locked.retain(|locked_id| locked_id != &id);
-            }
-        }
-        OverlayCmd::ToggleVisibility(idx) => {
-            if !editor_state.hidden.remove(&idx) {
-                editor_state.hidden.insert(idx);
-            }
-        }
-        OverlayCmd::ToggleLock(idx) => {
-            if let Some(elem) = editor.screen.elements.get(idx) {
-                let id = elem.id().to_string();
-                if let Some(pos) = editor.screen.editor.locked.iter().position(|l| l == &id) {
-                    editor.screen.editor.locked.remove(pos);
-                } else {
-                    editor.screen.editor.locked.push(id);
-                }
-                // Persist screen state (pruning built-in to save_screen if called later).
-                editor.dirty = true;
-            }
-        }
-        OverlayCmd::BringToTop(idx) => {
-            let new_z = editor.screen.elements.iter().map(|e| e.z()).max().unwrap_or(0) + 1;
-            set_z(&mut editor, idx, new_z, &mut elem_q);
-        }
-        OverlayCmd::SendToBottom(idx) => {
-            let new_z = editor.screen.elements.iter().map(|e| e.z()).min().unwrap_or(0) - 1;
-            set_z(&mut editor, idx, new_z, &mut elem_q);
-        }
-        OverlayCmd::MoveUp(idx) => {
-            let new_z = editor.screen.elements.get(idx).map(|e| e.z() + 1).unwrap_or(0);
-            set_z(&mut editor, idx, new_z, &mut elem_q);
-        }
-        OverlayCmd::MoveDown(idx) => {
-            let new_z = editor.screen.elements.get(idx).map(|e| e.z() - 1).unwrap_or(0);
-            set_z(&mut editor, idx, new_z, &mut elem_q);
-        }
-    }
-}
-
-fn set_z(editor: &mut EditorScreen, idx: usize, new_z: i32, elem_q: &mut Query<(&CanvasElement, &mut ZIndex)>) {
-    let clamped = new_z.max(0);
-    if let Some(elem) = editor.screen.elements.get_mut(idx) {
-        elem.set_z(clamped);
-    }
-    editor.dirty = true;
-    for (ce, mut z) in elem_q.iter_mut() {
-        if ce.index == idx {
-            *z = ZIndex(new_z);
-        }
-    }
-}
-
-// ─── Selection ──────────────────────────────────────────────────────────────
-
-/// On left click, selects the topmost element under the cursor.
-pub fn selection_system(
-    mouse: Res<ButtonInput<MouseButton>>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    editor: Res<EditorScreen>,
-    mut selection: ResMut<Selection>,
-    ui_assets: Res<UiAssets>,
-    egui_input: Option<Res<EguiWantsInput>>,
-) {
-    // Don't change selection when clicking on egui windows (browser, evt editor, etc.)
-    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
-        return;
-    }
-    if !mouse.just_pressed(MouseButton::Left) {
-        return;
-    }
-    let Ok(window) = windows.single() else { return };
-    let Some(cursor) = window.cursor_position() else { return };
-    let win_w = window.width();
-    let win_h = window.height();
-
-    // Convert cursor to reference coords.
-    let cx = cursor.x / win_w * REF_W;
-    let cy = cursor.y / win_h * REF_H;
-
-    // Hit test against elements (last = topmost due to z-order).
-    let mut best: Option<(usize, i32)> = None;
-    for (i, elem) in editor.screen.elements.iter().enumerate() {
-        let (w, h) = resolve_elem_size(elem, &ui_assets);
-        let (ex, ey) = elem.position();
-        if cx >= ex && cx <= ex + w && cy >= ey && cy <= ey + h {
-            if best.map_or(true, |(_, bz)| elem.z() > bz) {
-                best = Some((i, elem.z()));
-            }
-        }
-    }
-
-    let new_sel = best.map(|(idx, _)| idx);
-    if new_sel != selection.index {
-        selection.edt_open = new_sel.is_some();
-        selection.var_open = false;
-        selection.preview_state = None;
-    }
-    selection.index = new_sel;
-    selection.drag_offset = None;
-}
-
-// ─── Drag ───────────────────────────────────────────────────────────────────
-
-/// Drag selected element with mouse.
-pub fn drag_system(
-    mouse: Res<ButtonInput<MouseButton>>,
-    windows: Query<&Window, With<PrimaryWindow>>,
-    mut selection: ResMut<Selection>,
-    mut editor: ResMut<EditorScreen>,
-    ui_assets: Res<UiAssets>,
-    editor_state: Res<ElementEditorState>,
-    egui_input: Option<Res<EguiWantsInput>>,
-) {
-    // Don't drag canvas elements while interacting with egui windows.
-    if egui_input.is_some_and(|e| e.wants_pointer_input()) {
-        selection.drag_offset = None;
-        return;
-    }
-    let Ok(window) = windows.single() else { return };
-    let Some(cursor) = window.cursor_position() else { return };
-    let win_w = window.width();
-    let win_h = window.height();
-
-    let cursor_ref = Vec2::new(cursor.x / win_w * REF_W, cursor.y / win_h * REF_H);
-    let Some(sel_idx) = selection.index else { return };
-    // Locked elements can't be dragged.
-    if editor
-        .screen
-        .elements
-        .get(sel_idx)
-        .is_some_and(|e| editor.screen.editor.locked.contains(&e.id().to_string()))
-    {
-        return;
-    }
-
-    if mouse.just_pressed(MouseButton::Left) {
-        if let Some(elem) = editor.screen.elements.get(sel_idx) {
-            let pos = elem.position();
-            let elem_pos = Vec2::new(pos.0, pos.1);
-            selection.drag_offset = Some(cursor_ref - elem_pos);
-        }
-    }
-
-    if mouse.pressed(MouseButton::Left) {
-        if let Some(offset) = selection.drag_offset {
-            let new_pos = cursor_ref - offset;
-            if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-                let (w, h) = resolve_elem_size(elem, &ui_assets);
-                let x = new_pos.x.round().clamp(0.0, (REF_W - w).max(0.0));
-                let y = new_pos.y.round().clamp(0.0, (REF_H - h).max(0.0));
-                elem.set_position((x, y));
-                editor.dirty = true;
-            }
-        }
-    }
-
-    if mouse.just_released(MouseButton::Left) {
-        selection.drag_offset = None;
     }
 }
 
@@ -740,202 +363,6 @@ pub fn sync_element_positions(
                     }
                 }
             }
-        }
-    }
-}
-
-// ─── Z-order ───────────────────────────────────────────────────────────────
-
-/// Scroll wheel on selected element increments/decrements z.
-pub fn z_order_system(
-    scroll: Res<AccumulatedMouseScroll>,
-    selection: Res<Selection>,
-    mut editor: ResMut<EditorScreen>,
-    mut elem_q: Query<(&CanvasElement, &mut ZIndex)>,
-) {
-    let Some(sel_idx) = selection.index else { return };
-
-    let delta = scroll.delta.y;
-    if delta == 0.0 {
-        return;
-    }
-    let delta = if delta > 0.0 { 1i32 } else { -1 };
-
-    let new_z = if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-        let z = (elem.z() + delta).max(0);
-        elem.set_z(z);
-        Some(z)
-    } else {
-        None
-    };
-    if let Some(z_val) = new_z {
-        editor.dirty = true;
-        for (ce, mut z) in &mut elem_q {
-            if ce.index == sel_idx {
-                *z = ZIndex(z_val);
-            }
-        }
-    }
-}
-
-// ─── Arrow nudge ──────────────────────────────────────────────────────────
-
-/// Arrow keys move the selected element by 1 reference pixel.
-pub fn arrow_nudge_system(
-    keys: Res<ButtonInput<KeyCode>>,
-    selection: Res<Selection>,
-    mut editor: ResMut<EditorScreen>,
-    ui_assets: Res<UiAssets>,
-    editor_state: Res<ElementEditorState>,
-) {
-    let Some(sel_idx) = selection.index else { return };
-    if editor
-        .screen
-        .elements
-        .get(sel_idx)
-        .is_some_and(|e| editor.screen.editor.locked.contains(&e.id().to_string()))
-    {
-        return;
-    }
-    let mut dx: f32 = 0.0;
-    let mut dy: f32 = 0.0;
-    if keys.just_pressed(KeyCode::ArrowLeft) {
-        dx -= 1.0;
-    }
-    if keys.just_pressed(KeyCode::ArrowRight) {
-        dx += 1.0;
-    }
-    if keys.just_pressed(KeyCode::ArrowUp) {
-        dy -= 1.0;
-    }
-    if keys.just_pressed(KeyCode::ArrowDown) {
-        dy += 1.0;
-    }
-    if dx == 0.0 && dy == 0.0 {
-        return;
-    }
-
-    if let Some(elem) = editor.screen.elements.get_mut(sel_idx) {
-        let (w, h) = resolve_elem_size(elem, &ui_assets);
-        let pos = elem.position();
-        let x = (pos.0 + dx).clamp(0.0, (REF_W - w).max(0.0));
-        let y = (pos.1 + dy).clamp(0.0, (REF_H - h).max(0.0));
-        elem.set_position((x, y));
-        editor.dirty = true;
-    }
-}
-
-// ─── Delete ────────────────────────────────────────────────────────────────
-
-/// Delete/Backspace removes the selected element.
-pub fn delete_system(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut selection: ResMut<Selection>,
-    mut editor: ResMut<EditorScreen>,
-    editor_state: Res<ElementEditorState>,
-) {
-    if !keys.just_pressed(KeyCode::Delete) && !keys.just_pressed(KeyCode::Backspace) {
-        return;
-    }
-    let Some(idx) = selection.index else { return };
-    if editor
-        .screen
-        .elements
-        .get(idx)
-        .is_some_and(|e| editor.screen.editor.locked.contains(&e.id().to_string()))
-    {
-        return;
-    }
-    if idx < editor.screen.elements.len() {
-        editor.screen.elements.remove(idx);
-        editor.dirty = true;
-        selection.index = None;
-    }
-}
-
-// ─── Keyboard shortcuts for z-order and visibility ────────────────────
-
-/// T=top, U=up, D=down, B=bottom, V=toggle visibility on selected element.
-pub fn z_shortcut_system(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut selection: ResMut<Selection>,
-    mut overlay_action: ResMut<OverlayAction>,
-) {
-    let Some(sel) = selection.index else { return };
-    if keys.just_pressed(KeyCode::KeyE) {
-        selection.edt_open = !selection.edt_open;
-        return;
-    }
-    if keys.just_pressed(KeyCode::KeyW) {
-        selection.var_open = !selection.var_open;
-        if !selection.var_open {
-            selection.preview_state = None;
-        }
-        return;
-    }
-    if overlay_action.action.is_some() {
-        return;
-    }
-    if keys.just_pressed(KeyCode::KeyT) {
-        overlay_action.action = Some(OverlayCmd::BringToTop(sel));
-    } else if keys.just_pressed(KeyCode::KeyU) {
-        overlay_action.action = Some(OverlayCmd::MoveUp(sel));
-    } else if keys.just_pressed(KeyCode::KeyD) {
-        overlay_action.action = Some(OverlayCmd::MoveDown(sel));
-    } else if keys.just_pressed(KeyCode::KeyB) {
-        overlay_action.action = Some(OverlayCmd::SendToBottom(sel));
-    } else if keys.just_pressed(KeyCode::KeyV) {
-        overlay_action.action = Some(OverlayCmd::ToggleVisibility(sel));
-    } else if keys.just_pressed(KeyCode::KeyL) {
-        overlay_action.action = Some(OverlayCmd::ToggleLock(sel));
-    }
-}
-
-// ─── Tab cycle ─────────────────────────────────────────────────────────
-
-/// Tab cycles forward through elements, Shift+Tab cycles backward.
-pub fn tab_cycle_system(keys: Res<ButtonInput<KeyCode>>, editor: Res<EditorScreen>, mut selection: ResMut<Selection>) {
-    if !keys.just_pressed(KeyCode::Tab) {
-        return;
-    }
-    let count = editor.screen.elements.len();
-    if count == 0 {
-        return;
-    }
-    let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
-    selection.index = Some(match selection.index {
-        Some(i) if shift => {
-            if i == 0 {
-                count - 1
-            } else {
-                i - 1
-            }
-        }
-        Some(i) => (i + 1) % count,
-        None => 0,
-    });
-    selection.drag_offset = None;
-}
-
-// ─── Save ──────────────────────────────────────────────────────────────────
-
-/// Ctrl+S saves the current screen to disk.
-pub fn save_shortcut_system(keys: Res<ButtonInput<KeyCode>>, mut editor: ResMut<EditorScreen>) {
-    let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
-    if ctrl && keys.just_pressed(KeyCode::KeyS) {
-        // Delete old file if screen was renamed.
-        if let Some(old) = &editor.original_id {
-            if *old != editor.screen.id {
-                io::delete_screen(old);
-            }
-        }
-        match io::save_screen(&editor.screen) {
-            Ok(()) => {
-                editor.dirty = false;
-                editor.original_id = Some(editor.screen.id.clone());
-                info!("screen '{}' saved", editor.screen.id);
-            }
-            Err(e) => error!("save failed: {e}"),
         }
     }
 }

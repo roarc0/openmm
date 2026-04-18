@@ -105,8 +105,12 @@ pub fn prepare_npc_dialogue(
     };
 
     // Greeting text from npcbtb: look up greeting_id, match personality code to NPC type column.
+    // Default to greeting 1 (generic peasant greeting) when no EVT override exists.
     let greeting_text = (|| -> Option<String> {
-        let greeting_id = *npc_greetings.get(&npc_id)? as usize;
+        let greeting_id = npc_greetings
+            .get(&npc_id)
+            .copied()
+            .unwrap_or(1) as usize;
         if greeting_id == 0 {
             return None;
         }
@@ -150,7 +154,7 @@ pub fn prepare_npc_dialogue(
     let profile = NpcProfile {
         name: first_name,
         profession: prof_entry.map(|p| p.name.clone()),
-        greeting_text: greeting_text.or_else(|| Some("Hello there!".to_string())),
+        greeting_text,
         day_topic,
         day_text,
         join_text: prof_entry.map(|p| p.join_text.clone()).filter(|s| !s.is_empty()),

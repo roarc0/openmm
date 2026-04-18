@@ -117,6 +117,7 @@ pub(crate) struct FrameAnimation {
 pub(super) struct RuntimeText {
     pub(super) source: String,
     pub(super) font: String,
+    pub(super) font_size: f32,
     pub(super) color: [u8; 4],
     pub(super) align: String,
     /// Bounding box in reference pixels: (x, y, w, h).

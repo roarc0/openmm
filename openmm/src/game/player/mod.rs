@@ -10,8 +10,8 @@ use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
 use crate::game::InGame;
-use crate::game::optional::OptionalWrite;
 use crate::game::map::collision::sample_terrain_height;
+use crate::game::optional::OptionalWrite;
 use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
 use crate::system::config::GameConfig;
 use crate::system::save::GameSave;
@@ -477,7 +477,9 @@ fn water_overlay_system(
     mut actions: Option<bevy::ecs::message::MessageWriter<crate::screens::runtime::ScreenActions>>,
     mut showing: Local<bool>,
 ) {
-    let Ok((transform, physics)) = player_query.single() else { return };
+    let Ok((transform, physics)) = player_query.single() else {
+        return;
+    };
     let Some(ref wm) = water_map else { return };
 
     let pos = transform.translation;

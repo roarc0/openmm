@@ -67,15 +67,6 @@ pub(super) fn spawn_image_element(
 ) {
     let (w, h) = resolve_image_size(img, ui_assets);
 
-    let node = Node {
-        position_type: PositionType::Absolute,
-        left: Val::Percent(img.position.0 / REF_W * 100.0),
-        top: Val::Percent(img.position.1 / REF_H * 100.0),
-        width: Val::Percent(w / REF_W * 100.0),
-        height: Val::Percent(h / REF_H * 100.0),
-        ..default()
-    };
-
     let default_tex = img.texture_for_state("default").unwrap_or("").to_string();
     let default_handle = if !default_tex.is_empty() {
         load_texture_with_transparency(
@@ -88,6 +79,36 @@ pub(super) fn spawn_image_element(
         )
     } else {
         None
+    };
+
+    // Crop mode: native texture dimensions for inner image, explicit size for clip container.
+    // Must be after load_texture_with_transparency — that populates ui_assets.dimensions().
+    let native_size = if img.crop && img.size.0 > 0.0 && img.size.1 > 0.0 {
+        img.texture_for_state("default").and_then(|name| {
+            let bare = name
+                .strip_prefix("icons/")
+                .unwrap_or_else(|| name.split('/').next_back().unwrap_or(name));
+            ui_assets
+                .dimensions(bare)
+                .or_else(|| ui_assets.dimensions(name))
+                .map(|(tw, th)| (tw as f32, th as f32))
+        })
+    } else {
+        None
+    };
+
+    let node = Node {
+        position_type: PositionType::Absolute,
+        left: Val::Percent(img.position.0 / REF_W * 100.0),
+        top: Val::Percent(img.position.1 / REF_H * 100.0),
+        width: Val::Percent(w / REF_W * 100.0),
+        height: Val::Percent(h / REF_H * 100.0),
+        overflow: if native_size.is_some() {
+            Overflow::clip()
+        } else {
+            Overflow::visible()
+        },
+        ..default()
     };
 
     let hover_handle = img.states.get("hover").and_then(|state| {
@@ -211,62 +232,95 @@ pub(super) fn spawn_image_element(
     };
 
     if let Some(handle) = default_handle {
-        let mut entity = commands.spawn((
-            ImageNode::new(handle.clone()),
-            node,
-            z,
-            marker,
-            layer_tag.clone(),
-            initial_vis,
-        ));
-        if has_interaction {
-            entity.insert((Button, BackgroundColor(Color::NONE)));
-        }
-        if let Some(clicked) = clicked_handle {
-            entity.insert(ClickedTexture {
-                clicked,
-                default: Some(handle),
-            });
-        }
-        if has_pulse {
-            entity.insert(Pulsable);
-        }
-        if img.hidden {
-            entity.insert(HiddenByDefault);
-        }
-        match img.bindings.get("source").map(|s| s.as_str()) {
-            Some("arrow") => {
-                entity.insert(ArrowBinding);
+        // Crop mode: outer node clips, inner child holds texture at native size.
+        if let Some((tw, th)) = native_size {
+            let mut entity = commands.spawn((node, z, marker, layer_tag.clone(), initial_vis));
+            if has_interaction {
+                entity.insert((Button, BackgroundColor(Color::NONE)));
             }
-            Some("tap") => {
-                entity.insert(TapBinding);
+            if has_pulse {
+                entity.insert(Pulsable);
             }
-            Some("loading") => {
-                let frame = img
-                    .bindings
-                    .get("frame")
-                    .and_then(|f| f.parse::<u32>().ok())
-                    .unwrap_or(0);
-                entity.insert(super::bindings::LoadingFrameBinding { frame });
+            if img.hidden {
+                entity.insert(HiddenByDefault);
             }
-            _ => {}
-        }
-        if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
-            entity.insert(anim);
-        }
-        if let Some(h_handle) = hover_handle {
             entity.with_children(|parent| {
-                parent.spawn((
-                    ImageNode::new(h_handle),
+                let mut inner = parent.spawn((
+                    ImageNode::new(handle.clone()),
                     Node {
-                        width: Val::Percent(100.0),
-                        height: Val::Percent(100.0),
+                        width: Val::Percent(tw / w * 100.0),
+                        height: Val::Percent(th / h * 100.0),
                         ..default()
                     },
-                    Visibility::Hidden,
-                    HoverOverlay,
                 ));
+                if let Some(clicked) = &clicked_handle {
+                    inner.insert(ClickedTexture {
+                        clicked: clicked.clone(),
+                        default: Some(handle.clone()),
+                    });
+                }
+                if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
+                    inner.insert(anim);
+                }
             });
+        } else {
+            let mut entity = commands.spawn((
+                ImageNode::new(handle.clone()),
+                node,
+                z,
+                marker,
+                layer_tag.clone(),
+                initial_vis,
+            ));
+            if has_interaction {
+                entity.insert((Button, BackgroundColor(Color::NONE)));
+            }
+            if let Some(clicked) = clicked_handle {
+                entity.insert(ClickedTexture {
+                    clicked,
+                    default: Some(handle),
+                });
+            }
+            if has_pulse {
+                entity.insert(Pulsable);
+            }
+            if img.hidden {
+                entity.insert(HiddenByDefault);
+            }
+            match img.bindings.get("source").map(|s| s.as_str()) {
+                Some("arrow") => {
+                    entity.insert(ArrowBinding);
+                }
+                Some("tap") => {
+                    entity.insert(TapBinding);
+                }
+                Some("loading") => {
+                    let frame = img
+                        .bindings
+                        .get("frame")
+                        .and_then(|f| f.parse::<u32>().ok())
+                        .unwrap_or(0);
+                    entity.insert(super::bindings::LoadingFrameBinding { frame });
+                }
+                _ => {}
+            }
+            if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
+                entity.insert(anim);
+            }
+            if let Some(h_handle) = hover_handle {
+                entity.with_children(|parent| {
+                    parent.spawn((
+                        ImageNode::new(h_handle),
+                        Node {
+                            width: Val::Percent(100.0),
+                            height: Val::Percent(100.0),
+                            ..default()
+                        },
+                        Visibility::Hidden,
+                        HoverOverlay,
+                    ));
+                });
+            }
         }
     } else {
         let mut entity = commands.spawn((ImageNode::default(), node, z, marker, layer_tag.clone(), initial_vis));
@@ -303,7 +357,11 @@ fn load_animation(
         match load_texture_with_transparency(&name, &img.transparent_color, ui_assets, game_assets, images, cfg) {
             Some(handle) => handles.push(handle),
             None => {
-                bevy::log::warn!("animation frame '{}' not found, skipping animation for '{}'", name, img.id);
+                bevy::log::warn!(
+                    "animation frame '{}' not found, skipping animation for '{}'",
+                    name,
+                    img.id
+                );
                 return None;
             }
         }
@@ -363,6 +421,7 @@ pub(super) fn spawn_text_element(commands: &mut Commands, txt: &TextElement, lay
         RuntimeText {
             source: txt.source.clone(),
             font: txt.font.clone(),
+            font_size: txt.font_size,
             color: txt.color_rgba(),
             align: txt.align.clone(),
             bounds: (txt.position.0, txt.position.1, txt.size.0, txt.size.1),
@@ -439,7 +498,8 @@ pub(super) fn text_update(
         let (bx, by, bw, bh) = rt.bounds;
         let box_x = bx * sx;
         let box_w = bw * sx;
-        let display_h = bh * sy;
+        let glyph_h_ref = if rt.font_size > 0.0 { rt.font_size } else { bh };
+        let display_h = glyph_h_ref * sy;
 
         // Compute rendered text width in screen pixels.
         let text_px_w = game_fonts.measure(&rt.last_text, &rt.font) as f32;
