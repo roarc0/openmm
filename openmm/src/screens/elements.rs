@@ -433,7 +433,7 @@ pub(super) fn spawn_text_element(
         marker,
         RuntimeText {
             source: txt.source.clone(),
-            text: txt.text.clone(),
+            value: txt.value.clone(),
             font: txt.font.clone(),
             font_size: txt.font_size,
             color: txt.color_rgba(),
@@ -470,7 +470,7 @@ pub(super) fn text_update(
     let sy = win_h / REF_H;
 
     for (mut rt, mut img_node, mut vis, mut node) in &mut query {
-        let current = match rt.source.as_str() {
+        let mut current = match rt.source.as_str() {
             "footer_text" => ui.footer.text().to_string(),
             "gold" => world_state
                 .as_ref()
@@ -492,8 +492,12 @@ pub(super) fn text_update(
                 .unwrap_or_default(),
             "shop_name" => house_profile.as_ref().map_or(String::new(), |p| p.name.clone()),
             "armorer_name" => house_profile.as_ref().map_or(String::new(), |p| p.owner_name.clone()),
-            _ => rt.text.clone(),
+            _ => rt.value.clone(),
         };
+
+        if current.is_empty() && !rt.value.is_empty() {
+            current = rt.value.clone();
+        }
 
         // Re-render when text or color changed.
         if current != rt.last_text || rt.color != rt.last_color {

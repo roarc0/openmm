@@ -142,7 +142,7 @@ pub fn editor_panel_ui(
                         z: max_z + 1,
                         hidden: false,
                         source: String::new(),
-                        text: "New Text".to_string(),
+                        value: "New Text".to_string(),
                         font: "smallnum".to_string(),
                         font_size: 14.0,
                         color: "white".to_string(),
