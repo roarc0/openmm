@@ -461,7 +461,7 @@ pub(super) fn text_update(
     game_fonts: Res<GameFonts>,
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
-    mut query: Query<(&mut RuntimeText, &mut ImageNode, &mut Visibility, &mut Node)>,
+    mut query: Query<(&mut RuntimeText, &mut ImageNode, &mut Visibility, &mut Node, Option<&Interaction>)>,
 ) {
     let Ok(window) = windows.single() else { return };
     let win_w = window.width();
@@ -469,11 +469,14 @@ pub(super) fn text_update(
     let sx = win_w / REF_W;
     let sy = win_h / REF_H;
 
-    for (mut rt, mut img_node, mut vis, mut node) in &mut query {
+    for (mut rt, mut img_node, mut vis, mut node, interaction) in &mut query {
         if rt.source == "footer_text" {
             let footer_color = ui.footer.color();
             let rgba = crate::screens::TextElement::resolve_color(footer_color);
-            if rt.color != rgba {
+            rt.base_color = rgba;
+
+            let is_hovered = matches!(interaction, Some(Interaction::Hovered) | Some(Interaction::Pressed));
+            if !is_hovered && rt.color != rgba {
                 rt.color = rgba;
             }
         }

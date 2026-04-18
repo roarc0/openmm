@@ -102,22 +102,24 @@ pub fn draw_overlays(
             flags.push_str(" [H]");
         }
         let label = format!(
-            "{}[{},{}]@({},{}) z={}{}",
+            "{}{}\n[{},{}]@({},{})\nz={}",
             elem.id(),
+            flags,
             w as i32,
             h as i32,
             pos.0 as i32,
             pos.1 as i32,
             elem.z(),
-            flags,
         );
-        painter.text(
-            rect.left_top() + egui::vec2(3.0, 2.0),
-            egui::Align2::LEFT_TOP,
-            label,
-            egui::FontId::proportional(13.0),
-            text_color,
-        );
+        if is_selected {
+            painter.text(
+                rect.left_top() + egui::vec2(3.0, 2.0),
+                egui::Align2::LEFT_TOP,
+                label,
+                egui::FontId::proportional(12.0),
+                text_color,
+            );
+        }
 
         // Status stamps at bottom-right inside the element.
         draw_status_stamps(&painter, elem, &editor, rect);

@@ -283,21 +283,6 @@
             bindings: {},
         )),
         Image((
-            id: "icons/FACEMASK",
-            position: (20.0, 381.0),
-            size: (63.0, 83.0),
-            z: 20,
-            states: {
-                "default": (
-                    texture: "icons/FACEMASK",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
-            transparent_color: "cyan",
-        )),
-        Image((
             id: "icons/MANAFULLA",
             position: (102.0, 383.0),
             size: (6.0, 78.0),
