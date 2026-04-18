@@ -22,7 +22,6 @@ pub enum Action {
     HideScreen(String),
     ShowSprite(String),
     HideSprite(String),
-    PulseSprite,
     NewGame,
     Quit,
     /// Close the active UI overlay and return to World mode.
@@ -86,9 +85,6 @@ pub fn parse_action(input: &str) -> Action {
     }
     if s == "NewGame()" {
         return Action::NewGame;
-    }
-    if s == "PulseSprite()" {
-        return Action::PulseSprite;
     }
     if let Some(id) = parse_string_arg(s, "LoadScreen") {
         return Action::LoadScreen(id.to_string());
@@ -254,7 +250,6 @@ mod tests {
         assert_eq!(parse_action("HideSprite(\"icon\")"), Action::HideSprite("icon".into()));
         // Bare Hint is unknown — use evt:Hint instead
         assert!(matches!(parse_action("Hint(\"Cast Spell\")"), Action::Unknown(_)));
-        assert_eq!(parse_action("PulseSprite()"), Action::PulseSprite);
     }
 
     #[test]

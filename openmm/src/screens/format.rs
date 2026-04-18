@@ -484,11 +484,21 @@ impl TextElement {
 pub struct Animation {
     /// Printf-style pattern with `%d`, `%02d`, `%03d`, etc.
     pub pattern: String,
-    /// Total frame count (1-indexed: 1..=frames).
+    /// Total frame count.
     pub frames: u32,
+    /// The starting frame index (usually 0 or 1).
+    #[serde(default = "default_start_frame")]
+    pub start_frame: u32,
     /// Frames per second.
     #[serde(default = "default_fps")]
     pub fps: f32,
+    /// If true, the animation cycles 0-1-2-1-0 instead of 0-1-2-0.
+    #[serde(default)]
+    pub ping_pong: bool,
+}
+
+fn default_start_frame() -> u32 {
+    1
 }
 
 fn default_fps() -> f32 {
@@ -506,6 +516,9 @@ pub struct ElementState {
     /// Per-state transparency color key. Overrides the element-level `transparent_color`.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub transparent_color: String,
+    /// Frame animation for this state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub animation: Option<Animation>,
 }
 
 impl Screen {
@@ -543,6 +556,7 @@ impl ImageElement {
                 texture: texture.into(),
                 condition: String::new(),
                 transparent_color: String::new(),
+                animation: None,
             },
         );
         Self {
@@ -587,6 +601,7 @@ mod tests {
             ElementState {
                 texture: "mmnew1".to_string(),
                 condition: "hover".to_string(),
+                animation: None,
                 transparent_color: String::new(),
             },
         );
@@ -646,9 +661,11 @@ mod tests {
             z: 20,
             hidden: false,
             source: "gold".to_string(),
+            value: String::new(),
             font: "arrus".to_string(),
             font_size: 14.0,
             color: "yellow".to_string(),
+            hover_color: None,
             align: "right".to_string(),
             on_click: vec!["PlaySound 1".to_string()],
             on_hover: vec!["evt:Hint(\"Gold\")".to_string()],

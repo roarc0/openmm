@@ -134,6 +134,54 @@ pub fn draw_variant_editor(ctx: &egui::Context, editor: &mut EditorScreen, selec
                             }
                         }
                     });
+
+                    // Animation fields
+                    let img = editor.screen.elements[sel].as_image().unwrap();
+                    let mut anim = img.states.get(key).and_then(|s| s.animation.clone()).unwrap_or(crate::screens::Animation {
+                        pattern: String::new(),
+                        frames: 0,
+                        start_frame: 1,
+                        fps: 10.0,
+                        ping_pong: false,
+                    });
+                    let mut anim_changed = false;
+
+                    ui.collapsing("Animation", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Frames:");
+                            if ui.add(egui::DragValue::new(&mut anim.frames).speed(1.0).range(0..=256)).changed() {
+                                anim_changed = true;
+                            }
+                            ui.label("FPS:");
+                            if ui.add(egui::DragValue::new(&mut anim.fps).speed(0.1).range(0.1..=60.0)).changed() {
+                                anim_changed = true;
+                            }
+                            ui.label("Start:");
+                            if ui.add(egui::DragValue::new(&mut anim.start_frame).range(0..=256)).changed() {
+                                anim_changed = true;
+                            }
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Pattern:");
+                            if ui.add(egui::TextEdit::singleline(&mut anim.pattern).hint_text("icons/name%02d")).changed() {
+                                anim_changed = true;
+                            }
+                            if ui.checkbox(&mut anim.ping_pong, "Ping Pong").changed() {
+                                anim_changed = true;
+                            }
+                        });
+                    });
+
+                    if anim_changed {
+                        if let Some(state) = editor.screen.elements[sel].as_image_mut().unwrap().states.get_mut(key) {
+                            if anim.frames > 0 {
+                                state.animation = Some(anim);
+                            } else {
+                                state.animation = None;
+                            }
+                            editor.dirty = true;
+                        }
+                    }
                 });
             }
 
@@ -154,6 +202,7 @@ pub fn draw_variant_editor(ctx: &egui::Context, editor: &mut EditorScreen, selec
                         texture: String::new(),
                         condition: String::new(),
                         transparent_color: String::new(),
+                        animation: None,
                     },
                 );
                 editor.dirty = true;
@@ -271,11 +320,74 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
                         texture: tex,
                         condition: String::new(),
                         transparent_color: String::new(),
+                        animation: None,
                     });
             }
             editor.dirty = true;
         }
     });
+
+    // --- Base Animation ---
+    let mut anim = editor.screen.elements[sel]
+        .as_image()
+        .unwrap()
+        .animation
+        .clone()
+        .unwrap_or_else(|| crate::screens::Animation {
+            frames: 0,
+            pattern: String::new(),
+            start_frame: 1,
+            fps: 10.0,
+            ping_pong: false,
+        });
+    let mut anim_changed = false;
+
+    egui::CollapsingHeader::new(format!(
+        "Base Animation ({})",
+        if anim.frames > 0 { "Active" } else { "None" }
+    ))
+    .id_salt("base_anim_collapsing")
+    .show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.label("Frames:");
+            if ui.add(egui::DragValue::new(&mut anim.frames).range(0..=256)).changed() {
+                anim_changed = true;
+            }
+            ui.label(" (0=off)");
+        });
+
+        if anim.frames > 0 {
+            ui.horizontal(|ui| {
+                ui.label("Pattern:");
+                if ui.add(egui::TextEdit::singleline(&mut anim.pattern).hint_text("icons/name%02d")).changed() {
+                    anim_changed = true;
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("FPS:");
+                if ui.add(egui::DragValue::new(&mut anim.fps).range(0.1..=60.0)).changed() {
+                    anim_changed = true;
+                }
+                ui.label("Start:");
+                if ui.add(egui::DragValue::new(&mut anim.start_frame).range(0..=256)).changed() {
+                    anim_changed = true;
+                }
+                if ui.checkbox(&mut anim.ping_pong, "Ping Pong").changed() {
+                    anim_changed = true;
+                }
+            });
+        }
+    });
+
+    if anim_changed {
+        let img = editor.screen.elements[sel].as_image_mut().unwrap();
+        if anim.frames == 0 {
+            img.animation = None;
+        } else {
+            img.animation = Some(anim);
+        }
+        editor.dirty = true;
+    }
 
     // Clicked texture
     let mut clicked_tex = editor.screen.elements[sel]
@@ -299,11 +411,95 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
                         texture: clicked_tex,
                         condition: String::new(),
                         transparent_color: String::new(),
+                        animation: None,
                     });
             }
             editor.dirty = true;
         }
     });
+
+    // Hover texture
+    let mut hover_tex = editor.screen.elements[sel]
+        .as_image()
+        .unwrap()
+        .states
+        .get("hover_texture")
+        .map(|s| s.texture.clone())
+        .unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.label("Hover Texture:");
+        if ui.text_edit_singleline(&mut hover_tex).changed() {
+            let img = editor.screen.elements[sel].as_image_mut().unwrap();
+            if hover_tex.is_empty() {
+                img.states.remove("hover_texture");
+            } else {
+                img.states
+                    .entry("hover_texture".to_string())
+                    .and_modify(|s| s.texture = hover_tex.clone())
+                    .or_insert(ElementState {
+                        texture: hover_tex,
+                        condition: String::new(),
+                        transparent_color: String::new(),
+                        animation: None,
+                    });
+            }
+            editor.dirty = true;
+        }
+    });
+
+    // Hover animation
+    let mut has_anim = editor.screen.elements[sel]
+        .as_image()
+        .unwrap()
+        .states
+        .get("hover_texture")
+        .and_then(|s| s.animation.as_ref())
+        .is_some();
+    if ui.checkbox(&mut has_anim, "Hover Animation").changed() {
+        let img = editor.screen.elements[sel].as_image_mut().unwrap();
+        let state = img.states.entry("hover_texture".to_string()).or_insert(ElementState {
+            texture: String::new(),
+            condition: String::new(),
+            transparent_color: String::new(),
+            animation: None,
+        });
+        if has_anim {
+            state.animation = Some(crate::screens::Animation {
+                pattern: "icons/Watwalk%02d".into(),
+                frames: 3,
+                start_frame: 1,
+                fps: 8.0,
+                ping_pong: false,
+            });
+        } else {
+            state.animation = None;
+        }
+        editor.dirty = true;
+    }
+
+    if has_anim {
+        ui.indent("hover_anim", |ui| {
+            let img = editor.screen.elements[sel].as_image_mut().unwrap();
+            let state = img.states.get_mut("hover_texture").unwrap();
+            let anim = state.animation.as_mut().unwrap();
+            ui.horizontal(|ui| {
+                ui.label("Pattern:");
+                if ui.text_edit_singleline(&mut anim.pattern).changed() {
+                    editor.dirty = true;
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Frames:");
+                if ui.add(egui::DragValue::new(&mut anim.frames).range(1..=100)).changed() {
+                    editor.dirty = true;
+                }
+                ui.label("FPS:");
+                if ui.add(egui::DragValue::new(&mut anim.fps).range(0.1..=60.0)).changed() {
+                    editor.dirty = true;
+                }
+            });
+        });
+    }
 
     // All states (advanced)
     let state_keys: Vec<String> = editor.screen.elements[sel]
@@ -349,6 +545,7 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
                     texture: String::new(),
                     condition: String::new(),
                     transparent_color: String::new(),
+                    animation: None,
                 },
             );
             editor.dirty = true;

@@ -16,29 +16,16 @@
             bindings: {},
         )),
         Image((
-            id: "icons/Load1",
-            position: (100.0, 202.0),
-            size: (215.0, 39.0),
-            z: 4,
-            states: {
-                "default": (
-                    texture: "icons/Load1",
-                ),
-            },
-            on_click: [],
-            on_hover: [
-                "PulseSprite()",
-            ],
-            bindings: {},
-        )),
-        Image((
             id: "icons/load_up",
             position: (100.0, 201.0),
             size: (218.0, 40.0),
             z: 3,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/load_up",
+                ),
+                "hover_texture": (
+                    texture: "icons/Load1",
                 ),
             },
             on_click: [

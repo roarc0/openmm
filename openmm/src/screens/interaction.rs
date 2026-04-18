@@ -5,8 +5,8 @@ use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 
 use super::runtime::{
-    ClickFlash, ClickedTexture, HiddenByDefault, HoverOverlay, Pulsable, Pulsing, RuntimeElement, ScreenActions,
-    ScreenLayer, ScreenLayers, ScreenUiHovered,
+    ClickFlash, ClickedAnimation, ClickedTexture, HoverAnimation, HoverOverlay, HoverTexture,
+    RuntimeElement, ScreenActions, ScreenLayer, ScreenLayers, ScreenUiHovered,
 };
 use super::setup::{hide_screen, load_screen_replace_all, show_screen};
 use super::ui_assets::UiAssets;
@@ -15,25 +15,117 @@ use crate::assets::GameAssets;
 use crate::game::optional::OptionalWrite;
 use crate::system::config::GameConfig;
 
-// ── Interaction systems ─────────────────────────────────────────────────────
-
 pub(super) fn screen_hover(
-    query: Query<(&Interaction, &Children), (Changed<Interaction>, With<RuntimeElement>)>,
-    mut hover_query: Query<&mut Visibility, With<HoverOverlay>>,
+    mut query: Query<
+        (
+            &Interaction,
+            Option<&Children>,
+            Option<&mut ImageNode>,
+            Option<&HoverTexture>,
+            Option<&mut HoverAnimation>,
+            Option<&super::runtime::FrameAnimation>,
+        ),
+        (Changed<Interaction>, With<RuntimeElement>),
+    >,
+    mut hover_overlay_query: Query<&mut Visibility, With<HoverOverlay>>,
+    mut child_image_query: Query<
+        (
+            &mut ImageNode,
+            Option<&HoverTexture>,
+            Option<&mut HoverAnimation>,
+            Option<&super::runtime::FrameAnimation>,
+        ),
+        Without<RuntimeElement>,
+    >,
 ) {
-    for (interaction, children) in &query {
-        let show = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
-        for child in children.iter() {
-            if let Ok(mut vis) = hover_query.get_mut(child) {
-                *vis = if show {
-                    Visibility::Inherited
-                } else {
-                    Visibility::Hidden
-                };
+    for (interaction, children, mut image_node, hover_tex, mut hover_anim, base_anim) in &mut query {
+        let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
+
+        // Handle HoverOverlay (child entity toggle)
+        if let Some(children) = children {
+            for child in children.iter() {
+                if let Ok(mut vis) = hover_overlay_query.get_mut(child) {
+                    *vis = if hovering {
+                        Visibility::Inherited
+                    } else {
+                        Visibility::Hidden
+                    };
+                }
+            }
+        }
+
+        // Handle HoverTexture swap (main texture replace)
+        if let (Some(node), Some(ht)) = (image_node.as_mut(), hover_tex) {
+            if hovering {
+                if hover_anim.is_none() {
+                    node.image = ht.hover.clone();
+                }
+            } else if *interaction == Interaction::None {
+                if let Some(def) = &ht.default {
+                    node.image = def.clone();
+                }
+            }
+        }
+
+        // Handle HoverAnimation reset
+        if let Some(anim) = hover_anim.as_mut() {
+            if hovering {
+                if let Some(node) = image_node.as_mut() {
+                    node.image = anim.handles[anim.current_frame].clone();
+                }
+            } else if *interaction == Interaction::None {
+                if let Some(node) = image_node.as_mut() {
+                    if let Some(fa) = base_anim {
+                        node.image = fa.handles[fa.current_frame].clone();
+                    } else if let Some(def) = &anim.default {
+                        node.image = def.clone();
+                    }
+                    anim.elapsed = 0.0;
+                    anim.current_frame = 0;
+                }
+            }
+        } else if !hovering && *interaction == Interaction::None {
+            // No hover animation, but maybe a hover texture needs clearing back to base animation.
+            if let (Some(node), Some(fa)) = (image_node.as_mut(), base_anim) {
+                node.image = fa.handles[fa.current_frame].clone();
+            }
+        }
+
+        if let Some(children) = children {
+            // Check children for native_size/cropped texture swaps
+            for child in children.iter() {
+                if let Ok((mut node, ht, ha, ba)) = child_image_query.get_mut(child) {
+                    if hovering {
+                        if let Some(ha) = ha {
+                            node.image = ha.handles[ha.current_frame].clone();
+                        } else if let Some(ht) = ht {
+                            node.image = ht.hover.clone();
+                        }
+                    } else if *interaction == Interaction::None {
+                        if let Some(mut ha) = ha {
+                            if let Some(fa) = ba {
+                                node.image = fa.handles[fa.current_frame].clone();
+                            } else if let Some(def) = &ha.default {
+                                node.image = def.clone();
+                            }
+                            ha.elapsed = 0.0;
+                            ha.current_frame = 0;
+                        } else if let Some(ht) = ht {
+                            if let Some(fa) = ba {
+                                node.image = fa.handles[fa.current_frame].clone();
+                            } else if let Some(def) = &ht.default {
+                                node.image = def.clone();
+                            }
+                        } else if let Some(fa) = ba {
+                            node.image = fa.handles[fa.current_frame].clone();
+                        }
+                    }
+                }
             }
         }
     }
 }
+
 
 pub(super) fn text_hover(
     mut query: Query<(&Interaction, &mut super::runtime::RuntimeText), Changed<Interaction>>,
@@ -103,45 +195,62 @@ pub(super) fn hover_actions(
     }
 }
 
-/// Start/stop pulsing on hover for Pulsable elements.
-/// Checks that the element's screen layer is still active to avoid
-/// inserting on entities queued for despawn by a screen transition.
-pub(super) fn pulse_hover(
-    mut commands: Commands,
-    query: Query<(Entity, &Interaction, Has<HiddenByDefault>, &ScreenLayer), (Changed<Interaction>, With<Pulsable>)>,
-    pulsing_query: Query<&Pulsing>,
-    mut image_query: Query<&mut ImageNode>,
-    layers: Res<ScreenLayers>,
+/// Animate hover animations for elements currently being hovered.
+pub(super) fn hover_animate_tick(
+    time: Res<Time>,
+    // Animation is triggered by Interaction on elements with RuntimeElement
+    mut query: Query<
+        (Entity, &Interaction, Option<&Children>),
+        (With<RuntimeElement>, Or<(With<HoverAnimation>, With<Children>)>),
+    >,
+    mut anim_query: Query<(&mut HoverAnimation, &mut ImageNode)>,
 ) {
-    for (entity, interaction, hidden_default, layer) in &query {
-        // Skip entities whose screen was just replaced (despawn is deferred).
-        if !layers.screens.contains_key(&layer.0) {
+    let delta = time.delta().as_secs_f32();
+    for (entity, interaction, children) in &mut query {
+        if !matches!(interaction, Interaction::Hovered | Interaction::Pressed) {
             continue;
         }
-        let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
-        if hovering && !pulsing_query.contains(entity) {
-            commands
-                .entity(entity)
-                .try_insert((Pulsing { elapsed: 0.0 }, Visibility::Inherited));
-        } else if !hovering && pulsing_query.contains(entity) {
-            commands.entity(entity).remove::<Pulsing>();
-            if let Ok(mut img) = image_query.get_mut(entity) {
-                img.color = img.color.with_alpha(1.0);
-            }
-            if hidden_default {
-                commands.entity(entity).try_insert(Visibility::Hidden);
+
+        // 1. Check main element
+        if let Ok((mut anim, mut node)) = anim_query.get_mut(entity) {
+            tick_anim(&mut anim, &mut node, delta);
+        }
+
+        // 2. Check children
+        if let Some(children) = children {
+            for child in children.iter() {
+                if let Ok((mut anim, mut node)) = anim_query.get_mut(child) {
+                    tick_anim(&mut anim, &mut node, delta);
+                }
             }
         }
     }
 }
 
-/// Animate alpha on pulsing elements: smooth 0->1->0 each second via sine wave.
-pub(super) fn pulse_animate(time: Res<Time>, mut query: Query<(&mut Pulsing, &mut ImageNode)>) {
-    for (mut pulse, mut img) in &mut query {
-        pulse.elapsed += time.delta_secs();
-        // sin gives -1..1, remap to 0..1. Full cycle = 1 second (2pi per second).
-        let alpha = (pulse.elapsed * std::f32::consts::TAU).sin() * 0.5 + 0.5;
-        img.color = img.color.with_alpha(alpha);
+fn tick_anim(anim: &mut HoverAnimation, node: &mut ImageNode, delta: f32) {
+    anim.elapsed += delta;
+    let n = anim.handles.len();
+    if n == 0 {
+        return;
+    }
+
+    let frame_idx_total = (anim.elapsed * anim.fps) as usize;
+
+    let frame = if anim.ping_pong && n > 1 {
+        let cycle_len = 2 * (n - 1);
+        let idx_in_cycle = frame_idx_total % cycle_len;
+        if idx_in_cycle < n {
+            idx_in_cycle
+        } else {
+            cycle_len - idx_in_cycle
+        }
+    } else {
+        frame_idx_total % n
+    };
+
+    if frame != anim.current_frame {
+        anim.current_frame = frame;
+        node.image = anim.handles[frame].clone();
     }
 }
 
@@ -155,6 +264,7 @@ pub(super) fn screen_click(
             &RuntimeElement,
             Option<&mut ImageNode>,
             Option<&ClickedTexture>,
+            Option<&mut ClickedAnimation>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
@@ -162,7 +272,7 @@ pub(super) fn screen_click(
     flash_query: Query<&ClickFlash>,
     mut ui_sound: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
 ) {
-    for (entity, interaction, rt_elem, mut image_node, clicked_tex) in &mut query {
+    for (entity, interaction, rt_elem, mut image_node, clicked_tex, clicked_anim) in &mut query {
         if *interaction != Interaction::Pressed {
             continue;
         }
@@ -189,10 +299,16 @@ pub(super) fn screen_click(
         }
 
         // Swap to "clicked" texture if available, otherwise hide briefly.
-        if let Some(ct) = clicked_tex
-            && let Some(ref mut node) = image_node
-        {
-            node.image = ct.clicked.clone();
+        if let Some(ref mut node) = image_node {
+            if let Some(mut ca) = clicked_anim {
+                ca.elapsed = 0.0;
+                ca.current_frame = 0;
+                node.image = ca.handles[0].clone();
+            } else if let Some(ct) = clicked_tex {
+                node.image = ct.clicked.clone();
+            } else {
+                commands.entity(entity).insert(Visibility::Hidden);
+            }
         } else {
             commands.entity(entity).insert(Visibility::Hidden);
         }
@@ -242,34 +358,122 @@ pub(super) fn click_flash_tick(
         Entity,
         &mut ClickFlash,
         &mut Visibility,
+        &Interaction,
         Option<&mut ImageNode>,
         Option<&ClickedTexture>,
-    )>,
+        Option<&mut ClickedAnimation>,
+        Option<&HoverTexture>,
+        Option<&mut HoverAnimation>,
+        Option<&super::runtime::FrameAnimation>,
+        Option<&Children>,
+    ), With<RuntimeElement>>,
+    mut child_image_query: Query<
+        (
+            &mut ImageNode,
+            Option<&ClickedTexture>,
+            Option<&mut ClickedAnimation>,
+            Option<&HoverTexture>,
+            Option<&mut HoverAnimation>,
+            Option<&super::runtime::FrameAnimation>,
+        ),
+        Without<RuntimeElement>,
+    >,
     mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
-    for (entity, mut flash, mut vis, image_node, clicked_tex) in &mut query {
+    for (entity, mut flash, mut vis, interaction, mut image_node, clicked_tex, mut clicked_anim, hover_tex, hover_anim, base_anim, children) in
+        &mut query
+    {
+        if let Some(ref mut ca) = clicked_anim {
+            tick_clicked_anim(ca, image_node.as_deref_mut(), time.delta_secs());
+        }
+
         flash.timer.tick(time.delta());
         if !flash.timer.just_finished() {
             continue;
         }
 
         // Restore default texture or visibility.
-        if let Some(ct) = clicked_tex
-            && let Some(mut node) = image_node
-        {
-            match ct.default {
-                Some(ref default) => node.image = default.clone(),
-                None => *node = ImageNode::default(),
+        if let Some(node) = image_node.as_mut() {
+            let default_tex = clicked_tex.and_then(|ct| ct.default.clone())
+                .or_else(|| clicked_anim.as_ref().and_then(|ca| ca.default.clone()))
+                .or_else(|| base_anim.as_ref().and_then(|ba| Some(ba.handles[ba.current_frame].clone())));
+
+            if let Some(default) = default_tex {
+                let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
+                if hovering {
+                    if let Some(ht) = hover_tex {
+                        node.image = ht.hover.clone();
+                    } else if let Some(ha) = &hover_anim {
+                        node.image = ha.handles[ha.current_frame].clone();
+                    } else {
+                        node.image = default;
+                    }
+                } else {
+                    node.image = default;
+                }
+            } else if clicked_tex.is_some() || clicked_anim.is_some() {
+                **node = ImageNode::default();
             }
-        } else {
+        }
+        if let Some(children) = children {
+            let mut restored = false;
+            for child in children.iter() {
+                if let Ok((mut node, ct, mut ca, ht, ha, ba)) = child_image_query.get_mut(child) {
+                    if let Some(ref mut ca) = ca {
+                        tick_clicked_anim(ca, Some(&mut node), time.delta_secs());
+                    }
+                    if flash.timer.just_finished() {
+                        // Restore default
+                        let default_tex = ct.and_then(|ct| ct.default.clone())
+                            .or_else(|| ca.as_ref().and_then(|ca| ca.default.clone()))
+                            .or_else(|| ba.as_ref().and_then(|ba| Some(ba.handles[ba.current_frame].clone())));
+
+                        if let Some(default) = default_tex {
+                            let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
+                            if hovering {
+                                if let Some(ht) = ht {
+                                    node.image = ht.hover.clone();
+                                } else if let Some(ha) = ha {
+                                    node.image = ha.handles[ha.current_frame].clone();
+                                } else {
+                                    node.image = default;
+                                }
+                            } else {
+                                node.image = default;
+                            }
+                            restored = true;
+                        } else if ct.is_some() || ca.is_some() {
+                            *node = ImageNode::default();
+                            restored = true;
+                        }
+                    }
+                }
+            }
+            if !restored && flash.timer.just_finished() {
+                *vis = Visibility::Inherited;
+            }
+        } else if flash.timer.just_finished() {
             *vis = Visibility::Inherited;
         }
 
-        let p_actions: Vec<String> = flash.pending_actions.drain(..).collect();
-        commands.entity(entity).remove::<ClickFlash>();
+        if flash.timer.just_finished() {
+            let p_actions: Vec<String> = flash.pending_actions.drain(..).collect();
+            commands.entity(entity).remove::<ClickFlash>();
 
-        if !p_actions.is_empty() {
-            actions.try_write(ScreenActions { actions: p_actions });
+            if !p_actions.is_empty() {
+                actions.try_write(ScreenActions { actions: p_actions });
+            }
+        }
+    }
+}
+
+fn tick_clicked_anim(anim: &mut ClickedAnimation, node: Option<&mut ImageNode>, delta: f32) {
+    anim.elapsed += delta;
+    let frame = (anim.elapsed * anim.fps) as usize % anim.handles.len();
+    if frame != anim.current_frame {
+        anim.current_frame = frame;
+        if let Some(node) = node {
+            node.image = anim.handles[frame].clone();
         }
     }
 }
@@ -370,7 +574,6 @@ pub(super) fn process_pending_actions(
                         }
                     }
                 }
-                Action::PulseSprite => {} // handled at spawn time
                 Action::EvtProxy(evt_str) => {
                     if let Some(ref mut eq) = event_queue {
                         proxy_evt_action(&evt_str, eq);

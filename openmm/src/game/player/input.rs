@@ -449,10 +449,19 @@ pub(super) fn cursor_grab(
     key_bindings: Res<PlayerKeyBindings>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut actions: Option<bevy::ecs::message::MessageWriter<crate::screens::runtime::ScreenActions>>,
+    screen_layers: Option<Res<crate::screens::runtime::ScreenLayers>>,
 ) {
     if !keys.just_pressed(key_bindings.toggle_grab_cursor) {
         return;
     }
+
+    // Mutually exclusive: if an interactive Modal screen is open, it handles Escape exclusively.
+    if let Some(ref layers) = screen_layers
+        && layers.has_modal()
+    {
+        return;
+    }
+
     let Ok(mut cursor_options) = cursor_query.single_mut() else {
         return;
     };
@@ -461,9 +470,7 @@ pub(super) fn cursor_grab(
         cursor_options.grab_mode = CursorGrabMode::None;
         cursor_options.visible = true;
     } else {
-        // Second ESC: re-grab and open options.
-        cursor_options.grab_mode = CursorGrabMode::Confined;
-        cursor_options.visible = false;
+        // Second ESC: open options (keep cursor unlocked).
         if let Some(ref mut writer) = actions {
             writer.write(crate::screens::runtime::ScreenActions {
                 actions: vec!["ShowScreen(\"options_main\")".to_string()],

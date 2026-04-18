@@ -27,6 +27,9 @@ run-release:
 run-release-native:
 	RUSTFLAGS="-C target-cpu=native $$RUSTFLAGS" cargo run --release -p openmm
 
+run_orig:
+	./scripts/run_orig.sh
+
 # --- Profiling ---
 
 # Quick perf log: logs per-system timings every 2s, highlights bottlenecks.

@@ -26,8 +26,18 @@
             size: (135.0, 45.0),
             z: 1,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/MMCRE1",
+                ),
+                "hover_texture": (
+                    texture: "icons/Start00c",
+                    animation: Some((
+                        pattern: "icons/Start%02dc",
+                        frames: 7,
+                        start_frame: 0,
+                        fps: 16.0,
+                        ping_pong: true,
+                    )),
                 ),
             },
             on_click: [],
@@ -42,8 +52,18 @@
             size: (135.0, 45.0),
             z: 2,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/MMESC1",
+                ),
+                "hover_texture": (
+                    texture: "icons/Start00d",
+                    animation: Some((
+                        pattern: "icons/Start%02dd",
+                        frames: 7,
+                        start_frame: 0,
+                        fps: 16.0,
+                        ping_pong: true,
+                    )),
                 ),
             },
             on_click: [
@@ -58,28 +78,46 @@
             id: "icons/MMLOA1",
             position: (482.0, 71.0),
             size: (135.0, 45.0),
-            z: 3,
+            z: 8,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/MMLOA1",
+                ),
+                "hover_texture": (
+                    texture: "icons/Start00b",
+                    animation: Some((
+                        pattern: "icons/Start%02db",
+                        frames: 7,
+                        start_frame: 0,
+                        fps: 16.0,
+                        ping_pong: true,
+                    )),
                 ),
             },
             on_click: [
                 "LoadScreen(\"menu_load\")",
             ],
-            on_hover: [
-                "PulseSprite()",
-            ],
+            on_hover: [],
             bindings: {},
         )),
         Image((
             id: "icons/MMNEW1",
-            position: (481.0, 9.0),
+            position: (482.0, 9.0),
             size: (135.0, 45.0),
             z: 4,
             states: {
-                "default": (
+                "clicked": (
                     texture: "icons/MMNEW1",
+                ),
+                "hover_texture": (
+                    texture: "icons/Start00a",
+                    animation: Some((
+                        pattern: "icons/Start%02da",
+                        frames: 7,
+                        start_frame: 0,
+                        fps: 16.0,
+                        ping_pong: true,
+                    )),
                 ),
             },
             on_click: [

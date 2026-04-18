@@ -20,7 +20,7 @@ impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
         use super::elements::{text_update, update_screen_crosshair};
         use super::interaction::{
-            click_flash_tick, hover_actions, process_pending_actions, pulse_animate, pulse_hover, screen_click,
+            click_flash_tick, hover_actions, hover_animate_tick, process_pending_actions, screen_click,
             screen_hover, screen_keys, text_hover,
         };
         use super::setup::{game_screen_setup, loading_screen_setup, menu_screen_setup, screen_teardown};
@@ -49,8 +49,7 @@ impl Plugin for ScreenRuntimePlugin {
                 (
                     screen_hover,
                     hover_actions,
-                    pulse_hover,
-                    pulse_animate,
+                    hover_animate_tick,
                     screen_click,
                     screen_keys,
                     video_tick,
@@ -103,6 +102,33 @@ pub(crate) struct ClickedTexture {
     pub(crate) default: Option<Handle<Image>>,
 }
 
+#[derive(Component)]
+pub(crate) struct HoverTexture {
+    pub(crate) hover: Handle<Image>,
+    pub(crate) default: Option<Handle<Image>>,
+}
+
+/// Pre-loaded "hover" state animation.
+#[derive(Component)]
+pub(crate) struct HoverAnimation {
+    pub(crate) handles: Vec<Handle<Image>>,
+    pub(crate) default: Option<Handle<Image>>,
+    pub(crate) fps: f32,
+    pub(crate) elapsed: f32,
+    pub(crate) current_frame: usize,
+    pub(crate) ping_pong: bool,
+}
+
+/// Pre-loaded "clicked" state animation.
+#[derive(Component)]
+pub(crate) struct ClickedAnimation {
+    pub(crate) handles: Vec<Handle<Image>>,
+    pub(crate) default: Option<Handle<Image>>,
+    pub(crate) fps: f32,
+    pub(crate) elapsed: f32,
+    pub(crate) current_frame: usize,
+}
+
 /// Frame animation — cycles through numbered textures at a given FPS.
 #[derive(Component)]
 pub(crate) struct FrameAnimation {
@@ -150,20 +176,17 @@ pub(super) struct InlineVideo {
     pub(super) life_timer: f32,
 }
 
-/// Element has PulseSprite() in on_hover — eligible for pulse animation.
-#[derive(Component)]
-pub(super) struct Pulsable;
-
-/// Currently pulsing (hover active). Accumulates time for sine wave.
-#[derive(Component)]
-pub(super) struct Pulsing {
-    pub(super) elapsed: f32,
-}
 
 /// All active screen layers, keyed by screen id.
 #[derive(Resource, Default)]
-pub(super) struct ScreenLayers {
-    pub(super) screens: HashMap<String, Screen>,
+pub struct ScreenLayers {
+    pub screens: HashMap<String, Screen>,
+}
+
+impl ScreenLayers {
+    pub fn has_modal(&self) -> bool {
+        self.screens.values().any(|s| s.kind == super::ScreenKind::Modal)
+    }
 }
 
 /// Queued actions from click handlers, processed next frame.

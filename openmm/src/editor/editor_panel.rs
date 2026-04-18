@@ -9,6 +9,7 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
+use crate::game::controls::get_key_name;
 use super::canvas::EditorScreen;
 use super::guides::Guides;
 use super::io::EditorConfig;
@@ -18,6 +19,9 @@ pub fn editor_panel_ui(
     mut editor: ResMut<EditorScreen>,
     mut guides: ResMut<Guides>,
     mut cfg: ResMut<EditorConfig>,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut new_key_name: Local<String>,
+    mut capturing_key: Local<Option<String>>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
@@ -91,7 +95,7 @@ pub fn editor_panel_ui(
                     .add(
                         egui::DragValue::new(&mut start_sec)
                             .speed(0.1)
-                            .clamp_range(0.0..=3600.0),
+                            .range(0.0..=3600.0),
                     )
                     .changed()
                 {
@@ -128,6 +132,98 @@ pub fn editor_panel_ui(
                     editor.screen.on_close = actions;
                     editor.dirty = true;
                 }
+            });
+
+            ui.collapsing("Keys", |ui| {
+                let mut keys_to_remove: Option<String> = None;
+                let mut keys_to_rename: Option<(String, String)> = None;
+
+                // Handle key capture
+                if let Some(old_key) = capturing_key.clone() {
+                    ui.group(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(format!("Listening for key (capturing for '{}')...", old_key)).color(egui::Color32::from_rgb(255, 128, 0)));
+                            if ui.button("Cancel").clicked() {
+                                *capturing_key = None;
+                            }
+                        });
+                        
+                        // Listen for any key press
+                        if let Some(code) = keys.get_just_pressed().next() {
+                            if let Some(new_name) = get_key_name(*code) {
+                                if !editor.screen.keys.contains_key(new_name) {
+                                    keys_to_rename = Some((old_key.clone(), new_name.to_string()));
+                                }
+                                *capturing_key = None;
+                            }
+                        }
+                    });
+                    ui.separator();
+                }
+
+                let keys_list: Vec<String> = editor.screen.keys.keys().cloned().collect();
+                for key in keys_list {
+                    let mut actions = editor.screen.keys.get(&key).unwrap().clone();
+                    let mut actions_dirty = false;
+
+                    ui.group(|ui| {
+                        ui.horizontal(|ui| {
+                            let mut current_key = key.clone();
+                            if ui.text_edit_singleline(&mut current_key).changed() {
+                                keys_to_rename = Some((key.clone(), current_key));
+                            }
+
+                            if ui.small_button("\u{2328}").on_hover_text("Capture Key Press").clicked() {
+                                *capturing_key = Some(key.clone());
+                            }
+
+                            if ui.small_button("\u{2715}").on_hover_text("Remove Shortcut").clicked() {
+                                keys_to_remove = Some(key.clone());
+                            }
+                        });
+
+                        action_list_editor(ui, &mut actions, &mut actions_dirty);
+                        if actions_dirty {
+                            editor.screen.keys.insert(key, actions);
+                            editor.dirty = true;
+                        }
+                    });
+                }
+
+                if let Some(k) = keys_to_remove {
+                    editor.screen.keys.remove(&k);
+                    editor.dirty = true;
+                }
+                if let Some((old, new)) = keys_to_rename {
+                    if !new.is_empty() && old != new && !editor.screen.keys.contains_key(&new) {
+                        if let Some(actions) = editor.screen.keys.remove(&old) {
+                            editor.screen.keys.insert(new, actions);
+                            editor.dirty = true;
+                        }
+                    }
+                }
+
+                ui.horizontal(|ui| {
+                    let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    if ui.add(egui::TextEdit::singleline(&mut *new_key_name)
+                        .hint_text("Enter key name (e.g. Escape)"))
+                        .lost_focus() && enter_pressed 
+                    {
+                        if !new_key_name.is_empty() && !editor.screen.keys.contains_key(&*new_key_name) {
+                            editor.screen.keys.insert(new_key_name.clone(), vec![]);
+                            editor.dirty = true;
+                            new_key_name.clear();
+                        }
+                    }
+
+                    if ui.button("+ Add Key").clicked() && !new_key_name.is_empty() {
+                        if !editor.screen.keys.contains_key(&*new_key_name) {
+                            editor.screen.keys.insert(new_key_name.clone(), vec![]);
+                            editor.dirty = true;
+                            new_key_name.clear();
+                        }
+                    }
+                });
             });
 
             if ui.small_button("+ Add Text").clicked() {
@@ -174,14 +270,46 @@ pub fn editor_panel_ui(
 
 /// Reusable action list editor (add/remove/edit string actions).
 pub fn action_list_editor(ui: &mut egui::Ui, actions: &mut Vec<String>, dirty: &mut bool) {
+    let presets = [
+        "LoadScreen(\"\")",
+        "ShowScreen(\"\")",
+        "HideScreen(\"\")",
+        "ShowSprite(\"\")",
+        "HideSprite(\"\")",
+        "CloseWindow()",
+        "PlaySoundNamed(\"\")",
+        "Quit()",
+        "EnterTurnBattle()",
+        "NewGame()",
+        "GreetingSound()",
+        "SaveConfig(\"\", \"\")",
+        "Compare(\"\")",
+        "Else()",
+        "End()",
+        "evt:",
+    ];
+
     let mut to_remove: Option<usize> = None;
     for i in 0..actions.len() {
         let mut action = actions[i].clone();
         ui.horizontal(|ui| {
             if ui.text_edit_singleline(&mut action).changed() {
-                actions[i] = action;
+                actions[i] = action.clone();
                 *dirty = true;
             }
+
+            egui::ComboBox::from_id_salt(ui.make_persistent_id(i))
+                .width(16.0)
+                .selected_text("")
+                .show_ui(ui, |ui| {
+                    for preset in presets {
+                        if ui.selectable_label(false, preset).clicked() {
+                            actions[i] = preset.to_string();
+                            *dirty = true;
+                        }
+                    }
+                });
+
             if ui.small_button("\u{2715}").clicked() {
                 to_remove = Some(i);
             }

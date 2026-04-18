@@ -1,0 +1,30 @@
+(
+    id: "spellbook",
+    kind: Modal,
+    on_load: [
+        "PlaySoundNamed(\"OPENBOOK\")",
+    ],
+    on_close: [
+        "PlaySoundNamed(\"CloseBook\")",
+    ],
+    keys: {
+        "Escape": ["HideScreen(\"spellbook\")"],
+    },
+    elements: [
+        Image((
+            id: "icons/pagemask",
+            position: (8.0, 8.0),
+            size: (460.0, 344.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/pagemask",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "magenta",
+        )),
+    ],
+)

@@ -86,7 +86,9 @@
                     texture: "",
                 ),
             },
-            on_click: [],
+            on_click: [
+            	"ShowScreen(\"camp\")",
+            ],
             on_hover: [
                 "evt:Hint(\"Rest\")",
             ],
@@ -133,9 +135,11 @@
                     texture: "",
                 ),
             },
-            on_click: [],
+            on_click: [
+            	"ShowScreen(\"game_options\")",
+            ],
             on_hover: [
-                "evt:Hint(\"Save\")",
+                "evt:Hint(\"Game Options\")",
             ],
             bindings: {},
         )),
@@ -153,10 +157,10 @@
                 ),
             },
             on_click: [
-                "ShowScreen(\"spells\")",
+                "ShowScreen(\"spellbook\")",
             ],
             on_hover: [
-                "evt:Hint(\"Cast a Spell\")",
+                "evt:Hint(\"Cast Spell\")",
             ],
             bindings: {},
         )),
@@ -262,9 +266,11 @@
                     texture: "",
                 ),
             },
-            on_click: [],
+            on_click: [
+            	"ShowScreen(\"quickref\")",
+            ],
             on_hover: [
-                "evt:Hint(\"Ref\")",
+                "evt:Hint(\"Quick Reference\")",
             ],
             bindings: {},
         )),

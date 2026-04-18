@@ -379,15 +379,30 @@ fn loading_anim_update(
 /// Tick frame animations — cycles through pre-loaded texture handles at the configured FPS.
 pub(super) fn frame_animation_tick(
     time: Res<Time>,
-    mut query: Query<(&mut super::runtime::FrameAnimation, &mut ImageNode)>,
+    mut query: Query<(
+        &mut super::runtime::FrameAnimation,
+        &mut ImageNode,
+        Option<&Interaction>,
+        Option<&super::runtime::ClickFlash>,
+        Option<&super::runtime::HoverAnimation>,
+        Option<&super::runtime::HoverTexture>,
+    )>,
 ) {
-    for (mut anim, mut image_node) in &mut query {
+    for (mut anim, mut image_node, interaction, flash, hover_anim, hover_tex) in &mut query {
         anim.elapsed += time.delta_secs();
         let frame_duration = 1.0 / anim.fps;
         if anim.elapsed >= frame_duration {
             anim.elapsed -= frame_duration;
             anim.current_frame = (anim.current_frame + 1) % anim.handles.len();
-            image_node.image = anim.handles[anim.current_frame].clone();
+
+            // Only update image if not flashing and not hovering with an override.
+            let flashing = flash.is_some();
+            let hovering = interaction == Some(&Interaction::Hovered) || interaction == Some(&Interaction::Pressed);
+            let has_hover_override = hover_anim.is_some() || hover_tex.is_some();
+
+            if !flashing && !(hovering && has_hover_override) {
+                image_node.image = anim.handles[anim.current_frame].clone();
+            }
         }
     }
 }

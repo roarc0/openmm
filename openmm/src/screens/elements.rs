@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, TapBinding};
 use super::fonts::GameFonts;
 use super::runtime::{
-    ClickedTexture, FrameAnimation, HiddenByDefault, HoverOverlay, Pulsable, RuntimeElement, RuntimeText,
+    FrameAnimation, HiddenByDefault, HoverOverlay, RuntimeElement, RuntimeText,
     ScreenCrosshair, ScreenLayer, ScreenMusic,
 };
 use super::video::spawn_video_element;
@@ -126,7 +126,8 @@ pub(super) fn spawn_image_element(
         }
     });
 
-    let clicked_handle = img.states.get("clicked").and_then(|state| {
+    let clicked_state = img.states.get("clicked");
+    let clicked_handle = clicked_state.and_then(|state| {
         if state.texture.is_empty() {
             None
         } else {
@@ -139,6 +140,48 @@ pub(super) fn spawn_image_element(
                 cfg,
             )
         }
+    });
+    let clicked_anim_data = clicked_state.and_then(|state| {
+        state.animation.as_ref().map(|anim| {
+            let handles = load_animation_handles(
+                anim,
+                &img.transparent_color,
+                ui_assets,
+                game_assets,
+                images,
+                cfg,
+            );
+            (handles, anim.fps)
+        })
+    });
+
+    let hover_state = img.states.get("hover").or_else(|| img.states.get("hover_texture"));
+    let hover_texture_handle = hover_state.and_then(|state| {
+        if state.texture.is_empty() {
+            None
+        } else {
+            load_texture_with_transparency(
+                &state.texture,
+                &img.transparent_color,
+                ui_assets,
+                game_assets,
+                images,
+                cfg,
+            )
+        }
+    });
+    let hover_anim_data = hover_state.and_then(|state| {
+        state.animation.as_ref().map(|anim| {
+            let handles = load_animation_handles(
+                anim,
+                &img.transparent_color,
+                ui_assets,
+                game_assets,
+                images,
+                cfg,
+            );
+            (handles, anim.fps, anim.ping_pong)
+        })
     });
 
     // Cropped image: spawn as clip container + scrollable inner image.
@@ -212,13 +255,20 @@ pub(super) fn spawn_image_element(
                     }
                     _ => {}
                 }
+
+                if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
+                    inner.insert(anim);
+                }
             });
         return;
     }
 
-    let has_interaction =
-        hover_handle.is_some() || clicked_handle.is_some() || !img.on_click.is_empty() || !img.on_hover.is_empty();
-    let has_pulse = img.on_hover.iter().any(|a| a.trim() == "PulseSprite()");
+    let has_interaction = hover_handle.is_some()
+        || hover_texture_handle.is_some()
+        || hover_anim_data.is_some()
+        || clicked_handle.is_some()
+        || !img.on_click.is_empty()
+        || !img.on_hover.is_empty();
     let z = ZIndex(img.z);
     let marker = RuntimeElement {
         screen_id: screen_id.to_string(),
@@ -238,9 +288,6 @@ pub(super) fn spawn_image_element(
             if has_interaction {
                 entity.insert((Button, BackgroundColor(Color::NONE)));
             }
-            if has_pulse {
-                entity.insert(Pulsable);
-            }
             if img.hidden {
                 entity.insert(HiddenByDefault);
             }
@@ -254,9 +301,35 @@ pub(super) fn spawn_image_element(
                     },
                 ));
                 if let Some(clicked) = &clicked_handle {
-                    inner.insert(ClickedTexture {
+                    inner.insert(super::runtime::ClickedTexture {
                         clicked: clicked.clone(),
                         default: Some(handle.clone()),
+                    });
+                }
+                if let Some((handles, fps)) = clicked_anim_data {
+                    inner.insert(super::runtime::ClickedAnimation {
+                        handles,
+                        fps,
+                        default: Some(handle.clone()),
+                        elapsed: 0.0,
+                        current_frame: 0,
+                    });
+                }
+                if let Some(hover) = &hover_texture_handle {
+                    inner.insert(super::runtime::HoverTexture {
+                        hover: hover.clone(),
+                        default: Some(handle.clone()),
+                    });
+                }
+                if let Some((handles, fps, ping_pong)) = hover_anim_data {
+                    info!("attaching hover animation to child of '{}' (ping_pong={})", img.id, ping_pong);
+                    inner.insert(super::runtime::HoverAnimation {
+                        handles,
+                        fps,
+                        default: Some(handle.clone()),
+                        elapsed: 0.0,
+                        current_frame: 0,
+                        ping_pong,
                     });
                 }
                 if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
@@ -276,13 +349,35 @@ pub(super) fn spawn_image_element(
                 entity.insert((Button, BackgroundColor(Color::NONE)));
             }
             if let Some(clicked) = clicked_handle {
-                entity.insert(ClickedTexture {
+                entity.insert(super::runtime::ClickedTexture {
                     clicked,
-                    default: Some(handle),
+                    default: Some(handle.clone()),
                 });
             }
-            if has_pulse {
-                entity.insert(Pulsable);
+            if let Some((handles, fps)) = clicked_anim_data {
+                entity.insert(super::runtime::ClickedAnimation {
+                    handles,
+                    fps,
+                    default: Some(handle.clone()),
+                    elapsed: 0.0,
+                    current_frame: 0,
+                });
+            }
+            if let Some(hover) = hover_texture_handle {
+                entity.insert(super::runtime::HoverTexture {
+                    hover,
+                    default: Some(handle.clone()),
+                });
+            }
+            if let Some((handles, fps, ping_pong)) = hover_anim_data {
+                entity.insert(super::runtime::HoverAnimation {
+                    handles,
+                    fps,
+                    default: Some(handle.clone()),
+                    elapsed: 0.0,
+                    current_frame: 0,
+                    ping_pong,
+                });
             }
             if img.hidden {
                 entity.insert(HiddenByDefault);
@@ -323,15 +418,47 @@ pub(super) fn spawn_image_element(
             }
         }
     } else {
-        let mut entity = commands.spawn((ImageNode::default(), node, z, marker, layer_tag.clone(), initial_vis));
+        let mut entity = commands.spawn((
+            ImageNode::default(),
+            node,
+            z,
+            marker,
+            layer_tag.clone(),
+            initial_vis,
+        ));
         if has_interaction {
             entity.insert((Button, BackgroundColor(Color::NONE)));
         }
         if let Some(clicked) = clicked_handle {
-            entity.insert(ClickedTexture { clicked, default: None });
+            entity.insert(super::runtime::ClickedTexture {
+                clicked,
+                default: None,
+            });
         }
-        if has_pulse {
-            entity.insert(Pulsable);
+        if let Some((handles, fps)) = clicked_anim_data {
+            entity.insert(super::runtime::ClickedAnimation {
+                handles,
+                fps,
+                default: None,
+                elapsed: 0.0,
+                current_frame: 0,
+            });
+        }
+        if let Some(hover) = hover_texture_handle {
+            entity.insert(super::runtime::HoverTexture {
+                hover,
+                default: None,
+            });
+        }
+        if let Some((handles, fps, ping_pong)) = hover_anim_data {
+            entity.insert(super::runtime::HoverAnimation {
+                handles,
+                fps,
+                default: None,
+                elapsed: 0.0,
+                current_frame: 0,
+                ping_pong,
+            });
         }
         if img.hidden {
             entity.insert(HiddenByDefault);
@@ -342,8 +469,7 @@ pub(super) fn spawn_image_element(
     }
 }
 
-/// Load animation frame handles from an image element's animation descriptor.
-fn load_animation(
+pub(super) fn load_animation(
     img: &super::ImageElement,
     ui_assets: &mut UiAssets,
     game_assets: &GameAssets,
@@ -351,31 +477,51 @@ fn load_animation(
     cfg: &GameConfig,
 ) -> Option<FrameAnimation> {
     let anim = img.animation.as_ref()?;
-    let mut handles = Vec::with_capacity(anim.frames as usize);
-    for i in 1..=anim.frames {
-        let name = format_animation_frame(&anim.pattern, i);
-        match load_texture_with_transparency(&name, &img.transparent_color, ui_assets, game_assets, images, cfg) {
-            Some(handle) => handles.push(handle),
-            None => {
-                bevy::log::warn!(
-                    "animation frame '{}' not found, skipping animation for '{}'",
-                    name,
-                    img.id
-                );
-                return None;
-            }
-        }
-    }
+    let handles = load_animation_handles(
+        anim,
+        &img.transparent_color,
+        ui_assets,
+        game_assets,
+        images,
+        cfg,
+    );
     if handles.is_empty() {
         return None;
     }
-    bevy::log::info!("loaded {} animation frames for '{}'", handles.len(), img.id);
     Some(FrameAnimation {
         handles,
         fps: anim.fps,
         elapsed: 0.0,
         current_frame: 0,
     })
+}
+
+pub(super) fn load_animation_handles(
+    anim: &super::Animation,
+    transparent_color: &str,
+    ui_assets: &mut UiAssets,
+    game_assets: &GameAssets,
+    images: &mut Assets<Image>,
+    cfg: &GameConfig,
+) -> Vec<Handle<Image>> {
+    let mut handles = Vec::with_capacity(anim.frames as usize);
+    for i in anim.start_frame..(anim.start_frame + anim.frames) {
+        let name = format_animation_frame(&anim.pattern, i);
+        match load_texture_with_transparency(
+            &name,
+            transparent_color,
+            ui_assets,
+            game_assets,
+            images,
+            cfg,
+        ) {
+            Some(handle) => handles.push(handle),
+            None => {
+                bevy::log::warn!("animation frame '{}' not found", name);
+            }
+        }
+    }
+    handles
 }
 
 /// Expand a printf-style pattern like `"icons/Watwalk%02d"` with a frame number.
@@ -386,6 +532,14 @@ fn format_animation_frame(pattern: &str, frame: u32) -> String {
         let rest = &pattern[pos + 1..];
         if rest.starts_with('d') {
             return format!("{}{}{}", &pattern[..pos], frame, &rest[1..]);
+        }
+        if rest.starts_with('c') {
+            let ch = (b'a' + (frame.saturating_sub(1) % 26) as u8) as char;
+            return format!("{}{}{}", &pattern[..pos], ch, &rest[1..]);
+        }
+        if rest.starts_with('C') {
+            let ch = (b'A' + (frame.saturating_sub(1) % 26) as u8) as char;
+            return format!("{}{}{}", &pattern[..pos], ch, &rest[1..]);
         }
         // %02d, %03d, etc.
         if let Some(d_pos) = rest.find('d') {

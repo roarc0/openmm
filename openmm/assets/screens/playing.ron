@@ -20,9 +20,11 @@
                     texture: "",
                 ),
             },
-            on_click: [],
+            on_click: [
+            	"ShowScreen(\"quests\")",
+            ],
             on_hover: [
-                "evt:Hint(\"Quests\")",
+                "evt:Hint(\"Current Quests\")",
             ],
             bindings: {},
         )),
@@ -37,7 +39,9 @@
                 ),
             },
             on_click: [],
-            on_hover: [],
+            on_hover: [
+                "evt:Hint(\"$current_date\")",
+            ],
             bindings: {
                 "source": "compass",
             },
@@ -92,9 +96,11 @@
                     texture: "",
                 ),
             },
-            on_click: [],
+            on_click: [
+            	"ShowScreen(\"autonotes\")",
+            ],
             on_hover: [
-                "evt:Hint(\"?\")",
+                "evt:Hint(\"Auto Notes\")",
             ],
             bindings: {},
         )),
@@ -111,9 +117,11 @@
                     texture: "",
                 ),
             },
-            on_click: [],
+            on_click: [
+            	"ShowScreen(\"maps\")",
+            ],
             on_hover: [
-                "evt:Hint(\"Map\")",
+                "evt:Hint(\"Maps\")",
             ],
             bindings: {},
         )),
@@ -130,9 +138,11 @@
                     texture: "",
                 ),
             },
-            on_click: [],
+            on_click: [
+            	"ShowScreen(\"calendar\")",
+            ],
             on_hover: [
-                "evt:Hint(\"?\")",
+                "evt:Hint(\"Calendar\")",
             ],
             bindings: {},
         )),

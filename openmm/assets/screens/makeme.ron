@@ -1,0 +1,107 @@
+(
+    id: "makeme",
+    elements: [
+        Image((
+            id: "icons/BUTTMAKE",
+            position: (510.0, 438.0),
+            size: (64.0, 30.0),
+            z: 2,
+            states: {
+                "clicked": (
+                    texture: "icons/BUTTMAKE",
+                ),
+            },
+            on_click: [
+                "NewGame(\"something\")",
+            ],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/MAKETOP",
+            position: (0.0, 0.0),
+            size: (640.0, 23.0),
+            z: 6,
+            states: {
+                "default": (
+                    texture: "icons/MAKETOP",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "lime",
+        )),
+        Image((
+            id: "icons/MAKESKY",
+            position: (0.0, 2.0),
+            size: (640.0, 21.0),
+            z: 4,
+            states: {
+                "default": (
+                    texture: "icons/MAKESKY",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/FL01",
+            position: (5.0, 379.0),
+            size: (33.0, 79.0),
+            z: 7,
+            states: {
+                "default": (
+                    texture: "icons/FL1",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            animation: Some((
+                pattern: "icons/FL%01d",
+                frames: 30,
+                fps: 10.0,
+            )),
+        )),
+        Image((
+            id: "icons/FR1",
+            position: (600.0, 379.0),
+            size: (40.0, 80.0),
+            z: 6,
+            states: {
+                "default": (
+                    texture: "icons/FR1",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            animation: Some((
+                pattern: "icons/FR%01d",
+                frames: 30,
+                fps: 10.0,
+            )),
+        )),
+        Image((
+            id: "icons/Makeme.pcx",
+            position: (0.0, 23.0),
+            size: (640.0, 457.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/Makeme.pcx",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+    ],
+    editor: (
+        locked: [
+            "icons/FL01",
+        ],
+    ),
+)
