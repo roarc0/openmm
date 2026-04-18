@@ -75,6 +75,15 @@ pub(super) fn handle_speak_in_house(
     {
         ui.footer.set_status(&desc, 4.0, time.elapsed_secs_f64());
     }
+    // Determine building screen from building_type.
+    let screen_name = map_events
+        .as_ref()
+        .and_then(|me| me.houses.as_ref())
+        .and_then(|h| h.houses.get(&house_id))
+        .map(|entry| super::events::building_screen_for_type(&entry.building_type))
+        .unwrap_or("building");
+    commands.insert_resource(ui::BuildingScreen(screen_name.to_string()));
+
     let image = map_events
         .as_ref()
         .and_then(|me| super::events::resolve_building_image(house_id, me, game_assets, images))

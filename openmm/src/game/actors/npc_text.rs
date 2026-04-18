@@ -73,10 +73,7 @@ mod tests {
             npc_name: "Bob".into(),
             hour: 9,
         };
-        assert_eq!(
-            substitute_npc_text("Good %05!", &ctx),
-            "Good morning!"
-        );
+        assert_eq!(substitute_npc_text("Good %05!", &ctx), "Good morning!");
 
         let evening_ctx = SubstitutionContext {
             npc_name: "Bob".into(),
@@ -94,10 +91,7 @@ mod tests {
             npc_name: "Carol".into(),
             hour: 14,
         };
-        assert_eq!(
-            substitute_npc_text("Good %05! I'm %01.", &ctx),
-            "Good day! I'm Carol."
-        );
+        assert_eq!(substitute_npc_text("Good %05! I'm %01.", &ctx), "Good day! I'm Carol.");
     }
 
     #[test]

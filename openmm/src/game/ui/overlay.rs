@@ -39,7 +39,7 @@ fn screen_for_mode(mode: UiMode) -> &'static str {
 /// Tracks which overlay screen is currently shown.
 /// Starts empty — first sync will show "playing".
 #[derive(Resource, Default)]
-pub struct ActiveOverlay(Option<&'static str>);
+pub struct ActiveOverlay(Option<String>);
 
 pub struct OverlayPlugin;
 
@@ -56,15 +56,23 @@ fn sync_overlay(
     ui: Res<UiState>,
     mut overlay: ResMut<ActiveOverlay>,
     mut actions: Option<bevy::ecs::message::MessageWriter<ScreenActions>>,
+    building_screen: Option<Res<super::BuildingScreen>>,
 ) {
-    let desired = screen_for_mode(ui.mode);
+    let desired: String = if ui.mode == UiMode::Building {
+        building_screen
+            .as_ref()
+            .map(|bs| bs.0.clone())
+            .unwrap_or_else(|| "building".to_string())
+    } else {
+        screen_for_mode(ui.mode).to_string()
+    };
 
-    if overlay.0 == Some(desired) {
+    if overlay.0.as_deref() == Some(desired.as_str()) {
         return;
     }
 
     // Hide previous overlay.
-    if let Some(old_screen) = overlay.0 {
+    if let Some(old_screen) = &overlay.0 {
         info!("overlay: hiding '{}'", old_screen);
         actions.try_write(ScreenActions {
             actions: vec![format!("HideScreen(\"{}\")", old_screen)],

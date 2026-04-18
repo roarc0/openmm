@@ -119,7 +119,7 @@
         )),
         Image((
             id: "icons/BUTTBK4",
-            position: (589.0, 270.0),
+            position: (588.0, 270.0),
             size: (31.0, 71.0),
             z: 16,
             states: {
@@ -142,7 +142,6 @@
             "minimap",
             "icons/MAPDIR2",
             "icons/COMPASS",
-            "icons/BUTTBK4",
             "icons/BUTTBK3",
             "icons/BUTTBK2",
             "icons/BUTTBK1",

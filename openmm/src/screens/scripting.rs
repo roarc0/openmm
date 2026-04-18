@@ -25,6 +25,8 @@ pub enum Action {
     PulseSprite,
     NewGame,
     Quit,
+    /// Close the active UI overlay and return to World mode.
+    CloseWindow,
     // EVT proxy — raw action string after stripping "evt:" prefix
     EvtProxy(String),
     // Control flow
@@ -63,6 +65,9 @@ pub fn parse_action(input: &str) -> Action {
     // Screen-native actions
     if s == "Quit()" {
         return Action::Quit;
+    }
+    if s == "CloseWindow()" {
+        return Action::CloseWindow;
     }
     if s == "NewGame()" {
         return Action::NewGame;

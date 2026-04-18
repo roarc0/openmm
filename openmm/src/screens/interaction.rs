@@ -2,6 +2,7 @@
 
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
+use bevy::window::{CursorOptions, PrimaryWindow};
 
 use super::runtime::{
     ClickFlash, ClickedTexture, HiddenByDefault, HoverOverlay, Pulsable, Pulsing, RuntimeElement, ScreenActions,
@@ -260,6 +261,8 @@ pub(super) fn process_pending_actions(
     mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
     world_state: Option<Res<crate::game::state::WorldState>>,
     mut event_queue: Option<ResMut<crate::game::events::scripting::EventQueue>>,
+    mut ui_state: Option<ResMut<crate::game::ui::UiState>>,
+    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     _time: Res<Time>,
 ) {
     use super::scripting::Action;
@@ -362,6 +365,12 @@ pub(super) fn process_pending_actions(
                     }
                     if let Err(e) = cfg.save() {
                         error!("SaveConfig: failed to save: {}", e);
+                    }
+                }
+                Action::CloseWindow => {
+                    info!("action: CloseWindow");
+                    if let Some(ref mut ui) = ui_state {
+                        crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
                     }
                 }
                 Action::Unknown(s) => {

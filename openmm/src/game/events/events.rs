@@ -24,6 +24,64 @@ pub struct MapEvents {
     pub generated_npcs: std::collections::HashMap<i32, openmm_data::GeneratedNpc>,
 }
 
+/// Map building type string → screen .ron name for the overlay system.
+pub fn building_screen_for_type(building_type: &str) -> &'static str {
+    let lower = building_type.to_lowercase();
+    if lower.contains("weapon") {
+        return "weapon_shop";
+    }
+    if lower.contains("armor") {
+        return "armor_shop";
+    }
+    if lower.contains("magic") || lower.contains("alchemy") {
+        return "magic_shop";
+    }
+    if lower.contains("general") || lower.contains("store") {
+        return "general_store";
+    }
+    if lower.contains("tavern") {
+        return "tavern";
+    }
+    if lower.contains("temple") && !lower.contains("ent") {
+        return "temple";
+    }
+    if lower.contains("training") {
+        return "training";
+    }
+    if lower.contains("guild") {
+        return "guild";
+    }
+    if lower.contains("bank") {
+        return "bank";
+    }
+    if lower.contains("stables") || lower.contains("boats") || lower.contains("wagon") {
+        return "travel";
+    }
+    if lower.contains("town hall") || lower.contains("city council") {
+        return "town_hall";
+    }
+    if lower.contains("jail") {
+        return "jail";
+    }
+    if lower.contains("library") || lower.contains("oracle") || lower.contains("seer") {
+        return "library";
+    }
+    if lower.contains("circus") || lower.contains("tent") {
+        return "circus";
+    }
+    if lower.contains("throne") || lower.contains("castle") && !lower.contains("ent") {
+        return "throne";
+    }
+    if lower.contains("house") || lower.contains("hosue") || lower.contains("hermit") {
+        return "house";
+    }
+    // Dungeon/castle/pyramid/hive entrances — transition, not a shop UI.
+    if lower.contains("ent") {
+        return "building";
+    }
+    "building"
+}
+
 /// Map building type string → fallback background image name.
 fn building_background(building_type: &str) -> &'static str {
     let lower = building_type.to_lowercase();

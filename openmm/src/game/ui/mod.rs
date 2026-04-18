@@ -46,7 +46,7 @@ pub fn set_overlay_mode(
 /// Switch to a non-World UI mode and free the cursor.
 pub fn set_ui_mode(ui: &mut UiState, cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>, mode: UiMode) {
     ui.mode = mode;
-    grab_cursor(cursor_query, false);
+    grab_cursor(cursor_query, mode == UiMode::World);
 }
 
 /// Which view the HUD is currently displaying.
@@ -79,6 +79,11 @@ pub struct UiState {
 pub struct OverlayImage {
     pub image: Handle<Image>,
 }
+
+/// Which building screen to show when UiMode is Building.
+/// Set by handle_speak_in_house based on the building_type from 2devents.txt.
+#[derive(Resource, Default)]
+pub struct BuildingScreen(pub String);
 
 /// Handle to the current map's overview image for the M-key fullscreen overlay.
 /// `None` for indoor maps (no overview icon exists).
