@@ -1,4 +1,5 @@
 mod browser;
+mod clipboard;
 pub mod canvas;
 mod editor_panel;
 mod element_editor;
@@ -59,6 +60,7 @@ impl Plugin for EditorPlugin {
                 }
             })
             .init_resource::<canvas::ElementEditorState>()
+            .init_resource::<clipboard::Clipboard>()
             .insert_resource(guides::Guides::from_config(&cfg))
             .insert_resource(cfg)
             .add_systems(OnEnter(GameState::Editor), editor_setup)
@@ -78,6 +80,7 @@ impl Plugin for EditorPlugin {
                         input::arrow_nudge_system,
                         input::shortcut_system,
                         input::delete_system,
+                        input::copy_paste_system,
                         input::tab_cycle_system,
                         browser::toggle_browser,
                         toggle_ui,

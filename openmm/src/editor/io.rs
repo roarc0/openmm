@@ -10,7 +10,7 @@ use std::fs;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-pub use crate::screens::{Screen, delete_screen, list_screens, load_screen, save_screen, screen_path};
+pub use crate::screens::{Screen, delete_screen, list_screens, load_screen, save_screen};
 
 const EDITOR_CONFIG_PATH: &str = "openmm-editor.toml";
 
@@ -100,6 +100,7 @@ pub fn load_last_screen(cfg: &EditorConfig) -> Screen {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::screens::screen_path;
 
     #[test]
     fn save_and_load_round_trip() {

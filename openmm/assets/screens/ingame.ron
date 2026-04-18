@@ -269,34 +269,6 @@
             bindings: {},
         )),
         Image((
-            id: "icons/HITSFULL",
-            position: (93.0, 383.0),
-            size: (6.0, 78.0),
-            z: 18,
-            states: {
-                "default": (
-                    texture: "icons/HITSFULL",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
-        )),
-        Image((
-            id: "icons/HITSCLRA",
-            position: (102.0, 383.0),
-            size: (6.0, 78.0),
-            z: 19,
-            states: {
-                "default": (
-                    texture: "icons/HITSCLRA",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
-        )),
-        Image((
             id: "icons/CCMALEA",
             position: (22.0, 383.0),
             size: (59.0, 79.0),
@@ -325,6 +297,118 @@
             bindings: {},
             transparent_color: "cyan",
         )),
+        Image((
+            id: "icons/MANAFULLA",
+            position: (102.0, 383.0),
+            size: (6.0, 78.0),
+            z: 22,
+            states: {
+                "default": (
+                    texture: "icons/MANAFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/HITSFULLA",
+            position: (93.0, 383.0),
+            size: (6.0, 78.0),
+            z: 18,
+            states: {
+                "default": (
+                    texture: "icons/HITSFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/HITSFULLB",
+            position: (206.0, 383.0),
+            size: (6.0, 78.0),
+            z: 18,
+            states: {
+                "default": (
+                    texture: "icons/HITSFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/MANAFULLB",
+            position: (215.0, 383.0),
+            size: (6.0, 78.0),
+            z: 22,
+            states: {
+                "default": (
+                    texture: "icons/MANAFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/HITSFULLC",
+            position: (319.0, 383.0),
+            size: (6.0, 78.0),
+            z: 18,
+            states: {
+                "default": (
+                    texture: "icons/HITSFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/MANAFULLC",
+            position: (328.0, 383.0),
+            size: (6.0, 78.0),
+            z: 22,
+            states: {
+                "default": (
+                    texture: "icons/MANAFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/HITSFULLD",
+            position: (431.0, 383.0),
+            size: (6.0, 78.0),
+            z: 18,
+            states: {
+                "default": (
+                    texture: "icons/HITSFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/MANAFULLD",
+            position: (440.0, 383.0),
+            size: (6.0, 78.0),
+            z: 22,
+            states: {
+                "default": (
+                    texture: "icons/MANAFULL",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
     ],
     editor: (
         locked: [
@@ -335,8 +419,6 @@
             "footer",
             "BORDER4",
             "icons/BUTTREF",
-            "icons/HITSFULL",
-            "icons/HITSCLRA",
             "icons/TAP1",
             "gold",
             "food",

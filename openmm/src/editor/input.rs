@@ -5,11 +5,15 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
 
-use super::canvas::{CanvasElement, EditorScreen, ElementEditorState, Selection, resolve_elem_size};
+use super::canvas::{CanvasElement, EditorScreen, Selection, resolve_elem_size};
+
+use super::clipboard::Clipboard;
 use super::overlay::{OverlayAction, OverlayCmd};
-use super::{io, io::EditorConfig};
+use super::io;
+
 use crate::screens::ui_assets::UiAssets;
 use crate::screens::{REF_H, REF_W};
+
 
 // ─── Selection ──────────────────────────────────────────────────────────────
 
@@ -230,6 +234,11 @@ pub fn shortcut_system(
     mut selection: ResMut<Selection>,
     mut overlay_action: ResMut<OverlayAction>,
 ) {
+    let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
+    if ctrl {
+        return;
+    }
+
     let Some(sel) = selection.index else { return };
     if keys.just_pressed(KeyCode::KeyE) {
         selection.edt_open = !selection.edt_open;
@@ -309,5 +318,44 @@ pub fn save_shortcut_system(keys: Res<ButtonInput<KeyCode>>, mut editor: ResMut<
     let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     if ctrl && keys.just_pressed(KeyCode::KeyS) {
         save_editor_screen(&mut editor);
+    }
+}
+
+// ─── Copy Paste ───────────────────────────────────────────────────────────
+
+/// Ctrl+C copies selected element, Ctrl+V pastes it at mouse position.
+pub fn copy_paste_system(
+    keys: Res<ButtonInput<KeyCode>>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    mut selection: ResMut<Selection>,
+    mut editor: ResMut<EditorScreen>,
+    mut clipboard: ResMut<Clipboard>,
+    ui_assets: Res<UiAssets>,
+) {
+    let ctrl = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
+
+    // Copy
+    if ctrl && keys.just_pressed(KeyCode::KeyC) {
+        if let Some(idx) = selection.index {
+            if let Some(elem) = editor.screen.elements.get(idx) {
+                clipboard.copy(elem);
+            }
+        }
+    }
+
+    // Paste
+    if ctrl && keys.just_pressed(KeyCode::KeyV) {
+        let Ok(window) = windows.single() else { return };
+        let Some(cursor) = window.cursor_position() else { return };
+        let win_w = window.width();
+        let win_h = window.height();
+        let mouse_ref = Vec2::new(cursor.x / win_w * REF_W, cursor.y / win_h * REF_H);
+
+        if let Some(new_idx) = clipboard.paste(&mut editor, mouse_ref, &ui_assets) {
+            selection.index = Some(new_idx);
+            selection.edt_open = true;
+            selection.var_open = false;
+            selection.drag_offset = None;
+        }
     }
 }
