@@ -105,6 +105,7 @@ pub struct MapOverviewImage(pub Option<Handle<Image>>);
 #[derive(Default)]
 pub struct FooterText {
     text: String,
+    color: String,
     /// Generation counter -- bumped on every change so consumers know to re-render.
     pub(crate) generation: u64,
     /// If set, this text is "locked" until the timer expires.
@@ -115,11 +116,17 @@ pub struct FooterText {
 impl FooterText {
     /// Set footer text. This is a "soft" set — won't overwrite locked (status) text.
     pub fn set(&mut self, text: &str) {
+        self.set_colored(text, "white");
+    }
+
+    /// Set footer text with a specific color.
+    pub fn set_colored(&mut self, text: &str, color: &str) {
         if self.lock_until.is_some() {
             return;
         }
-        if self.text != text {
+        if self.text != text || self.color != color {
             self.text = text.to_string();
+            self.color = color.to_string();
             self.generation += 1;
         }
     }
@@ -127,7 +134,13 @@ impl FooterText {
     /// Set footer text that persists for `duration` seconds.
     /// Cannot be overwritten by hover hints until it expires.
     pub fn set_status(&mut self, text: &str, duration: f64, now: f64) {
+        self.set_status_colored(text, "white", duration, now);
+    }
+
+    /// Set colored footer text that persists for `duration` seconds.
+    pub fn set_status_colored(&mut self, text: &str, color: &str, duration: f64, now: f64) {
         self.text = text.to_string();
+        self.color = color.to_string();
         self.lock_until = Some(now + duration);
         self.generation += 1;
     }
@@ -139,6 +152,7 @@ impl FooterText {
         {
             self.lock_until = None;
             self.text.clear();
+            self.color = "white".to_string();
             self.generation += 1;
         }
     }
@@ -150,6 +164,10 @@ impl FooterText {
 
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    pub fn color(&self) -> &str {
+        &self.color
     }
 }
 

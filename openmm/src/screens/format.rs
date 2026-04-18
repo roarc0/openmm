@@ -463,7 +463,7 @@ impl TextElement {
         self.hover_color.as_ref().map(|c| Self::resolve_color(c))
     }
 
-    fn resolve_color(name: &str) -> [u8; 4] {
+    pub fn resolve_color(name: &str) -> [u8; 4] {
         match name {
             "yellow" => super::fonts::YELLOW,
             "red" => super::fonts::RED,

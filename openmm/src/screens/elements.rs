@@ -470,6 +470,14 @@ pub(super) fn text_update(
     let sy = win_h / REF_H;
 
     for (mut rt, mut img_node, mut vis, mut node) in &mut query {
+        if rt.source == "footer_text" {
+            let footer_color = ui.footer.color();
+            let rgba = crate::screens::TextElement::resolve_color(footer_color);
+            if rt.color != rgba {
+                rt.color = rgba;
+            }
+        }
+
         let mut current = match rt.source.as_str() {
             "footer_text" => ui.footer.text().to_string(),
             "gold" => world_state
