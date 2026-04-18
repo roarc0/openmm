@@ -116,6 +116,23 @@ impl EventQueue {
     pub fn clear(&mut self) {
         self.sequences.clear();
     }
+
+    /// Extract and play all PlaySound events, keeping everything else queued.
+    /// Used during UI overlays so sounds play but other events survive.
+    pub fn drain_sounds(&mut self, ui_sound: &mut bevy::ecs::message::MessageWriter<PlayUiSoundEvent>) {
+        for seq in &mut self.sequences {
+            seq.steps.retain(|step| {
+                if let GameEvent::PlaySound { sound_id } = &step.event {
+                    ui_sound.write(PlayUiSoundEvent { sound_id: *sound_id });
+                    false // remove from queue
+                } else {
+                    true // keep
+                }
+            });
+        }
+        // Remove empty sequences.
+        self.sequences.retain(|seq| !seq.steps.is_empty());
+    }
 }
 
 pub struct EventDispatchPlugin;
@@ -235,8 +252,11 @@ fn process_events(
     time: Res<Time>,
     mut entities: MapEntityParams,
 ) {
-    // Don't process events while a UI overlay is blocking
+    // When a UI overlay is active, process sound events but keep everything else queued.
     if !matches!(ui.mode, crate::game::ui::UiMode::World) {
+        if let Some(ref mut sound_writer) = audio.ui_sound {
+            event_queue.drain_sounds(sound_writer);
+        }
         return;
     }
 

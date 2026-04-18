@@ -182,10 +182,19 @@ pub(super) fn hide_screen(
     commands: &mut Commands,
     layers: &mut ScreenLayers,
     entities: &Query<(Entity, &ScreenLayer)>,
+    actions: &mut Option<MessageWriter<ScreenActions>>,
 ) {
-    if layers.screens.remove(screen_id).is_none() {
+    let Some(screen) = layers.screens.remove(screen_id) else {
         warn!("HideScreen: '{}' not visible", screen_id);
         return;
+    };
+
+    if !screen.on_close.is_empty()
+        && let Some(writer) = actions
+    {
+        writer.write(ScreenActions {
+            actions: screen.on_close,
+        });
     }
 
     info!("HideScreen: '{}'", screen_id);

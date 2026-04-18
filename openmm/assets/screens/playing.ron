@@ -2,8 +2,8 @@
     id: "playing",
     kind: Hud,
     keys: {
-        "Escape": [
-            "ShowScreen(\"options_main\")",
+        "Return": [
+            "EnterTurnBattle()",
         ],
     },
     elements: [

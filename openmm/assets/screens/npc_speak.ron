@@ -1,6 +1,17 @@
 (
     id: "npc_speak",
     kind: Modal,
+    keys: {
+        "Escape": [
+            "CloseWindow()",
+        ],
+    },
+    on_load: [
+        "GreetingSound()",
+    ],
+    on_close: [
+        "PlaySoundNamed(\"SelectingANewCharacter\")",
+    ],
     elements: [
         Image((
             id: "icons/EVPAN019",
@@ -68,7 +79,7 @@
                 "CloseWindow()",
             ],
             on_hover: [
-                "evt:Hint(\"close\")",
+                "evt:Hint(\"Exit\")",
             ],
             bindings: {},
             transparent_color: "cyan",
@@ -103,9 +114,6 @@
             bindings: {},
         )),
     ],
-    keys: {
-        "Escape": ["CloseWindow()"],
-    },
     editor: (
         locked: [
             "icons/EVPAN019",

@@ -120,6 +120,16 @@ pub fn editor_panel_ui(
                 }
             });
 
+            ui.collapsing("On Close", |ui| {
+                let mut actions = editor.screen.on_close.clone();
+                let mut dirty = false;
+                action_list_editor(ui, &mut actions, &mut dirty);
+                if dirty {
+                    editor.screen.on_close = actions;
+                    editor.dirty = true;
+                }
+            });
+
             if ui.small_button("+ Add Text").clicked() {
                 let max_z = editor.screen.max_z();
                 editor

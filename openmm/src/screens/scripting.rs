@@ -27,6 +27,12 @@ pub enum Action {
     Quit,
     /// Close the active UI overlay and return to World mode.
     CloseWindow,
+    /// Play a UI sound by dsounds name (e.g. "click", "spell_01").
+    PlaySoundNamed(String),
+    /// Play a random NPC greeting sound (peasant charge voice lines).
+    GreetingSound,
+    /// Enter turn-based combat mode.
+    EnterTurnBattle,
     // EVT proxy — raw action string after stripping "evt:" prefix
     EvtProxy(String),
     // Control flow
@@ -68,6 +74,15 @@ pub fn parse_action(input: &str) -> Action {
     }
     if s == "CloseWindow()" {
         return Action::CloseWindow;
+    }
+    if let Some(name) = parse_string_arg(s, "PlaySoundNamed") {
+        return Action::PlaySoundNamed(name.to_string());
+    }
+    if s == "GreetingSound()" {
+        return Action::GreetingSound;
+    }
+    if s == "EnterTurnBattle()" {
+        return Action::EnterTurnBattle;
     }
     if s == "NewGame()" {
         return Action::NewGame;

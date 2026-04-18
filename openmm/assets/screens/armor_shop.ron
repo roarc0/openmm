@@ -1,27 +1,20 @@
 (
     id: "armor_shop",
     kind: Modal,
+    keys: {
+        "Escape": [
+            "CloseWindow()",
+        ],
+    },
+    on_close: [
+        "PlaySoundNamed(\"WoodDRClose\")",
+    ],
     elements: [
-        Image((
-            id: "placeholder",
-            position: (200.0, 150.0),
-            size: (240.0, 180.0),
-            z: 5,
-            states: {
-                "default": (
-                    texture: "icons/pending",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
-            transparent_color: "cyan",
-        )),
         Image((
             id: "icons/BUTTESC1",
             position: (527.0, 308.0),
             size: (61.0, 28.0),
-            z: 7,
+            z: 14,
             states: {
                 "clicked": (
                     texture: "icons/BUTTESC2",
@@ -34,13 +27,56 @@
                 "CloseWindow()",
             ],
             on_hover: [
-                "evt:Hint(\"close\")",
+                "evt:Hint(\"End conversation\")",
             ],
             bindings: {},
             transparent_color: "cyan",
         )),
+        Text((
+            id: "shop_name",
+            position: (468.0, 3.0),
+            size: (172.0, 12.0),
+            z: 14,
+            source: "footer_text",
+            font: "smallnum",
+            font_size: 14.0,
+            color: "white",
+            align: "center",
+        )),
+        Image((
+            id: "icons/ARMORY",
+            position: (8.0, 8.0),
+            size: (460.0, 344.0),
+            z: 15,
+            states: {
+                "default": (
+                    texture: "icons/ARMORY",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Video((
+            id: "vid_ArmMid",
+            position: (8.0, 8.0),
+            size: (460.0, 344.0),
+            z: 16,
+            video: "ArmMid",
+        )),
+        Image((
+            id: "icons/EVPAN008",
+            position: (481.0, 0.0),
+            size: (152.0, 353.0),
+            z: 4,
+            states: {
+                "default": (
+                    texture: "icons/EVPAN008",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
     ],
-    keys: {
-        "Escape": ["CloseWindow()"],
-    },
 )

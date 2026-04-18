@@ -64,6 +64,8 @@ pub enum UiMode {
     Rest,
     /// Fullscreen map overlay (M key). Freezes time, blocks input.
     Map,
+    /// Turn-based combat mode. Freezes movement, shows combat UI.
+    TurnBattle,
 }
 
 /// Unified UI state resource.

@@ -145,6 +145,7 @@ pub(super) fn screen_click(
     >,
     layers: Res<ScreenLayers>,
     flash_query: Query<&ClickFlash>,
+    mut ui_sound: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
 ) {
     for (entity, interaction, rt_elem, mut image_node, clicked_tex) in &mut query {
         if *interaction != Interaction::Pressed {
@@ -162,6 +163,15 @@ pub(super) fn screen_click(
         }
 
         info!("screen click [{}/{}]", rt_elem.screen_id, elem.id());
+
+        if let Some(img) = elem.as_image()
+            && img.click_sound_id > 0
+            && let Some(ref mut sound) = ui_sound
+        {
+            sound.write(crate::game::sound::effects::PlayUiSoundEvent {
+                sound_id: img.click_sound_id,
+            });
+        }
 
         // Swap to "clicked" texture if available, otherwise hide briefly.
         if let Some(ct) = clicked_tex {
@@ -263,7 +273,7 @@ pub(super) fn process_pending_actions(
     mut event_queue: Option<ResMut<crate::game::events::scripting::EventQueue>>,
     mut ui_state: Option<ResMut<crate::game::ui::UiState>>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
-    _time: Res<Time>,
+    sound_manager: Option<Res<crate::game::sound::SoundManager>>,
 ) {
     use super::scripting::Action;
 
@@ -325,7 +335,7 @@ pub(super) fn process_pending_actions(
                 }
                 Action::HideScreen(id) => {
                     info!("action: HideScreen(\"{}\")", id);
-                    hide_screen(&id, &mut commands, &mut layers, &layer_entities);
+                    hide_screen(&id, &mut commands, &mut layers, &layer_entities, &mut actions);
                 }
                 Action::ShowSprite(ref id) => {
                     for (elem, mut vis) in &mut sprite_query {
@@ -373,6 +383,27 @@ pub(super) fn process_pending_actions(
                         crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
                     }
                 }
+                Action::PlaySoundNamed(ref name) => {
+                    push_sound_by_name(name, &sound_manager, &mut event_queue);
+                }
+                Action::EnterTurnBattle => {
+                    info!("action: EnterTurnBattle");
+                    if let Some(ref mut ui) = ui_state {
+                        crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::TurnBattle);
+                    }
+                }
+                Action::GreetingSound => {
+                    const GREETING_SOUNDS: &[&str] = &["MaleA31a", "MaleA31b"];
+                    let nanos = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .subsec_nanos() as usize;
+                    push_sound_by_name(
+                        GREETING_SOUNDS[nanos % GREETING_SOUNDS.len()],
+                        &sound_manager,
+                        &mut event_queue,
+                    );
+                }
                 Action::Unknown(s) => {
                     warn!("unknown screen action: '{}'", s);
                 }
@@ -383,6 +414,24 @@ pub(super) fn process_pending_actions(
 }
 
 /// Build config flags set from GameConfig for condition evaluation.
+/// Resolve a dsounds name to a sound ID and push it to the event queue.
+fn push_sound_by_name(
+    name: &str,
+    sound_manager: &Option<Res<crate::game::sound::SoundManager>>,
+    event_queue: &mut Option<ResMut<crate::game::events::scripting::EventQueue>>,
+) {
+    if let Some(sm) = sound_manager
+        && let Some(info) = sm.dsounds.get_by_name(name)
+        && let Some(eq) = event_queue
+    {
+        eq.push_single(openmm_data::evt::GameEvent::PlaySound {
+            sound_id: info.sound_id,
+        });
+    } else if sound_manager.is_some() {
+        warn!("PlaySoundNamed: '{}' not found in dsounds", name);
+    }
+}
+
 fn build_config_flags(cfg: &GameConfig) -> std::collections::HashSet<String> {
     let mut flags = std::collections::HashSet::new();
     if cfg.skip_intro {

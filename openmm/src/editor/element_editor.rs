@@ -215,13 +215,22 @@ fn draw_common_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         editor.dirty = true;
     }
 
-    // Crop toggle — only for image elements with explicit size.
+    // Image-specific fields: crop toggle and click sound.
     if let Some(img) = editor.screen.elements[sel].as_image_mut() {
         if img.size.0 > 0.0 && img.size.1 > 0.0 {
             if ui.checkbox(&mut img.crop, "Crop (don't stretch)").changed() {
                 editor.dirty = true;
             }
         }
+        ui.horizontal(|ui| {
+            ui.label("Click Sound:");
+            if ui
+                .add(egui::DragValue::new(&mut img.click_sound_id).speed(1.0))
+                .changed()
+            {
+                editor.dirty = true;
+            }
+        });
     }
 
     ui.horizontal(|ui| {

@@ -33,6 +33,7 @@ fn screen_for_mode(mode: UiMode) -> &'static str {
         UiMode::Stats => "stats",
         UiMode::Rest => "rest",
         UiMode::Map => "map",
+        UiMode::TurnBattle => "turnbattle",
     }
 }
 

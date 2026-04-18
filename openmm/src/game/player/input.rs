@@ -443,27 +443,31 @@ pub(super) fn player_look(
 
 // --- Cursor ---
 
-fn toggle_grab_cursor(cursor_options: &mut CursorOptions) {
-    match cursor_options.grab_mode {
-        CursorGrabMode::None => {
-            cursor_options.grab_mode = CursorGrabMode::Confined;
-            cursor_options.visible = false;
-        }
-        _ => {
-            cursor_options.grab_mode = CursorGrabMode::None;
-            cursor_options.visible = true;
-        }
-    }
-}
-
+/// ESC two-stage: first press ungrab cursor, second press (cursor already free) opens options.
 pub(super) fn cursor_grab(
     keys: Res<ButtonInput<KeyCode>>,
     key_bindings: Res<PlayerKeyBindings>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
+    mut actions: Option<bevy::ecs::message::MessageWriter<crate::screens::runtime::ScreenActions>>,
 ) {
-    if let Ok(mut cursor_options) = cursor_query.single_mut()
-        && keys.just_pressed(key_bindings.toggle_grab_cursor)
-    {
-        toggle_grab_cursor(&mut cursor_options);
+    if !keys.just_pressed(key_bindings.toggle_grab_cursor) {
+        return;
+    }
+    let Ok(mut cursor_options) = cursor_query.single_mut() else {
+        return;
+    };
+    if cursor_options.grab_mode != CursorGrabMode::None {
+        // First ESC: ungrab cursor.
+        cursor_options.grab_mode = CursorGrabMode::None;
+        cursor_options.visible = true;
+    } else {
+        // Second ESC: re-grab and open options.
+        cursor_options.grab_mode = CursorGrabMode::Confined;
+        cursor_options.visible = false;
+        if let Some(ref mut writer) = actions {
+            writer.write(crate::screens::runtime::ScreenActions {
+                actions: vec!["ShowScreen(\"options_main\")".to_string()],
+            });
+        }
     }
 }

@@ -19,6 +19,9 @@ fn is_default_kind(k: &ScreenKind) -> bool {
 fn is_zero(v: &f32) -> bool {
     *v == 0.0
 }
+fn is_default<T: Default + PartialEq>(v: &T) -> bool {
+    *v == T::default()
+}
 
 /// Background sound definition.
 #[derive(Debug, Clone, Serialize, PartialEq, Default)]
@@ -196,6 +199,9 @@ pub struct Screen {
     /// Actions executed when the screen is first loaded.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub on_load: Vec<String>,
+    /// Actions executed when the screen is hidden/closed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub on_close: Vec<String>,
     #[serde(default)]
     pub elements: Vec<ScreenElement>,
     /// Editor-only section — locked elements, etc. Stripped at runtime.
@@ -357,6 +363,9 @@ pub struct ImageElement {
     /// When true and explicit size is set, crop the texture to size instead of stretching.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub crop: bool,
+    /// Sound ID to play on click (from SND archive). 0 = no sound.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub click_sound_id: u32,
 }
 
 /// A video element that plays an SMK file.
@@ -487,6 +496,7 @@ impl Screen {
             sound: Sound::None,
             keys: BTreeMap::new(),
             on_load: Vec::new(),
+            on_close: Vec::new(),
             elements: Vec::new(),
             editor: EditorSection::default(),
         }
@@ -530,6 +540,7 @@ impl ImageElement {
             crop_w: 0.0,
             crop_h: 0.0,
             crop: false,
+            click_sound_id: 0,
         }
     }
 

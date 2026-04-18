@@ -1,0 +1,37 @@
+(
+    id: "turnbattle",
+    kind: Modal,
+    keys: {
+        "Escape": [
+            "CloseWindow()",
+        ],
+    },
+    on_load: [
+        "PlaySoundNamed(\"batllest\")",
+    ],
+    on_close: [
+        "PlaySoundNamed(\"batlleen\")",
+    ],
+    elements: [
+        Image((
+            id: "placeholder",
+            position: (439.0, 304.0),
+            size: (24.0, 43.0),
+            z: 5,
+            states: {
+                "default": (
+                    texture: "icons/newhand1",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+            animation: Some((
+                pattern: "icons/newhand%01d",
+                frames: 8,
+                fps: 8.0,
+            )),
+        )),
+    ],
+)
