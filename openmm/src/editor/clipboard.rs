@@ -1,7 +1,7 @@
-use bevy::prelude::*;
-use crate::screens::{REF_H, REF_W, ScreenElement};
-use crate::screens::ui_assets::UiAssets;
 use super::canvas::{EditorScreen, resolve_elem_size};
+use crate::screens::ui_assets::UiAssets;
+use crate::screens::{REF_H, REF_W, ScreenElement};
+use bevy::prelude::*;
 
 /// Simple internal clipboard for copying and pasting editor elements.
 #[derive(Resource, Default)]
@@ -15,12 +15,7 @@ impl Clipboard {
 
     /// Paste the current clipboard element into the screen at the given mouse position.
     /// Returns the newly pasted element index if successful.
-    pub fn paste(
-        &self,
-        editor: &mut EditorScreen,
-        mouse_ref: Vec2,
-        ui_assets: &UiAssets,
-    ) -> Option<usize> {
+    pub fn paste(&self, editor: &mut EditorScreen, mouse_ref: Vec2, ui_assets: &UiAssets) -> Option<usize> {
         let base_elem = self.0.as_ref()?;
         let mut new_elem = base_elem.clone();
 
@@ -54,10 +49,10 @@ impl Clipboard {
 
         editor.screen.elements.push(new_elem);
         editor.dirty = true;
-        
+
         let new_idx = editor.screen.elements.len() - 1;
         info!("editor: pasted element '{}'", editor.screen.elements[new_idx].id());
-        
+
         Some(new_idx)
     }
 }

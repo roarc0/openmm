@@ -9,10 +9,10 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
-use crate::game::controls::get_key_name;
 use super::canvas::EditorScreen;
 use super::guides::Guides;
 use super::io::EditorConfig;
+use crate::game::controls::get_key_name;
 
 pub fn editor_panel_ui(
     mut contexts: EguiContexts,
@@ -92,11 +92,7 @@ pub fn editor_panel_ui(
             ui.horizontal(|ui| {
                 ui.label("Start (s):");
                 if ui
-                    .add(
-                        egui::DragValue::new(&mut start_sec)
-                            .speed(0.1)
-                            .range(0.0..=3600.0),
-                    )
+                    .add(egui::DragValue::new(&mut start_sec).speed(0.1).range(0.0..=3600.0))
                     .changed()
                 {
                     sound_changed = true;
@@ -142,12 +138,15 @@ pub fn editor_panel_ui(
                 if let Some(old_key) = capturing_key.clone() {
                     ui.group(|ui| {
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new(format!("Listening for key (capturing for '{}')...", old_key)).color(egui::Color32::from_rgb(255, 128, 0)));
+                            ui.label(
+                                egui::RichText::new(format!("Listening for key (capturing for '{}')...", old_key))
+                                    .color(egui::Color32::from_rgb(255, 128, 0)),
+                            );
                             if ui.button("Cancel").clicked() {
                                 *capturing_key = None;
                             }
                         });
-                        
+
                         // Listen for any key press
                         if let Some(code) = keys.get_just_pressed().next() {
                             if let Some(new_name) = get_key_name(*code) {
@@ -205,9 +204,10 @@ pub fn editor_panel_ui(
 
                 ui.horizontal(|ui| {
                     let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    if ui.add(egui::TextEdit::singleline(&mut *new_key_name)
-                        .hint_text("Enter key name (e.g. Escape)"))
-                        .lost_focus() && enter_pressed 
+                    if ui
+                        .add(egui::TextEdit::singleline(&mut *new_key_name).hint_text("Enter key name (e.g. Escape)"))
+                        .lost_focus()
+                        && enter_pressed
                     {
                         if !new_key_name.is_empty() && !editor.screen.keys.contains_key(&*new_key_name) {
                             editor.screen.keys.insert(new_key_name.clone(), vec![]);

@@ -5,8 +5,8 @@ use bevy::prelude::*;
 use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, TapBinding};
 use super::fonts::GameFonts;
 use super::runtime::{
-    FrameAnimation, HiddenByDefault, HoverOverlay, RuntimeElement, RuntimeText,
-    ScreenCrosshair, ScreenLayer, ScreenMusic,
+    FrameAnimation, HiddenByDefault, HoverOverlay, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer,
+    ScreenMusic,
 };
 use super::video::spawn_video_element;
 use super::{
@@ -143,14 +143,7 @@ pub(super) fn spawn_image_element(
     });
     let clicked_anim_data = clicked_state.and_then(|state| {
         state.animation.as_ref().map(|anim| {
-            let handles = load_animation_handles(
-                anim,
-                &img.transparent_color,
-                ui_assets,
-                game_assets,
-                images,
-                cfg,
-            );
+            let handles = load_animation_handles(anim, &img.transparent_color, ui_assets, game_assets, images, cfg);
             (handles, anim.fps)
         })
     });
@@ -172,14 +165,7 @@ pub(super) fn spawn_image_element(
     });
     let hover_anim_data = hover_state.and_then(|state| {
         state.animation.as_ref().map(|anim| {
-            let handles = load_animation_handles(
-                anim,
-                &img.transparent_color,
-                ui_assets,
-                game_assets,
-                images,
-                cfg,
-            );
+            let handles = load_animation_handles(anim, &img.transparent_color, ui_assets, game_assets, images, cfg);
             (handles, anim.fps, anim.ping_pong)
         })
     });
@@ -322,7 +308,10 @@ pub(super) fn spawn_image_element(
                     });
                 }
                 if let Some((handles, fps, ping_pong)) = hover_anim_data {
-                    info!("attaching hover animation to child of '{}' (ping_pong={})", img.id, ping_pong);
+                    info!(
+                        "attaching hover animation to child of '{}' (ping_pong={})",
+                        img.id, ping_pong
+                    );
                     inner.insert(super::runtime::HoverAnimation {
                         handles,
                         fps,
@@ -418,22 +407,12 @@ pub(super) fn spawn_image_element(
             }
         }
     } else {
-        let mut entity = commands.spawn((
-            ImageNode::default(),
-            node,
-            z,
-            marker,
-            layer_tag.clone(),
-            initial_vis,
-        ));
+        let mut entity = commands.spawn((ImageNode::default(), node, z, marker, layer_tag.clone(), initial_vis));
         if has_interaction {
             entity.insert((Button, BackgroundColor(Color::NONE)));
         }
         if let Some(clicked) = clicked_handle {
-            entity.insert(super::runtime::ClickedTexture {
-                clicked,
-                default: None,
-            });
+            entity.insert(super::runtime::ClickedTexture { clicked, default: None });
         }
         if let Some((handles, fps)) = clicked_anim_data {
             entity.insert(super::runtime::ClickedAnimation {
@@ -445,10 +424,7 @@ pub(super) fn spawn_image_element(
             });
         }
         if let Some(hover) = hover_texture_handle {
-            entity.insert(super::runtime::HoverTexture {
-                hover,
-                default: None,
-            });
+            entity.insert(super::runtime::HoverTexture { hover, default: None });
         }
         if let Some((handles, fps, ping_pong)) = hover_anim_data {
             entity.insert(super::runtime::HoverAnimation {
@@ -477,14 +453,7 @@ pub(super) fn load_animation(
     cfg: &GameConfig,
 ) -> Option<FrameAnimation> {
     let anim = img.animation.as_ref()?;
-    let handles = load_animation_handles(
-        anim,
-        &img.transparent_color,
-        ui_assets,
-        game_assets,
-        images,
-        cfg,
-    );
+    let handles = load_animation_handles(anim, &img.transparent_color, ui_assets, game_assets, images, cfg);
     if handles.is_empty() {
         return None;
     }
@@ -507,14 +476,7 @@ pub(super) fn load_animation_handles(
     let mut handles = Vec::with_capacity(anim.frames as usize);
     for i in anim.start_frame..(anim.start_frame + anim.frames) {
         let name = format_animation_frame(&anim.pattern, i);
-        match load_texture_with_transparency(
-            &name,
-            transparent_color,
-            ui_assets,
-            game_assets,
-            images,
-            cfg,
-        ) {
+        match load_texture_with_transparency(&name, transparent_color, ui_assets, game_assets, images, cfg) {
             Some(handle) => handles.push(handle),
             None => {
                 bevy::log::warn!("animation frame '{}' not found", name);
@@ -615,7 +577,13 @@ pub(super) fn text_update(
     game_fonts: Res<GameFonts>,
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
-    mut query: Query<(&mut RuntimeText, &mut ImageNode, &mut Visibility, &mut Node, Option<&Interaction>)>,
+    mut query: Query<(
+        &mut RuntimeText,
+        &mut ImageNode,
+        &mut Visibility,
+        &mut Node,
+        Option<&Interaction>,
+    )>,
 ) {
     let Ok(window) = windows.single() else { return };
     let win_w = window.width();

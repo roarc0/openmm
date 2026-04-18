@@ -137,33 +137,49 @@ pub fn draw_variant_editor(ctx: &egui::Context, editor: &mut EditorScreen, selec
 
                     // Animation fields
                     let img = editor.screen.elements[sel].as_image().unwrap();
-                    let mut anim = img.states.get(key).and_then(|s| s.animation.clone()).unwrap_or(crate::screens::Animation {
-                        pattern: String::new(),
-                        frames: 0,
-                        start_frame: 1,
-                        fps: 10.0,
-                        ping_pong: false,
-                    });
+                    let mut anim =
+                        img.states
+                            .get(key)
+                            .and_then(|s| s.animation.clone())
+                            .unwrap_or(crate::screens::Animation {
+                                pattern: String::new(),
+                                frames: 0,
+                                start_frame: 1,
+                                fps: 10.0,
+                                ping_pong: false,
+                            });
                     let mut anim_changed = false;
 
                     ui.collapsing("Animation", |ui| {
                         ui.horizontal(|ui| {
                             ui.label("Frames:");
-                            if ui.add(egui::DragValue::new(&mut anim.frames).speed(1.0).range(0..=256)).changed() {
+                            if ui
+                                .add(egui::DragValue::new(&mut anim.frames).speed(1.0).range(0..=256))
+                                .changed()
+                            {
                                 anim_changed = true;
                             }
                             ui.label("FPS:");
-                            if ui.add(egui::DragValue::new(&mut anim.fps).speed(0.1).range(0.1..=60.0)).changed() {
+                            if ui
+                                .add(egui::DragValue::new(&mut anim.fps).speed(0.1).range(0.1..=60.0))
+                                .changed()
+                            {
                                 anim_changed = true;
                             }
                             ui.label("Start:");
-                            if ui.add(egui::DragValue::new(&mut anim.start_frame).range(0..=256)).changed() {
+                            if ui
+                                .add(egui::DragValue::new(&mut anim.start_frame).range(0..=256))
+                                .changed()
+                            {
                                 anim_changed = true;
                             }
                         });
                         ui.horizontal(|ui| {
                             ui.label("Pattern:");
-                            if ui.add(egui::TextEdit::singleline(&mut anim.pattern).hint_text("icons/name%02d")).changed() {
+                            if ui
+                                .add(egui::TextEdit::singleline(&mut anim.pattern).hint_text("icons/name%02d"))
+                                .changed()
+                            {
                                 anim_changed = true;
                             }
                             if ui.checkbox(&mut anim.ping_pong, "Ping Pong").changed() {
@@ -359,7 +375,10 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
         if anim.frames > 0 {
             ui.horizontal(|ui| {
                 ui.label("Pattern:");
-                if ui.add(egui::TextEdit::singleline(&mut anim.pattern).hint_text("icons/name%02d")).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(&mut anim.pattern).hint_text("icons/name%02d"))
+                    .changed()
+                {
                     anim_changed = true;
                 }
             });
@@ -369,7 +388,10 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
                     anim_changed = true;
                 }
                 ui.label("Start:");
-                if ui.add(egui::DragValue::new(&mut anim.start_frame).range(0..=256)).changed() {
+                if ui
+                    .add(egui::DragValue::new(&mut anim.start_frame).range(0..=256))
+                    .changed()
+                {
                     anim_changed = true;
                 }
                 if ui.checkbox(&mut anim.ping_pong, "Ping Pong").changed() {
@@ -675,11 +697,7 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
 
     if hover_changed {
         let t = editor.screen.elements[sel].as_text_mut().unwrap();
-        t.hover_color = if hover_color == "none" {
-            None
-        } else {
-            Some(hover_color)
-        };
+        t.hover_color = if hover_color == "none" { None } else { Some(hover_color) };
         editor.dirty = true;
     }
 }

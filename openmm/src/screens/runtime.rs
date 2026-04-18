@@ -20,8 +20,8 @@ impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
         use super::elements::{text_update, update_screen_crosshair};
         use super::interaction::{
-            click_flash_tick, hover_actions, hover_animate_tick, process_pending_actions, screen_click,
-            screen_hover, screen_keys, text_hover,
+            click_flash_tick, hover_actions, hover_animate_tick, process_pending_actions, screen_click, screen_hover,
+            screen_keys, text_hover,
         };
         use super::setup::{game_screen_setup, loading_screen_setup, menu_screen_setup, screen_teardown};
         use super::video::video_tick;
@@ -175,7 +175,6 @@ pub(super) struct InlineVideo {
     pub(super) finished: bool,
     pub(super) life_timer: f32,
 }
-
 
 /// All active screen layers, keyed by screen id.
 #[derive(Resource, Default)]

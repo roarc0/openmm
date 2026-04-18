@@ -1,6 +1,6 @@
 mod browser;
-mod clipboard;
 pub mod canvas;
+mod clipboard;
 mod editor_panel;
 mod element_editor;
 mod guides;

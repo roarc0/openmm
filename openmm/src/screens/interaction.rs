@@ -5,8 +5,8 @@ use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow};
 
 use super::runtime::{
-    ClickFlash, ClickedAnimation, ClickedTexture, HoverAnimation, HoverOverlay, HoverTexture,
-    RuntimeElement, ScreenActions, ScreenLayer, ScreenLayers, ScreenUiHovered,
+    ClickFlash, ClickedAnimation, ClickedTexture, HoverAnimation, HoverOverlay, HoverTexture, RuntimeElement,
+    ScreenActions, ScreenLayer, ScreenLayers, ScreenUiHovered,
 };
 use super::setup::{hide_screen, load_screen_replace_all, show_screen};
 use super::ui_assets::UiAssets;
@@ -60,10 +60,10 @@ pub(super) fn screen_hover(
                 if hover_anim.is_none() {
                     node.image = ht.hover.clone();
                 }
-            } else if *interaction == Interaction::None {
-                if let Some(def) = &ht.default {
-                    node.image = def.clone();
-                }
+            } else if *interaction == Interaction::None
+                && let Some(def) = &ht.default
+            {
+                node.image = def.clone();
             }
         }
 
@@ -73,16 +73,16 @@ pub(super) fn screen_hover(
                 if let Some(node) = image_node.as_mut() {
                     node.image = anim.handles[anim.current_frame].clone();
                 }
-            } else if *interaction == Interaction::None {
-                if let Some(node) = image_node.as_mut() {
-                    if let Some(fa) = base_anim {
-                        node.image = fa.handles[fa.current_frame].clone();
-                    } else if let Some(def) = &anim.default {
-                        node.image = def.clone();
-                    }
-                    anim.elapsed = 0.0;
-                    anim.current_frame = 0;
+            } else if *interaction == Interaction::None
+                && let Some(node) = image_node.as_mut()
+            {
+                if let Some(fa) = base_anim {
+                    node.image = fa.handles[fa.current_frame].clone();
+                } else if let Some(def) = &anim.default {
+                    node.image = def.clone();
                 }
+                anim.elapsed = 0.0;
+                anim.current_frame = 0;
             }
         } else if !hovering && *interaction == Interaction::None {
             // No hover animation, but maybe a hover texture needs clearing back to base animation.
@@ -126,10 +126,7 @@ pub(super) fn screen_hover(
     }
 }
 
-
-pub(super) fn text_hover(
-    mut query: Query<(&Interaction, &mut super::runtime::RuntimeText), Changed<Interaction>>,
-) {
+pub(super) fn text_hover(mut query: Query<(&Interaction, &mut super::runtime::RuntimeText), Changed<Interaction>>) {
     for (interaction, mut rt) in &mut query {
         let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
         if hovering {
@@ -329,10 +326,10 @@ pub(super) fn screen_keys(
     console_state: Option<Res<super::debug::console::ConsoleState>>,
 ) {
     // If console is open, block all screen key bindings.
-    if let Some(state) = console_state {
-        if state.open {
-            return;
-        }
+    if let Some(state) = console_state
+        && state.open
+    {
+        return;
     }
 
     // Check keyboard shortcuts — Modal screens block lower-priority screens.
@@ -362,19 +359,22 @@ pub(super) fn screen_keys(
 pub(super) fn click_flash_tick(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(
-        Entity,
-        &mut ClickFlash,
-        &mut Visibility,
-        &Interaction,
-        Option<&mut ImageNode>,
-        Option<&ClickedTexture>,
-        Option<&mut ClickedAnimation>,
-        Option<&HoverTexture>,
-        Option<&mut HoverAnimation>,
-        Option<&super::runtime::FrameAnimation>,
-        Option<&Children>,
-    ), With<RuntimeElement>>,
+    mut query: Query<
+        (
+            Entity,
+            &mut ClickFlash,
+            &mut Visibility,
+            &Interaction,
+            Option<&mut ImageNode>,
+            Option<&ClickedTexture>,
+            Option<&mut ClickedAnimation>,
+            Option<&HoverTexture>,
+            Option<&mut HoverAnimation>,
+            Option<&super::runtime::FrameAnimation>,
+            Option<&Children>,
+        ),
+        With<RuntimeElement>,
+    >,
     mut child_image_query: Query<
         (
             &mut ImageNode,
@@ -388,8 +388,19 @@ pub(super) fn click_flash_tick(
     >,
     mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
-    for (entity, mut flash, mut vis, interaction, mut image_node, clicked_tex, mut clicked_anim, hover_tex, hover_anim, base_anim, children) in
-        &mut query
+    for (
+        entity,
+        mut flash,
+        mut vis,
+        interaction,
+        mut image_node,
+        clicked_tex,
+        mut clicked_anim,
+        hover_tex,
+        hover_anim,
+        base_anim,
+        children,
+    ) in &mut query
     {
         if let Some(ref mut ca) = clicked_anim {
             tick_clicked_anim(ca, image_node.as_deref_mut(), time.delta_secs());
@@ -402,9 +413,10 @@ pub(super) fn click_flash_tick(
 
         // Restore default texture or visibility.
         if let Some(node) = image_node.as_mut() {
-            let default_tex = clicked_tex.and_then(|ct| ct.default.clone())
+            let default_tex = clicked_tex
+                .and_then(|ct| ct.default.clone())
                 .or_else(|| clicked_anim.as_ref().and_then(|ca| ca.default.clone()))
-                .or_else(|| base_anim.as_ref().and_then(|ba| Some(ba.handles[ba.current_frame].clone())));
+                .or_else(|| base_anim.as_ref().map(|ba| ba.handles[ba.current_frame].clone()));
 
             if let Some(default) = default_tex {
                 let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);
@@ -432,9 +444,10 @@ pub(super) fn click_flash_tick(
                     }
                     if flash.timer.just_finished() {
                         // Restore default
-                        let default_tex = ct.and_then(|ct| ct.default.clone())
+                        let default_tex = ct
+                            .and_then(|ct| ct.default.clone())
                             .or_else(|| ca.as_ref().and_then(|ca| ca.default.clone()))
-                            .or_else(|| ba.as_ref().and_then(|ba| Some(ba.handles[ba.current_frame].clone())));
+                            .or_else(|| ba.as_ref().map(|ba| ba.handles[ba.current_frame].clone()));
 
                         if let Some(default) = default_tex {
                             let hovering = matches!(interaction, Interaction::Hovered | Interaction::Pressed);

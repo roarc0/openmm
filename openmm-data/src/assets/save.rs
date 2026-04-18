@@ -105,7 +105,7 @@ pub fn list_saves<P: AsRef<Path>>(dir: P) -> Vec<SaveFile> {
         })
         .collect();
 
-    saves.sort_by(|a, b| save_slot_order(&a.0).cmp(&save_slot_order(&b.0)));
+    saves.sort_by_key(|a| save_slot_order(&a.0));
 
     saves.into_iter().filter_map(|(_, p)| SaveFile::open(&p).ok()).collect()
 }

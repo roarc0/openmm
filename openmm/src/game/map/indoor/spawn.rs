@@ -130,12 +130,8 @@ fn build_blv_doors(prepared: &PreparedIndoorWorld) -> BlvDoors {
             close_speed: door.close_speed,
             state: door.state,
             time_since_triggered_ms: match door.state {
-                DoorState::Open | DoorState::Closed => {
-                    if door.move_length > 0 && door.open_speed > 0 {
-                        (door.move_length as f32 / door.open_speed as f32) * 1000.0
-                    } else {
-                        0.0
-                    }
+                DoorState::Open | DoorState::Closed if door.move_length > 0 && door.open_speed > 0 => {
+                    (door.move_length as f32 / door.open_speed as f32) * 1000.0
                 }
                 _ => 0.0,
             },

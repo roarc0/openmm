@@ -176,10 +176,10 @@ pub(super) fn video_tick(
                             Ok(mut new_dec) => {
                                 // Immediately fetch the first frame of the new loop to prevent
                                 // a one-frame "blank" or "last-frame" gap.
-                                if let Some(rgba) = new_dec.next_frame() {
-                                    if let Some(img) = images.get_mut(&vid.image_handle) {
-                                        img.data = Some(rgba);
-                                    }
+                                if let Some(rgba) = new_dec.next_frame()
+                                    && let Some(img) = images.get_mut(&vid.image_handle)
+                                {
+                                    img.data = Some(rgba);
                                 }
                                 vid.decoder = new_dec;
                                 // Note: we keep the remaining frame_timer to preserve timing alignment.
