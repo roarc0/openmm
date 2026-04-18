@@ -87,15 +87,14 @@ pub fn spawn_bsp_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
             }
             let normal = Vec3::from(mm6_fixed_normal_to_bevy(face.plane.normal));
             let plane_dist = normal.dot(verts[0]);
-            if face.cog_trigger_id != 0 {
-                outdoor_clickable.push(crate::game::interaction::clickable::FaceInfo {
-                    face_index: 0,
-                    event_id: face.cog_trigger_id,
-                    normal,
-                    plane_dist,
-                    vertices: verts.clone(),
-                });
-            }
+            // All visible faces are clickable — faces without events show "Nothing here".
+            outdoor_clickable.push(crate::game::interaction::clickable::FaceInfo {
+                face_index: 0,
+                event_id: face.cog_trigger_id,
+                normal,
+                plane_dist,
+                vertices: verts.clone(),
+            });
             outdoor_occluders.push(crate::game::map::indoor::OccluderFaceInfo {
                 normal,
                 plane_dist,
@@ -103,12 +102,10 @@ pub fn spawn_bsp_clickable_faces(commands: &mut Commands, prepared: &PreparedWor
             });
         }
     }
-    if !outdoor_clickable.is_empty() {
-        commands.insert_resource(crate::game::interaction::clickable::Faces {
-            faces: outdoor_clickable,
-            is_indoor: false,
-        });
-    }
+    commands.insert_resource(crate::game::interaction::clickable::Faces {
+        faces: outdoor_clickable,
+        is_indoor: false,
+    });
     if !outdoor_occluders.is_empty() {
         commands.insert_resource(crate::game::map::indoor::OccluderFaces::new(outdoor_occluders));
     }

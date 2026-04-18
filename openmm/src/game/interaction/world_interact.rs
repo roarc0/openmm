@@ -215,11 +215,15 @@ pub(crate) fn world_interact_system(
                 params.ui.footer.set_status(&name, 2.0, now);
             }
             if dist < MAX_INTERACT_RANGE {
-                info!("World interact: hit BSP face event_id={} at dist={:.0}", event_id, dist);
-                if let Some(me) = params.map_events.as_ref()
-                    && let Some(evt) = me.evt.as_ref()
-                {
-                    params.event_queue.push_all(event_id, evt);
+                if event_id > 0 {
+                    info!("World interact: hit BSP face event_id={} at dist={:.0}", event_id, dist);
+                    if let Some(me) = params.map_events.as_ref()
+                        && let Some(evt) = me.evt.as_ref()
+                    {
+                        params.event_queue.push_all(event_id, evt);
+                    }
+                } else {
+                    params.ui.footer.set_status("Nothing there", 2.0, now);
                 }
             }
         }
