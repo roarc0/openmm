@@ -17,7 +17,7 @@ pub mod npc_dialogue;
 pub mod npc_text;
 pub mod physics;
 
-pub use actor::{Actor, ActorParams, MonsterAiType};
+pub use actor::{Actor, ActorParams, MonsterAiType, collision_radius_from_sprite_width};
 pub use ai::MonsterAiMode;
 pub use combat::KillActorEvent;
 

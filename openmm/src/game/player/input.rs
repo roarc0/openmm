@@ -18,7 +18,7 @@ use super::{
 
 /// Indoor maps are roughly half the scale of outdoor — reduce walk speed accordingly
 /// so the player feels similarly paced relative to the room sizes.
-const INDOOR_SPEED_SCALE: f32 = 0.5;
+const INDOOR_SPEED_SCALE: f32 = 0.6;
 
 // --- Gamepad helpers ---
 

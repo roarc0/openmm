@@ -1,7 +1,10 @@
 use bevy::{input::ButtonInput, pbr::wireframe::WireframeConfig, prelude::*};
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use std::f32::consts::TAU;
 
+use crate::game::map::indoor::OccluderFaces;
+use crate::game::player::PlayerCamera;
 pub mod console;
 pub mod cpu_usage;
 pub mod hud;
@@ -12,6 +15,9 @@ use crate::game::player::Player;
 use crate::system::config::GameConfig;
 use crate::system::save::GameSave;
 use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
+
+/// Dedicated render layer for debug gizmos so they render only in the 3D player camera.
+pub const DEBUG_GIZMO_RENDER_LAYER: usize = 31;
 
 pub struct DebugPlugin;
 
@@ -123,6 +129,108 @@ pub fn draw_events(
         gizmos.line(top - Vec3::X * s, top - Vec3::Z * s, color);
         gizmos.line(top - Vec3::Z * s, top + Vec3::X * s, color);
         gizmos.line(pos, top, color);
+    }
+}
+
+/// Draw actor collision cylinders and indoor door collision geometry.
+///
+/// Uses the same vertical body extent currently used by actor movement checks,
+/// so visualized volume matches runtime blocking behavior.
+pub fn draw_colliders(
+    world_state: Res<crate::game::state::WorldState>,
+    mut gizmos: Gizmos,
+    camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
+    mut occluder_faces: Option<ResMut<OccluderFaces>>,
+    actors: Query<(&Transform, &crate::game::actors::Actor)>,
+    door_colliders: Option<Res<crate::game::map::indoor::DoorColliders>>,
+) {
+    if !world_state.debug.show_events {
+        return;
+    }
+
+    const ACTOR_BODY_HEIGHT: f32 = 140.0;
+    const ACTOR_GIZMO_Y_OFFSET: f32 = 24.0;
+    const RING_SEGMENTS: usize = 24;
+
+    let draw_ring = |gizmos: &mut Gizmos, center: Vec3, radius: f32, y: f32, color: Color| {
+        for i in 0..RING_SEGMENTS {
+            let t0 = i as f32 / RING_SEGMENTS as f32 * TAU;
+            let t1 = (i + 1) as f32 / RING_SEGMENTS as f32 * TAU;
+            let p0 = Vec3::new(center.x + t0.cos() * radius, y, center.z + t0.sin() * radius);
+            let p1 = Vec3::new(center.x + t1.cos() * radius, y, center.z + t1.sin() * radius);
+            gizmos.line(p0, p1, color);
+        }
+    };
+
+    for (tf, actor) in &actors {
+        let center = tf.translation;
+
+        // Skip actor gizmos hidden behind occluder geometry from the player camera.
+        if let (Ok(cam_tf), Some(occluders)) = (camera_query.single(), occluder_faces.as_mut()) {
+            let to_actor = center - cam_tf.translation();
+            let dist = to_actor.length();
+            if dist > 1.0 {
+                let dir = to_actor / dist;
+                let hit_t = occluders.min_hit_t_max(cam_tf.translation(), dir, dist);
+                if hit_t + 2.0 < dist {
+                    continue;
+                }
+            }
+        }
+
+        let y_top = center.y + ACTOR_GIZMO_Y_OFFSET;
+        let y_bottom = center.y - ACTOR_BODY_HEIGHT + ACTOR_GIZMO_Y_OFFSET;
+        let radius = actor.collision_radius;
+        let color = if actor.hostile {
+            Color::srgb(1.0, 0.3, 0.1)
+        } else {
+            Color::srgb(0.2, 0.55, 1.0)
+        };
+
+        draw_ring(&mut gizmos, center, radius, y_top, color);
+        draw_ring(&mut gizmos, center, radius, y_bottom, color);
+
+        for angle in [0.0_f32, TAU * 0.25, TAU * 0.5, TAU * 0.75] {
+            let x = center.x + angle.cos() * radius;
+            let z = center.z + angle.sin() * radius;
+            gizmos.line(Vec3::new(x, y_bottom, z), Vec3::new(x, y_top, z), color);
+        }
+    }
+
+    let Some(door_colliders) = door_colliders else {
+        return;
+    };
+
+    // Door wall-like colliders (dynamic panel faces).
+    for wall in &door_colliders.walls {
+        let color = Color::srgb(0.15, 0.75, 1.0);
+        let corners_low = [
+            Vec3::new(wall.min_x, wall.min_y, wall.min_z),
+            Vec3::new(wall.max_x, wall.min_y, wall.min_z),
+            Vec3::new(wall.max_x, wall.min_y, wall.max_z),
+            Vec3::new(wall.min_x, wall.min_y, wall.max_z),
+        ];
+        let corners_high = [
+            Vec3::new(wall.min_x, wall.max_y, wall.min_z),
+            Vec3::new(wall.max_x, wall.max_y, wall.min_z),
+            Vec3::new(wall.max_x, wall.max_y, wall.max_z),
+            Vec3::new(wall.min_x, wall.max_y, wall.max_z),
+        ];
+
+        for i in 0..4 {
+            let next = (i + 1) % 4;
+            gizmos.line(corners_low[i], corners_low[next], color);
+            gizmos.line(corners_high[i], corners_high[next], color);
+            gizmos.line(corners_low[i], corners_high[i], color);
+        }
+    }
+
+    // Horizontal blocker panels (trapdoors/slabs).
+    for ceil in &door_colliders.dynamic_ceilings {
+        let color = Color::srgb(0.0, 0.9, 0.55);
+        gizmos.line(ceil.v0, ceil.v1, color);
+        gizmos.line(ceil.v1, ceil.v2, color);
+        gizmos.line(ceil.v2, ceil.v0, color);
     }
 }
 

@@ -3,6 +3,7 @@ mod input;
 pub(crate) mod party;
 pub(crate) mod physics;
 
+use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
@@ -299,6 +300,7 @@ fn spawn_player(
         let mut cam = parent.spawn((
             Name::new("player_camera"),
             PlayerCamera,
+            RenderLayers::from_layers(&[0, crate::screens::debug::DEBUG_GIZMO_RENDER_LAYER]),
             Camera3d::default(),
             SpatialListener::new(4.0),
             crate::game::rendering::engine::camera_msaa(&cfg),

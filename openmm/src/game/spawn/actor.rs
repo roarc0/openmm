@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 
 use crate::game::InGame;
-use crate::game::actors::{Actor, ActorParams, MonsterAiMode, MonsterAiType};
+use crate::game::actors::{Actor, ActorParams, MonsterAiMode, MonsterAiType, collision_radius_from_sprite_width};
 use crate::game::interaction::{MonsterInteractable, NpcInteractable};
 use crate::game::sprites::{
     AnimationState, Billboard, EntityKind, WorldEntity, apply_shadow_config,
@@ -120,7 +120,7 @@ pub fn spawn_actor(
                 aggro_range: params.aggro_range,
                 recovery_secs: params.recovery_secs,
                 sprite_half_height: sh / 2.0,
-                collision_radius: sw / 2.0,
+                collision_radius: collision_radius_from_sprite_width(sw),
                 can_fly: params.can_fly,
                 ai_type: MonsterAiType::from_str(params.ai_type),
             }),

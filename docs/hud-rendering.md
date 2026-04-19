@@ -14,6 +14,14 @@
 - 8 directional arrows: mapdir1=N … mapdir8=NW
 - Footer strip
 
+## Debug Gizmos
+
+- In debug mode, event gizmo rendering also draws collision overlays:
+	- actor collision cylinders (current runtime radius + body height)
+	- indoor door collision walls/panels from `DoorColliders`
+- This helps diagnose pathing issues where monsters appear to have visual space but are blocked by collision.
+- Gizmos render only in the player 3D camera (dedicated render layer), not in screen/UI cameras.
+
 ## FooterText
 
 `FooterText` resource has two modes:

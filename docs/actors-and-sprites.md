@@ -243,8 +243,8 @@ attributes: u16
 - Walk speed is capped at 60 units/step regardless of `move_speed`.
 - Tether effectively defaults to 300 units minimum.
 - Collision uses `BuildingColliders::resolve_movement` and door colliders with a
-  per-actor cylinder radius derived from sprite width (`sprite_width / 2`, min 20),
-  plus `eye_height=140`.
+  per-actor cylinder radius derived from sprite width and reduced for transparent
+  padding (`sprite_width / 2 * 0.5`, min 20), plus `eye_height=140`.
 
 ### Desynchronization
 

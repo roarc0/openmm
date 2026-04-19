@@ -34,7 +34,7 @@
             ],
             bindings: {},
             transparent_color: "cyan",
-            click_sound: "click",
+            click_sound: "selectinganewcharacter",
         )),
         Image((
             id: "icons/CHEST01",

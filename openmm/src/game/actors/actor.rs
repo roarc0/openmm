@@ -4,6 +4,17 @@ use bevy::prelude::*;
 
 /// Minimum horizontal collision radius used for actor movement against world geometry.
 pub const MIN_ACTOR_COLLISION_RADIUS: f32 = 20.0;
+/// Scale applied to sprite width when deriving actor collision radius.
+///
+/// Sprites often include transparent side padding, so full half-width tends to
+/// overestimate the physical body footprint.
+pub const ACTOR_COLLISION_RADIUS_SCALE: f32 = 0.5;
+
+/// Compute actor collision radius from sprite quad width.
+#[inline]
+pub fn collision_radius_from_sprite_width(sprite_width: f32) -> f32 {
+    (sprite_width * 0.5 * ACTOR_COLLISION_RADIUS_SCALE).max(MIN_ACTOR_COLLISION_RADIUS)
+}
 
 /// Unified NPC/monster actor component.
 #[derive(Component)]
@@ -142,5 +153,21 @@ impl Actor {
             ai_type: p.ai_type,
             cached_steer_offset: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collision_radius_scales_sprite_width() {
+        // 200px quad width -> 100 half-width -> 50 after scale.
+        assert_eq!(collision_radius_from_sprite_width(200.0), 50.0);
+    }
+
+    #[test]
+    fn collision_radius_has_minimum_floor() {
+        assert_eq!(collision_radius_from_sprite_width(20.0), MIN_ACTOR_COLLISION_RADIUS);
     }
 }

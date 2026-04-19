@@ -7,10 +7,10 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
+use crate::game::map::collision::BuildingColliders;
 use crate::game::map::coords::mm6_position_to_bevy;
 use crate::game::optional::OptionalWrite;
 use crate::game::spawn::SpawnCtx;
-use crate::game::map::collision::BuildingColliders;
 use crate::game::spawn::decoration::{DecSpriteCache, spawn_decoration};
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;

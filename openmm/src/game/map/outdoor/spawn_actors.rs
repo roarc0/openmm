@@ -2,9 +2,9 @@
 
 use bevy::prelude::*;
 
+use crate::game::map::collision::{BuildingColliders, probe_ground_height};
 use crate::game::spawn::SpawnCtx;
 use crate::game::spawn::actor::{ActorKind, ActorSpawnParams, spawn_actor};
-use crate::game::map::collision::{BuildingColliders, probe_ground_height};
 use crate::prepare::loading::PreparedWorld;
 
 use super::lazy_spawn::PendingSpawns;

@@ -1,5 +1,7 @@
 use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 use bevy::{
+    camera::visibility::RenderLayers,
+    gizmos::config::{DefaultGizmoConfigGroup, GizmoConfigStore},
     pbr::wireframe::{WireframeConfig, WireframePlugin},
     prelude::*,
 };
@@ -54,6 +56,7 @@ impl Plugin for DebugHudPlugin {
                     super::quicksave,
                     super::draw_play_area,
                     super::draw_events,
+                    super::draw_colliders,
                     super::debug_screenshot,
                 )
                     .run_if(in_state(GameState::Game)),
@@ -65,6 +68,7 @@ impl Plugin for DebugHudPlugin {
 fn debug_setup(
     mut commands: Commands,
     mut wireframe_config: ResMut<WireframeConfig>,
+    mut gizmo_config_store: ResMut<GizmoConfigStore>,
     mut world_state: ResMut<crate::game::state::WorldState>,
     cfg: Res<GameConfig>,
     ui_assets: Res<crate::screens::ui_assets::UiAssets>,
@@ -72,6 +76,11 @@ fn debug_setup(
 ) {
     wireframe_config.global = cfg.wireframe;
     wireframe_config.default_color = Color::srgba(0.8, 0.2, 0.6, 0.35);
+
+    // Render debug gizmos only into the player 3D camera (which includes this layer).
+    let (gizmo_cfg, _) = gizmo_config_store.config_mut::<DefaultGizmoConfigGroup>();
+    gizmo_cfg.render_layers = RenderLayers::layer(super::DEBUG_GIZMO_RENDER_LAYER);
+
     world_state.debug.show_play_area = cfg.debug;
     world_state.debug.show_events = cfg.debug;
 
