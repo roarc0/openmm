@@ -164,10 +164,7 @@ pub(super) fn hover_actions(
     let any_hovered = all_query.iter().any(|(interaction, rt_elem)| {
         matches!(interaction, Interaction::Hovered | Interaction::Pressed)
             && layers.screens.get(&rt_elem.screen_id).is_some_and(|screen| {
-                screen.elements[rt_elem.index]
-                    .on_hover()
-                    .iter()
-                    .any(|a| a.trim() != "PulseSprite()")
+                !screen.elements[rt_elem.index].on_hover().is_empty()
             })
     });
     ui_hovered.0 = any_hovered;
@@ -180,12 +177,7 @@ pub(super) fn hover_actions(
         let Some(screen) = layers.screens.get(&rt_elem.screen_id) else {
             continue;
         };
-        let hover_actions: Vec<String> = screen.elements[rt_elem.index]
-            .on_hover()
-            .iter()
-            .filter(|a| a.trim() != "PulseSprite()")
-            .cloned()
-            .collect();
+        let hover_actions: Vec<String> = screen.elements[rt_elem.index].on_hover().to_vec();
         if !hover_actions.is_empty() {
             actions.try_write(ScreenActions { actions: hover_actions });
         }
@@ -268,6 +260,7 @@ pub(super) fn screen_click(
     layers: Res<ScreenLayers>,
     flash_query: Query<&ClickFlash>,
     mut ui_sound: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
+    sound_manager: Option<Res<crate::game::sound::SoundManager>>,
 ) {
     for (entity, interaction, rt_elem, mut image_node, clicked_tex, clicked_anim) in &mut query {
         if *interaction != Interaction::Pressed {
@@ -287,12 +280,10 @@ pub(super) fn screen_click(
         info!("screen click [{}/{}]", rt_elem.screen_id, elem.id());
 
         if let Some(img) = elem.as_image()
-            && img.click_sound_id > 0
+            && let Some(sound_id) = resolve_click_sound_id(&img.click_sound, sound_manager.as_deref())
             && let Some(ref mut sound) = ui_sound
         {
-            sound.write(crate::game::sound::effects::PlayUiSoundEvent {
-                sound_id: img.click_sound_id,
-            });
+            sound.write(crate::game::sound::effects::PlayUiSoundEvent { sound_id });
         }
 
         // Swap to "clicked" texture if available, otherwise hide briefly.
@@ -315,6 +306,25 @@ pub(super) fn screen_click(
             pending_actions: elem.on_click().to_vec(),
         });
     }
+}
+
+fn resolve_click_sound_id(click_sound: &str, sound_manager: Option<&crate::game::sound::SoundManager>) -> Option<u32> {
+    let sound = click_sound.trim();
+    if sound.is_empty() {
+        return None;
+    }
+
+    if let Some(raw_id) = sound.strip_prefix('#') {
+        return raw_id.trim().parse::<u32>().ok();
+    }
+
+    sound_manager.and_then(|sm| {
+        let info = sm.dsounds.get_by_name(sound);
+        if info.is_none() {
+            warn!("click sound '{}' not found in dsounds", sound);
+        }
+        info.map(|s| s.sound_id)
+    })
 }
 
 /// Check keyboard shortcuts defined in all active screens.

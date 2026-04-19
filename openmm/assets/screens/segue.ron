@@ -30,12 +30,13 @@
             ],
             on_hover: [],
             bindings: {},
+            click_sound: "clickin",
         )),
         Image((
             id: "icons/QUICK_DN",
             position: (349.0, 434.0),
             size: (218.0, 40.0),
-            z: 3,
+            z: 2,
             states: {
                 "clicked": (
                     texture: "icons/QUICK_DN",
@@ -47,6 +48,7 @@
             ],
             on_hover: [],
             bindings: {},
+            click_sound: "clickin",
         )),
     ],
     editor: (

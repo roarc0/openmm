@@ -23,6 +23,21 @@ pub struct SoundManager {
 }
 
 impl SoundManager {
+    /// Build a SoundManager from already-loaded game assets.
+    /// Returns None if dsounds or Audio.snd are missing.
+    pub fn from_game_assets(game_assets: &GameAssets) -> Option<Self> {
+        let dsounds = game_assets.dsounds()?.clone();
+        let snd_archive = game_assets.get_snd("audio")?.clone();
+
+        Some(Self {
+            dsounds,
+            snd_archive,
+            cache: HashMap::new(),
+            track_cache: HashMap::new(),
+            failed: HashSet::new(),
+        })
+    }
+
     /// Load a sound by dsounds ID into Bevy assets, caching the handle.
     /// Returns None if the sound ID doesn't exist or the WAV can't be extracted.
     /// Failed IDs are cached so we warn exactly once per bad ID.

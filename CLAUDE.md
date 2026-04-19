@@ -182,7 +182,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 - `screens/scripting.rs` — flat action executor for screen RON files
 - Action strings in `on_click`, `on_hover`, `on_end`, `keys` are one of:
-  - Screen action (bare): `LoadScreen("menu")`, `ShowSprite("icon")`, `Hint("text")`, `Quit()`, `NewGame()`, `PulseSprite()`
+  - Screen action (bare): `LoadScreen("menu")`, `ShowSprite("icon")`, `Hint("text")`, `Quit()`, `NewGame()`
   - EVT proxy (`evt:` prefix): `evt:PlaySound(75)`, `evt:Hint("text")`, `evt:StatusText("text")`
   - Control flow: `Compare("condition")`, `Else()`, `End()`
 - Compare/Else/End: flat, single-level. Compare sets a flag; actions skip if flag is false; Else flips; End resets.

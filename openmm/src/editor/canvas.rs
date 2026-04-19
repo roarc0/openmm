@@ -125,6 +125,8 @@ pub struct Selection {
     pub var_open: bool,
     /// Which state to preview on canvas (None = default).
     pub preview_state: Option<String>,
+    /// Last click-sound ID previewed from editor autocomplete hover.
+    pub click_sound_preview_id: Option<u32>,
 }
 
 // ─── Rebuild canvas ─────────────────────────────────────────────────────────

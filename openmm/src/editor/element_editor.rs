@@ -3,8 +3,10 @@
 //! Common fields (ID, pos, size, z) + type-specific fields (texture, text, video).
 
 use bevy_inspector_egui::bevy_egui::egui;
+use openmm_data::dsounds::DSounds;
 
 use super::canvas::{EditorScreen, Selection};
+use crate::game::optional::OptionalWrite;
 use crate::screens::{ElementState, ScreenElement, TRANSPARENCY_OPTIONS};
 
 /// Draw the element editor window for the selected element.
@@ -13,6 +15,8 @@ pub fn draw_element_editor(
     editor: &mut EditorScreen,
     selection: &mut Selection,
     cfg: &mut super::io::EditorConfig,
+    game_assets: &crate::assets::GameAssets,
+    ui_sound: &mut Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
 ) {
     let Some(sel) = selection.index else { return };
     if sel >= editor.screen.elements.len() {
@@ -43,8 +47,7 @@ pub fn draw_element_editor(
 
         match &editor.screen.elements[sel] {
             ScreenElement::Image(_) => {
-                draw_image_textures(ui, editor, sel);
-                draw_image_transparency(ui, editor, sel);
+                draw_image_textures(ui, editor, sel, game_assets, selection, ui_sound);
                 draw_image_actions(ui, editor, sel);
                 draw_image_bindings(ui, editor, sel);
             }
@@ -239,7 +242,12 @@ fn draw_common_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
     let mut size = editor.screen.elements[sel].size();
     let mut z = editor.screen.elements[sel].z();
 
-    ui.horizontal(|ui| {
+    let mut pos_changed = false;
+    let mut size_changed = false;
+    let mut z_changed = false;
+    let mut crop_changed = false;
+
+    ui.horizontal_wrapped(|ui| {
         ui.label("ID:");
         if ui.text_edit_singleline(&mut elem_id).changed() {
             match &mut editor.screen.elements[sel] {
@@ -249,70 +257,142 @@ fn draw_common_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
             }
             editor.dirty = true;
         }
-    });
 
-    let mut pos_changed = false;
-    ui.horizontal(|ui| {
+        ui.separator();
         ui.label("Pos:");
         pos_changed |= ui
-            .add(egui::DragValue::new(&mut pos.0).prefix("x: ").speed(1.0))
+            .add(egui::DragValue::new(&mut pos.0).prefix("x:").speed(1.0))
             .changed();
         pos_changed |= ui
-            .add(egui::DragValue::new(&mut pos.1).prefix("y: ").speed(1.0))
+            .add(egui::DragValue::new(&mut pos.1).prefix("y:").speed(1.0))
             .changed();
+
+        ui.separator();
+        ui.label("Size:");
+        size_changed |= ui
+            .add(egui::DragValue::new(&mut size.0).prefix("w:").speed(1.0))
+            .changed();
+        size_changed |= ui
+            .add(egui::DragValue::new(&mut size.1).prefix("h:").speed(1.0))
+            .changed();
+
+        ui.separator();
+        ui.label("Z:");
+        z_changed |= ui.add(egui::DragValue::new(&mut z).speed(1.0)).changed();
+
+        if let Some(img) = editor.screen.elements[sel].as_image_mut()
+            && img.size.0 > 0.0
+            && img.size.1 > 0.0
+        {
+            ui.separator();
+            crop_changed |= ui.checkbox(&mut img.crop, "Crop").changed();
+        }
     });
+
     if pos_changed {
         editor.screen.elements[sel].set_position(pos);
         editor.dirty = true;
     }
-
-    let mut size_changed = false;
-    ui.horizontal(|ui| {
-        ui.label("Size:");
-        size_changed |= ui
-            .add(egui::DragValue::new(&mut size.0).prefix("w: ").speed(1.0))
-            .changed();
-        size_changed |= ui
-            .add(egui::DragValue::new(&mut size.1).prefix("h: ").speed(1.0))
-            .changed();
-    });
     if size_changed {
         editor.screen.elements[sel].set_size(size);
         editor.dirty = true;
     }
+    if z_changed {
+        editor.screen.elements[sel].set_z(z);
+        editor.dirty = true;
+    }
+    if crop_changed {
+        editor.dirty = true;
+    }
+}
 
-    // Image-specific fields: crop toggle and click sound.
-    if let Some(img) = editor.screen.elements[sel].as_image_mut() {
-        if img.size.0 > 0.0 && img.size.1 > 0.0 {
-            if ui.checkbox(&mut img.crop, "Crop (don't stretch)").changed() {
-                editor.dirty = true;
-            }
-        }
-        ui.horizontal(|ui| {
-            ui.label("Click Sound:");
-            if ui
-                .add(egui::DragValue::new(&mut img.click_sound_id).speed(1.0))
-                .changed()
-            {
-                editor.dirty = true;
-            }
-        });
+fn draw_click_sound_suggestions(
+    ui: &mut egui::Ui,
+    current: &str,
+    dsounds: Option<&DSounds>,
+    selection: &mut Selection,
+    ui_sound: &mut Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
+) -> Option<String> {
+    let dsounds = dsounds?;
+
+    let query = current.trim();
+    if query.is_empty() || query.starts_with('#') {
+        return None;
     }
 
-    ui.horizontal(|ui| {
-        ui.label("Z:");
-        if ui.add(egui::DragValue::new(&mut z).speed(1.0)).changed() {
-            editor.screen.elements[sel].set_z(z);
-            editor.dirty = true;
+    let query_lower = query.to_ascii_lowercase();
+    let mut selected: Option<String> = None;
+    let mut shown = 0usize;
+    let mut hovered_sound_id: Option<u32> = None;
+    let mut clicked_sound_id: Option<u32> = None;
+
+    ui.small("Click Sound matches:");
+    egui::ScrollArea::vertical().max_height(120.0).show(ui, |ui| {
+        for info in &dsounds.items {
+            if shown >= 10 {
+                break;
+            }
+
+            let Some(name) = info.name() else {
+                continue;
+            };
+
+            if !name.to_ascii_lowercase().contains(&query_lower) {
+                continue;
+            }
+
+            shown += 1;
+            ui.horizontal(|ui| {
+                let resp = ui.selectable_label(false, &name);
+                if resp.clicked() {
+                    selected = Some(name.clone());
+                    clicked_sound_id = Some(info.sound_id);
+                }
+                if resp.hovered() {
+                    hovered_sound_id = Some(info.sound_id);
+                }
+                ui.small(format!("#{}", info.sound_id));
+            });
         }
     });
+
+    // Click should always play, even if this row was already hovered previously.
+    if let Some(sound_id) = clicked_sound_id {
+        ui_sound.try_write(crate::game::sound::effects::PlayUiSoundEvent { sound_id });
+        selection.click_sound_preview_id = Some(sound_id);
+    }
+
+    if let Some(sound_id) = hovered_sound_id {
+        if selection.click_sound_preview_id != Some(sound_id) {
+            ui_sound.try_write(crate::game::sound::effects::PlayUiSoundEvent { sound_id });
+            selection.click_sound_preview_id = Some(sound_id);
+        }
+    } else {
+        selection.click_sound_preview_id = None;
+    }
+
+    if shown == 0 {
+        ui.small("No matching sounds");
+        selection.click_sound_preview_id = None;
+    }
+
+    selected
 }
 
 /// Image texture fields: default texture, clicked texture, all states.
-fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
+fn draw_image_textures(
+    ui: &mut egui::Ui,
+    editor: &mut EditorScreen,
+    sel: usize,
+    game_assets: &crate::assets::GameAssets,
+    selection: &mut Selection,
+    ui_sound: &mut Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
+) {
     let Some(_img) = editor.screen.elements[sel].as_image() else {
         return;
     };
+
+    ui.heading("Base");
 
     // Default texture (may not exist — e.g. image only has a clicked state)
     let mut tex = editor.screen.elements[sel]
@@ -342,6 +422,8 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
             editor.dirty = true;
         }
     });
+
+    draw_image_transparency(ui, editor, sel);
 
     // --- Base Animation ---
     let mut anim = editor.screen.elements[sel]
@@ -411,34 +493,8 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
         editor.dirty = true;
     }
 
-    // Clicked texture
-    let mut clicked_tex = editor.screen.elements[sel]
-        .as_image()
-        .unwrap()
-        .states
-        .get("clicked")
-        .map(|s| s.texture.clone())
-        .unwrap_or_default();
-    ui.horizontal(|ui| {
-        ui.label("Clicked Texture:");
-        if ui.text_edit_singleline(&mut clicked_tex).changed() {
-            let img = editor.screen.elements[sel].as_image_mut().unwrap();
-            if clicked_tex.is_empty() {
-                img.states.remove("clicked");
-            } else {
-                img.states
-                    .entry("clicked".to_string())
-                    .and_modify(|s| s.texture = clicked_tex.clone())
-                    .or_insert(ElementState {
-                        texture: clicked_tex,
-                        condition: String::new(),
-                        transparent_color: String::new(),
-                        animation: None,
-                    });
-            }
-            editor.dirty = true;
-        }
-    });
+    ui.separator();
+    ui.heading("Hover");
 
     // Hover texture
     let mut hover_tex = editor.screen.elements[sel]
@@ -520,19 +576,85 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
                     editor.dirty = true;
                 }
             });
+            ui.horizontal(|ui| {
+                if ui.checkbox(&mut anim.ping_pong, "Ping Pong").changed() {
+                    editor.dirty = true;
+                }
+            });
         });
     }
 
-    // All states (advanced)
+    ui.separator();
+    ui.heading("Click");
+
+    // Clicked texture
+    let mut clicked_tex = editor.screen.elements[sel]
+        .as_image()
+        .unwrap()
+        .states
+        .get("clicked")
+        .map(|s| s.texture.clone())
+        .unwrap_or_default();
+    ui.horizontal(|ui| {
+        ui.label("Clicked Texture:");
+        if ui.text_edit_singleline(&mut clicked_tex).changed() {
+            let img = editor.screen.elements[sel].as_image_mut().unwrap();
+            if clicked_tex.is_empty() {
+                img.states.remove("clicked");
+            } else {
+                img.states
+                    .entry("clicked".to_string())
+                    .and_modify(|s| s.texture = clicked_tex.clone())
+                    .or_insert(ElementState {
+                        texture: clicked_tex,
+                        condition: String::new(),
+                        transparent_color: String::new(),
+                        animation: None,
+                    });
+            }
+            editor.dirty = true;
+        }
+    });
+
+    ui.separator();
+    ui.heading("Sound");
+    if let Some(img) = editor.screen.elements[sel].as_image_mut() {
+        ui.horizontal(|ui| {
+            ui.label("Click Sound:");
+            if ui.text_edit_singleline(&mut img.click_sound).changed() {
+                editor.dirty = true;
+            }
+        });
+        ui.small("Use name (ClickStart) or #id (e.g. #42)");
+
+        if let Some(selected) =
+            draw_click_sound_suggestions(ui, &img.click_sound, game_assets.dsounds(), selection, ui_sound)
+        {
+            img.click_sound = selected;
+            editor.dirty = true;
+        }
+    }
+
+    ui.separator();
+    ui.heading("Advanced");
+
+    // Raw custom states (advanced)
     let state_keys: Vec<String> = editor.screen.elements[sel]
         .as_image()
         .unwrap()
         .states
         .keys()
+        .filter(|k| {
+            let k = k.as_str();
+            k != "default" && k != "clicked" && k != "hover_texture"
+        })
         .cloned()
         .collect();
-    ui.collapsing("All States", |ui| {
+    ui.collapsing("Custom States", |ui| {
         let mut to_remove: Option<String> = None;
+        if state_keys.is_empty() {
+            ui.small("No custom states");
+        }
         for key in &state_keys {
             let mut tex = editor.screen.elements[sel]
                 .as_image()
@@ -573,8 +695,6 @@ fn draw_image_textures(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
             editor.dirty = true;
         }
     });
-
-    ui.separator();
 }
 
 /// Text element fields: source, font, color, alignment.
@@ -590,6 +710,8 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
     let mut color = txt.color.clone();
     let mut align = txt.align.clone();
     let mut changed = false;
+
+    ui.heading("Text");
 
     ui.horizontal(|ui| {
         ui.label("Value:");
@@ -611,6 +733,10 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
                 }
             });
     });
+
+    ui.separator();
+    ui.heading("Style");
+
     ui.horizontal(|ui| {
         ui.label("Font:");
         if ui.text_edit_singleline(&mut font).changed() {
@@ -707,6 +833,8 @@ fn draw_video_properties(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usiz
         return;
     };
 
+    ui.heading("Video");
+
     let mut video_name = vid.video.clone();
     ui.horizontal(|ui| {
         ui.label("Video:");
@@ -716,21 +844,8 @@ fn draw_video_properties(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usiz
         }
     });
 
-    let mut vid_size = editor.screen.elements[sel].size();
-    let mut size_changed = false;
-    ui.horizontal(|ui| {
-        ui.label("Size:");
-        size_changed |= ui
-            .add(egui::DragValue::new(&mut vid_size.0).prefix("w: ").speed(1.0))
-            .changed();
-        size_changed |= ui
-            .add(egui::DragValue::new(&mut vid_size.1).prefix("h: ").speed(1.0))
-            .changed();
-    });
-    if size_changed {
-        editor.screen.elements[sel].set_size(vid_size);
-        editor.dirty = true;
-    }
+    ui.separator();
+    ui.heading("Playback");
 
     let mut looping = editor.screen.elements[sel].as_video().unwrap().looping;
     let mut skippable = editor.screen.elements[sel].as_video().unwrap().skippable;
@@ -773,8 +888,6 @@ fn draw_image_transparency(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: us
                 }
             });
     });
-
-    ui.separator();
 }
 
 fn draw_image_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
@@ -808,6 +921,8 @@ fn draw_video_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) 
         return;
     }
 
+    ui.separator();
+    ui.heading("Actions");
     ui.heading("On End");
     let mut ends = editor.screen.elements[sel].as_video().unwrap().on_end.clone();
     let mut dirty = false;
@@ -823,6 +938,8 @@ fn draw_text_actions(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
         return;
     };
 
+    ui.separator();
+    ui.heading("Actions");
     ui.heading("On Click");
     let mut clicks = editor.screen.elements[sel].as_text().unwrap().on_click.clone();
     let mut dirty = false;

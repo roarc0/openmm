@@ -6,6 +6,7 @@ use bevy::window::PrimaryWindow;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 
 use super::canvas::{CanvasElement, EditorScreen, ElementEditorState, Selection, resolve_elem_size};
+use crate::assets::GameAssets;
 use crate::screens::ui_assets::UiAssets;
 use crate::screens::{REF_H, REF_W};
 
@@ -31,7 +32,9 @@ pub fn draw_overlays(
     mut editor: ResMut<EditorScreen>,
     mut selection: ResMut<Selection>,
     windows: Query<&Window, With<PrimaryWindow>>,
+    game_assets: Res<GameAssets>,
     ui_assets: Res<UiAssets>,
+    mut ui_sound: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
     mut overlay_action: ResMut<OverlayAction>,
     editor_state: Res<ElementEditorState>,
     guides: Res<super::guides::Guides>,
@@ -139,7 +142,14 @@ pub fn draw_overlays(
 
     // Element editor window.
     if selection.edt_open {
-        super::element_editor::draw_element_editor(ctx, &mut editor, &mut selection, &mut cfg);
+        super::element_editor::draw_element_editor(
+            ctx,
+            &mut editor,
+            &mut selection,
+            &mut cfg,
+            &game_assets,
+            &mut ui_sound,
+        );
     }
     // Variant editor window.
     if selection.var_open {

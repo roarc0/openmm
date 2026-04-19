@@ -13,6 +13,8 @@ use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
 use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
 
 use crate::GameState;
+use crate::assets::GameAssets;
+use crate::game::sound::{SoundManager, effects::EffectsPlugin};
 use crate::screens::Screen;
 
 /// Run condition: true when egui wants keyboard input (user typing in a text field).
@@ -63,7 +65,9 @@ impl Plugin for EditorPlugin {
             .init_resource::<clipboard::Clipboard>()
             .insert_resource(guides::Guides::from_config(&cfg))
             .insert_resource(cfg)
+            .add_plugins(EffectsPlugin)
             .add_systems(OnEnter(GameState::Editor), editor_setup)
+            .add_systems(OnEnter(GameState::Editor), init_editor_sound_manager)
             .add_systems(
                 Update,
                 (
@@ -110,6 +114,24 @@ fn editor_setup(mut commands: Commands) {
         bevy::picking::Pickable::IGNORE,
         InEditor,
     ));
+}
+
+fn init_editor_sound_manager(
+    mut commands: Commands,
+    game_assets: Res<GameAssets>,
+    existing: Option<Res<SoundManager>>,
+) {
+    if existing.is_some() {
+        return;
+    }
+
+    let Some(manager) = SoundManager::from_game_assets(&game_assets) else {
+        warn!("editor: audio resources missing — click sound preview disabled");
+        return;
+    };
+
+    info!("editor sound preview initialized");
+    commands.insert_resource(manager);
 }
 
 /// Esc toggles all egui UI visibility.

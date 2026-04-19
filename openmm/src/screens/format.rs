@@ -19,8 +19,25 @@ fn is_default_kind(k: &ScreenKind) -> bool {
 fn is_zero(v: &f32) -> bool {
     *v == 0.0
 }
-fn is_default<T: Default + PartialEq>(v: &T) -> bool {
-    *v == T::default()
+fn is_empty(v: &str) -> bool {
+    v.is_empty()
+}
+
+fn deserialize_click_sound<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum ClickSoundValue {
+        Name(String),
+        Id(u32),
+    }
+
+    match ClickSoundValue::deserialize(deserializer)? {
+        ClickSoundValue::Name(name) => Ok(name),
+        ClickSoundValue::Id(id) => Ok(format!("#{id}")),
+    }
 }
 
 /// Background sound definition.
@@ -365,9 +382,15 @@ pub struct ImageElement {
     /// When true and explicit size is set, crop the texture to size instead of stretching.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub crop: bool,
-    /// Sound ID to play on click (from SND archive). 0 = no sound.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub click_sound_id: u32,
+    /// Sound to play on click.
+    /// Name lookup (e.g. "ClickStart") or explicit ID with '#', e.g. "#42".
+    #[serde(
+        default,
+        skip_serializing_if = "is_empty",
+        deserialize_with = "deserialize_click_sound",
+        alias = "click_sound_id"
+    )]
+    pub click_sound: String,
 }
 
 /// A video element that plays an SMK file.
@@ -574,7 +597,7 @@ impl ImageElement {
             crop_w: 0.0,
             crop_h: 0.0,
             crop: false,
-            click_sound_id: 0,
+            click_sound: String::new(),
         }
     }
 
@@ -623,6 +646,42 @@ mod tests {
         assert_eq!(btn.z, 10);
         assert_eq!(btn.on_click.len(), 2);
         assert_eq!(btn.on_hover.len(), 1);
+    }
+
+    #[test]
+    fn image_click_sound_accepts_name() {
+        let ron_str = r#"(
+            id: "test",
+            elements: [
+                Image((
+                    id: "btn",
+                    position: (0.0, 0.0),
+                    states: {"default": (texture: "btn")},
+                    click_sound: "ClickStart",
+                )),
+            ],
+        )"#;
+        let screen: Screen = ron::from_str(ron_str).unwrap();
+        let btn = screen.elements[0].as_image().unwrap();
+        assert_eq!(btn.click_sound, "ClickStart");
+    }
+
+    #[test]
+    fn image_click_sound_accepts_numeric_legacy_field() {
+        let ron_str = r#"(
+            id: "test",
+            elements: [
+                Image((
+                    id: "btn",
+                    position: (0.0, 0.0),
+                    states: {"default": (texture: "btn")},
+                    click_sound_id: 42,
+                )),
+            ],
+        )"#;
+        let screen: Screen = ron::from_str(ron_str).unwrap();
+        let btn = screen.elements[0].as_image().unwrap();
+        assert_eq!(btn.click_sound, "#42");
     }
 
     #[test]
