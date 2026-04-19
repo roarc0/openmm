@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, TapBinding};
+use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, SkyScrollBinding, TapBinding};
 use super::fonts::GameFonts;
 use super::runtime::{
     FrameAnimation, HiddenByDefault, HoverOverlay, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer,
@@ -170,12 +170,27 @@ pub(super) fn spawn_image_element(
         })
     });
 
+    let binding = img.bindings.get("source").map(|s| s.as_str());
+    let auto_sky_crop = binding == Some("sky_scroll") && img.crop_w <= 0.0 && img.crop_h <= 0.0;
+
     // Cropped image: spawn as clip container + scrollable inner image.
-    let has_crop = img.crop_w > 0.0 && img.crop_h > 0.0;
+    // sky_scroll auto-enables this path using the authored image size as viewport.
+    let has_crop = (img.crop_w > 0.0 && img.crop_h > 0.0) || auto_sky_crop;
     if has_crop {
-        let crop_w = img.crop_w;
-        let crop_h = img.crop_h;
-        let binding = img.bindings.get("source").map(|s| s.as_str());
+        let crop_w = if img.crop_w > 0.0 {
+            img.crop_w
+        } else if img.size.0 > 0.0 {
+            img.size.0
+        } else {
+            w
+        };
+        let crop_h = if img.crop_h > 0.0 {
+            img.crop_h
+        } else if img.size.1 > 0.0 {
+            img.size.1
+        } else {
+            h
+        };
 
         // For minimap, texture is loaded at runtime — use a placeholder.
         let image_handle = if binding == Some("minimap") {
@@ -202,6 +217,7 @@ pub(super) fn spawn_image_element(
             .spawn((clip_node, ZIndex(img.z), marker, layer_tag.clone()))
             .with_children(|clip| {
                 // Inner image fills the crop area by default (bindings scroll it).
+                let tile_w_pct = if w > crop_w { w / crop_w * 100.0 } else { 100.0 };
                 let inner_w = if w > crop_w {
                     Val::Percent(w / crop_w * 100.0)
                 } else {
@@ -213,37 +229,78 @@ pub(super) fn spawn_image_element(
                     Val::Percent(100.0)
                 };
 
-                let mut inner = clip.spawn((
-                    Node {
-                        position_type: PositionType::Absolute,
-                        left: Val::Px(0.0),
-                        top: Val::Px(0.0),
-                        width: inner_w,
-                        height: inner_h,
-                        ..default()
-                    },
-                    CroppedImage { crop_w, crop_h },
-                ));
+                if binding == Some("sky_scroll") {
+                    let mut inner = clip.spawn((
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(0.0),
+                            top: Val::Px(0.0),
+                            width: Val::Percent(tile_w_pct * 2.0),
+                            height: inner_h,
+                            ..default()
+                        },
+                        CroppedImage { crop_w, crop_h },
+                        SkyScrollBinding,
+                    ));
 
-                if let Some(handle) = image_handle {
-                    inner.insert(ImageNode::new(handle));
-                } else if binding == Some("minimap") {
-                    // Minimap gets a default ImageNode — texture set by minimap_scroll.
-                    inner.insert(ImageNode::default());
-                }
-
-                match binding {
-                    Some("compass") => {
-                        inner.insert(CompassBinding);
+                    if let Some(handle) = image_handle {
+                        inner.with_children(|parent| {
+                            let tile_node = Node {
+                                position_type: PositionType::Absolute,
+                                top: Val::Px(0.0),
+                                width: Val::Percent(50.0),
+                                height: Val::Percent(100.0),
+                                ..default()
+                            };
+                            parent.spawn((
+                                Node {
+                                    left: Val::Percent(0.0),
+                                    ..tile_node.clone()
+                                },
+                                ImageNode::new(handle.clone()),
+                            ));
+                            parent.spawn((
+                                Node {
+                                    left: Val::Percent(50.0),
+                                    ..tile_node
+                                },
+                                ImageNode::new(handle),
+                            ));
+                        });
                     }
-                    Some("minimap") => {
-                        inner.insert(MinimapBinding { zoom: 3.0 });
-                    }
-                    _ => {}
-                }
+                } else {
+                    let mut inner = clip.spawn((
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(0.0),
+                            top: Val::Px(0.0),
+                            width: inner_w,
+                            height: inner_h,
+                            ..default()
+                        },
+                        CroppedImage { crop_w, crop_h },
+                    ));
 
-                if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
-                    inner.insert(anim);
+                    if let Some(handle) = image_handle {
+                        inner.insert(ImageNode::new(handle));
+                    } else if binding == Some("minimap") {
+                        // Minimap gets a default ImageNode — texture set by minimap_scroll.
+                        inner.insert(ImageNode::default());
+                    }
+
+                    match binding {
+                        Some("compass") => {
+                            inner.insert(CompassBinding);
+                        }
+                        Some("minimap") => {
+                            inner.insert(MinimapBinding { zoom: 3.0 });
+                        }
+                        _ => {}
+                    }
+
+                    if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
+                        inner.insert(anim);
+                    }
                 }
             });
         return;

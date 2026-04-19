@@ -49,7 +49,9 @@
             },
             on_click: [],
             on_hover: [],
-            bindings: {},
+            bindings: {
+                "source": "sky_scroll",
+            },
         )),
         Image((
             id: "icons/FL01",
@@ -211,7 +213,7 @@
             value: "Bonus  Pts",
             font: "create",
             font_size: 16.0,
-            color: "yellow",
+            color: "gold",
             align: "center",
         )),
         Text((
@@ -235,7 +237,7 @@
             value: "Available Skills",
             font: "create",
             font_size: 16.0,
-            color: "yellow",
+            color: "gold",
             align: "center",
         )),
         Text((
@@ -247,7 +249,7 @@
             value: "CLASS",
             font: "create",
             font_size: 16.0,
-            color: "yellow",
+            color: "gold",
             align: "center",
         )),
         Text((
@@ -367,7 +369,7 @@
             value: "SKILLS",
             font: "create",
             font_size: 16.0,
-            color: "yellow",
+            color: "gold",
             align: "center",
         )),
         Text((

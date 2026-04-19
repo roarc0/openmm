@@ -70,7 +70,7 @@ pub fn parse_key_code(name: &str) -> Option<KeyCode> {
         "F10" => KeyCode::F10,
         "F11" => KeyCode::F11,
         "F12" => KeyCode::F12,
-        other => {
+        _other => {
             warn!("unknown key name: '{}'", n);
             return None;
         }

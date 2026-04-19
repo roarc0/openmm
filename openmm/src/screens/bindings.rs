@@ -29,6 +29,10 @@ pub struct CroppedImage {
 #[derive(Component)]
 pub struct CompassBinding;
 
+/// Slow horizontal sky strip scroll (left-to-right looping).
+#[derive(Component)]
+pub struct SkyScrollBinding;
+
 /// Minimap — scrolls by player world position, texture auto-loaded from map.
 #[derive(Component)]
 pub struct MinimapBinding {
@@ -83,6 +87,7 @@ impl Plugin for BindingsPlugin {
             Update,
             (
                 compass_scroll,
+                sky_scroll,
                 minimap_scroll,
                 arrow_update,
                 tap_update,
@@ -91,6 +96,40 @@ impl Plugin for BindingsPlugin {
                 .run_if(in_state(GameState::Menu).or(in_state(GameState::Game))),
         )
         .add_systems(Update, loading_anim_update.run_if(in_state(GameState::Loading)));
+    }
+}
+
+/// Scroll a wide sky strip slowly from left to right.
+/// Requires cropped image setup where inner width is wider than the crop width.
+fn sky_scroll(
+    windows: Query<&Window, With<PrimaryWindow>>,
+    time: Res<Time>,
+    mut strip_q: Query<(&CroppedImage, &mut Node), With<SkyScrollBinding>>,
+) {
+    let Ok(window) = windows.single() else { return };
+    let sx = window.width() / REF_W;
+    let speed_px_per_sec = 4.0 * sx;
+
+    for (crop, mut node) in &mut strip_q {
+        let clip_w = crop.crop_w * sx;
+        let strip_w = match node.width {
+            Val::Px(px) => px,
+            Val::Percent(pct) => clip_w * (pct / 100.0),
+            _ => clip_w,
+        };
+
+        // Sky strip is authored as two identical tiles side-by-side.
+        // Loop over exactly one tile for seamless wraparound.
+        let travel = strip_w * 0.5;
+        if travel <= 1.0 {
+            continue;
+        }
+
+        let phase = (time.elapsed_secs() * speed_px_per_sec).rem_euclid(travel);
+        let target = Val::Px((-travel + phase).round());
+        if node.left != target {
+            node.left = target;
+        }
     }
 }
 

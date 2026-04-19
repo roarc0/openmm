@@ -25,6 +25,7 @@
 
 - Displays gold and food from `WorldState.game_vars`
 - Rendered as bitmapped text using `GameFonts`
+- Bitmap font shadow pixels use a dark black alpha of `192` for closer MM6 contrast
 - Updates only when values change (change detection)
 
 ## Minimap

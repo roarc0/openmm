@@ -18,6 +18,7 @@ const NUM_CHARS: usize = 256;
 const METRICS_SIZE: usize = NUM_CHARS * 12; // 3 × i32 per character
 const OFFSETS_SIZE: usize = NUM_CHARS * 4; // 1 × u32 per character
 const TABLE_SIZE: usize = METRICS_SIZE + OFFSETS_SIZE; // 4096
+const SHADOW_ALPHA: u8 = 192;
 
 /// Per-character spacing and width.
 #[derive(Debug, Clone, Copy, Default)]
@@ -174,11 +175,11 @@ impl Font {
                             buf[idx + 2] = color[2];
                             buf[idx + 3] = color[3];
                         } else {
-                            // Shadow pixel — semi-transparent black
+                            // Shadow pixel — dark semi-transparent black.
                             buf[idx] = 0;
                             buf[idx + 1] = 0;
                             buf[idx + 2] = 0;
-                            buf[idx + 3] = 128;
+                            buf[idx + 3] = SHADOW_ALPHA;
                         }
                     }
                 }
@@ -271,6 +272,8 @@ mod tests {
         assert_eq!(&buf[0..4], &[255, 255, 255, 255]);
         // Second pixel should be transparent (0 in glyph)
         assert_eq!(&buf[4..8], &[0, 0, 0, 0]);
+        // First pixel on second row is a shadow pixel (1 in glyph).
+        assert_eq!(&buf[16..20], &[0, 0, 0, SHADOW_ALPHA]);
     }
 
     #[test]

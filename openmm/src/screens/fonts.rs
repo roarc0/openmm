@@ -37,6 +37,24 @@ pub const BLUE: [u8; 4] = [100, 150, 255, 255];
 pub const CYAN: [u8; 4] = [80, 240, 255, 255];
 /// Magenta text color.
 pub const MAGENTA: [u8; 4] = [255, 120, 255, 255];
+/// Brass-like gold text color.
+pub const GOLD: [u8; 4] = [212, 175, 55, 255];
+
+/// Resolve a text color name to RGBA.
+///
+/// Unknown names fall back to white so malformed screen data stays readable.
+pub fn resolve_text_color(name: &str) -> [u8; 4] {
+    match name {
+        "yellow" => YELLOW,
+        "gold" => GOLD,
+        "red" => RED,
+        "green" => GREEN,
+        "blue" => BLUE,
+        "cyan" => CYAN,
+        "magenta" => MAGENTA,
+        _ => WHITE,
+    }
+}
 
 /// All MM6 bitmap fonts loaded from the LOD archive.
 #[derive(Resource)]

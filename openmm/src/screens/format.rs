@@ -465,7 +465,7 @@ pub const TEXT_SOURCES: &[&str] = &["footer_text", "gold", "food"];
 /// Valid text alignments.
 pub const TEXT_ALIGNS: &[&str] = &["left", "center", "right"];
 /// Valid text colors.
-pub const TEXT_COLORS: &[&str] = &["white", "yellow", "red", "green", "blue", "cyan", "magenta"];
+pub const TEXT_COLORS: &[&str] = &["white", "yellow", "gold", "red", "green", "blue", "cyan", "magenta"];
 
 impl TextElement {
     fn default_font() -> String {
@@ -487,15 +487,7 @@ impl TextElement {
     }
 
     pub fn resolve_color(name: &str) -> [u8; 4] {
-        match name {
-            "yellow" => super::fonts::YELLOW,
-            "red" => super::fonts::RED,
-            "green" => super::fonts::GREEN,
-            "blue" => super::fonts::BLUE,
-            "cyan" => super::fonts::CYAN,
-            "magenta" => super::fonts::MAGENTA,
-            _ => super::fonts::WHITE,
-        }
+        super::fonts::resolve_text_color(name)
     }
 }
 
@@ -781,7 +773,8 @@ mod tests {
     }
 
     #[test]
-    fn resolve_color_supports_cyan_and_magenta() {
+    fn resolve_color_supports_gold_cyan_and_magenta() {
+        assert_eq!(TextElement::resolve_color("gold"), super::super::fonts::GOLD);
         assert_eq!(TextElement::resolve_color("cyan"), super::super::fonts::CYAN);
         assert_eq!(TextElement::resolve_color("magenta"), super::super::fonts::MAGENTA);
     }
