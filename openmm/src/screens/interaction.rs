@@ -13,7 +13,56 @@ use super::ui_assets::UiAssets;
 use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::optional::OptionalWrite;
+use crate::game::ui::UiMode;
 use crate::system::config::GameConfig;
+
+#[derive(Debug, PartialEq, Eq)]
+enum CloseWindowTarget {
+    UiModeWorld,
+    TopModal(String),
+    None,
+}
+
+fn resolve_close_window_target(
+    top_modal_id: Option<&str>,
+    ui_mode: Option<UiMode>,
+) -> CloseWindowTarget {
+    if let Some(mode) = ui_mode
+        && mode != UiMode::World
+    {
+        if top_modal_id == Some("options_main") {
+            return CloseWindowTarget::TopModal("options_main".to_string());
+        }
+
+        let active_modal = match mode {
+            UiMode::World => None,
+            // Building overlays use variant screen ids (armor_shop, temple, etc.).
+            // Any non-options modal while in Building mode should close back to World.
+            UiMode::Building => top_modal_id,
+            UiMode::NpcDialogue => Some("npc_speak"),
+            UiMode::Chest => Some("chest"),
+            UiMode::Inventory => Some("inventory"),
+            UiMode::Stats => Some("stats"),
+            UiMode::Rest => Some("rest"),
+            UiMode::Map => Some("map"),
+            UiMode::TurnBattle => Some("turnbattle"),
+        };
+
+        if active_modal == top_modal_id || top_modal_id.is_none() {
+            return CloseWindowTarget::UiModeWorld;
+        }
+
+        if let Some(id) = top_modal_id {
+            return CloseWindowTarget::TopModal(id.to_string());
+        }
+    }
+
+    if let Some(id) = top_modal_id {
+        return CloseWindowTarget::TopModal(id.to_string());
+    }
+
+    CloseWindowTarget::None
+}
 
 pub(super) fn screen_hover(
     mut query: Query<
@@ -592,12 +641,14 @@ pub(super) fn process_pending_actions(
                 }
                 Action::HideScreen(id) => {
                     info!("action: HideScreen(\"{}\")", id);
+                    let ui_mode = ui_state.as_ref().map(|ui| ui.mode);
                     hide_screen(
                         &id,
                         &mut commands,
                         &mut layers,
                         &layer_entities,
                         &mut cursor_query,
+                        ui_mode,
                         &mut actions,
                     );
                 }
@@ -642,18 +693,45 @@ pub(super) fn process_pending_actions(
                 }
                 Action::CloseWindow => {
                     info!("action: CloseWindow");
-                    if let Some(top_modal_id) = layers.top_modal_id().map(str::to_string) {
-                        hide_screen(
-                            &top_modal_id,
-                            &mut commands,
-                            &mut layers,
-                            &layer_entities,
-                            &mut cursor_query,
-                            &mut actions,
-                        );
-                    } else if let Some(ref mut ui) = ui_state {
-                        // Legacy fallback for non-screen overlay flows.
-                        crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
+                    let top_modal_id = layers.top_modal_id().map(str::to_string);
+                    let target = resolve_close_window_target(
+                        top_modal_id.as_deref(),
+                        ui_state.as_ref().map(|ui| ui.mode),
+                    );
+                    match target {
+                        CloseWindowTarget::UiModeWorld => {
+                            if let Some(ref mut ui) = ui_state {
+                                crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
+                            }
+                            if let Some(ref modal_id) = top_modal_id {
+                                hide_screen(
+                                    modal_id,
+                                    &mut commands,
+                                    &mut layers,
+                                    &layer_entities,
+                                    &mut cursor_query,
+                                    Some(crate::game::ui::UiMode::World),
+                                    &mut actions,
+                                );
+                            }
+                            commands.remove_resource::<crate::game::ui::OverlayImage>();
+                            commands.remove_resource::<crate::game::actors::npc_dialogue::NpcPortrait>();
+                            commands.remove_resource::<crate::game::actors::npc_dialogue::NpcProfile>();
+                            commands.remove_resource::<crate::game::ui::HouseProfile>();
+                        }
+                        CloseWindowTarget::TopModal(top_modal_id) => {
+                            let ui_mode = ui_state.as_ref().map(|ui| ui.mode);
+                            hide_screen(
+                                &top_modal_id,
+                                &mut commands,
+                                &mut layers,
+                                &layer_entities,
+                                &mut cursor_query,
+                                ui_mode,
+                                &mut actions,
+                            );
+                        }
+                        CloseWindowTarget::None => {}
                     }
                 }
                 Action::PlaySoundNamed(ref name) => {
@@ -755,4 +833,46 @@ fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::events::script
     }
 
     warn!("evt: unknown proxy action: '{}'", s);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CloseWindowTarget, resolve_close_window_target};
+    use crate::game::ui::UiMode;
+
+    #[test]
+    fn close_window_prefers_ui_mode_when_not_world() {
+        let target = resolve_close_window_target(Some("npc_speak"), Some(UiMode::NpcDialogue));
+        assert_eq!(target, CloseWindowTarget::UiModeWorld);
+
+        let target = resolve_close_window_target(Some("turnbattle"), Some(UiMode::TurnBattle));
+        assert_eq!(target, CloseWindowTarget::UiModeWorld);
+    }
+
+    #[test]
+    fn close_window_in_non_world_closes_top_modal_if_not_active_overlay() {
+        let target = resolve_close_window_target(Some("options_main"), Some(UiMode::NpcDialogue));
+        assert_eq!(target, CloseWindowTarget::TopModal("options_main".to_string()));
+    }
+
+    #[test]
+    fn close_window_hides_top_modal_in_world_mode() {
+        let target = resolve_close_window_target(Some("options_main"), Some(UiMode::World));
+        assert_eq!(target, CloseWindowTarget::TopModal("options_main".to_string()));
+    }
+
+    #[test]
+    fn close_window_prefers_ui_mode_for_building_variant_screen() {
+        let target = resolve_close_window_target(Some("armor_shop"), Some(UiMode::Building));
+        assert_eq!(target, CloseWindowTarget::UiModeWorld);
+    }
+
+    #[test]
+    fn close_window_noop_without_ui_or_modal() {
+        let target = resolve_close_window_target(None, Some(UiMode::World));
+        assert_eq!(target, CloseWindowTarget::None);
+
+        let target = resolve_close_window_target(None, None);
+        assert_eq!(target, CloseWindowTarget::None);
+    }
 }

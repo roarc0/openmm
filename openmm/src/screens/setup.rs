@@ -200,6 +200,7 @@ pub(super) fn hide_screen(
     layers: &mut ScreenLayers,
     entities: &Query<(Entity, &ScreenLayer)>,
     cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
+    ui_mode: Option<ui::UiMode>,
     actions: &mut Option<MessageWriter<ScreenActions>>,
 ) {
     let Some(screen) = layers.screens.remove(screen_id) else {
@@ -223,10 +224,11 @@ pub(super) fn hide_screen(
         }
     }
 
-    // Restore gameplay cursor capture when closing the last modal in-game.
+    // Restore gameplay cursor capture only when returning to World mode and
+    // closing the last modal in-game.
     let in_game_hud_visible = layers.screens.contains_key("ingame");
     let any_modal_visible = layers.screens.values().any(|s| s.kind == ScreenKind::Modal);
-    if in_game_hud_visible && !any_modal_visible {
+    if in_game_hud_visible && !any_modal_visible && ui_mode == Some(ui::UiMode::World) {
         ui::grab_cursor(cursor_query, true);
     }
 }

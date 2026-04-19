@@ -44,23 +44,17 @@ impl Plugin for ScreenRuntimePlugin {
             .add_systems(OnEnter(GameState::Game), game_screen_setup)
             .add_systems(OnExit(GameState::Game), screen_teardown)
             // Interaction and text systems run in Menu, Loading, and Game states.
-            .add_systems(
-                Update,
-                (
-                    screen_hover,
-                    hover_actions,
-                    hover_animate_tick,
-                    screen_click,
-                    screen_keys,
-                    video_tick,
-                    text_update,
-                    click_flash_tick,
-                    process_pending_actions,
-                    update_screen_crosshair,
-                    text_hover,
-                )
-                    .run_if(screen_states),
-            );
+            .add_systems(Update, screen_hover.run_if(screen_states.clone()))
+            .add_systems(Update, hover_actions.run_if(screen_states.clone()))
+            .add_systems(Update, hover_animate_tick.run_if(screen_states.clone()))
+            .add_systems(Update, screen_click.run_if(screen_states.clone()))
+            .add_systems(Update, screen_keys.run_if(screen_states.clone()))
+            .add_systems(Update, video_tick.run_if(screen_states.clone()))
+            .add_systems(Update, text_update.run_if(screen_states.clone()))
+            .add_systems(Update, click_flash_tick.run_if(screen_states.clone()))
+            .add_systems(Update, process_pending_actions.run_if(screen_states.clone()))
+            .add_systems(Update, update_screen_crosshair.run_if(screen_states.clone()))
+            .add_systems(Update, text_hover.run_if(screen_states));
     }
 }
 // ── Components & resources ──────────────────────────────────────────────────

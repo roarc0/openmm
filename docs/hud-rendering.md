@@ -38,6 +38,7 @@
 - Parent close behavior: `on_close` hides all tab screens so no child layer leaks.
 - Tab buttons switch atomically: hide all tab layers first, then show the selected tab.
 - Entry points: `playing.ron` binds `I/C/S/A` to open `chdetails` + `inventory/stats/skills/award` respectively. Portrait clicks open to `stats` by default.
+- `CloseWindow()` is UiMode-aware: when game UI mode is not `World` (building, npc_speak, chest, turnbattle, etc.), close transitions `UiMode` back to `World` first, and cursor capture follows UiMode (world = grabbed, overlay = free).
 
 ## StatsBar
 

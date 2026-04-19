@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use bevy::window::{CursorOptions, PrimaryWindow};
 
 use crate::GameState;
 use crate::game::events::EventQueue;
@@ -182,10 +182,6 @@ fn interaction_input(
         commands.remove_resource::<crate::game::actors::npc_dialogue::NpcPortrait>();
         commands.remove_resource::<crate::game::actors::npc_dialogue::NpcProfile>();
         commands.remove_resource::<crate::game::ui::HouseProfile>();
-        view.mode = UiMode::World;
-        if let Ok(mut cursor) = cursor_query.single_mut() {
-            cursor.grab_mode = CursorGrabMode::Confined;
-            cursor.visible = false;
-        }
+        crate::game::ui::set_ui_mode(&mut view, &mut cursor_query, UiMode::World);
     }
 }
