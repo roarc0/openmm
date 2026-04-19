@@ -571,6 +571,7 @@ pub(super) fn process_pending_actions(
                         &mut images,
                         &mut audio_sources,
                         &cfg,
+                        &mut cursor_query,
                         &mut actions,
                     );
                 }
@@ -585,12 +586,20 @@ pub(super) fn process_pending_actions(
                         &mut images,
                         &mut audio_sources,
                         &cfg,
+                        &mut cursor_query,
                         &mut actions,
                     );
                 }
                 Action::HideScreen(id) => {
                     info!("action: HideScreen(\"{}\")", id);
-                    hide_screen(&id, &mut commands, &mut layers, &layer_entities, &mut actions);
+                    hide_screen(
+                        &id,
+                        &mut commands,
+                        &mut layers,
+                        &layer_entities,
+                        &mut cursor_query,
+                        &mut actions,
+                    );
                 }
                 Action::ShowSprite(ref id) => {
                     for (elem, mut vis) in &mut sprite_query {
@@ -633,7 +642,17 @@ pub(super) fn process_pending_actions(
                 }
                 Action::CloseWindow => {
                     info!("action: CloseWindow");
-                    if let Some(ref mut ui) = ui_state {
+                    if let Some(top_modal_id) = layers.top_modal_id().map(str::to_string) {
+                        hide_screen(
+                            &top_modal_id,
+                            &mut commands,
+                            &mut layers,
+                            &layer_entities,
+                            &mut cursor_query,
+                            &mut actions,
+                        );
+                    } else if let Some(ref mut ui) = ui_state {
+                        // Legacy fallback for non-screen overlay flows.
                         crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
                     }
                 }

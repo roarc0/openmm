@@ -251,6 +251,7 @@ fn process_events(
     mut party: ResMut<Party>,
     time: Res<Time>,
     mut entities: MapEntityParams,
+    mut screen_actions: Option<bevy::ecs::message::MessageWriter<crate::screens::runtime::ScreenActions>>,
 ) {
     // When a UI overlay is active, process sound events but keep everything else queued.
     if !matches!(ui.mode, crate::game::ui::UiMode::World) {
@@ -309,15 +310,13 @@ fn process_events(
                 );
             }
             GameEvent::OpenChest { id } => {
-                event_handlers::handle_open_chest(
-                    *id,
-                    &game_assets,
-                    &mut images,
-                    &mut commands,
-                    &mut ui,
-                    &mut cursor_query,
-                    &mut audio,
-                );
+                event_handlers::handle_open_chest(*id, &mut audio);
+                // Load chest screen
+                if let Some(ref mut sa) = screen_actions {
+                    sa.write(crate::screens::runtime::ScreenActions {
+                        actions: vec!["ShowScreen(\"chest\")".to_string()],
+                    });
+                }
             }
             GameEvent::MoveToMap {
                 x,

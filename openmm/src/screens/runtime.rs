@@ -180,11 +180,22 @@ pub(super) struct InlineVideo {
 #[derive(Resource, Default)]
 pub struct ScreenLayers {
     pub screens: HashMap<String, Screen>,
+    /// Insertion order of visible screens; last item is topmost.
+    pub order: Vec<String>,
 }
 
 impl ScreenLayers {
     pub fn has_modal(&self) -> bool {
         self.screens.values().any(|s| s.kind == super::ScreenKind::Modal)
+    }
+
+    /// Return the topmost visible modal screen id.
+    pub fn top_modal_id(&self) -> Option<&str> {
+        self.order.iter().rev().find_map(|id| {
+            self.screens
+                .get(id)
+                .and_then(|screen| (screen.kind == super::ScreenKind::Modal).then_some(id.as_str()))
+        })
     }
 }
 

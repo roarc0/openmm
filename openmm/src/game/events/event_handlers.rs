@@ -103,27 +103,10 @@ pub(super) fn handle_speak_in_house(
     }
 }
 
-/// Handle OpenChest: load chest icon, play sound, show overlay.
-pub(super) fn handle_open_chest(
-    id: u8,
-    game_assets: &GameAssets,
-    images: &mut Assets<Image>,
-    commands: &mut Commands,
-    ui: &mut UiState,
-    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
-    audio: &mut AudioParams,
-) {
-    debug!("OpenChest(id={})", id);
-    let icon_name = format!("chest{:02}", id);
-    if let Some(image) = game_assets.load_icon(&icon_name, images) {
-        // Play chest-open sound if available
-        if let Some(ref sm) = audio.sound_manager
-            && let Some(s) = sm.dsounds.get_by_name("openchest0101")
-        {
-            audio.ui_sound.try_write(PlayUiSoundEvent { sound_id: s.sound_id });
-        }
-        ui::set_overlay_mode(commands, ui, cursor_query, image, UiMode::Chest);
-    }
+/// Handle OpenChest: load chest screen, play sound.
+pub(super) fn handle_open_chest(_id: u8, audio: &mut AudioParams) {
+    debug!("OpenChest(id={})", _id);
+    // Load chest screen via the screen system (handled in scripting.rs)
 }
 
 /// Handle MoveToMap: same-map teleport or cross-map transition.

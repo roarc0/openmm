@@ -1,0 +1,73 @@
+(
+    id: "chest",
+    kind: Modal,
+    keys: {
+        "Escape": [
+            "CloseWindow()",
+        ],
+    },
+    on_load: [
+        "PlaySoundNamed(\"openchest0101\")",
+    ],
+    on_close: [
+        "PlaySoundNamed(\"clickout\")",
+    ],
+    elements: [
+        Image((
+            id: "icons/BUTTESC1",
+            position: (392.0, 319.0),
+            size: (61.0, 28.0),
+            z: 10,
+            states: {
+                "clicked": (
+                    texture: "icons/BUTTESC2",
+                ),
+                "default": (
+                    texture: "icons/BUTTESC1",
+                ),
+            },
+            on_click: [
+                "CloseWindow()",
+            ],
+            on_hover: [
+                "evt:Hint(\"Exit\")",
+            ],
+            bindings: {},
+            transparent_color: "cyan",
+            click_sound: "click",
+        )),
+        Image((
+            id: "icons/CHEST01",
+            position: (8.0, 8.0),
+            size: (460.0, 344.0),
+            z: 8,
+            states: {
+                "default": (
+                    texture: "icons/CHEST01",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/coinSM",
+            position: (113.0, 146.0),
+            size: (52.0, 31.0),
+            z: 11,
+            states: {
+                "clicked": (
+                    texture: "icons/coinSM",
+                ),
+                "default": (
+                    texture: "icons/coinSM",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+            click_sound: "tip",
+        )),
+    ],
+)

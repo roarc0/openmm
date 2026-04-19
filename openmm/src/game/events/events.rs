@@ -135,6 +135,25 @@ pub fn load_map_events(commands: &mut Commands, game_assets: &GameAssets, map_ba
         }
     };
 
+    // Merge out.evt events (outdoor map shared events)
+    if !indoor {
+        match openmm_data::EvtFile::parse(game_assets.assets(), "out") {
+            Ok(out) => {
+                info!("Loaded out.evt: {} events", out.events.len());
+                if let Some(ref mut map_evt) = evt {
+                    for (id, actions) in out.events {
+                        map_evt.events.entry(id).or_default().extend(actions);
+                    }
+                } else {
+                    evt = Some(out);
+                }
+            }
+            Err(e) => {
+                debug!("No out.evt: {}", e);
+            }
+        }
+    }
+
     // Merge global.evt events (map-independent global events)
     match openmm_data::EvtFile::parse(game_assets.assets(), "global") {
         Ok(global) => {

@@ -2,12 +2,14 @@
 
 use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
+use bevy::window::{CursorOptions, PrimaryWindow};
 
 use super::runtime::{ScreenActions, ScreenLayer, ScreenLayers};
 use super::ui_assets::UiAssets;
-use super::{Screen, ScreenElement, load_screen};
+use super::{Screen, ScreenElement, ScreenKind, load_screen};
 use crate::assets::GameAssets;
 use crate::game::optional::OptionalWrite;
+use crate::game::ui;
 use crate::system::config::GameConfig;
 
 use super::elements::{spawn_runtime_element, spawn_screen_crosshair, spawn_screen_music};
@@ -21,6 +23,7 @@ pub(super) fn menu_screen_setup(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
+    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
     commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
@@ -34,6 +37,7 @@ pub(super) fn menu_screen_setup(
         &mut images,
         &mut audio_sources,
         &cfg,
+        &mut cursor_query,
         &mut actions,
     );
 }
@@ -47,6 +51,7 @@ pub(super) fn loading_screen_setup(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
+    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
     commands.spawn((Camera2d, ScreenLayer("__camera__".into())));
@@ -60,6 +65,7 @@ pub(super) fn loading_screen_setup(
         &mut images,
         &mut audio_sources,
         &cfg,
+        &mut cursor_query,
         &mut actions,
     );
 }
@@ -73,6 +79,7 @@ pub(super) fn game_screen_setup(
     mut images: ResMut<Assets<Image>>,
     mut audio_sources: ResMut<Assets<AudioSource>>,
     mut layers: ResMut<ScreenLayers>,
+    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut actions: Option<MessageWriter<ScreenActions>>,
 ) {
     // UI camera renders on top of the 3D scene (order=1, no clear).
@@ -96,6 +103,7 @@ pub(super) fn game_screen_setup(
         &mut images,
         &mut audio_sources,
         &cfg,
+        &mut cursor_query,
         &mut actions,
     );
 }
@@ -109,6 +117,7 @@ pub(super) fn screen_teardown(
         commands.entity(entity).despawn();
     }
     layers.screens.clear();
+    layers.order.clear();
 }
 
 // ── Show / Hide / Load ──────────────────────────────────────────────────────
@@ -122,6 +131,7 @@ pub(super) fn show_screen(
     images: &mut Assets<Image>,
     audio_sources: &mut Assets<AudioSource>,
     cfg: &GameConfig,
+    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
     actions: &mut Option<MessageWriter<ScreenActions>>,
 ) {
     if layers.screens.contains_key(screen_id) {
@@ -174,7 +184,14 @@ pub(super) fn show_screen(
     // Preload assets for screens reachable from this one.
     preload_next_screens(&screen, game_assets);
 
+    let is_modal = screen.kind == ScreenKind::Modal;
     layers.screens.insert(screen_id.to_string(), screen);
+    layers.order.push(screen_id.to_string());
+
+    // Any modal overlay should free the cursor while it is visible.
+    if is_modal {
+        ui::grab_cursor(cursor_query, false);
+    }
 }
 
 pub(super) fn hide_screen(
@@ -182,12 +199,14 @@ pub(super) fn hide_screen(
     commands: &mut Commands,
     layers: &mut ScreenLayers,
     entities: &Query<(Entity, &ScreenLayer)>,
+    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
     actions: &mut Option<MessageWriter<ScreenActions>>,
 ) {
     let Some(screen) = layers.screens.remove(screen_id) else {
         warn!("HideScreen: '{}' not visible", screen_id);
         return;
     };
+    layers.order.retain(|id| id != screen_id);
 
     if !screen.on_close.is_empty()
         && let Some(writer) = actions
@@ -203,6 +222,13 @@ pub(super) fn hide_screen(
             commands.entity(entity).despawn();
         }
     }
+
+    // Restore gameplay cursor capture when closing the last modal in-game.
+    let in_game_hud_visible = layers.screens.contains_key("ingame");
+    let any_modal_visible = layers.screens.values().any(|s| s.kind == ScreenKind::Modal);
+    if in_game_hud_visible && !any_modal_visible {
+        ui::grab_cursor(cursor_query, true);
+    }
 }
 
 pub(super) fn load_screen_replace_all(
@@ -215,6 +241,7 @@ pub(super) fn load_screen_replace_all(
     images: &mut Assets<Image>,
     audio_sources: &mut Assets<AudioSource>,
     cfg: &GameConfig,
+    cursor_query: &mut Query<&mut CursorOptions, With<PrimaryWindow>>,
     actions: &mut Option<MessageWriter<ScreenActions>>,
 ) {
     // Despawn everything except the camera.
@@ -224,6 +251,7 @@ pub(super) fn load_screen_replace_all(
         }
     }
     layers.screens.clear();
+    layers.order.clear();
 
     show_screen(
         screen_id,
@@ -234,6 +262,7 @@ pub(super) fn load_screen_replace_all(
         images,
         audio_sources,
         cfg,
+        cursor_query,
         actions,
     );
 }

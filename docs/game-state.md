@@ -63,7 +63,10 @@ All start at level 1.
 - `name_pool: NpcNamePool` — name generation pool
 - `generated_npcs: HashMap<u32, GeneratedNpc>` — lazily-populated for peasant actors with npc_id ≥ 5000
 
-`global.evt` is always loaded and **merged** into the map EVT (entries from global extend, not override, per event_id).
+Event loading order (entries from later files extend, not override, per event_id):
+1. Map-specific `.evt` file (e.g., `oute3.evt`, `d01.evt`)
+2. `out.evt` (outdoor maps only; shared events for all outdoor maps)
+3. `global.evt` (always loaded; shared events for all maps)
 
 `TwoDEvents` (2devents.txt) is **NOT loaded for indoor maps** (`indoor=true` → `houses = None`). Building `SpeakInHouse` events still work but have no metadata.
 
