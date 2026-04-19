@@ -4,6 +4,7 @@ use bevy::picking::Pickable;
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
+use crate::editor::InEditor;
 use crate::screens::ui_assets::UiAssets;
 use crate::screens::{REF_H, REF_W, Screen, ScreenElement, load_texture_with_transparency, resolve_image_size};
 use crate::system::config::GameConfig;
@@ -163,7 +164,8 @@ pub fn rebuild_canvas(
         }
     }
     let fp = hasher.finish();
-    if *last_fingerprint == fp {
+    let has_existing_canvas = old_bg.iter().next().is_some() || old_elems.iter().next().is_some();
+    if *last_fingerprint == fp && has_existing_canvas {
         return;
     }
     *last_fingerprint = fp;
@@ -194,6 +196,7 @@ pub fn rebuild_canvas(
         Pickable::IGNORE,
         ZIndex(-2),
         CanvasBackground,
+        InEditor,
     ));
 
     // Elements.
@@ -236,6 +239,7 @@ fn spawn_element(
             z,
             marker,
             Pickable::IGNORE,
+            InEditor,
         ));
     } else if elem.as_video().is_some() {
         // Video placeholder: horizontal black/white stripes.
@@ -246,7 +250,7 @@ fn spawn_element(
             tile_y: true,
             stretch_value: 1.0,
         };
-        commands.spawn((label, stripe_img, node, z, marker, Pickable::IGNORE));
+        commands.spawn((label, stripe_img, node, z, marker, Pickable::IGNORE, InEditor));
     } else if let Some(img) = elem.as_image() {
         let tex_name = img.texture_for_state("default").unwrap_or("").to_string();
         let maybe_handle = if !tex_name.is_empty() {
@@ -268,7 +272,7 @@ fn spawn_element(
                         ..node.clone()
                     };
                     commands
-                        .spawn((label, clip_node, z, marker, Pickable::IGNORE))
+                        .spawn((label, clip_node, z, marker, Pickable::IGNORE, InEditor))
                         .with_children(|parent| {
                             parent.spawn((
                                 ImageNode::new(handle),
@@ -278,13 +282,30 @@ fn spawn_element(
                                     ..default()
                                 },
                                 Pickable::IGNORE,
+                                InEditor,
                             ));
                         });
                 } else {
-                    commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
+                    commands.spawn((
+                        label,
+                        ImageNode::new(handle),
+                        node,
+                        z,
+                        marker,
+                        Pickable::IGNORE,
+                        InEditor,
+                    ));
                 }
             } else {
-                commands.spawn((label, ImageNode::new(handle), node, z, marker, Pickable::IGNORE));
+                commands.spawn((
+                    label,
+                    ImageNode::new(handle),
+                    node,
+                    z,
+                    marker,
+                    Pickable::IGNORE,
+                    InEditor,
+                ));
             };
         } else if img.bindings.get("source").is_some() {
             // Bound element (minimap, etc.) — texture loaded at runtime, show transparent placeholder.
@@ -295,6 +316,7 @@ fn spawn_element(
                 z,
                 marker,
                 Pickable::IGNORE,
+                InEditor,
             ));
         } else {
             warn!(
@@ -308,6 +330,7 @@ fn spawn_element(
                 z,
                 marker,
                 Pickable::IGNORE,
+                InEditor,
             ));
         }
     }

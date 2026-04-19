@@ -175,7 +175,7 @@ pub fn quicksave(
 }
 
 pub fn debug_screenshot(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
-    if keys.just_pressed(KeyCode::F12) {
+    if keys.just_pressed(KeyCode::F11) {
         let path = format!(
             "./data/screenshots/screenshot_{}.png",
             chrono::Local::now().format("%Y%m%d_%H%M%S")

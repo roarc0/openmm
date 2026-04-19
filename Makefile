@@ -1,9 +1,12 @@
 .PHONY: build run editor release release-native run-release run-release-native check clippy fix fmt test lint clean dump_assets dump_sounds dump_saves dump_vid check-data test-ci profile-chrome profile-tracy patch_sounds patch-sounds
 
+DEV_FEATURES := openmm/dev
+EDITOR_FEATURES := "openmm/dev,openmm/editor"
+
 # --- Build ---
 
 build:
-	cargo build -p openmm --features openmm/dev
+	cargo build -p openmm --features $(DEV_FEATURES)
 
 release:
 	cargo build --release -p openmm
@@ -13,13 +16,13 @@ release-native:
 
 run:
 ifdef map
-	cargo run -p openmm --features openmm/dev -- --map $(map) --skip-intro true
+	cargo run -p openmm --features $(DEV_FEATURES) -- --map $(map) --skip-intro true
 else
-	cargo run -p openmm --features openmm/dev
+	cargo run -p openmm --features $(DEV_FEATURES)
 endif
 
 editor:
-	cargo run -p openmm --features "openmm/dev,openmm/editor" -- --editor --skip-intro true
+	cargo run -p openmm --features $(EDITOR_FEATURES) -- --editor --skip-intro true
 
 run-release:
 	cargo run --release -p openmm

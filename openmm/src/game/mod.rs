@@ -31,7 +31,7 @@ impl Plugin for InGamePlugin {
     fn build(&self, app: &mut App) {
         // UiMode initialized at top level so run conditions never fail.
         app.init_resource::<ui::UiState>()
-            .add_systems(Update, ui::tick_footer_text)
+            .add_systems(Update, ui::tick_footer_text.run_if(in_state(crate::GameState::Game)))
             .add_plugins((
                 RenderingPlugin,
                 MapPlugin,

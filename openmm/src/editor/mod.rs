@@ -10,12 +10,13 @@ mod overlay;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
-use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, egui};
+use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext, egui};
 
 use crate::GameState;
 use crate::assets::GameAssets;
-use crate::game::sound::{SoundManager, effects::EffectsPlugin};
+use crate::game::sound::SoundManager;
 use crate::screens::Screen;
+use crate::screens::ui_assets::UiAssets;
 
 /// Run condition: true when egui wants keyboard input (user typing in a text field).
 fn egui_wants_keyboard(egui_input: Option<Res<EguiWantsInput>>) -> bool {
@@ -24,7 +25,7 @@ fn egui_wants_keyboard(egui_input: Option<Res<EguiWantsInput>>) -> bool {
 
 /// Marker for all editor entities — despawned on editor exit.
 #[derive(Component)]
-struct InEditor;
+pub(crate) struct InEditor;
 
 /// Whether all egui UI is visible. Esc toggles.
 #[derive(Resource)]
@@ -35,6 +36,10 @@ impl Default for UiVisible {
         Self(true)
     }
 }
+
+/// Primary egui context entities that existed before entering editor mode.
+#[derive(Resource, Default)]
+struct PreviousPrimaryEguiContexts(Vec<Entity>);
 
 pub struct EditorPlugin;
 
@@ -52,6 +57,7 @@ impl Plugin for EditorPlugin {
         app.init_resource::<canvas::Selection>()
             .init_resource::<browser::BrowserState>()
             .init_resource::<UiVisible>()
+            .init_resource::<PreviousPrimaryEguiContexts>()
             .init_resource::<overlay::OverlayAction>()
             .insert_resource({
                 let original_id = Some(screen.id.clone());
@@ -65,7 +71,10 @@ impl Plugin for EditorPlugin {
             .init_resource::<clipboard::Clipboard>()
             .insert_resource(guides::Guides::from_config(&cfg))
             .insert_resource(cfg)
-            .add_plugins(EffectsPlugin)
+            .add_systems(
+                OnExit(GameState::Editor),
+                (crate::despawn_all::<InEditor>, restore_primary_egui_contexts).chain(),
+            )
             .add_systems(OnEnter(GameState::Editor), editor_setup)
             .add_systems(OnEnter(GameState::Editor), init_editor_sound_manager)
             .add_systems(
@@ -107,13 +116,40 @@ impl Plugin for EditorPlugin {
     }
 }
 
-fn editor_setup(mut commands: Commands) {
+fn editor_setup(
+    mut commands: Commands,
+    mut ui_visible: ResMut<UiVisible>,
+    mut ui_assets: ResMut<UiAssets>,
+    mut previous_primary: ResMut<PreviousPrimaryEguiContexts>,
+    primary_contexts: Query<Entity, With<PrimaryEguiContext>>,
+) {
+    ui_visible.0 = true;
+    ui_assets.clear_cache();
+    previous_primary.0.clear();
+    for entity in &primary_contexts {
+        previous_primary.0.push(entity);
+        commands.entity(entity).remove::<PrimaryEguiContext>();
+    }
+
     commands.spawn((
         Name::new("editor_camera"),
         Camera2d,
+        PrimaryEguiContext,
         bevy::picking::Pickable::IGNORE,
         InEditor,
     ));
+}
+
+fn restore_primary_egui_contexts(
+    mut commands: Commands,
+    mut previous_primary: ResMut<PreviousPrimaryEguiContexts>,
+    alive: Query<Entity>,
+) {
+    for entity in previous_primary.0.drain(..) {
+        if alive.get(entity).is_ok() {
+            commands.entity(entity).insert(PrimaryEguiContext);
+        }
+    }
 }
 
 fn init_editor_sound_manager(

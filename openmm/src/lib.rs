@@ -40,6 +40,7 @@ impl Plugin for GamePlugin {
         let initial_state = if editor_mode {
             #[cfg(feature = "editor")]
             {
+                bevy::log::info!("starting dedicated editor mode (--editor)");
                 GameState::Editor
             }
             #[cfg(not(feature = "editor"))]
@@ -48,8 +49,12 @@ impl Plugin for GamePlugin {
                 GameState::Menu
             }
         } else if cfg.map.is_some() {
+            #[cfg(feature = "editor")]
+            bevy::log::info!("starting game mode (editor is isolated; use --editor for screen editor)");
             GameState::Loading
         } else {
+            #[cfg(feature = "editor")]
+            bevy::log::info!("starting game mode (editor is isolated; use --editor for screen editor)");
             GameState::Menu
         };
 
@@ -61,21 +66,22 @@ impl Plugin for GamePlugin {
             .init_resource::<screens::ui_assets::UiAssets>()
             .add_plugins(EngineConfigPlugin);
 
+        // Insert state only after EngineConfigPlugin, which installs
+        // DefaultPlugins (including the state transition schedule).
+        // This must still happen before EditorPlugin is added so egui's first
+        // pass sees a valid GameState when starting directly in editor mode.
+        app.insert_state(initial_state);
+
+        // Editor mode is fully isolated from gameplay runtime: only editor
+        // systems/plugins are loaded when explicitly started with --editor.
         #[cfg(feature = "editor")]
         if editor_mode {
-            // State must be inserted before EditorPlugin so EguiPrimaryContextPass
-            // systems see GameState::Editor from the very first frame. If the state
-            // isn't ready when egui runs its first pass, the context may never
-            // initialize — causing a permanently frozen editor.
-            app.insert_state(initial_state);
             app.add_plugins(editor::EditorPlugin);
             return;
         }
 
-        // Game-only plugins — not loaded in editor mode.
+        // Game-only plugins — never loaded in dedicated editor mode.
         app.add_plugins((LoadingPlugin, InGamePlugin, screens::runtime::ScreenRuntimePlugin));
-
-        app.insert_state(initial_state);
     }
 }
 

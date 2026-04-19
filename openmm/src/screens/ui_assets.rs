@@ -25,6 +25,15 @@ pub struct UiAssets {
 }
 
 impl UiAssets {
+    /// Drop all cached UI handles and dimensions.
+    ///
+    /// Used by the optional screen editor when restarting its canvas context.
+    #[cfg(feature = "editor")]
+    pub fn clear_cache(&mut self) {
+        self.textures.clear();
+        self.dimensions.clear();
+    }
+
     /// Load a UI texture by name from the LOD icons archive.
     /// Handles both PCX and custom bitmap formats.
     /// Caches the result — subsequent calls return the cached handle.
@@ -36,7 +45,11 @@ impl UiAssets {
         cfg: &GameConfig,
     ) -> Option<Handle<Image>> {
         if let Some(handle) = self.textures.get(name) {
-            return Some(handle.clone());
+            if images.get(handle).is_some() {
+                return Some(handle.clone());
+            }
+            // Stale cache entry: handle no longer exists in Assets<Image>.
+            self.textures.remove(name);
         }
         let img = game_assets.lod().icon(name)?;
         let (w, h) = img.dimensions();
@@ -61,7 +74,11 @@ impl UiAssets {
         transform: impl FnOnce(&mut DynamicImage),
     ) -> Option<Handle<Image>> {
         if let Some(handle) = self.textures.get(cache_key) {
-            return Some(handle.clone());
+            if images.get(handle).is_some() {
+                return Some(handle.clone());
+            }
+            // Stale cache entry: transformed image was dropped from asset storage.
+            self.textures.remove(cache_key);
         }
         let mut img = game_assets.lod().icon(name)?;
         let (w, h) = img.dimensions();
@@ -70,7 +87,8 @@ impl UiAssets {
         bevy_img.sampler = hud_sampler(cfg);
         let handle = images.add(bevy_img);
         self.textures.insert(cache_key.to_string(), handle.clone());
-        self.dimensions.insert(name.to_string(), (w, h));
+        self.dimensions.insert(cache_key.to_string(), (w, h));
+        self.dimensions.entry(name.to_string()).or_insert((w, h));
         Some(handle)
     }
 
