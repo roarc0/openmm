@@ -5,6 +5,7 @@ use std::f32::consts::TAU;
 
 use crate::game::map::indoor::OccluderFaces;
 use crate::game::player::PlayerCamera;
+use crate::game::spawn::WorldObstacle;
 pub mod console;
 pub mod cpu_usage;
 pub mod hud;
@@ -142,6 +143,7 @@ pub fn draw_colliders(
     camera_query: Query<&GlobalTransform, With<PlayerCamera>>,
     mut occluder_faces: Option<ResMut<OccluderFaces>>,
     actors: Query<(&Transform, &crate::game::actors::Actor)>,
+    decorations: Query<(&Transform, &WorldObstacle), Without<crate::game::actors::Actor>>,
     door_colliders: Option<Res<crate::game::map::indoor::DoorColliders>>,
 ) {
     if !world_state.debug.show_events {
@@ -194,6 +196,21 @@ pub fn draw_colliders(
             let x = center.x + angle.cos() * radius;
             let z = center.z + angle.sin() * radius;
             gizmos.line(Vec3::new(x, y_bottom, z), Vec3::new(x, y_top, z), color);
+        }
+    }
+
+    // Decoration obstacle cylinders — orange.
+    let dec_color = Color::srgb(1.0, 0.5, 0.0);
+    for (tf, obs) in &decorations {
+        let center = tf.translation;
+        let y_bottom = center.y - ACTOR_BODY_HEIGHT * 0.5;
+        let y_top = center.y + ACTOR_BODY_HEIGHT * 0.5;
+        draw_ring(&mut gizmos, center, obs.radius, y_top, dec_color);
+        draw_ring(&mut gizmos, center, obs.radius, y_bottom, dec_color);
+        for angle in [0.0_f32, TAU * 0.25, TAU * 0.5, TAU * 0.75] {
+            let x = center.x + angle.cos() * obs.radius;
+            let z = center.z + angle.sin() * obs.radius;
+            gizmos.line(Vec3::new(x, y_bottom, z), Vec3::new(x, y_top, z), dec_color);
         }
     }
 

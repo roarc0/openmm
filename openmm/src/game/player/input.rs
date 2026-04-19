@@ -1,3 +1,4 @@
+use bevy::ecs::system::SystemParam;
 use bevy::input::gamepad::{GamepadAxis, GamepadButton, GamepadInput};
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
@@ -6,6 +7,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use crate::game::map::collision::{
     BuildingColliders, MAX_STEP_UP, TerrainHeightMap, WaterMap, WaterWalking, sample_terrain_height,
 };
+use crate::game::spawn::WorldObstacle;
 use crate::prepare::loading::PreparedIndoorWorld;
 use crate::system::config::GameConfig;
 
@@ -13,6 +15,20 @@ use super::{
     MouseLookEnabled, MouseSensitivity, Player, PlayerCamera, PlayerKeyBindings, PlayerPhysics, PlayerSettings,
     SpeedMultiplier,
 };
+
+// --- Map collision bundle ---
+
+/// All optional per-map collision resources bundled into a single SystemParam
+/// to stay within Bevy's 16-parameter limit on system functions.
+#[derive(SystemParam)]
+pub(super) struct MapColliders<'w> {
+    indoor_world: Option<Res<'w, PreparedIndoorWorld>>,
+    height_map: Option<Res<'w, TerrainHeightMap>>,
+    colliders: Option<Res<'w, BuildingColliders>>,
+    door_colliders: Option<Res<'w, crate::game::map::indoor::DoorColliders>>,
+    water_map: Option<Res<'w, WaterMap>>,
+    water_walking: Option<Res<'w, WaterWalking>>,
+}
 
 // --- Constants ---
 
@@ -133,6 +149,36 @@ fn move_with_substeps(
     pos
 }
 
+/// Push `pos` out of all `WorldObstacle` cylinders that overlap it in XZ.
+///
+/// Each obstacle is a vertical cylinder centred at `obs_tf.translation` with
+/// the given radius. A Y-height guard skips obstacles whose centre is more
+/// than `2 * eye_height` away vertically (different floors / aerial actors).
+fn push_out_of_obstacles(
+    mut pos: Vec3,
+    player_radius: f32,
+    eye_height: f32,
+    obstacles: &Query<(&Transform, &WorldObstacle), Without<Player>>,
+) -> Vec3 {
+    for (obs_tf, obs) in obstacles.iter() {
+        let obs_pos = obs_tf.translation;
+        if (obs_pos.y - pos.y).abs() > eye_height * 2.0 {
+            continue;
+        }
+        let dx = pos.x - obs_pos.x;
+        let dz = pos.z - obs_pos.z;
+        let dist_sq = dx * dx + dz * dz;
+        let min_dist = player_radius + obs.radius;
+        if dist_sq < min_dist * min_dist && dist_sq > 0.001 {
+            let dist = dist_sq.sqrt();
+            let push = min_dist - dist;
+            pos.x += dx / dist * push;
+            pos.z += dz / dist * push;
+        }
+    }
+    pos
+}
+
 pub(super) fn player_movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -141,12 +187,8 @@ pub(super) fn player_movement(
     key_bindings: Res<PlayerKeyBindings>,
     world_state: Res<crate::game::state::WorldState>,
     speed_mul: Res<SpeedMultiplier>,
-    indoor_world: Option<Res<PreparedIndoorWorld>>,
-    height_map: Option<Res<TerrainHeightMap>>,
-    colliders: Option<Res<BuildingColliders>>,
-    door_colliders: Option<Res<crate::game::map::indoor::DoorColliders>>,
-    water_map: Option<Res<WaterMap>>,
-    water_walking: Option<Res<WaterWalking>>,
+    map: MapColliders<'_>,
+    obstacles: Query<(&Transform, &WorldObstacle), Without<Player>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     gamepads: Query<&Gamepad>,
     mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
@@ -180,7 +222,7 @@ pub(super) fn player_movement(
     } else {
         settings.speed
     };
-    if indoor_world.is_some() {
+    if map.indoor_world.is_some() {
         base_speed *= INDOOR_SPEED_SCALE;
     }
     base_speed *= speed_mul.0;
@@ -243,14 +285,16 @@ pub(super) fn player_movement(
             if world_state.player.fly_mode {
                 let from = transform.translation;
                 let dest = from + movement;
-                transform.translation = move_with_substeps(
+                let resolved = move_with_substeps(
                     from,
                     dest,
                     settings.collision_radius,
                     settings.eye_height,
-                    colliders.as_deref(),
-                    door_colliders.as_deref(),
+                    map.colliders.as_deref(),
+                    map.door_colliders.as_deref(),
                 );
+                transform.translation =
+                    push_out_of_obstacles(resolved, settings.collision_radius, settings.eye_height, &obstacles);
             } else {
                 let from = transform.translation;
                 let mut dest = from + movement;
@@ -258,14 +302,15 @@ pub(super) fn player_movement(
                 // Terrain slope check — block movement if slope angle > ~35 degrees.
                 // Skip entirely when the player is on BSP floor geometry (e.g. inside a castle):
                 // the terrain heightmap doesn't match the building floor and would wrongly block stairs.
-                let on_bsp_floor = colliders
+                let on_bsp_floor = map
+                    .colliders
                     .as_ref()
                     .and_then(|c| {
                         let feet_y = from.y - settings.eye_height;
                         c.floor_height_at(from.x, from.z, feet_y, MAX_STEP_UP)
                     })
                     .is_some();
-                if !on_bsp_floor && let Some(ref hm) = height_map {
+                if !on_bsp_floor && let Some(ref hm) = map.height_map {
                     let current_ground = sample_terrain_height(&hm.heights, from.x, from.z);
                     let dest_ground = sample_terrain_height(&hm.heights, dest.x, dest.z);
                     let height_diff = dest_ground - current_ground;
@@ -294,15 +339,17 @@ pub(super) fn player_movement(
                 } // !on_bsp_floor
 
                 // Water check
-                let can_enter_water =
-                    water_walking.as_ref().is_some_and(|w| w.0) || world_state.player.fly_mode || !physics.on_ground;
+                let can_enter_water = map.water_walking.as_ref().is_some_and(|w| w.0)
+                    || world_state.player.fly_mode
+                    || !physics.on_ground;
                 if !can_enter_water
-                    && let Some(ref wm) = water_map
+                    && let Some(ref wm) = map.water_map
                     && wm.is_water_at(dest.x, dest.z)
                     && !wm.is_water_at(from.x, from.z)
                 {
                     let feet_y = from.y - settings.eye_height;
-                    let on_bridge = colliders
+                    let on_bridge = map
+                        .colliders
                         .as_ref()
                         .and_then(|c| c.floor_height_at(dest.x, dest.z, feet_y, MAX_STEP_UP))
                         .is_some();
@@ -316,9 +363,11 @@ pub(super) fn player_movement(
                     dest,
                     settings.collision_radius,
                     settings.eye_height,
-                    colliders.as_deref(),
-                    door_colliders.as_deref(),
+                    map.colliders.as_deref(),
+                    map.door_colliders.as_deref(),
                 );
+                let resolved =
+                    push_out_of_obstacles(resolved, settings.collision_radius, settings.eye_height, &obstacles);
                 transform.translation.x = resolved.x;
                 transform.translation.z = resolved.z;
             }
@@ -342,10 +391,10 @@ pub(super) fn player_movement(
             if dy.abs() > 0.0 {
                 let from = transform.translation;
                 let mut dest = from + Vec3::new(0.0, dy, 0.0);
-                if let Some(ref c) = colliders {
+                if let Some(ref c) = map.colliders {
                     dest = c.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
                 }
-                if let Some(ref dc) = door_colliders {
+                if let Some(ref dc) = map.door_colliders {
                     dest = dc.resolve_movement(from, dest, settings.collision_radius, settings.eye_height);
                 }
                 transform.translation = dest;

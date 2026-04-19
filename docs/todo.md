@@ -9,6 +9,7 @@
 - [ ] **NPC time-of-day schedules** — AI schedule-following system
 - [ ] **Faction and diplomacy** — Diplomacy table, aggression logic
 - [ ] **Random encounters** — Camping interrupt monster spawns
+- [ ] **Actor-actor collision** — Prevent actors from occupying the same XZ space. Requires an O(n²) spatial query (or spatial grid) per frame across all `Actor` entities; skip dead/flying actors. Not yet implemented — player-vs-actor collision is done via `WorldObstacle`, but actor-to-actor pushout needs a dedicated system.
 
 ## Rendering & Visual
 - [ ] **Texture animation (TFT)** — Terrain shader animated tile cycling

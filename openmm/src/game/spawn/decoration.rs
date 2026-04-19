@@ -16,7 +16,8 @@ use crate::game::sprites::{
     loading::{self as sprites, AlphaMask, SpriteSheet},
 };
 
-use super::SpawnCtx;
+use super::{SpawnCtx, WorldObstacle};
+use crate::game::actors::collision_radius_from_sprite_width;
 
 /// Cached static decoration materials: sprite name → (material, mesh, w, h, mask).
 pub type DecSpriteCache = HashMap<String, (Handle<SpriteMaterial>, Handle<Mesh>, f32, f32, Arc<AlphaMask>)>;
@@ -88,6 +89,11 @@ fn spawn_directional(
 
     apply_shadow_config(commands, ent, ctx.billboard_shadows);
     attach_common(commands, ent, dec, pos, dec_pos.y, 0.0, 0.0, None);
+    if !dec.no_block_movement {
+        commands.entity(ent).insert(WorldObstacle {
+            radius: collision_radius_from_sprite_width(sw),
+        });
+    }
     attach_light_as_child(commands, ent, dec, ctx.shadows);
 
     if let Some(p) = parent {
@@ -152,6 +158,11 @@ fn spawn_animated(
     apply_shadow_config(commands, ent, ctx.billboard_shadows);
     attach_common(commands, ent, dec, pos, dec_pos.y, 0.0, 0.0, None);
     // Animated flames don't get DecorFlicker — frame cycling IS the visual effect.
+    if !dec.no_block_movement {
+        commands.entity(ent).insert(WorldObstacle {
+            radius: collision_radius_from_sprite_width(w),
+        });
+    }
 
     // ddeclist light handled by attach_light_as_child.
     attach_light_as_child(commands, ent, dec, ctx.shadows);
@@ -222,6 +233,11 @@ fn spawn_static(
 
     apply_shadow_config(commands, ent, ctx.billboard_shadows);
     attach_common(commands, ent, dec, pos, dec_pos.y, w / 2.0, h / 2.0, Some(mask));
+    if !dec.no_block_movement {
+        commands.entity(ent).insert(WorldObstacle {
+            radius: collision_radius_from_sprite_width(w),
+        });
+    }
 
     // DecorFlicker for statics with a flicker rate.
     if dec.flicker_rate > 0.0 {

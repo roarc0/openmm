@@ -10,7 +10,7 @@ use crate::game::sprites::{
     loading::{self as sprites, SpriteSheet},
 };
 
-use super::SpawnCtx;
+use super::{SpawnCtx, WorldObstacle};
 
 /// Whether this actor is a monster or an NPC — determines entity name,
 /// `EntityKind` component, and which interactable marker gets attached.
@@ -105,6 +105,9 @@ pub fn spawn_actor(
             Billboard,
             SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
             MonsterAiMode::Wander,
+            WorldObstacle {
+                radius: collision_radius_from_sprite_width(sw),
+            },
             Actor::new(ActorParams {
                 name: params.name.to_string(),
                 hp: params.hp,

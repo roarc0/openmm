@@ -9,6 +9,18 @@ pub mod decoration;
 
 use bevy::prelude::*;
 
+/// Cylindrical collision obstacle used for player-vs-world XZ pushout.
+///
+/// Attached to actors and blocking decorations. The player movement system
+/// queries all `WorldObstacle` entities and pushes the player out of any
+/// cylinder it overlaps (circle-circle rejection in XZ, with a Y height
+/// guard to skip obstacles on distant floors/platforms).
+#[derive(Component, Clone, Copy)]
+pub struct WorldObstacle {
+    /// Horizontal collision radius in world units.
+    pub radius: f32,
+}
+
 use crate::assets::GameAssets;
 use crate::game::sprites::loading::SpriteCache;
 use crate::game::sprites::material::SpriteMaterial;
