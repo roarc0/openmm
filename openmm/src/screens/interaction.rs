@@ -163,9 +163,10 @@ pub(super) fn hover_actions(
     // Check ALL hovered elements (not just changed) to keep the flag stable.
     let any_hovered = all_query.iter().any(|(interaction, rt_elem)| {
         matches!(interaction, Interaction::Hovered | Interaction::Pressed)
-            && layers.screens.get(&rt_elem.screen_id).is_some_and(|screen| {
-                !screen.elements[rt_elem.index].on_hover().is_empty()
-            })
+            && layers
+                .screens
+                .get(&rt_elem.screen_id)
+                .is_some_and(|screen| !screen.elements[rt_elem.index].on_hover().is_empty())
     });
     ui_hovered.0 = any_hovered;
 

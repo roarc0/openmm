@@ -14,8 +14,8 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContex
 
 use crate::GameState;
 use crate::assets::GameAssets;
-use crate::game::sound::effects::EffectsPlugin;
 use crate::game::sound::SoundManager;
+use crate::game::sound::effects::EffectsPlugin;
 use crate::screens::Screen;
 use crate::screens::ui_assets::UiAssets;
 
