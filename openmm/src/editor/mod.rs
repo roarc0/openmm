@@ -14,6 +14,7 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContex
 
 use crate::GameState;
 use crate::assets::GameAssets;
+use crate::game::sound::effects::EffectsPlugin;
 use crate::game::sound::SoundManager;
 use crate::screens::Screen;
 use crate::screens::ui_assets::UiAssets;
@@ -48,6 +49,7 @@ impl Plugin for EditorPlugin {
         if !app.is_plugin_added::<EguiPlugin>() {
             app.add_plugins(EguiPlugin::default());
         }
+        app.add_plugins(EffectsPlugin);
 
         // Load config once and keep as resource.
         let cfg = io::EditorConfig::load_from_disk();

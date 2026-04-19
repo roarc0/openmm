@@ -272,7 +272,9 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 ### Developer console
 
 - Toggle with Tab (only when `cfg.console = true`). The console occupies the top 40% (`CONSOLE_HEIGHT_FRACTION = 0.4`) of the inner viewport.
-- Screen editor is a separate startup mode. Launch with `--editor` (or `make editor`) in builds that include the `openmm/editor` feature.
+- Screen editor is a separate startup mode. Launch with `--editor` (or `make run-editor`) in builds that include the `openmm/editor` feature.
+- Editor sound preview uses the sound effects handler path (`PlayUiSoundEvent`) even in dedicated editor mode.
+- Editor key binding UI accepts canonical keys up to `F11` (not `F12`).
 - Command history: up/down arrow keys navigate; `saved_input` preserves the draft while browsing.
 - Max output lines: `MAX_OUTPUT_LINES = 50`. Beyond this, oldest lines are removed.
 - Available commands include: `load <map>`, `msaa <0/1/2/4>`, `fullscreen`, `borderless`, `windowed`, `exit`, `lighting <enhanced|flat>`, `fog <start> <end>`, `music <vol>`, `sfx <vol>`, `render_scale <0.25–1.0>` (alias `rs`), and others. Type `help` in-game for the current list.

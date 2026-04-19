@@ -2,17 +2,23 @@ use bevy::prelude::*;
 
 /// Map a key name string to a Bevy KeyCode.
 pub fn parse_key_code(name: &str) -> Option<KeyCode> {
-    Some(match name {
-        "Escape" => KeyCode::Escape,
-        "Return" | "Enter" => KeyCode::Enter,
-        "Space" => KeyCode::Space,
-        "Tab" => KeyCode::Tab,
-        "Backspace" => KeyCode::Backspace,
-        "Delete" => KeyCode::Delete,
-        "Up" => KeyCode::ArrowUp,
-        "Down" => KeyCode::ArrowDown,
-        "Left" => KeyCode::ArrowLeft,
-        "Right" => KeyCode::ArrowRight,
+    let n = name.trim();
+    if n.is_empty() {
+        return None;
+    }
+    let upper = n.to_ascii_uppercase();
+
+    Some(match upper.as_str() {
+        "ESC" | "ESCAPE" => KeyCode::Escape,
+        "RETURN" | "ENTER" => KeyCode::Enter,
+        "SPACE" => KeyCode::Space,
+        "TAB" => KeyCode::Tab,
+        "BACKSPACE" => KeyCode::Backspace,
+        "DEL" | "DELETE" => KeyCode::Delete,
+        "UP" => KeyCode::ArrowUp,
+        "DOWN" => KeyCode::ArrowDown,
+        "LEFT" => KeyCode::ArrowLeft,
+        "RIGHT" => KeyCode::ArrowRight,
         // Letters
         "A" => KeyCode::KeyA,
         "B" => KeyCode::KeyB,
@@ -65,7 +71,7 @@ pub fn parse_key_code(name: &str) -> Option<KeyCode> {
         "F11" => KeyCode::F11,
         "F12" => KeyCode::F12,
         other => {
-            warn!("unknown key name: '{}'", other);
+            warn!("unknown key name: '{}'", n);
             return None;
         }
     })
@@ -137,4 +143,23 @@ pub fn get_key_name(code: KeyCode) -> Option<&'static str> {
         KeyCode::F12 => "F12",
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_key_code_accepts_escape_aliases() {
+        assert_eq!(parse_key_code("Escape"), Some(KeyCode::Escape));
+        assert_eq!(parse_key_code("Esc"), Some(KeyCode::Escape));
+        assert_eq!(parse_key_code("esc"), Some(KeyCode::Escape));
+    }
+
+    #[test]
+    fn parse_key_code_is_case_insensitive() {
+        assert_eq!(parse_key_code("return"), Some(KeyCode::Enter));
+        assert_eq!(parse_key_code("f11"), Some(KeyCode::F11));
+        assert_eq!(parse_key_code("n"), Some(KeyCode::KeyN));
+    }
 }

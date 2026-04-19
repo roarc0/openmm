@@ -21,7 +21,7 @@ else
 	cargo run -p openmm --features $(DEV_FEATURES)
 endif
 
-editor:
+run-editor:
 	cargo run -p openmm --features $(EDITOR_FEATURES) -- --editor --skip-intro true
 
 run-release:
@@ -30,8 +30,8 @@ run-release:
 run-release-native:
 	RUSTFLAGS="-C target-cpu=native $$RUSTFLAGS" cargo run --release -p openmm
 
-run_orig:
-	./scripts/run_orig.sh
+run-og:
+	./scripts/run_og.sh
 
 # --- Profiling ---
 

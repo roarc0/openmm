@@ -33,6 +33,10 @@ pub const RED: [u8; 4] = [255, 60, 60, 255];
 pub const GREEN: [u8; 4] = [80, 255, 80, 255];
 /// Blue text color (NPC names, links).
 pub const BLUE: [u8; 4] = [100, 150, 255, 255];
+/// Cyan text color.
+pub const CYAN: [u8; 4] = [80, 240, 255, 255];
+/// Magenta text color.
+pub const MAGENTA: [u8; 4] = [255, 120, 255, 255];
 
 /// All MM6 bitmap fonts loaded from the LOD archive.
 #[derive(Resource)]

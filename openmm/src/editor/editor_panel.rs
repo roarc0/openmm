@@ -12,16 +12,16 @@ use bevy_inspector_egui::bevy_egui::{EguiContexts, egui};
 use super::canvas::EditorScreen;
 use super::guides::Guides;
 use super::io::EditorConfig;
-use crate::game::controls::get_key_name;
+use crate::game::controls::{get_key_name, parse_key_code};
 
 pub fn editor_panel_ui(
     mut contexts: EguiContexts,
     mut editor: ResMut<EditorScreen>,
     mut guides: ResMut<Guides>,
     mut cfg: ResMut<EditorConfig>,
-    keys: Res<ButtonInput<KeyCode>>,
     mut new_key_name: Local<String>,
-    mut capturing_key: Local<Option<String>>,
+    mut new_key_action: Local<String>,
+    mut key_feedback: Local<String>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
@@ -134,31 +134,27 @@ pub fn editor_panel_ui(
                 let mut keys_to_remove: Option<String> = None;
                 let mut keys_to_rename: Option<(String, String)> = None;
 
-                // Handle key capture
-                if let Some(old_key) = capturing_key.clone() {
-                    ui.group(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new(format!("Listening for key (capturing for '{}')...", old_key))
-                                    .color(egui::Color32::from_rgb(255, 128, 0)),
-                            );
-                            if ui.button("Cancel").clicked() {
-                                *capturing_key = None;
-                            }
-                        });
+                ui.small("Use canonical names (Escape, Enter, Up, F1..F11, A..Z, 0..9). Aliases like Esc/Return are accepted.");
 
-                        // Listen for any key press
-                        if let Some(code) = keys.get_just_pressed().next() {
-                            if let Some(new_name) = get_key_name(*code) {
-                                if !editor.screen.keys.contains_key(new_name) {
-                                    keys_to_rename = Some((old_key.clone(), new_name.to_string()));
-                                }
-                                *capturing_key = None;
+                ui.horizontal_wrapped(|ui| {
+                    ui.small("Quick add:");
+                    for quick in ["Escape", "Enter", "Space", "Tab", "Up", "Down", "Left", "Right"] {
+                        if ui.small_button(quick).clicked() {
+                            if !editor.screen.keys.contains_key(quick) {
+                                editor.screen.keys.insert(quick.to_string(), vec![String::new()]);
+                                editor.dirty = true;
+                                *key_feedback = format!("Added key '{}'", quick);
+                            } else {
+                                *key_feedback = format!("Key '{}' already exists", quick);
                             }
                         }
-                    });
-                    ui.separator();
+                    }
+                });
+
+                if !key_feedback.is_empty() {
+                    ui.label(egui::RichText::new(key_feedback.as_str()).color(egui::Color32::from_rgb(220, 220, 120)));
                 }
+                ui.separator();
 
                 let keys_list: Vec<String> = editor.screen.keys.keys().cloned().collect();
                 for key in keys_list {
@@ -168,12 +164,10 @@ pub fn editor_panel_ui(
                     ui.group(|ui| {
                         ui.horizontal(|ui| {
                             let mut current_key = key.clone();
-                            if ui.text_edit_singleline(&mut current_key).changed() {
+                            let response = ui.text_edit_singleline(&mut current_key);
+                            let commit = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                            if commit {
                                 keys_to_rename = Some((key.clone(), current_key));
-                            }
-
-                            if ui.small_button("\u{2328}").on_hover_text("Capture Key Press").clicked() {
-                                *capturing_key = Some(key.clone());
                             }
 
                             if ui.small_button("\u{2715}").on_hover_text("Remove Shortcut").clicked() {
@@ -181,6 +175,7 @@ pub fn editor_panel_ui(
                             }
                         });
 
+                        ui.small("Actions for this key:");
                         action_list_editor(ui, &mut actions, &mut actions_dirty);
                         if actions_dirty {
                             editor.screen.keys.insert(key, actions);
@@ -194,34 +189,34 @@ pub fn editor_panel_ui(
                     editor.dirty = true;
                 }
                 if let Some((old, new)) = keys_to_rename {
-                    if !new.is_empty() && old != new && !editor.screen.keys.contains_key(&new) {
-                        if let Some(actions) = editor.screen.keys.remove(&old) {
-                            editor.screen.keys.insert(new, actions);
+                    if let Some(canonical) = canonical_key_name(&new) {
+                        if old != canonical
+                            && !editor.screen.keys.contains_key(&canonical)
+                            && let Some(actions) = editor.screen.keys.remove(&old)
+                        {
+                            editor.screen.keys.insert(canonical.clone(), actions);
                             editor.dirty = true;
+                            *key_feedback = format!("Renamed '{}' -> '{}'", old, canonical);
                         }
+                    } else {
+                        *key_feedback = format!("Unknown key '{}'. Try Escape, Enter, arrows, F1..F11, A..Z, 0..9", new.trim());
                     }
                 }
 
+                ui.label("Add key with first action:");
                 ui.horizontal(|ui| {
                     let enter_pressed = ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    if ui
-                        .add(egui::TextEdit::singleline(&mut *new_key_name).hint_text("Enter key name (e.g. Escape)"))
+                    let key_commit = ui
+                        .add(egui::TextEdit::singleline(&mut *new_key_name).hint_text("Key (e.g. Escape)"))
                         .lost_focus()
-                        && enter_pressed
-                    {
-                        if !new_key_name.is_empty() && !editor.screen.keys.contains_key(&*new_key_name) {
-                            editor.screen.keys.insert(new_key_name.clone(), vec![]);
-                            editor.dirty = true;
-                            new_key_name.clear();
-                        }
-                    }
+                        && enter_pressed;
+                    let action_commit = ui
+                        .add(egui::TextEdit::singleline(&mut *new_key_action).hint_text("Action (e.g. LoadScreen(\"menu\"))"))
+                        .lost_focus()
+                        && enter_pressed;
 
-                    if ui.button("+ Add Key").clicked() && !new_key_name.is_empty() {
-                        if !editor.screen.keys.contains_key(&*new_key_name) {
-                            editor.screen.keys.insert(new_key_name.clone(), vec![]);
-                            editor.dirty = true;
-                            new_key_name.clear();
-                        }
+                    if key_commit || action_commit || ui.button("+ Add Key").clicked() {
+                        add_key_binding(&mut editor, &mut new_key_name, &mut new_key_action, &mut key_feedback);
                     }
                 });
             });
@@ -268,6 +263,49 @@ pub fn editor_panel_ui(
     }
 }
 
+fn canonical_key_name(raw: &str) -> Option<String> {
+    let name = parse_key_code(raw).and_then(get_key_name)?;
+    if name == "F12" {
+        return None;
+    }
+    Some(name.to_string())
+}
+
+fn add_key_binding(
+    editor: &mut EditorScreen,
+    new_key_name: &mut String,
+    new_key_action: &mut String,
+    key_feedback: &mut String,
+) {
+    let raw = new_key_name.trim();
+    if raw.is_empty() {
+        return;
+    }
+
+    let Some(canonical) = canonical_key_name(raw) else {
+        *key_feedback = format!("Unknown key '{}'. Try Escape, Enter, arrows, F1..F11, A..Z, 0..9", raw);
+        return;
+    };
+
+    if editor.screen.keys.contains_key(&canonical) {
+        *key_feedback = format!("Key '{}' already exists", canonical);
+        return;
+    }
+
+    let first_action = new_key_action.trim();
+    let actions = if first_action.is_empty() {
+        vec![String::new()]
+    } else {
+        vec![first_action.to_string()]
+    };
+
+    editor.screen.keys.insert(canonical.clone(), actions);
+    editor.dirty = true;
+    *new_key_name = String::new();
+    *new_key_action = String::new();
+    *key_feedback = format!("Added key '{}'", canonical);
+}
+
 /// Reusable action list editor (add/remove/edit string actions).
 pub fn action_list_editor(ui: &mut egui::Ui, actions: &mut Vec<String>, dirty: &mut bool) {
     let presets = [
@@ -293,7 +331,10 @@ pub fn action_list_editor(ui: &mut egui::Ui, actions: &mut Vec<String>, dirty: &
     for i in 0..actions.len() {
         let mut action = actions[i].clone();
         ui.horizontal(|ui| {
-            if ui.text_edit_singleline(&mut action).changed() {
+            if ui
+                .add(egui::TextEdit::singleline(&mut action).hint_text("Event/action, e.g. LoadScreen(\"menu\")"))
+                .changed()
+            {
                 actions[i] = action.clone();
                 *dirty = true;
             }
@@ -319,7 +360,7 @@ pub fn action_list_editor(ui: &mut egui::Ui, actions: &mut Vec<String>, dirty: &
         actions.remove(i);
         *dirty = true;
     }
-    if ui.small_button("+ Add").clicked() {
+    if ui.small_button("+ Add Action").clicked() {
         actions.push(String::new());
         *dirty = true;
     }

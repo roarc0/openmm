@@ -1,5 +1,10 @@
 (
     id: "segue",
+    keys: {
+        "Escape": [
+            "LoadScreen(\"menu\")",
+        ],
+    },
     elements: [
         Image((
             id: "icons/Segue_bg.pcx",
