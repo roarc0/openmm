@@ -10,6 +10,7 @@ use crate::assets::GameAssets;
 use crate::game::map::coords::mm6_position_to_bevy;
 use crate::game::optional::OptionalWrite;
 use crate::game::spawn::SpawnCtx;
+use crate::game::map::collision::BuildingColliders;
 use crate::game::spawn::decoration::{DecSpriteCache, spawn_decoration};
 use crate::game::sprites::loading as sprites;
 use crate::game::sprites::material::SpriteMaterial;
@@ -83,6 +84,7 @@ pub(super) fn lazy_spawn(
     mut progress: ResMut<SpawnProgress>,
     mut sound_events: Option<MessageWriter<crate::game::sound::effects::PlaySoundEvent>>,
     mut map_events: Option<ResMut<crate::game::events::MapEvents>>,
+    colliders: Option<Res<BuildingColliders>>,
     cfg: Res<crate::system::config::GameConfig>,
 ) {
     let Some(mut pending) = pending else {
@@ -173,6 +175,7 @@ pub(super) fn lazy_spawn(
         time_budget,
         batch_max,
         terrain_entity,
+        colliders.as_deref(),
         &mut actor_idx,
         &mut spawned,
         &mut map_events,
@@ -186,6 +189,7 @@ pub(super) fn lazy_spawn(
         time_budget,
         batch_max,
         terrain_entity,
+        colliders.as_deref(),
         &mut monster_idx,
         &mut spawned,
     );

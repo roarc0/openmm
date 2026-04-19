@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use crate::game::spawn::SpawnCtx;
 use crate::game::spawn::actor::{ActorKind, ActorSpawnParams, spawn_actor};
+use crate::game::map::collision::{BuildingColliders, probe_ground_height};
 use crate::prepare::loading::PreparedWorld;
 
 use super::lazy_spawn::PendingSpawns;
@@ -20,6 +21,7 @@ pub(super) fn spawn_npc_actors(
     time_budget: f32,
     batch_max: usize,
     terrain_entity: Entity,
+    colliders: Option<&BuildingColliders>,
     actor_idx: &mut usize,
     spawned: &mut usize,
     map_events: &mut Option<ResMut<crate::game::events::MapEvents>>,
@@ -34,9 +36,9 @@ pub(super) fn spawn_npc_actors(
         };
 
         if actor.is_monster() {
-            let ground_y = crate::game::map::collision::probe_ground_height(
+            let ground_y = probe_ground_height(
                 &prepared.map.height_map[..],
-                None,
+                colliders,
                 actor.position[0] as f32,
                 -(actor.position[1] as f32),
             )
@@ -74,9 +76,9 @@ pub(super) fn spawn_npc_actors(
 
         // --- NPC branch: peasant identity logic stays, entity spawn delegated ---
 
-        let ground_y = crate::game::map::collision::probe_ground_height(
+        let ground_y = probe_ground_height(
             &prepared.map.height_map[..],
-            None,
+            colliders,
             actor.position[0] as f32,
             -(actor.position[1] as f32),
         )
@@ -163,6 +165,7 @@ pub(super) fn spawn_odm_monsters(
     time_budget: f32,
     batch_max: usize,
     terrain_entity: Entity,
+    colliders: Option<&BuildingColliders>,
     monster_idx: &mut usize,
     spawned: &mut usize,
 ) {
@@ -180,7 +183,7 @@ pub(super) fn spawn_odm_monsters(
             mon.spawn_position[0] as f32 + mon.spawn_radius as f32 * angle.cos(),
             -(mon.spawn_position[1] as f32 + mon.spawn_radius as f32 * angle.sin()),
         );
-        let ground_y = crate::game::map::collision::probe_ground_height(&prepared.map.height_map[..], None, wx, wz);
+        let ground_y = probe_ground_height(&prepared.map.height_map[..], colliders, wx, wz);
         let ground_pos = Vec3::new(wx, ground_y, wz);
 
         let params = ActorSpawnParams {
@@ -209,5 +212,29 @@ pub(super) fn spawn_odm_monsters(
         if spawn_actor(commands, ctx, &params, Some(terrain_entity)).is_some() {
             *spawned += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::map::collision::CollisionTriangle;
+
+    #[test]
+    fn probe_ground_height_uses_bsp_floor_for_outdoor_spawn() {
+        let mut colliders = BuildingColliders::default();
+        colliders.floors.push(CollisionTriangle::new(
+            Vec3::new(-256.0, 900.0, -256.0),
+            Vec3::new(256.0, 900.0, -256.0),
+            Vec3::new(-256.0, 900.0, 256.0),
+            Vec3::Y,
+        ));
+        colliders.build_grid();
+
+        // Flat terrain at y=0. A spawn over a balcony footprint must resolve to
+        // the BSP floor height, not the terrain height.
+        let hm = vec![0_u8; 128 * 128];
+        let y = probe_ground_height(&hm, Some(&colliders), 0.0, 0.0);
+        assert_eq!(y, 900.0);
     }
 }

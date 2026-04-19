@@ -177,6 +177,10 @@ All fixed outdoor monsters are loaded from the DDM file (`oute3.ddm`, etc.) via
 exact position and monlist_id (which directly encodes the variant). There is no
 generation from ODM spawn points for fixed map monsters.
 
+Outdoor actor spawn height resolves from terrain plus BSP building floors at the
+spawn XZ, so actors authored on balconies and raised walkways spawn at the
+correct elevation instead of falling back to terrain.
+
 ODM spawn points (`spawn_type=3`) describe **random encounter** templates. They are not
 used for the monsters the player sees on the map. `Monsters::new()` parses ODM spawn
 points and is reserved for future random encounter implementation.
