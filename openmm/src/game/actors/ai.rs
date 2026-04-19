@@ -40,8 +40,6 @@ const PROBE_OFFSETS_DEG: &[f32] = &[45.0, -45.0, 90.0, -90.0];
 /// If the direct path delivers < this fraction of intended movement, try probes.
 const BLOCK_THRESHOLD: f32 = 0.7;
 
-/// Actor radius used in `resolve_movement` — matches player collision (actors are smaller).
-const ACTOR_RADIUS: f32 = 20.0;
 /// Eye-height passed to `resolve_movement` — half a typical monster height.
 const ACTOR_EYE_HEIGHT: f32 = 140.0;
 
@@ -78,6 +76,7 @@ fn steer_toward(
     from: Vec3,
     target_pos: Vec3,
     speed: f32,
+    collision_radius: f32,
     colliders: Option<&BuildingColliders>,
     door_colliders: Option<&DoorColliders>,
     cached_offset: &mut Option<f32>,
@@ -94,14 +93,14 @@ fn steer_toward(
         let intended = from + dir * speed;
         let mut pos = intended;
         if let Some(c) = colliders {
-            pos = c.resolve_movement(from, pos, ACTOR_RADIUS, ACTOR_EYE_HEIGHT);
+            pos = c.resolve_movement(from, pos, collision_radius, ACTOR_EYE_HEIGHT);
         }
         if let Some(dc) = door_colliders {
             // Apply dynamic door wall collision
-            pos = dc.resolve_movement(from, pos, ACTOR_RADIUS, ACTOR_EYE_HEIGHT);
+            pos = dc.resolve_movement(from, pos, collision_radius, ACTOR_EYE_HEIGHT);
             // Block movement into closed horizontal door panels (trapdoors, slabs)
             let feet_y = pos.y - ACTOR_EYE_HEIGHT;
-            if dc.blocks_entry(pos.x, pos.z, feet_y, pos.y, ACTOR_RADIUS) {
+            if dc.blocks_entry(pos.x, pos.z, feet_y, pos.y, collision_radius) {
                 pos = from;
             }
         }
@@ -302,7 +301,8 @@ fn monster_ai_system(
                     let mut cache = actor.cached_steer_offset;
                     #[cfg(feature = "perf_log")]
                     steer_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let (dest, facing) = steer_toward(my_pos, chase_target, speed, c, dc, &mut cache);
+                    let (dest, facing) =
+                        steer_toward(my_pos, chase_target, speed, actor.collision_radius, c, dc, &mut cache);
                     actor.cached_steer_offset = cache;
                     actor.facing_yaw = facing;
                     let new_y = snap_actor_y(dest, actor.sprite_half_height, actor.can_fly, hm, c);
@@ -347,7 +347,15 @@ fn monster_ai_system(
                     let mut cache = actor.cached_steer_offset;
                     #[cfg(feature = "perf_log")]
                     steer_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let (dest, facing) = steer_toward(my_pos, actor.wander_target, speed, c, dc, &mut cache);
+                    let (dest, facing) = steer_toward(
+                        my_pos,
+                        actor.wander_target,
+                        speed,
+                        actor.collision_radius,
+                        c,
+                        dc,
+                        &mut cache,
+                    );
                     actor.cached_steer_offset = cache;
                     actor.facing_yaw = facing;
                     let new_y = snap_actor_y(dest, actor.sprite_half_height, actor.can_fly, hm, c);
@@ -394,7 +402,7 @@ mod tests {
         let from = Vec3::new(0.0, 0.0, 0.0);
         let target = Vec3::new(100.0, 0.0, 0.0);
         let mut cache = Some(1.2); // stale offset from a previous frame
-        let (dest, yaw) = steer_toward(from, target, 10.0, None, None, &mut cache);
+        let (dest, yaw) = steer_toward(from, target, 10.0, 20.0, None, None, &mut cache);
         assert!(cache.is_none(), "direct path should clear cached detour");
         // Direct heading toward +X is yaw = π/2 (atan2(1, 0)).
         assert!((yaw - std::f32::consts::FRAC_PI_2).abs() < 1e-4);
@@ -406,7 +414,7 @@ mod tests {
     fn steer_toward_zero_target_clears_cache() {
         let from = Vec3::new(5.0, 0.0, 5.0);
         let mut cache = Some(0.7);
-        let (dest, _) = steer_toward(from, from, 10.0, None, None, &mut cache);
+        let (dest, _) = steer_toward(from, from, 10.0, 20.0, None, None, &mut cache);
         assert!(cache.is_none());
         assert_eq!(dest, from);
     }

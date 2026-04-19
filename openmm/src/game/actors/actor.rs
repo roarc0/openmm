@@ -2,6 +2,9 @@
 
 use bevy::prelude::*;
 
+/// Minimum horizontal collision radius used for actor movement against world geometry.
+pub const MIN_ACTOR_COLLISION_RADIUS: f32 = 20.0;
+
 /// Unified NPC/monster actor component.
 #[derive(Component)]
 /// AI behaviour type from monsters.txt: "Normal", "Aggress", "Wimp", "Suicidal".
@@ -63,6 +66,11 @@ pub struct Actor {
     pub recovery_secs: f32,
     /// Half the sprite quad height in world units. Used to snap Y to terrain surface.
     pub sprite_half_height: f32,
+    /// Horizontal collision radius in world units.
+    ///
+    /// This forms a cylinder footprint in XZ against world collision so wide
+    /// sprites don't clip through BSP models with only their center line.
+    pub collision_radius: f32,
     /// Whether this monster can fly. Flying actors are not terrain-snapped during movement.
     pub can_fly: bool,
     /// Vertical velocity in world units/sec. Applied by the gravity system when airborne.
@@ -94,6 +102,7 @@ pub struct ActorParams {
     pub aggro_range: f32,
     pub recovery_secs: f32,
     pub sprite_half_height: f32,
+    pub collision_radius: f32,
     pub can_fly: bool,
     pub ai_type: MonsterAiType,
 }
@@ -127,6 +136,7 @@ impl Actor {
             aggro_range: p.aggro_range,
             recovery_secs: p.recovery_secs,
             sprite_half_height: p.sprite_half_height,
+            collision_radius: p.collision_radius.max(MIN_ACTOR_COLLISION_RADIUS),
             can_fly: p.can_fly,
             vertical_velocity: 0.0,
             ai_type: p.ai_type,

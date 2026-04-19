@@ -120,6 +120,7 @@ pub fn spawn_actor(
                 aggro_range: params.aggro_range,
                 recovery_secs: params.recovery_secs,
                 sprite_half_height: sh / 2.0,
+                collision_radius: sw / 2.0,
                 can_fly: params.can_fly,
                 ai_type: MonsterAiType::from_str(params.ai_type),
             }),

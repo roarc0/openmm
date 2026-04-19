@@ -238,7 +238,9 @@ attributes: u16
 - Walk timing: 3–6 s walking, 2–5 s idle.
 - Walk speed is capped at 60 units/step regardless of `move_speed`.
 - Tether effectively defaults to 300 units minimum.
-- Collision uses `BuildingColliders::resolve_movement` with radius=20, eye_height=140.
+- Collision uses `BuildingColliders::resolve_movement` and door colliders with a
+  per-actor cylinder radius derived from sprite width (`sprite_width / 2`, min 20),
+  plus `eye_height=140`.
 
 ### Desynchronization
 
