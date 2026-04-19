@@ -109,6 +109,57 @@ pub fn apply_shadow_config(commands: &mut Commands, entity: Entity, cast_shadows
     }
 }
 
+/// Compute a yaw that keeps billboard planes parallel to the camera direction.
+/// Uses `-camera_forward` projected to XZ so orientation does not depend on
+/// entity position (approaching does not cause turning).
+pub(crate) fn camera_parallel_yaw(cam_forward: Vec3) -> f32 {
+    let mut x = -cam_forward.x;
+    let mut z = -cam_forward.z;
+    if x * x + z * z <= f32::EPSILON {
+        // Degenerate forward vector; keep deterministic fallback.
+        x = 0.0;
+        z = 1.0;
+    }
+    x.atan2(z)
+}
+
+const CLOSE_BLEND_START_DIST_SQ: f32 = 24.0 * 24.0;
+const CLOSE_BLEND_END_DIST_SQ: f32 = 96.0 * 96.0;
+
+fn angle_lerp_shortest(from: f32, to: f32, t: f32) -> f32 {
+    let delta = (to - from + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
+    from + delta * t.clamp(0.0, 1.0)
+}
+
+/// Compute billboard yaw with close-range stabilization and far-range classic facing.
+/// Near the camera this stays parallel to view direction; farther away it faces the
+/// camera position to keep panning behavior closer to MM6 feel.
+pub(crate) fn billboard_face_yaw(cam_pos: Vec3, cam_forward: Vec3, center: Vec3) -> f32 {
+    let parallel = camera_parallel_yaw(cam_forward);
+    let to_cam = cam_pos - center;
+    let to_cam_yaw = to_cam.x.atan2(to_cam.z);
+    let dist_sq = to_cam.x * to_cam.x + to_cam.z * to_cam.z;
+
+    if dist_sq <= CLOSE_BLEND_START_DIST_SQ {
+        parallel
+    } else if dist_sq >= CLOSE_BLEND_END_DIST_SQ {
+        to_cam_yaw
+    } else {
+        let t = (dist_sq - CLOSE_BLEND_START_DIST_SQ) / (CLOSE_BLEND_END_DIST_SQ - CLOSE_BLEND_START_DIST_SQ);
+        angle_lerp_shortest(parallel, to_cam_yaw, t)
+    }
+}
+
+/// Quantize billboard yaw so tiny camera jitter doesn't dirty every Transform.
+pub(crate) fn quantize_billboard_yaw(raw_yaw: f32) -> f32 {
+    (raw_yaw * 128.0 / std::f32::consts::TAU).round() * std::f32::consts::TAU / 128.0
+}
+
+/// Compute stable billboard rotation with near/far blended yaw.
+pub(crate) fn billboard_face_rotation(cam_pos: Vec3, cam_forward: Vec3, center: Vec3) -> Quat {
+    Quat::from_rotation_y(quantize_billboard_yaw(billboard_face_yaw(cam_pos, cam_forward, center)))
+}
+
 // --- Plugin ---
 
 pub struct SpritesPlugin;
@@ -169,10 +220,7 @@ fn flicker_system(
 /// Skips entities with SpriteSheet (those are handled by update_sprite_sheets).
 fn billboard_face_camera(
     camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
-    mut billboard_query: Query<
-        (&mut Transform, &GlobalTransform, &Visibility),
-        (With<Billboard>, Without<loading::SpriteSheet>),
-    >,
+    mut billboard_query: Query<(&mut Transform, &GlobalTransform, &Visibility), (With<Billboard>, Without<loading::SpriteSheet>)>,
     #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]
@@ -182,6 +230,7 @@ fn billboard_face_camera(
         return;
     };
     let cam_pos = camera_gt.translation();
+    let cam_forward = camera_gt.forward().as_vec3();
 
     for (mut transform, global_transform, vis) in billboard_query.iter_mut() {
         #[cfg(feature = "perf_log")]
@@ -191,20 +240,12 @@ fn billboard_face_camera(
         if *vis == Visibility::Hidden {
             continue;
         }
-        let dir = cam_pos - global_transform.translation();
-        if dir.x.abs() > 0.01 || dir.z.abs() > 0.01 {
-            // Quantize to ~1.4° steps (128 bins per full turn) so tiny camera
-            // movements don't dirty every billboard's Transform every frame.
-            // Sprites face the camera — sub-degree precision is invisible.
-            let raw = dir.x.atan2(dir.z);
-            let quantized = (raw * 128.0 / std::f32::consts::TAU).round() * std::f32::consts::TAU / 128.0;
-            let new_rot = Quat::from_rotation_y(quantized);
-            if transform.rotation != new_rot {
-                transform.rotation = new_rot;
-                #[cfg(feature = "perf_log")]
-                {
-                    perf.billboard_rot_writes += 1;
-                }
+        let new_rot = billboard_face_rotation(cam_pos, cam_forward, global_transform.translation());
+        if transform.rotation != new_rot {
+            transform.rotation = new_rot;
+            #[cfg(feature = "perf_log")]
+            {
+                perf.billboard_rot_writes += 1;
             }
         }
     }
@@ -286,5 +327,41 @@ mod tests {
             assert_eq!(f.lit(0.7), f.lit(0.7));
             assert_eq!(f.lit(42.123), f.lit(42.123));
         }
+    }
+
+    #[test]
+    fn camera_parallel_yaw_uses_camera_forward_projection() {
+        // Camera looks toward -Z => billboard faces +Z (yaw 0).
+        let yaw = camera_parallel_yaw(Vec3::new(0.0, 0.0, -1.0));
+        assert!((yaw - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn billboard_face_rotation_is_stable_when_very_close() {
+        let cam_pos = Vec3::ZERO;
+        let cam_forward = Vec3::new(0.0, 0.0, -1.0);
+        // Both centers are within close-range stabilization zone.
+        let a = billboard_face_rotation(cam_pos, cam_forward, Vec3::new(6.0, 0.0, 2.0));
+        let b = billboard_face_rotation(cam_pos, cam_forward, Vec3::new(-8.0, 0.0, -3.0));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn camera_parallel_yaw_handles_degenerate_forward() {
+        // Looking straight up/down produces zero XZ projection; keep deterministic yaw.
+        let yaw = camera_parallel_yaw(Vec3::Y);
+        assert!((yaw - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn billboard_face_yaw_transitions_to_camera_position_when_far() {
+        let cam_pos = Vec3::ZERO;
+        let cam_forward = Vec3::new(0.0, 0.0, -1.0);
+
+        // Far sprite to the right: should mostly match classic camera-position yaw.
+        let center = Vec3::new(400.0, 0.0, 0.0);
+        let yaw = billboard_face_yaw(cam_pos, cam_forward, center);
+        let expected = (cam_pos - center).x.atan2((cam_pos - center).z);
+        assert!((yaw - expected).abs() < 0.05);
     }
 }

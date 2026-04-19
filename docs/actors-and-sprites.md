@@ -227,6 +227,7 @@ attributes: u16
 
 - `distance_culling` — hides entities beyond `cfg.draw_distance`; runs before sprite updates.
 - `billboard_face_camera` — skips entities with `SpriteSheet` (those are handled by `update_sprite_sheets`).
+- Billboard orientation uses blended yaw: very close uses camera-parallel (`-camera_forward`) for stability, farther away uses camera-position facing (`atan2(camera - sprite)`) for classic panning feel.
 - `FacingYaw` component — for directional decorations (e.g. ships) whose sprite depends on camera angle; distinct from `Actor.facing_yaw` which drives live rotation.
 
 ---

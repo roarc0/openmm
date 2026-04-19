@@ -160,13 +160,8 @@ fn check_exit_input(keys: &ButtonInput<KeyCode>, gamepads: &Query<&Gamepad>) -> 
 
 /// Compute the Y-axis rotation that makes a billboard at `center` face `cam_origin`.
 /// Matches the logic in `billboard_face_camera` for non-SpriteSheet entities.
-fn facing_rotation(cam_origin: Vec3, center: Vec3) -> Quat {
-    let d = cam_origin - center;
-    if d.x.abs() > 0.01 || d.z.abs() > 0.01 {
-        Quat::from_rotation_y(d.x.atan2(d.z))
-    } else {
-        Quat::IDENTITY
-    }
+fn facing_rotation(cam_origin: Vec3, cam_forward: Vec3, center: Vec3) -> Quat {
+    crate::game::sprites::billboard_face_rotation(cam_origin, cam_forward, center)
 }
 
 // --- Systems ---

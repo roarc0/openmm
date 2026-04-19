@@ -13,7 +13,7 @@ use image::DynamicImage;
 use crate::game::actors::Actor;
 use crate::game::player::PlayerCamera;
 use crate::game::sprites::material::{SpriteMaterial, unlit_billboard_material};
-use crate::game::sprites::{AnimationState, FacingYaw};
+use crate::game::sprites::{AnimationState, FacingYaw, billboard_face_yaw, quantize_billboard_yaw};
 use openmm_data::Assets as DataAssets;
 
 /// Pad an RGBA image to target dimensions, centered horizontally and bottom-aligned.
@@ -556,6 +556,7 @@ pub fn update_sprite_sheets(
         return;
     };
     let cam_pos = camera_gt.translation();
+    let cam_forward = camera_gt.forward().as_vec3();
     let dt = time.delta_secs();
 
     for (mut sprites, mut mat_handle, mut transform, global_transform, anim_state, actor, facing_yaw, vis) in
@@ -627,13 +628,12 @@ pub fn update_sprite_sheets(
             .map(|a| a.facing_yaw)
             .or_else(|| facing_yaw.map(|f| f.0))
             .unwrap_or(0.0);
-        let dir_to_camera = cam_pos - actor_pos;
-        let raw_angle = dir_to_camera.x.atan2(dir_to_camera.z);
+        let raw_angle = billboard_face_yaw(cam_pos, cam_forward, actor_pos);
         // Use full-precision angle for direction selection (octant boundaries
         // matter) but quantized angle for the Transform rotation. 128 bins
         // per full turn ≈ 2.8° — imperceptible on a billboard, but prevents
         // tiny camera movements from dirtying every sprite's Transform.
-        let camera_angle = (raw_angle * 128.0 / std::f32::consts::TAU).round() * std::f32::consts::TAU / 128.0;
+        let camera_angle = quantize_billboard_yaw(raw_angle);
         let (direction, mirrored) = direction_for_angle(entity_yaw, raw_angle);
 
         // Only swap material when the displayed frame actually changed
