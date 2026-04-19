@@ -1,0 +1,20 @@
+(
+    id: "chdetails_awards",
+    elements: [
+        Image((
+            id: "icons/fr_award",
+            position: (15.0, 16.0),
+            size: (443.0, 299.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/fr_award",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+        )),
+    ],
+)

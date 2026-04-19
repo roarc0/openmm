@@ -1,0 +1,20 @@
+(
+    id: "chdetails_stats",
+    elements: [
+        Image((
+            id: "icons/fr_stats",
+            position: (15.0, 16.0),
+            size: (443.0, 295.0),
+            z: 1,
+            states: {
+                "default": (
+                    texture: "icons/fr_stats",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+        )),
+    ],
+)

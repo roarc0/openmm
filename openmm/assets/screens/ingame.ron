@@ -284,8 +284,13 @@
                     texture: "icons/CCMALEA",
                 ),
             },
-            on_click: [],
-            on_hover: [],
+            on_click: [
+                "ShowScreen(\"chdetails\")",
+                "ShowScreen(\"chdetails_stats\")",
+            ],
+            on_hover: [
+                "evt:Hint(\"Character Details\")",
+            ],
             bindings: {},
         )),
         Image((

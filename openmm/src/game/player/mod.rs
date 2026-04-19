@@ -133,10 +133,10 @@ pub struct PlayerKeyBindings {
 impl Default for PlayerKeyBindings {
     fn default() -> Self {
         Self {
-            move_forward: KeyCode::KeyW,
-            move_backward: KeyCode::KeyS,
-            strafe_left: KeyCode::KeyQ,
-            strafe_right: KeyCode::KeyE,
+            move_forward: KeyCode::ArrowUp,
+            move_backward: KeyCode::ArrowDown,
+            strafe_left: KeyCode::ArrowLeft,
+            strafe_right: KeyCode::ArrowRight,
             rotate_left: KeyCode::ArrowLeft,
             rotate_right: KeyCode::ArrowRight,
             jump: KeyCode::Space,

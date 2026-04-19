@@ -29,6 +29,16 @@
 - `set_status(text, duration, now)` — show a timed status message that **locks out hover hints** until the timer expires
 - `tick(now)` must be called each frame to expire the lock
 
+## Layered Screens
+
+- Screen definitions can use `on_close` to tear down child overlays without runtime code changes.
+- `chdetails` is a modal parent layer with tab child screens (`stats`, `skills`, `inventory`, `award`).
+- **Opening with a specific tab**: include both `ShowScreen("chdetails")` and `ShowScreen("<tab>")` in the **same action batch**. Actions in one batch run in the same frame; the tab is shown right after the parent, before any `on_load` could fire.
+- **Never use `on_load` to set a default tab**: `on_load` fires on the next frame as a new `ScreenActions` message. If a caller also specifies a tab, the `on_load` tab would appear one frame later on top, leaving two tabs open.
+- Parent close behavior: `on_close` hides all tab screens so no child layer leaks.
+- Tab buttons switch atomically: hide all tab layers first, then show the selected tab.
+- Entry points: `playing.ron` binds `I/C/S/A` to open `chdetails` + `inventory/stats/skills/award` respectively. Portrait clicks open to `stats` by default.
+
 ## StatsBar
 
 - Displays gold and food from `WorldState.game_vars`

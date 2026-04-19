@@ -2,19 +2,27 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::screens::debug::console::ConsoleState;
+use crate::screens::runtime::ScreenLayers;
 
 pub mod npc_dialogue;
 pub mod overlay;
 
-/// Run condition: UiMode is World. Use for systems that should pause during any overlay.
-pub fn is_world_mode(ui: Res<UiState>) -> bool {
-    ui.mode == UiMode::World
+/// Run condition: UiMode is World and no Modal screen is active.
+/// Use for systems that should pause during any overlay.
+pub fn is_world_mode(ui: Res<UiState>, layers: Option<Res<ScreenLayers>>) -> bool {
+    ui.mode == UiMode::World && !layers.is_some_and(|l| l.has_modal())
 }
 
-/// Run condition: game input is fully active — UiState mode is World and no console open.
-/// Use this on all player/world input systems instead of manual per-system checks.
-pub fn game_input_active(ui: Res<UiState>, console: Option<Res<ConsoleState>>) -> bool {
-    matches!(ui.mode, UiMode::World) && !console.as_ref().is_some_and(|c| c.open)
+/// Run condition: game input is fully active — UiState mode is World, no modal screen
+/// open, and no console open. Use this on all player/world input systems.
+pub fn game_input_active(
+    ui: Res<UiState>,
+    console: Option<Res<ConsoleState>>,
+    layers: Option<Res<ScreenLayers>>,
+) -> bool {
+    matches!(ui.mode, UiMode::World)
+        && !layers.is_some_and(|l| l.has_modal())
+        && !console.as_ref().is_some_and(|c| c.open)
 }
 
 /// Set cursor grab mode and visibility. grab=true = locked/hidden (gameplay), false = free (UI).

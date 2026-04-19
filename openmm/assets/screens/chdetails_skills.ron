@@ -1,0 +1,20 @@
+(
+    id: "chdetails_skills",
+    elements: [
+        Image((
+            id: "icons/fr_skill",
+            position: (15.0, 16.0),
+            size: (443.0, 299.0),
+            z: 2,
+            states: {
+                "default": (
+                    texture: "icons/fr_skill",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+        )),
+    ],
+)

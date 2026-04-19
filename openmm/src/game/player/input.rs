@@ -189,6 +189,10 @@ pub(super) fn player_movement(
     let turn_speed = cfg.turn_speed.to_radians();
 
     for (mut transform, mut physics) in query.iter_mut() {
+        // Keyboard locomotion is arrow-only:
+        // - Up/Down: move forward/back
+        // - Left/Right: rotate (or strafe when always_strafe is enabled)
+        // Other keyboard movement keys are intentionally ignored.
         // Rotation / strafe based on always_strafe config
         if cfg.always_strafe {
             // Arrow left/right strafe instead of rotate
@@ -196,9 +200,9 @@ pub(super) fn player_movement(
         } else {
             for key in keys.get_pressed() {
                 let key = *key;
-                if key == key_bindings.rotate_left || key == KeyCode::KeyA {
+                if key == KeyCode::ArrowLeft {
                     transform.rotate_y(turn_speed * time.delta_secs());
-                } else if key == key_bindings.rotate_right || key == KeyCode::KeyD {
+                } else if key == KeyCode::ArrowRight {
                     transform.rotate_y(-turn_speed * time.delta_secs());
                 }
             }
@@ -211,24 +215,18 @@ pub(super) fn player_movement(
         let right_flat = Vec3::new(right.x, 0.0, right.z).normalize_or_zero();
 
         let mut movement = Vec3::ZERO;
-        if keys.pressed(key_bindings.move_forward) || keys.pressed(KeyCode::ArrowUp) {
+        if keys.pressed(KeyCode::ArrowUp) {
             movement += forward_flat;
         }
-        if keys.pressed(key_bindings.move_backward) || keys.pressed(KeyCode::ArrowDown) {
+        if keys.pressed(KeyCode::ArrowDown) {
             movement -= forward_flat;
-        }
-        if keys.pressed(key_bindings.strafe_left) {
-            movement -= right_flat;
-        }
-        if keys.pressed(key_bindings.strafe_right) {
-            movement += right_flat;
         }
         // always_strafe: arrow keys also strafe
         if cfg.always_strafe {
-            if keys.pressed(key_bindings.rotate_left) {
+            if keys.pressed(KeyCode::ArrowLeft) {
                 movement -= right_flat;
             }
-            if keys.pressed(key_bindings.rotate_right) {
+            if keys.pressed(KeyCode::ArrowRight) {
                 movement += right_flat;
             }
         }

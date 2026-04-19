@@ -1,0 +1,34 @@
+(
+    id: "chdetails_inventory",
+    elements: [
+        Image((
+            id: "icons/fr_inven",
+            position: (15.0, 16.0),
+            size: (449.0, 289.0),
+            z: 2,
+            states: {
+                "default": (
+                    texture: "icons/fr_inven",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+        )),
+        Image((
+            id: "icons/backhand",
+            position: (481.0, 8.0),
+            size: (153.0, 353.0),
+            z: 10,
+            states: {
+                "default": (
+                    texture: "icons/backhand",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "cyan",
+        )),
+    ],
+)

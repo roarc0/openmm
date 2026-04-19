@@ -5,6 +5,24 @@
         "Return": [
             "EnterTurnBattle()",
         ],
+        // Character sheet shortcuts — ShowScreen("chdetails") + the desired tab
+        // in one batch so the tab is chosen by the entry point, not a default.
+        "I": [
+            "ShowScreen(\"chdetails\")",
+            "ShowScreen(\"chdetails_inventory\")",
+        ],
+        "C": [
+            "ShowScreen(\"chdetails\")",
+            "ShowScreen(\"chdetails_stats\")",
+        ],
+        "S": [
+            "ShowScreen(\"chdetails\")",
+            "ShowScreen(\"chdetails_skills\")",
+        ],
+        "A": [
+            "ShowScreen(\"chdetails\")",
+            "ShowScreen(\"chdetails_award\")",
+        ],
     },
     elements: [
         Image((
