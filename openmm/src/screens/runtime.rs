@@ -54,11 +54,11 @@ impl Plugin for ScreenRuntimePlugin {
             .add_systems(Update, video_tick.run_if(screen_states.clone()))
             .add_systems(
                 Update,
-                crate::game::ui::char_creation::update_party_creation_registry.run_if(screen_states.clone()),
+                crate::game::ui::party_creation::update_party_creation_registry.run_if(screen_states.clone()),
             )
             .add_systems(
                 Update,
-                crate::game::ui::char_creation::sync_creation_arrows.run_if(screen_states.clone()),
+                crate::game::ui::party_creation::sync_creation_arrows.run_if(screen_states.clone()),
             )
             .add_systems(Update, text_update.run_if(screen_states.clone()))
             .add_systems(Update, dynamic_texture_update.run_if(screen_states.clone()))
@@ -66,9 +66,9 @@ impl Plugin for ScreenRuntimePlugin {
             .add_systems(Update, process_pending_actions.run_if(screen_states.clone()))
             .add_systems(
                 Update,
-                crate::game::ui::char_creation::handle_creation_actions
+                crate::game::ui::party_creation::handle_creation_actions
                     .run_if(screen_states.clone())
-                    .run_if(resource_exists::<crate::game::ui::char_creation::PartyCreationState>),
+                    .run_if(resource_exists::<crate::game::ui::party_creation::PartyCreationState>),
             )
             .add_systems(Update, update_screen_crosshair.run_if(screen_states.clone()))
             .add_systems(Update, text_hover.run_if(screen_states));

@@ -80,7 +80,7 @@ pub fn class_base_attrs(class: CharacterClass) -> [i16; ATTR_COUNT] {
     }
 }
 
-pub fn random_unique_char_creation_seeds() -> [CharCreationSeed; 4] {
+pub fn random_unique_party_creation_seeds() -> [CharCreationSeed; 4] {
     let mut classes = ALL_CLASSES.to_vec();
     let mut portraits = PortraitId::ALL.to_vec();
     let mut male_names = MALE_NAMES.to_vec();

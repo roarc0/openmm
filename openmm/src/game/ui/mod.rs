@@ -5,7 +5,7 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use crate::screens::debug::console::ConsoleState;
 use crate::screens::runtime::ScreenLayers;
 
-pub mod char_creation;
+pub mod party_creation;
 pub mod npc_dialogue;
 pub mod overlay;
 

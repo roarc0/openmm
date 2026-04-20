@@ -64,7 +64,7 @@ impl Party {
 impl Default for Party {
     fn default() -> Self {
         // Randomized starting party for character creation screen.
-        let seeds = creation::random_unique_char_creation_seeds();
+        let seeds = creation::random_unique_party_creation_seeds();
         let members = std::array::from_fn(|i| {
             let mut m = PartyMember::new(seeds[i].name, seeds[i].class, seeds[i].portrait, 1);
             m.base_attrs = seeds[i].base_attrs;

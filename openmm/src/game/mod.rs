@@ -85,7 +85,7 @@ impl Plugin for GameplayPlugin {
 struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ui::char_creation::PartyCreationState>()
+        app.init_resource::<ui::party_creation::PartyCreationState>()
             .add_plugins((
                 crate::screens::debug::DebugPlugin,
                 crate::screens::debug::console::ConsolePlugin,
