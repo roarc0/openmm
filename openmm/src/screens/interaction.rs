@@ -23,10 +23,7 @@ enum CloseWindowTarget {
     None,
 }
 
-fn resolve_close_window_target(
-    top_modal_id: Option<&str>,
-    ui_mode: Option<UiMode>,
-) -> CloseWindowTarget {
+fn resolve_close_window_target(top_modal_id: Option<&str>, ui_mode: Option<UiMode>) -> CloseWindowTarget {
     if let Some(mode) = ui_mode
         && mode != UiMode::World
     {
@@ -575,9 +572,15 @@ pub(super) fn process_pending_actions(
     mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
     world_state: Option<Res<crate::game::state::WorldState>>,
     mut event_queue: Option<ResMut<crate::game::events::scripting::EventQueue>>,
-    mut ui_state: Option<ResMut<crate::game::ui::UiState>>,
+    mut ui_resources: ParamSet<(
+        Option<ResMut<crate::game::ui::UiState>>,
+        Option<ResMut<crate::game::ui::char_creation::CharCreationState>>,
+    )>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
-    sound_manager: Option<Res<crate::game::sound::SoundManager>>,
+    mut sound_resources: ParamSet<(
+        Option<ResMut<crate::game::sound::SoundManager>>,
+        Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
+    )>,
 ) {
     use super::scripting::Action;
 
@@ -641,7 +644,7 @@ pub(super) fn process_pending_actions(
                 }
                 Action::HideScreen(id) => {
                     info!("action: HideScreen(\"{}\")", id);
-                    let ui_mode = ui_state.as_ref().map(|ui| ui.mode);
+                    let ui_mode = ui_resources.p0().as_ref().map(|ui| ui.mode);
                     hide_screen(
                         &id,
                         &mut commands,
@@ -696,11 +699,11 @@ pub(super) fn process_pending_actions(
                     let top_modal_id = layers.top_modal_id().map(str::to_string);
                     let target = resolve_close_window_target(
                         top_modal_id.as_deref(),
-                        ui_state.as_ref().map(|ui| ui.mode),
+                        ui_resources.p0().as_ref().map(|ui| ui.mode),
                     );
                     match target {
                         CloseWindowTarget::UiModeWorld => {
-                            if let Some(ref mut ui) = ui_state {
+                            if let Some(ref mut ui) = ui_resources.p0() {
                                 crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
                             }
                             if let Some(ref modal_id) = top_modal_id {
@@ -720,7 +723,7 @@ pub(super) fn process_pending_actions(
                             commands.remove_resource::<crate::game::ui::HouseProfile>();
                         }
                         CloseWindowTarget::TopModal(top_modal_id) => {
-                            let ui_mode = ui_state.as_ref().map(|ui| ui.mode);
+                            let ui_mode = ui_resources.p0().as_ref().map(|ui| ui.mode);
                             hide_screen(
                                 &top_modal_id,
                                 &mut commands,
@@ -735,12 +738,73 @@ pub(super) fn process_pending_actions(
                     }
                 }
                 Action::PlaySoundNamed(ref name) => {
-                    push_sound_by_name(name, &sound_manager, &mut event_queue);
+                    let sm = sound_resources.p0();
+                    push_sound_by_name(name, sm.as_deref(), &mut event_queue);
                 }
                 Action::EnterTurnBattle => {
                     info!("action: EnterTurnBattle");
-                    if let Some(ref mut ui) = ui_state {
+                    if let Some(ref mut ui) = ui_resources.p0() {
                         crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::TurnBattle);
+                    }
+                }
+                Action::CyclePortrait(object, delta) => {
+                    let portrait_sound: Option<String> = {
+                        if let Some(ref mut chars) = ui_resources.p1() {
+                            if let Some(index) = parse_char_object_index(&object) {
+                                chars.members[index].cycle_portrait(delta);
+                                let portrait = chars.members[index].portrait_texture().to_string();
+                                let variants = crate::game::player::party::creation::portrait_sound_variants(&portrait);
+                                if !variants.is_empty() {
+                                    let pick = crate::game::player::party::creation::random_name_index(variants.len());
+                                    Some(variants[pick].to_string())
+                                } else {
+                                    None
+                                }
+                            } else {
+                                warn!("CyclePortrait: unknown object '{}'", object);
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    };
+                    if let Some(sound_name) = portrait_sound {
+                        let sound_id = sound_resources
+                            .p0()
+                            .as_deref()
+                            .and_then(|sm| sm.dsounds.get_by_name(&sound_name))
+                            .map(|s| s.sound_id);
+                        if let Some(id) = sound_id {
+                            if let Some(ref mut w) = sound_resources.p1() {
+                                w.write(crate::game::sound::effects::PlayUiSoundEvent { sound_id: id });
+                            }
+                        }
+                    }
+                }
+                Action::SelectClass(object, class) => {
+                    if let Some(ref mut chars) = ui_resources.p1() {
+                        if let Some(index) = parse_char_object_index(&object) {
+                            if let Some(class) = crate::game::ui::char_creation::CharClass::from_name(&class) {
+                                chars.members[index].set_class_with_defaults(class);
+                            } else {
+                                warn!("SelectClass: unknown class '{}'", class);
+                            }
+                        } else {
+                            warn!("SelectClass: unknown object '{}'", object);
+                        }
+                    }
+                }
+                Action::SelectStat(object, stat) => {
+                    if let Some(ref mut chars) = ui_resources.p1() {
+                        if let Some(index) = parse_char_object_index(&object) {
+                            if let Some(stat) = crate::game::ui::char_creation::CharStat::from_name(&stat) {
+                                chars.members[index].selected_stat = stat;
+                            } else {
+                                warn!("SelectStat: unknown stat '{}'", stat);
+                            }
+                        } else {
+                            warn!("SelectStat: unknown object '{}'", object);
+                        }
                     }
                 }
                 Action::GreetingSound => {
@@ -751,7 +815,7 @@ pub(super) fn process_pending_actions(
                         .subsec_nanos() as usize;
                     push_sound_by_name(
                         GREETING_SOUNDS[nanos % GREETING_SOUNDS.len()],
-                        &sound_manager,
+                        sound_resources.p0().as_deref(),
                         &mut event_queue,
                     );
                 }
@@ -768,7 +832,7 @@ pub(super) fn process_pending_actions(
 /// Resolve a dsounds name to a sound ID and push it to the event queue.
 fn push_sound_by_name(
     name: &str,
-    sound_manager: &Option<Res<crate::game::sound::SoundManager>>,
+    sound_manager: Option<&crate::game::sound::SoundManager>,
     event_queue: &mut Option<ResMut<crate::game::events::scripting::EventQueue>>,
 ) {
     if let Some(sm) = sound_manager
@@ -833,6 +897,16 @@ fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::events::script
     }
 
     warn!("evt: unknown proxy action: '{}'", s);
+}
+
+fn parse_char_object_index(object: &str) -> Option<usize> {
+    match object {
+        "char0" => Some(0),
+        "char1" => Some(1),
+        "char2" => Some(2),
+        "char3" => Some(3),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

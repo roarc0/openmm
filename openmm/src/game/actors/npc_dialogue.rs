@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::assets::GameAssets;
 use crate::game::events::{GENERATED_NPC_ID_BASE, MapEvents};
+use crate::screens::PropertySource;
 
 /// Resource holding an NPC portrait image to display at actual size.
 #[derive(Resource)]
@@ -173,4 +174,32 @@ pub fn prepare_npc_dialogue(
     };
 
     Some((portrait, profile))
+}
+
+impl PropertySource for NpcProfile {
+    fn source_name(&self) -> &str {
+        "npc"
+    }
+
+    fn resolve(&self, path: &str) -> Option<String> {
+        match path {
+            "name" => Some(self.name.clone()),
+            "full_name" => {
+                if let Some(ref prof) = self.profession {
+                    Some(format!("{} the {}", self.name, prof))
+                } else {
+                    Some(self.name.clone())
+                }
+            }
+            "profession" => self.profession.clone(),
+            "greeting" => self.greeting_text.clone(),
+            "day_topic" => self.day_topic.clone(),
+            "day_text" => self.day_text.clone(),
+            "join_text" => self.join_text.clone(),
+            "in_party_benefit" => self.in_party_benefit.clone(),
+            "personality" => self.personality.clone(),
+            "action_text" => self.action_text.clone(),
+            _ => None,
+        }
+    }
 }

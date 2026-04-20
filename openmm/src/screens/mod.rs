@@ -8,6 +8,7 @@ pub(crate) mod fonts;
 mod format;
 mod interaction;
 mod loader;
+pub(crate) mod property_source;
 pub(crate) mod runtime;
 pub(crate) mod scripting;
 mod setup;
@@ -16,3 +17,4 @@ mod video;
 
 pub use format::*;
 pub use loader::*;
+pub use property_source::{PropertyRegistry, PropertySource, interpolate};

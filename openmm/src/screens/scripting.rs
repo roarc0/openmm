@@ -32,6 +32,12 @@ pub enum Action {
     GreetingSound,
     /// Enter turn-based combat mode.
     EnterTurnBattle,
+    /// Cycle the portrait for a character object, e.g. `CyclePortrait("char0", 1)`.
+    CyclePortrait(String, i32),
+    /// Select a class for a character object, e.g. `SelectClass("char0", "Knight")`.
+    SelectClass(String, String),
+    /// Select a stat for a character object, e.g. `SelectStat("char0", "might")`.
+    SelectStat(String, String),
     // EVT proxy — raw action string after stripping "evt:" prefix
     EvtProxy(String),
     // Control flow
@@ -83,6 +89,15 @@ pub fn parse_action(input: &str) -> Action {
     if s == "EnterTurnBattle()" {
         return Action::EnterTurnBattle;
     }
+    if let Some((object, delta)) = parse_string_int_args(s, "CyclePortrait") {
+        return Action::CyclePortrait(object.to_string(), delta);
+    }
+    if let Some((object, class)) = parse_two_string_args(s, "SelectClass") {
+        return Action::SelectClass(object.to_string(), class.to_string());
+    }
+    if let Some((object, stat)) = parse_two_string_args(s, "SelectStat") {
+        return Action::SelectStat(object.to_string(), stat.to_string());
+    }
     if s == "NewGame()" {
         return Action::NewGame;
     }
@@ -122,6 +137,16 @@ pub(crate) fn parse_two_string_args<'a>(input: &'a str, func_name: &str) -> Opti
     let (left, right) = rest.split_once(',')?;
     let left = left.trim().strip_prefix('"')?.strip_suffix('"')?;
     let right = right.trim().strip_prefix('"')?.strip_suffix('"')?;
+    Some((left, right))
+}
+
+/// Extract string + int args from `FuncName("object", 1)`.
+pub(crate) fn parse_string_int_args<'a>(input: &'a str, func_name: &str) -> Option<(&'a str, i32)> {
+    let rest = input.strip_prefix(func_name)?.trim();
+    let rest = rest.strip_prefix('(')?.strip_suffix(')')?;
+    let (left, right) = rest.split_once(',')?;
+    let left = left.trim().strip_prefix('"')?.strip_suffix('"')?;
+    let right = right.trim().parse::<i32>().ok()?;
     Some((left, right))
 }
 

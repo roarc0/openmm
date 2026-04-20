@@ -110,6 +110,17 @@ impl SoundManager {
         Some(handle)
     }
 
+    /// Look up a sound by name in dsounds, then load it.
+    /// Returns None (silently) if the name isn't registered in dsounds.
+    pub fn load_sound_by_name(
+        &mut self,
+        name: &str,
+        audio_sources: &mut Assets<AudioSource>,
+    ) -> Option<Handle<AudioSource>> {
+        let id = self.dsounds.get_by_name(name)?.sound_id;
+        self.load_sound(id, audio_sources)
+    }
+
     /// Retrieve or extract audio bytes for an SMK video, caching the Bevy handle.
     pub fn get_video_audio(
         &mut self,

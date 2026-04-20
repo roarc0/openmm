@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, SkyScrollBinding, TapBinding};
 use super::fonts::GameFonts;
+use super::property_source::DynamicTexture;
 use super::runtime::{
     FrameAnimation, HiddenByDefault, HoverOverlay, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer,
     ScreenMusic,
@@ -391,6 +392,14 @@ pub(super) fn spawn_image_element(
                 layer_tag.clone(),
                 initial_vis,
             ));
+            // Dynamic texture: template contains ${...} placeholders resolved each frame.
+            if default_tex.contains("${") {
+                entity.insert(DynamicTexture {
+                    template: default_tex.clone(),
+                    transparent_color: img.transparent_color.clone(),
+                    last_resolved: String::new(),
+                });
+            }
             if has_interaction {
                 entity.insert((Button, BackgroundColor(Color::NONE)));
             }
@@ -465,6 +474,14 @@ pub(super) fn spawn_image_element(
         }
     } else {
         let mut entity = commands.spawn((ImageNode::default(), node, z, marker, layer_tag.clone(), initial_vis));
+        // Dynamic texture: template contains ${...} placeholders resolved each frame.
+        if default_tex.contains("${") {
+            entity.insert(DynamicTexture {
+                template: default_tex.clone(),
+                transparent_color: img.transparent_color.clone(),
+                last_resolved: String::new(),
+            });
+        }
         if has_interaction {
             entity.insert((Button, BackgroundColor(Color::NONE)));
         }
@@ -607,6 +624,7 @@ pub(super) fn spawn_text_element(
         RuntimeText {
             source: txt.source.clone(),
             value: txt.value.clone(),
+            color_expr: txt.color.clone(),
             font: txt.font.clone(),
             font_size: txt.font_size,
             color: txt.color_rgba(),
@@ -631,6 +649,7 @@ pub(super) fn text_update(
     npc_profile: Option<Res<crate::game::actors::npc_dialogue::NpcProfile>>,
     house_profile: Option<Res<crate::game::ui::HouseProfile>>,
     loading_step: Option<Res<crate::prepare::loading::LoadingStep>>,
+    registry: Res<crate::screens::PropertyRegistry>,
     game_fonts: Res<GameFonts>,
     mut images: ResMut<Assets<Image>>,
     windows: Query<&Window, With<bevy::window::PrimaryWindow>>,
@@ -649,7 +668,17 @@ pub(super) fn text_update(
     let sy = win_h / REF_H;
 
     for (mut rt, mut img_node, mut vis, mut node, interaction) in &mut query {
-        if rt.source == "footer_text" {
+        let resolved_color = crate::screens::interpolate(&rt.color_expr, &registry);
+        if !resolved_color.is_empty() {
+            let rgba = crate::screens::TextElement::resolve_color(&resolved_color);
+            rt.base_color = rgba;
+            let is_hovered = matches!(interaction, Some(Interaction::Hovered) | Some(Interaction::Pressed));
+            if !is_hovered && rt.color != rgba {
+                rt.color = rgba;
+            }
+        }
+
+        if rt.source == "ui.footer" {
             let footer_color = ui.footer.color();
             let rgba = crate::screens::TextElement::resolve_color(footer_color);
             rt.base_color = rgba;
@@ -660,34 +689,51 @@ pub(super) fn text_update(
             }
         }
 
-        let mut current = match rt.source.as_str() {
-            "footer_text" => ui.footer.text().to_string(),
-            "gold" => world_state
-                .as_ref()
-                .map_or(String::new(), |ws| ws.game_vars.gold.to_string()),
-            "food" => world_state
-                .as_ref()
-                .map_or(String::new(), |ws| ws.game_vars.food.to_string()),
-            "loading_step" => loading_step.as_ref().map_or(String::new(), |s| s.label().to_string()),
-            "npc_name" => npc_profile.as_ref().map_or(String::new(), |p| {
-                if let Some(ref prof) = p.profession {
-                    format!("{} the {}", p.name, prof)
-                } else {
-                    p.name.clone()
+        // "object.property" bindings — object name dispatches to the matching resource.
+        // Core resources resolve inline (no clone needed).
+        // Unknown objects fall through to the dynamic registry.
+        let mut current = if let Some(dot) = rt.source.find('.') {
+            let (src, path) = (&rt.source[..dot], &rt.source[dot + 1..]);
+            match src {
+                "player" => world_state
+                    .as_ref()
+                    .and_then(|ws| {
+                        use crate::screens::PropertySource;
+                        ws.resolve(path)
+                    })
+                    .unwrap_or_default(),
+                "ui" => {
+                    use crate::screens::PropertySource;
+                    ui.resolve(path).unwrap_or_default()
                 }
-            }),
-            "npc_greeting" => npc_profile
-                .as_ref()
-                .and_then(|p| p.greeting_text.clone())
-                .unwrap_or_default(),
-            "shop_name" => house_profile.as_ref().map_or(String::new(), |p| p.name.clone()),
-            "armorer_name" => house_profile.as_ref().map_or(String::new(), |p| p.owner_name.clone()),
-            _ => rt.value.clone(),
+                "npc" => npc_profile
+                    .as_ref()
+                    .and_then(|p| {
+                        use crate::screens::PropertySource;
+                        p.resolve(path)
+                    })
+                    .unwrap_or_default(),
+                "house" => house_profile
+                    .as_ref()
+                    .and_then(|p| {
+                        use crate::screens::PropertySource;
+                        p.resolve(path)
+                    })
+                    .unwrap_or_default(),
+                "loading" => loading_step.as_ref().map_or(String::new(), |s| s.label().to_string()),
+                // Unknown object → try dynamic registry
+                _ => registry.resolve(&rt.source).unwrap_or_default(),
+            }
+        } else {
+            // Unknown bare name: fall back to the element's static value.
+            rt.value.clone()
         };
 
         if current.is_empty() && !rt.value.is_empty() {
             current = rt.value.clone();
         }
+
+        current = crate::screens::interpolate(&current, &registry);
 
         // Re-render when text or color changed.
         if current != rt.last_text || rt.color != rt.last_color {
@@ -758,6 +804,35 @@ pub(super) fn text_update(
         }
         if node.right != Val::Auto {
             node.right = Val::Auto;
+        }
+    }
+}
+
+/// Resolve `${...}` templates on image textures and swap the `ImageNode` handle.
+/// Only entities tagged with [`DynamicTexture`] participate.
+pub(super) fn dynamic_texture_update(
+    registry: Res<crate::screens::PropertyRegistry>,
+    game_assets: Res<GameAssets>,
+    cfg: Res<GameConfig>,
+    mut ui_assets: ResMut<UiAssets>,
+    mut images: ResMut<Assets<Image>>,
+    mut query: Query<(&mut ImageNode, &mut DynamicTexture)>,
+) {
+    for (mut image_node, mut dyn_tex) in &mut query {
+        let resolved = crate::screens::interpolate(&dyn_tex.template, &registry);
+        if resolved.is_empty() || resolved == dyn_tex.last_resolved {
+            continue;
+        }
+        if let Some(handle) = load_texture_with_transparency(
+            &resolved,
+            &dyn_tex.transparent_color,
+            &mut ui_assets,
+            &game_assets,
+            &mut images,
+            &cfg,
+        ) {
+            image_node.image = handle;
+            dyn_tex.last_resolved = resolved;
         }
     }
 }
