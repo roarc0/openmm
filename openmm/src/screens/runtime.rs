@@ -49,7 +49,7 @@ impl Plugin for ScreenRuntimePlugin {
             .add_systems(Update, screen_hover.run_if(screen_states.clone()))
             .add_systems(Update, hover_actions.run_if(screen_states.clone()))
             .add_systems(Update, hover_animate_tick.run_if(screen_states.clone()))
-            .add_systems(Update, screen_click.run_if(screen_states.clone()))
+            .add_systems(Update, screen_click.after(screen_hover).run_if(screen_states.clone()))
             .add_systems(Update, screen_keys.run_if(screen_states.clone()))
             .add_systems(Update, video_tick.run_if(screen_states.clone()))
             .add_systems(

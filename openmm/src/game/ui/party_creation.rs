@@ -25,8 +25,8 @@ pub struct PartyCreationState {
     pub active_member: usize,
     /// Currently highlighted stat for the active member.
     pub selected_stat: [CharStat; 4],
-    /// Remaining bonus points per member.
-    pub bonus_points: [u8; 4],
+    /// Remaining bonus points shared across all members.
+    pub bonus_points: u8,
 }
 
 impl Default for PartyCreationState {
@@ -34,7 +34,7 @@ impl Default for PartyCreationState {
         Self {
             active_member: 0,
             selected_stat: [CharStat::default(); 4],
-            bonus_points: [25; 4], // MM6 gives 25 bonus points per character
+            bonus_points: 52,
         }
     }
 }
@@ -123,6 +123,24 @@ impl PropertySource for PartyMemberSource {
     }
 }
 
+/// Property source for global creation state (bonus points, etc.).
+struct CreationSource {
+    bonus_points: u8,
+}
+
+impl PropertySource for CreationSource {
+    fn source_name(&self) -> &str {
+        "creation"
+    }
+
+    fn resolve(&self, path: &str) -> Option<String> {
+        match path {
+            "bonus_points" => Some(self.bonus_points.to_string()),
+            _ => None,
+        }
+    }
+}
+
 /// System: sync party member data into the PropertyRegistry when Party or creation state changes.
 pub fn update_party_creation_registry(
     party: Res<Party>,
@@ -148,6 +166,10 @@ pub fn update_party_creation_registry(
         class_base_attrs: creation::class_base_attrs(active_member.class),
         member: active_member.clone(),
         selected_stat: creation_state.selected_stat[active],
+    }));
+    // Register global creation state.
+    registry.register(Box::new(CreationSource {
+        bonus_points: creation_state.bonus_points,
     }));
 }
 
@@ -260,9 +282,15 @@ pub fn handle_creation_actions(
             if let Some(class) = CharacterClass::from_name(class_name) {
                 let index = cs.active_member;
                 if let Some(ref mut p) = party {
+                    // Refund any points spent on the old class before switching.
+                    let old_base = creation::class_base_attrs(p.members[index].class);
+                    let spent: i16 = (0..7)
+                        .map(|i| p.members[index].base_attrs[i] - old_base[i])
+                        .filter(|d| *d > 0)
+                        .sum();
+                    cs.bonus_points = cs.bonus_points.saturating_add(spent as u8);
                     set_member_class(p, index, class);
                 }
-                cs.bonus_points[index] = 25;
             } else {
                 warn!("SelectClass: unknown class '{}'", class_name);
             }
@@ -292,14 +320,13 @@ pub fn handle_creation_actions(
         if s == "IncrementStat()" {
             let index = cs.active_member;
             let stat = cs.selected_stat[index];
-            let points = cs.bonus_points[index];
-            if points > 0 {
+            if cs.bonus_points > 0 {
                 let idx = stat.attr_index();
                 if let Some(ref mut p) = party
                     && p.members[index].base_attrs[idx] < STAT_MAX
                 {
                     p.members[index].base_attrs[idx] += 1;
-                    cs.bonus_points[index] -= 1;
+                    cs.bonus_points -= 1;
                 }
             }
             continue;
@@ -315,7 +342,7 @@ pub fn handle_creation_actions(
                 let class_base = creation::class_base_attrs(p.members[index].class)[idx];
                 if current > class_base - STAT_MIN_DEFICIT {
                     p.members[index].base_attrs[idx] -= 1;
-                    cs.bonus_points[index] += 1;
+                    cs.bonus_points += 1;
                 }
             }
             continue;

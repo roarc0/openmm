@@ -674,7 +674,7 @@ pub(super) fn text_update(
             let rgba = crate::screens::TextElement::resolve_color(&resolved_color);
             rt.base_color = rgba;
             let is_hovered = matches!(interaction, Some(Interaction::Hovered) | Some(Interaction::Pressed));
-            if !is_hovered && rt.color != rgba {
+            if (!is_hovered || rt.hover_color.is_none()) && rt.color != rgba {
                 rt.color = rgba;
             }
         }
@@ -685,7 +685,7 @@ pub(super) fn text_update(
             rt.base_color = rgba;
 
             let is_hovered = matches!(interaction, Some(Interaction::Hovered) | Some(Interaction::Pressed));
-            if !is_hovered && rt.color != rgba {
+            if (!is_hovered || rt.hover_color.is_none()) && rt.color != rgba {
                 rt.color = rgba;
             }
         }
