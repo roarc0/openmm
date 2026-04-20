@@ -430,7 +430,7 @@ pub struct TextElement {
     /// Start hidden.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hidden: bool,
-    /// Data source binding (e.g. "footer_text", "gold", "food").
+    /// Data source binding (e.g. "ui.footer", "player.gold", "npc.greeting").
     #[serde(default)]
     pub source: String,
     /// Default static value if source is missing or empty.
@@ -460,8 +460,23 @@ pub struct TextElement {
     pub align: String,
 }
 
-/// Valid text sources for the source dropdown.
-pub const TEXT_SOURCES: &[&str] = &["footer_text", "gold", "food"];
+/// Valid text sources for the source dropdown (object.property format).
+pub const TEXT_SOURCES: &[&str] = &[
+    "ui.footer",
+    "player.gold",
+    "player.food",
+    "player.reputation",
+    "player.map_name",
+    "npc.name",
+    "npc.full_name",
+    "npc.greeting",
+    "npc.profession",
+    "member0.class",
+    "member0.selected_stat",
+    "house.name",
+    "house.owner",
+    "loading.step",
+];
 /// Valid text alignments.
 pub const TEXT_ALIGNS: &[&str] = &["left", "center", "right"];
 /// Valid text colors.

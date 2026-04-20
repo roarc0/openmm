@@ -125,6 +125,16 @@ pub(crate) fn parse_two_string_args<'a>(input: &'a str, func_name: &str) -> Opti
     Some((left, right))
 }
 
+/// Extract string + int args from `FuncName("object", 1)`.
+pub(crate) fn parse_string_int_args<'a>(input: &'a str, func_name: &str) -> Option<(&'a str, i32)> {
+    let rest = input.strip_prefix(func_name)?.trim();
+    let rest = rest.strip_prefix('(')?.strip_suffix(')')?;
+    let (left, right) = rest.split_once(',')?;
+    let left = left.trim().strip_prefix('"')?.strip_suffix('"')?;
+    let right = right.trim().parse::<i32>().ok()?;
+    Some((left, right))
+}
+
 /// Evaluate a condition expression against script context.
 /// Returns false for invalid expressions (fail-safe: skip the block).
 pub fn eval_condition(expr: &str, ctx: &ScriptContext) -> bool {

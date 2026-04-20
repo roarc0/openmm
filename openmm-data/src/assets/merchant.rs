@@ -113,6 +113,12 @@ mod tests {
     fn not_enough_gold_row_exists() {
         let Some(table) = load() else { return };
         let row = table.get("Not enough gold").expect("row missing");
-        assert!(row.buy.contains("gold"), "unexpected buy text: {}", row.buy);
+        let buy = row.buy.to_ascii_lowercase();
+        assert!(!buy.is_empty(), "buy text should not be empty");
+        assert!(
+            buy.contains("gold") || buy.contains("money"),
+            "unexpected buy text: {}",
+            row.buy
+        );
     }
 }

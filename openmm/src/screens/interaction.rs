@@ -6,7 +6,7 @@ use bevy::window::{CursorOptions, PrimaryWindow};
 
 use super::runtime::{
     ClickFlash, ClickedAnimation, ClickedTexture, HoverAnimation, HoverOverlay, HoverTexture, RuntimeElement,
-    ScreenActions, ScreenLayer, ScreenLayers, ScreenUiHovered,
+    ScreenActionEvent, ScreenActions, ScreenLayer, ScreenLayers, ScreenUiHovered,
 };
 use super::setup::{hide_screen, load_screen_replace_all, show_screen};
 use super::ui_assets::UiAssets;
@@ -23,10 +23,7 @@ enum CloseWindowTarget {
     None,
 }
 
-fn resolve_close_window_target(
-    top_modal_id: Option<&str>,
-    ui_mode: Option<UiMode>,
-) -> CloseWindowTarget {
+fn resolve_close_window_target(top_modal_id: Option<&str>, ui_mode: Option<UiMode>) -> CloseWindowTarget {
     if let Some(mode) = ui_mode
         && mode != UiMode::World
     {
@@ -308,15 +305,13 @@ pub(super) fn screen_click(
         (Changed<Interaction>, With<Button>),
     >,
     layers: Res<ScreenLayers>,
-    flash_query: Query<&ClickFlash>,
+    _flash_query: Query<&ClickFlash>,
     mut ui_sound: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
     sound_manager: Option<Res<crate::game::sound::SoundManager>>,
+    mut actions: Option<bevy::ecs::message::MessageWriter<ScreenActions>>,
 ) {
-    for (entity, interaction, rt_elem, mut image_node, clicked_tex, clicked_anim) in &mut query {
+    for (entity, interaction, rt_elem, mut image_node, clicked_tex, mut clicked_anim) in &mut query {
         if *interaction != Interaction::Pressed {
-            continue;
-        }
-        if flash_query.contains(entity) {
             continue;
         }
         let Some(screen) = layers.screens.get(&rt_elem.screen_id) else {
@@ -338,7 +333,7 @@ pub(super) fn screen_click(
 
         // Swap to "clicked" texture if available, otherwise hide briefly.
         if let Some(ref mut node) = image_node {
-            if let Some(mut ca) = clicked_anim {
+            if let Some(ref mut ca) = clicked_anim {
                 ca.elapsed = 0.0;
                 ca.current_frame = 0;
                 node.image = ca.handles[0].clone();
@@ -351,10 +346,29 @@ pub(super) fn screen_click(
             commands.entity(entity).insert(Visibility::Hidden);
         }
 
-        commands.entity(entity).insert(ClickFlash {
-            timer: Timer::from_seconds(0.2, TimerMode::Once),
-            pending_actions: elem.on_click().to_vec(),
-        });
+        let has_click_visual = clicked_tex.is_some() || clicked_anim.is_some();
+        let click_actions = elem.on_click().to_vec();
+
+        if has_click_visual {
+            // Defer actions until the 0.2s pressed-down visual finishes.
+            commands.entity(entity).insert(ClickFlash {
+                timer: Timer::from_seconds(0.2, TimerMode::Once),
+                pending_actions: click_actions,
+            });
+        } else {
+            // No click visual — fire actions immediately.
+            if let Some(ref mut act) = actions {
+                if !click_actions.is_empty() {
+                    act.write(ScreenActions {
+                        actions: click_actions,
+                    });
+                }
+            }
+            commands.entity(entity).insert(ClickFlash {
+                timer: Timer::from_seconds(0.2, TimerMode::Once),
+                pending_actions: vec![],
+            });
+        }
     }
 }
 
@@ -575,9 +589,12 @@ pub(super) fn process_pending_actions(
     mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
     world_state: Option<Res<crate::game::state::WorldState>>,
     mut event_queue: Option<ResMut<crate::game::events::scripting::EventQueue>>,
-    mut ui_state: Option<ResMut<crate::game::ui::UiState>>,
-    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     sound_manager: Option<Res<crate::game::sound::SoundManager>>,
+    mut ui_action_set: ParamSet<(
+        Option<ResMut<crate::game::ui::UiState>>,
+        MessageWriter<ScreenActionEvent>,
+    )>,
+    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     use super::scripting::Action;
 
@@ -641,7 +658,7 @@ pub(super) fn process_pending_actions(
                 }
                 Action::HideScreen(id) => {
                     info!("action: HideScreen(\"{}\")", id);
-                    let ui_mode = ui_state.as_ref().map(|ui| ui.mode);
+                    let ui_mode = ui_action_set.p0().as_ref().map(|ui| ui.mode);
                     hide_screen(
                         &id,
                         &mut commands,
@@ -696,11 +713,11 @@ pub(super) fn process_pending_actions(
                     let top_modal_id = layers.top_modal_id().map(str::to_string);
                     let target = resolve_close_window_target(
                         top_modal_id.as_deref(),
-                        ui_state.as_ref().map(|ui| ui.mode),
+                        ui_action_set.p0().as_ref().map(|ui| ui.mode),
                     );
                     match target {
                         CloseWindowTarget::UiModeWorld => {
-                            if let Some(ref mut ui) = ui_state {
+                            if let Some(ref mut ui) = ui_action_set.p0() {
                                 crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
                             }
                             if let Some(ref modal_id) = top_modal_id {
@@ -720,7 +737,7 @@ pub(super) fn process_pending_actions(
                             commands.remove_resource::<crate::game::ui::HouseProfile>();
                         }
                         CloseWindowTarget::TopModal(top_modal_id) => {
-                            let ui_mode = ui_state.as_ref().map(|ui| ui.mode);
+                            let ui_mode = ui_action_set.p0().as_ref().map(|ui| ui.mode);
                             hide_screen(
                                 &top_modal_id,
                                 &mut commands,
@@ -735,11 +752,11 @@ pub(super) fn process_pending_actions(
                     }
                 }
                 Action::PlaySoundNamed(ref name) => {
-                    push_sound_by_name(name, &sound_manager, &mut event_queue);
+                    push_sound_by_name(name, sound_manager.as_deref(), &mut event_queue);
                 }
                 Action::EnterTurnBattle => {
                     info!("action: EnterTurnBattle");
-                    if let Some(ref mut ui) = ui_state {
+                    if let Some(ref mut ui) = ui_action_set.p0() {
                         crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::TurnBattle);
                     }
                 }
@@ -751,12 +768,13 @@ pub(super) fn process_pending_actions(
                         .subsec_nanos() as usize;
                     push_sound_by_name(
                         GREETING_SOUNDS[nanos % GREETING_SOUNDS.len()],
-                        &sound_manager,
+                        sound_manager.as_deref(),
                         &mut event_queue,
                     );
                 }
                 Action::Unknown(s) => {
-                    warn!("unknown screen action: '{}'", s);
+                    // Forward to screen-specific handlers.
+                    ui_action_set.p1().write(ScreenActionEvent(s));
                 }
                 Action::Compare(_) | Action::Else | Action::End => {} // consumed by execute_actions
             }
@@ -768,7 +786,7 @@ pub(super) fn process_pending_actions(
 /// Resolve a dsounds name to a sound ID and push it to the event queue.
 fn push_sound_by_name(
     name: &str,
-    sound_manager: &Option<Res<crate::game::sound::SoundManager>>,
+    sound_manager: Option<&crate::game::sound::SoundManager>,
     event_queue: &mut Option<ResMut<crate::game::events::scripting::EventQueue>>,
 ) {
     if let Some(sm) = sound_manager

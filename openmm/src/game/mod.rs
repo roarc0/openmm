@@ -85,17 +85,18 @@ impl Plugin for GameplayPlugin {
 struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((
-            crate::screens::debug::DebugPlugin,
-            crate::screens::debug::console::ConsolePlugin,
-            interaction::InteractionPlugin,
-            ui::overlay::OverlayPlugin,
-            ui::npc_dialogue::NpcDialoguePlugin,
-        ))
-        // Viewport clipping — keeps the 3D camera inside the HUD frame.
-        .add_systems(
-            Update,
-            rendering::viewport::update_viewport.run_if(in_state(crate::GameState::Game)),
-        );
+        app.init_resource::<ui::party_creation::PartyCreationState>()
+            .add_plugins((
+                crate::screens::debug::DebugPlugin,
+                crate::screens::debug::console::ConsolePlugin,
+                interaction::InteractionPlugin,
+                ui::overlay::OverlayPlugin,
+                ui::npc_dialogue::NpcDialoguePlugin,
+            ))
+            // Viewport clipping — keeps the 3D camera inside the HUD frame.
+            .add_systems(
+                Update,
+                rendering::viewport::update_viewport.run_if(in_state(crate::GameState::Game)),
+            );
     }
 }

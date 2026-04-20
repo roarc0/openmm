@@ -18,7 +18,7 @@ pub struct ScreenRuntimePlugin;
 
 impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
-        use super::elements::{text_update, update_screen_crosshair};
+        use super::elements::{dynamic_texture_update, text_update, update_screen_crosshair};
         use super::interaction::{
             click_flash_tick, hover_actions, hover_animate_tick, process_pending_actions, screen_click, screen_hover,
             screen_keys, text_hover,
@@ -32,8 +32,10 @@ impl Plugin for ScreenRuntimePlugin {
 
         app.add_plugins(super::bindings::BindingsPlugin)
             .add_message::<ScreenActions>()
+            .add_message::<ScreenActionEvent>()
             .init_resource::<ScreenLayers>()
             .init_resource::<ScreenUiHovered>()
+            .init_resource::<crate::screens::PropertyRegistry>()
             // Menu state: load "menu" screen.
             .add_systems(OnEnter(GameState::Menu), menu_screen_setup)
             .add_systems(OnExit(GameState::Menu), screen_teardown)
@@ -47,12 +49,27 @@ impl Plugin for ScreenRuntimePlugin {
             .add_systems(Update, screen_hover.run_if(screen_states.clone()))
             .add_systems(Update, hover_actions.run_if(screen_states.clone()))
             .add_systems(Update, hover_animate_tick.run_if(screen_states.clone()))
-            .add_systems(Update, screen_click.run_if(screen_states.clone()))
+            .add_systems(Update, screen_click.after(screen_hover).run_if(screen_states.clone()))
             .add_systems(Update, screen_keys.run_if(screen_states.clone()))
             .add_systems(Update, video_tick.run_if(screen_states.clone()))
+            .add_systems(
+                Update,
+                crate::game::ui::party_creation::update_party_creation_registry.run_if(screen_states.clone()),
+            )
+            .add_systems(
+                Update,
+                crate::game::ui::party_creation::sync_creation_arrows.run_if(screen_states.clone()),
+            )
             .add_systems(Update, text_update.run_if(screen_states.clone()))
+            .add_systems(Update, dynamic_texture_update.run_if(screen_states.clone()))
             .add_systems(Update, click_flash_tick.run_if(screen_states.clone()))
             .add_systems(Update, process_pending_actions.run_if(screen_states.clone()))
+            .add_systems(
+                Update,
+                crate::game::ui::party_creation::handle_creation_actions
+                    .run_if(screen_states.clone())
+                    .run_if(resource_exists::<crate::game::ui::party_creation::PartyCreationState>),
+            )
             .add_systems(Update, update_screen_crosshair.run_if(screen_states.clone()))
             .add_systems(Update, text_hover.run_if(screen_states));
     }
@@ -137,6 +154,7 @@ pub(crate) struct FrameAnimation {
 pub(super) struct RuntimeText {
     pub(super) source: String,
     pub(super) value: String,
+    pub(super) color_expr: String,
     pub(super) font: String,
     pub(super) font_size: f32,
     pub(super) color: [u8; 4],
@@ -198,6 +216,11 @@ impl ScreenLayers {
 pub(crate) struct ScreenActions {
     pub(crate) actions: Vec<String>,
 }
+
+/// Forwarded action that no universal handler recognized.
+/// Screen-specific systems consume these to handle their own actions.
+#[derive(Message, Clone)]
+pub struct ScreenActionEvent(pub String);
 
 /// Tracks whether a screen UI element is currently hovered.
 /// When true, the world interaction system skips footer clearing.

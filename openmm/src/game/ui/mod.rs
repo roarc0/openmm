@@ -1,9 +1,11 @@
+use crate::screens::PropertySource;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::screens::debug::console::ConsoleState;
 use crate::screens::runtime::ScreenLayers;
 
+pub mod party_creation;
 pub mod npc_dialogue;
 pub mod overlay;
 
@@ -182,4 +184,32 @@ impl FooterText {
 /// System to tick the footer text expiration.
 pub fn tick_footer_text(mut ui: ResMut<UiState>, time: Res<Time>) {
     ui.footer.tick(time.elapsed_secs_f64());
+}
+
+impl PropertySource for UiState {
+    fn source_name(&self) -> &str {
+        "ui"
+    }
+
+    fn resolve(&self, path: &str) -> Option<String> {
+        match path {
+            "" | "footer" => Some(self.footer.text().to_string()),
+            "footer_color" => Some(self.footer.color().to_string()),
+            _ => None,
+        }
+    }
+}
+
+impl PropertySource for HouseProfile {
+    fn source_name(&self) -> &str {
+        "house"
+    }
+
+    fn resolve(&self, path: &str) -> Option<String> {
+        match path {
+            "" | "name" => Some(self.name.clone()),
+            "owner" => Some(self.owner_name.clone()),
+            _ => None,
+        }
+    }
 }

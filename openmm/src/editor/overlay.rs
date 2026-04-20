@@ -69,8 +69,8 @@ pub fn draw_overlays(
         let is_text = elem.as_text().is_some();
         let (stroke, text_color) = if is_selected {
             (
-                egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 0, 255)),
-                egui::Color32::from_rgb(255, 0, 255),
+                egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 255, 0)),
+                egui::Color32::from_rgb(255, 255, 0),
             )
         } else if is_video {
             (

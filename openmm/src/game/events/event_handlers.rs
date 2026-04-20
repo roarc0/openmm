@@ -104,7 +104,7 @@ pub(super) fn handle_speak_in_house(
 }
 
 /// Handle OpenChest: load chest screen, play sound.
-pub(super) fn handle_open_chest(_id: u8, audio: &mut AudioParams) {
+pub(super) fn handle_open_chest(_id: u8, _audio: &mut AudioParams) {
     debug!("OpenChest(id={})", _id);
     // Load chest screen via the screen system (handled in scripting.rs)
 }

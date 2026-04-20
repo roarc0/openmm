@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::game::map::outdoor::OdmName;
+use crate::screens::PropertySource;
 use crate::system::save::GameSave;
 use openmm_data::utils::MapName;
 
@@ -229,5 +230,32 @@ pub struct WorldStatePlugin;
 impl Plugin for WorldStatePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WorldState>();
+    }
+}
+
+impl PropertySource for WorldState {
+    fn source_name(&self) -> &str {
+        "player"
+    }
+
+    fn resolve(&self, path: &str) -> Option<String> {
+        match path {
+            "gold" => Some(self.game_vars.gold.to_string()),
+            "food" => Some(self.game_vars.food.to_string()),
+            "reputation" => Some(self.game_vars.reputation.to_string()),
+            "flying" => Some(self.game_vars.flying.to_string()),
+            "npcs_in_party" => Some(self.game_vars.npcs_in_party.to_string()),
+            "circus_prize" => Some(self.game_vars.total_circus_prize.to_string()),
+            "map_name" => Some(match &self.map.name {
+                MapName::Outdoor(odm) => odm.base_name(),
+                MapName::Indoor(name) => name.clone(),
+            }),
+            "map_x" => Some(self.map.map_x.to_string()),
+            "map_y" => Some(self.map.map_y.to_string()),
+            "player_x" => Some((self.player.position.x as i32).to_string()),
+            "player_y" => Some((self.player.position.y as i32).to_string()),
+            "player_z" => Some((self.player.position.z as i32).to_string()),
+            _ => None,
+        }
     }
 }

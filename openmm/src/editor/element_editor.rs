@@ -722,6 +722,9 @@ fn draw_text_fields(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize) {
 
     ui.horizontal(|ui| {
         ui.label("Source:");
+        if ui.text_edit_singleline(&mut source).changed() {
+            changed = true;
+        }
         egui::ComboBox::from_id_salt("txt_source")
             .selected_text(&source)
             .show_ui(ui, |ui| {
@@ -968,7 +971,9 @@ fn draw_image_bindings(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
 
     ui.separator();
     ui.heading("Bindings");
-    ui.small("property \u{2192} variable (e.g. scroll_x \u{2192} player.compass_yaw)");
+    ui.small(
+        "binding key \u{2192} value (e.g. scroll_x \u{2192} player.compass_yaw, texture \u{2192} ${member0.portrait})",
+    );
     let bind_keys: Vec<String> = editor.screen.elements[sel]
         .as_image()
         .unwrap()
