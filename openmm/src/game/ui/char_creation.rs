@@ -7,6 +7,7 @@
 //! Exposes property bindings `member0`–`char3` via [`PropertySource`] so RON
 //! screens can display portrait, class, stats, etc.
 
+use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 
 use crate::game::player::party::Party;
@@ -15,6 +16,7 @@ use crate::game::player::party::member::{CharacterClass, PartyMember};
 use crate::game::player::party::portrait::PortraitId;
 use crate::screens::PropertySource;
 use crate::screens::runtime::RuntimeElement;
+use crate::screens::runtime::ScreenActionEvent;
 
 /// All selectable primary stats for point distribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -90,6 +92,9 @@ impl Default for PartyCreationState {
     }
 }
 
+/// Sentinel index for the "active" member property source alias.
+const ACTIVE_SOURCE_INDEX: usize = 99;
+
 // ── PropertySource: expose Party data to RON screens ────────────────────────
 
 /// Bridges a single party member's data to the screen property system.
@@ -124,7 +129,9 @@ impl PropertySource for PartyMemberSource {
             0 => "member0",
             1 => "member1",
             2 => "member2",
-            _ => "member3",
+            3 => "member3",
+            ACTIVE_SOURCE_INDEX => "active",
+            _ => "member0",
         }
     }
 
@@ -186,6 +193,15 @@ pub fn update_party_creation_registry(
             selected_stat: creation_state.selected_stat[i],
         }));
     }
+    // Register "active" as alias for the currently selected member.
+    let active = creation_state.active_member;
+    let active_member = &party.members[active];
+    registry.register(Box::new(PartyMemberSource {
+        index: ACTIVE_SOURCE_INDEX,
+        class_base_attrs: creation::class_base_attrs(active_member.class),
+        member: active_member.clone(),
+        selected_stat: creation_state.selected_stat[active],
+    }));
 }
 
 /// Move the stat selector arrows to the selected stat row for the active member.
@@ -246,5 +262,146 @@ pub fn stat_value_color(current: i16, class_base: i16) -> &'static str {
         "red"
     } else {
         "white"
+    }
+}
+
+// ── Screen-specific action handler ───��──────────────────────────────────────
+
+fn parse_member_index(object: &str) -> Option<usize> {
+    match object {
+        "member0" => Some(0),
+        "member1" => Some(1),
+        "member2" => Some(2),
+        "member3" => Some(3),
+        _ => None,
+    }
+}
+
+/// Handle screen actions specific to the party creation screen.
+/// Only active when `PartyCreationState` exists (i.e. during character creation).
+pub fn handle_creation_actions(
+    mut events: MessageReader<ScreenActionEvent>,
+    mut creation_state: Option<ResMut<PartyCreationState>>,
+    mut party: Option<ResMut<Party>>,
+    sound_manager: Option<Res<crate::game::sound::SoundManager>>,
+    mut sound_writer: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
+) {
+    use crate::screens::scripting::{parse_string_arg, parse_string_int_args};
+
+    let Some(ref mut cs) = creation_state else {
+        return;
+    };
+
+    for ScreenActionEvent(action) in events.read() {
+        let s = action.trim();
+
+        // CyclePortrait("member0", 1)
+        if let Some((object, delta)) = parse_string_int_args(s, "CyclePortrait") {
+            if let Some(index) = parse_member_index(object) {
+                if let Some(ref mut p) = party {
+                    cycle_member_portrait(p, index, delta);
+                    play_portrait_sound(p, index, &sound_manager, &mut sound_writer);
+                }
+            } else {
+                warn!("CyclePortrait: unknown object '{}'", object);
+            }
+            continue;
+        }
+
+        // SelectClass("Knight")
+        if let Some(class_name) = parse_string_arg(s, "SelectClass") {
+            if let Some(class) = CharacterClass::from_name(class_name) {
+                let index = cs.active_member;
+                if let Some(ref mut p) = party {
+                    set_member_class(p, index, class);
+                }
+                cs.bonus_points[index] = 25;
+            } else {
+                warn!("SelectClass: unknown class '{}'", class_name);
+            }
+            continue;
+        }
+
+        // SelectStat("might")
+        if let Some(stat_name) = parse_string_arg(s, "SelectStat") {
+            if let Some(stat) = CharStat::from_name(stat_name) {
+                let active = cs.active_member;
+                cs.selected_stat[active] = stat;
+            } else {
+                warn!("SelectStat: unknown stat '{}'", stat_name);
+            }
+            continue;
+        }
+
+        // SelectMember("member0")
+        if let Some(object) = parse_string_arg(s, "SelectMember") {
+            if let Some(index) = parse_member_index(object) {
+                cs.active_member = index;
+            }
+            continue;
+        }
+
+        // IncrementStat()
+        if s == "IncrementStat()" {
+            let index = cs.active_member;
+            let stat = cs.selected_stat[index];
+            let points = cs.bonus_points[index];
+            if points > 0 {
+                let idx = stat.attr_index();
+                if let Some(ref mut p) = party
+                    && p.members[index].base_attrs[idx] < STAT_MAX
+                {
+                    p.members[index].base_attrs[idx] += 1;
+                    cs.bonus_points[index] -= 1;
+                }
+            }
+            continue;
+        }
+
+        // DecrementStat()
+        if s == "DecrementStat()" {
+            let index = cs.active_member;
+            let stat = cs.selected_stat[index];
+            let idx = stat.attr_index();
+            if let Some(ref mut p) = party {
+                let current = p.members[index].base_attrs[idx];
+                let class_base = creation::class_base_attrs(p.members[index].class)[idx];
+                if current > class_base - STAT_MIN_DEFICIT {
+                    p.members[index].base_attrs[idx] -= 1;
+                    cs.bonus_points[index] += 1;
+                }
+            }
+            continue;
+        }
+
+        // Unrecognized action for this screen — not an error, other screens may handle it.
+        debug!("creation: unhandled action '{}'", s);
+    }
+}
+
+/// Play a random PickMe voice line for the given party member's portrait.
+fn play_portrait_sound(
+    party: &Party,
+    index: usize,
+    sound_manager: &Option<Res<crate::game::sound::SoundManager>>,
+    sound_writer: &mut Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
+) {
+    use crate::game::player::party::portrait::Speech;
+
+    let portrait = party.members[index].portrait;
+    let Some(sm) = sound_manager.as_deref() else { return };
+    let variants = portrait.available_variants(Speech::PickMe, sm);
+    if variants.is_empty() {
+        return;
+    }
+    let mut rng = creation::SplitMix64::seeded();
+    let pick = rng.index(variants.len());
+    let sound_name = portrait.voice_name(Speech::PickMe, variants[pick]);
+    if let Some(entry) = sm.dsounds.get_by_name(&sound_name)
+        && let Some(w) = sound_writer
+    {
+        w.write(crate::game::sound::effects::PlayUiSoundEvent {
+            sound_id: entry.sound_id,
+        });
     }
 }

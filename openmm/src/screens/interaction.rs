@@ -6,7 +6,7 @@ use bevy::window::{CursorOptions, PrimaryWindow};
 
 use super::runtime::{
     ClickFlash, ClickedAnimation, ClickedTexture, HoverAnimation, HoverOverlay, HoverTexture, RuntimeElement,
-    ScreenActions, ScreenLayer, ScreenLayers, ScreenUiHovered,
+    ScreenActionEvent, ScreenActions, ScreenLayer, ScreenLayers, ScreenUiHovered,
 };
 use super::setup::{hide_screen, load_screen_replace_all, show_screen};
 use super::ui_assets::UiAssets;
@@ -572,16 +572,12 @@ pub(super) fn process_pending_actions(
     mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
     world_state: Option<Res<crate::game::state::WorldState>>,
     mut event_queue: Option<ResMut<crate::game::events::scripting::EventQueue>>,
-    mut ui_resources: ParamSet<(
+    sound_manager: Option<Res<crate::game::sound::SoundManager>>,
+    mut ui_action_set: ParamSet<(
         Option<ResMut<crate::game::ui::UiState>>,
-        Option<ResMut<crate::game::ui::char_creation::PartyCreationState>>,
-        Option<ResMut<crate::game::player::party::Party>>,
+        MessageWriter<ScreenActionEvent>,
     )>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
-    mut sound_resources: ParamSet<(
-        Option<ResMut<crate::game::sound::SoundManager>>,
-        Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
-    )>,
 ) {
     use super::scripting::Action;
 
@@ -645,7 +641,7 @@ pub(super) fn process_pending_actions(
                 }
                 Action::HideScreen(id) => {
                     info!("action: HideScreen(\"{}\")", id);
-                    let ui_mode = ui_resources.p0().as_ref().map(|ui| ui.mode);
+                    let ui_mode = ui_action_set.p0().as_ref().map(|ui| ui.mode);
                     hide_screen(
                         &id,
                         &mut commands,
@@ -700,11 +696,11 @@ pub(super) fn process_pending_actions(
                     let top_modal_id = layers.top_modal_id().map(str::to_string);
                     let target = resolve_close_window_target(
                         top_modal_id.as_deref(),
-                        ui_resources.p0().as_ref().map(|ui| ui.mode),
+                        ui_action_set.p0().as_ref().map(|ui| ui.mode),
                     );
                     match target {
                         CloseWindowTarget::UiModeWorld => {
-                            if let Some(ref mut ui) = ui_resources.p0() {
+                            if let Some(ref mut ui) = ui_action_set.p0() {
                                 crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
                             }
                             if let Some(ref modal_id) = top_modal_id {
@@ -724,7 +720,7 @@ pub(super) fn process_pending_actions(
                             commands.remove_resource::<crate::game::ui::HouseProfile>();
                         }
                         CloseWindowTarget::TopModal(top_modal_id) => {
-                            let ui_mode = ui_resources.p0().as_ref().map(|ui| ui.mode);
+                            let ui_mode = ui_action_set.p0().as_ref().map(|ui| ui.mode);
                             hide_screen(
                                 &top_modal_id,
                                 &mut commands,
@@ -739,147 +735,12 @@ pub(super) fn process_pending_actions(
                     }
                 }
                 Action::PlaySoundNamed(ref name) => {
-                    let sm = sound_resources.p0();
-                    push_sound_by_name(name, sm.as_deref(), &mut event_queue);
+                    push_sound_by_name(name, sound_manager.as_deref(), &mut event_queue);
                 }
                 Action::EnterTurnBattle => {
                     info!("action: EnterTurnBattle");
-                    if let Some(ref mut ui) = ui_resources.p0() {
+                    if let Some(ref mut ui) = ui_action_set.p0() {
                         crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::TurnBattle);
-                    }
-                }
-                Action::CyclePortrait(object, delta) => {
-                    use crate::game::player::party::portrait::Speech;
-                    use crate::game::ui::char_creation::cycle_member_portrait;
-                    let portrait_sound: Option<String> = {
-                        if let Some(index) = parse_member_index(&object) {
-                            if let Some(ref mut p) = ui_resources.p2() {
-                                cycle_member_portrait(p, index, delta);
-                                let portrait = p.members[index].portrait;
-                                let sm_ref = sound_resources.p0();
-                                if let Some(sm) = sm_ref.as_deref() {
-                                    let variants = portrait.available_variants(Speech::PickMe, sm);
-                                    if !variants.is_empty() {
-                                        let mut rng = crate::game::player::party::creation::SplitMix64::seeded();
-                                        let pick = rng.index(variants.len());
-                                        Some(portrait.voice_name(Speech::PickMe, variants[pick]))
-                                    } else {
-                                        None
-                                    }
-                                } else {
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        } else {
-                            warn!("CyclePortrait: unknown object '{}'", object);
-                            None
-                        }
-                    };
-                    if let Some(sound_name) = portrait_sound {
-                        let sound_id = sound_resources
-                            .p0()
-                            .as_deref()
-                            .and_then(|sm| sm.dsounds.get_by_name(&sound_name))
-                            .map(|s| s.sound_id);
-                        if let Some(id) = sound_id
-                            && let Some(ref mut w) = sound_resources.p1()
-                        {
-                            w.write(crate::game::sound::effects::PlayUiSoundEvent { sound_id: id });
-                        }
-                    }
-                }
-                Action::SelectClass(class) => {
-                    let index = ui_resources.p1().as_ref().map(|cs| cs.active_member);
-                    if let Some(index) = index {
-                        if let Some(class) = crate::game::player::party::member::CharacterClass::from_name(&class) {
-                            if let Some(ref mut p) = ui_resources.p2() {
-                                crate::game::ui::char_creation::set_member_class(p, index, class);
-                            }
-                            if let Some(ref mut cs) = ui_resources.p1() {
-                                cs.bonus_points[index] = 25;
-                            }
-                        } else {
-                            warn!("SelectClass: unknown class '{}'", class);
-                        }
-                    }
-                }
-                Action::SelectStat(stat) => {
-                    if let Some(stat) = crate::game::ui::char_creation::CharStat::from_name(&stat) {
-                        if let Some(ref mut cs) = ui_resources.p1() {
-                            let active = cs.active_member;
-                            cs.selected_stat[active] = stat;
-                        }
-                    } else {
-                        warn!("SelectStat: unknown stat '{}'", stat);
-                    }
-                }
-                Action::SelectMember(object) => {
-                    if let Some(index) = parse_member_index(&object)
-                        && let Some(ref mut cs) = ui_resources.p1()
-                    {
-                        cs.active_member = index;
-                    }
-                }
-                Action::IncrementStat => {
-                    use crate::game::ui::char_creation::STAT_MAX;
-                    let info = ui_resources.p1().as_ref().map(|cs| {
-                        (
-                            cs.active_member,
-                            cs.selected_stat[cs.active_member],
-                            cs.bonus_points[cs.active_member],
-                        )
-                    });
-                    let did_increment = if let Some((index, stat, points)) = info {
-                        if points > 0 {
-                            let idx = stat.attr_index();
-                            let ok = ui_resources.p2().as_mut().map(|p| {
-                                if p.members[index].base_attrs[idx] < STAT_MAX {
-                                    p.members[index].base_attrs[idx] += 1;
-                                    true
-                                } else {
-                                    false
-                                }
-                            });
-                            ok == Some(true)
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    };
-                    if did_increment && let Some(ref mut cs) = ui_resources.p1() {
-                        let index = cs.active_member;
-                        cs.bonus_points[index] -= 1;
-                    }
-                }
-                Action::DecrementStat => {
-                    use crate::game::ui::char_creation::STAT_MIN_DEFICIT;
-                    let info = ui_resources
-                        .p1()
-                        .as_ref()
-                        .map(|cs| (cs.active_member, cs.selected_stat[cs.active_member]));
-                    let did_decrement = if let Some((index, stat)) = info {
-                        let idx = stat.attr_index();
-                        let ok = ui_resources.p2().as_mut().map(|p| {
-                            let current = p.members[index].base_attrs[idx];
-                            let class_base =
-                                crate::game::player::party::creation::class_base_attrs(p.members[index].class)[idx];
-                            if current > class_base - STAT_MIN_DEFICIT {
-                                p.members[index].base_attrs[idx] -= 1;
-                                true
-                            } else {
-                                false
-                            }
-                        });
-                        ok == Some(true)
-                    } else {
-                        false
-                    };
-                    if did_decrement && let Some(ref mut cs) = ui_resources.p1() {
-                        let index = cs.active_member;
-                        cs.bonus_points[index] += 1;
                     }
                 }
                 Action::GreetingSound => {
@@ -890,12 +751,13 @@ pub(super) fn process_pending_actions(
                         .subsec_nanos() as usize;
                     push_sound_by_name(
                         GREETING_SOUNDS[nanos % GREETING_SOUNDS.len()],
-                        sound_resources.p0().as_deref(),
+                        sound_manager.as_deref(),
                         &mut event_queue,
                     );
                 }
                 Action::Unknown(s) => {
-                    warn!("unknown screen action: '{}'", s);
+                    // Forward to screen-specific handlers.
+                    ui_action_set.p1().write(ScreenActionEvent(s));
                 }
                 Action::Compare(_) | Action::Else | Action::End => {} // consumed by execute_actions
             }
@@ -972,16 +834,6 @@ fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::events::script
     }
 
     warn!("evt: unknown proxy action: '{}'", s);
-}
-
-fn parse_member_index(object: &str) -> Option<usize> {
-    match object {
-        "member0" => Some(0),
-        "member1" => Some(1),
-        "member2" => Some(2),
-        "member3" => Some(3),
-        _ => None,
-    }
 }
 
 #[cfg(test)]

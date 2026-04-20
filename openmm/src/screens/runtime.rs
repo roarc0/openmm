@@ -32,6 +32,7 @@ impl Plugin for ScreenRuntimePlugin {
 
         app.add_plugins(super::bindings::BindingsPlugin)
             .add_message::<ScreenActions>()
+            .add_message::<ScreenActionEvent>()
             .init_resource::<ScreenLayers>()
             .init_resource::<ScreenUiHovered>()
             .init_resource::<crate::screens::PropertyRegistry>()
@@ -63,6 +64,12 @@ impl Plugin for ScreenRuntimePlugin {
             .add_systems(Update, dynamic_texture_update.run_if(screen_states.clone()))
             .add_systems(Update, click_flash_tick.run_if(screen_states.clone()))
             .add_systems(Update, process_pending_actions.run_if(screen_states.clone()))
+            .add_systems(
+                Update,
+                crate::game::ui::char_creation::handle_creation_actions
+                    .run_if(screen_states.clone())
+                    .run_if(resource_exists::<crate::game::ui::char_creation::PartyCreationState>),
+            )
             .add_systems(Update, update_screen_crosshair.run_if(screen_states.clone()))
             .add_systems(Update, text_hover.run_if(screen_states));
     }
@@ -209,6 +216,11 @@ impl ScreenLayers {
 pub(crate) struct ScreenActions {
     pub(crate) actions: Vec<String>,
 }
+
+/// Forwarded action that no universal handler recognized.
+/// Screen-specific systems consume these to handle their own actions.
+#[derive(Message, Clone)]
+pub struct ScreenActionEvent(pub String);
 
 /// Tracks whether a screen UI element is currently hovered.
 /// When true, the world interaction system skips footer clearing.
