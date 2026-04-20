@@ -32,12 +32,18 @@ pub enum Action {
     GreetingSound,
     /// Enter turn-based combat mode.
     EnterTurnBattle,
-    /// Cycle the portrait for a character object, e.g. `CyclePortrait("char0", 1)`.
+    /// Cycle the portrait for a character object, e.g. `CyclePortrait("member0", 1)`.
     CyclePortrait(String, i32),
-    /// Select a class for a character object, e.g. `SelectClass("char0", "Knight")`.
-    SelectClass(String, String),
-    /// Select a stat for a character object, e.g. `SelectStat("char0", "might")`.
-    SelectStat(String, String),
+    /// Select a class for the active member, e.g. `SelectClass("Knight")`.
+    SelectClass(String),
+    /// Select a stat for the active member, e.g. `SelectStat("might")`.
+    SelectStat(String),
+    /// Set the active member for stat allocation, e.g. `SelectMember("member0")`.
+    SelectMember(String),
+    /// Increment the selected stat for the active member.
+    IncrementStat,
+    /// Decrement the selected stat for the active member.
+    DecrementStat,
     // EVT proxy — raw action string after stripping "evt:" prefix
     EvtProxy(String),
     // Control flow
@@ -92,11 +98,20 @@ pub fn parse_action(input: &str) -> Action {
     if let Some((object, delta)) = parse_string_int_args(s, "CyclePortrait") {
         return Action::CyclePortrait(object.to_string(), delta);
     }
-    if let Some((object, class)) = parse_two_string_args(s, "SelectClass") {
-        return Action::SelectClass(object.to_string(), class.to_string());
+    if let Some(class) = parse_string_arg(s, "SelectClass") {
+        return Action::SelectClass(class.to_string());
     }
-    if let Some((object, stat)) = parse_two_string_args(s, "SelectStat") {
-        return Action::SelectStat(object.to_string(), stat.to_string());
+    if let Some(stat) = parse_string_arg(s, "SelectStat") {
+        return Action::SelectStat(stat.to_string());
+    }
+    if let Some(object) = parse_string_arg(s, "SelectMember") {
+        return Action::SelectMember(object.to_string());
+    }
+    if s == "IncrementStat()" {
+        return Action::IncrementStat;
+    }
+    if s == "DecrementStat()" {
+        return Action::DecrementStat;
     }
     if s == "NewGame()" {
         return Action::NewGame;

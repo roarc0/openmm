@@ -574,7 +574,8 @@ pub(super) fn process_pending_actions(
     mut event_queue: Option<ResMut<crate::game::events::scripting::EventQueue>>,
     mut ui_resources: ParamSet<(
         Option<ResMut<crate::game::ui::UiState>>,
-        Option<ResMut<crate::game::ui::char_creation::CharCreationState>>,
+        Option<ResMut<crate::game::ui::char_creation::PartyCreationState>>,
+        Option<ResMut<crate::game::player::party::Party>>,
     )>,
     mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
     mut sound_resources: ParamSet<(
@@ -748,23 +749,31 @@ pub(super) fn process_pending_actions(
                     }
                 }
                 Action::CyclePortrait(object, delta) => {
+                    use crate::game::player::party::portrait::Speech;
+                    use crate::game::ui::char_creation::cycle_member_portrait;
                     let portrait_sound: Option<String> = {
-                        if let Some(ref mut chars) = ui_resources.p1() {
-                            if let Some(index) = parse_char_object_index(&object) {
-                                chars.members[index].cycle_portrait(delta);
-                                let portrait = chars.members[index].portrait_texture().to_string();
-                                let variants = crate::game::player::party::creation::portrait_sound_variants(&portrait);
-                                if !variants.is_empty() {
-                                    let pick = crate::game::player::party::creation::random_name_index(variants.len());
-                                    Some(variants[pick].to_string())
+                        if let Some(index) = parse_member_index(&object) {
+                            if let Some(ref mut p) = ui_resources.p2() {
+                                cycle_member_portrait(p, index, delta);
+                                let portrait = p.members[index].portrait;
+                                let sm_ref = sound_resources.p0();
+                                if let Some(sm) = sm_ref.as_deref() {
+                                    let variants = portrait.available_variants(Speech::PickMe, sm);
+                                    if !variants.is_empty() {
+                                        let mut rng = crate::game::player::party::creation::SplitMix64::seeded();
+                                        let pick = rng.index(variants.len());
+                                        Some(portrait.voice_name(Speech::PickMe, variants[pick]))
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 }
                             } else {
-                                warn!("CyclePortrait: unknown object '{}'", object);
                                 None
                             }
                         } else {
+                            warn!("CyclePortrait: unknown object '{}'", object);
                             None
                         }
                     };
@@ -774,37 +783,103 @@ pub(super) fn process_pending_actions(
                             .as_deref()
                             .and_then(|sm| sm.dsounds.get_by_name(&sound_name))
                             .map(|s| s.sound_id);
-                        if let Some(id) = sound_id {
-                            if let Some(ref mut w) = sound_resources.p1() {
-                                w.write(crate::game::sound::effects::PlayUiSoundEvent { sound_id: id });
-                            }
+                        if let Some(id) = sound_id
+                            && let Some(ref mut w) = sound_resources.p1()
+                        {
+                            w.write(crate::game::sound::effects::PlayUiSoundEvent { sound_id: id });
                         }
                     }
                 }
-                Action::SelectClass(object, class) => {
-                    if let Some(ref mut chars) = ui_resources.p1() {
-                        if let Some(index) = parse_char_object_index(&object) {
-                            if let Some(class) = crate::game::ui::char_creation::CharClass::from_name(&class) {
-                                chars.members[index].set_class_with_defaults(class);
-                            } else {
-                                warn!("SelectClass: unknown class '{}'", class);
+                Action::SelectClass(class) => {
+                    let index = ui_resources.p1().as_ref().map(|cs| cs.active_member);
+                    if let Some(index) = index {
+                        if let Some(class) = crate::game::player::party::member::CharacterClass::from_name(&class) {
+                            if let Some(ref mut p) = ui_resources.p2() {
+                                crate::game::ui::char_creation::set_member_class(p, index, class);
+                            }
+                            if let Some(ref mut cs) = ui_resources.p1() {
+                                cs.bonus_points[index] = 25;
                             }
                         } else {
-                            warn!("SelectClass: unknown object '{}'", object);
+                            warn!("SelectClass: unknown class '{}'", class);
                         }
                     }
                 }
-                Action::SelectStat(object, stat) => {
-                    if let Some(ref mut chars) = ui_resources.p1() {
-                        if let Some(index) = parse_char_object_index(&object) {
-                            if let Some(stat) = crate::game::ui::char_creation::CharStat::from_name(&stat) {
-                                chars.members[index].selected_stat = stat;
-                            } else {
-                                warn!("SelectStat: unknown stat '{}'", stat);
-                            }
-                        } else {
-                            warn!("SelectStat: unknown object '{}'", object);
+                Action::SelectStat(stat) => {
+                    if let Some(stat) = crate::game::ui::char_creation::CharStat::from_name(&stat) {
+                        if let Some(ref mut cs) = ui_resources.p1() {
+                            let active = cs.active_member;
+                            cs.selected_stat[active] = stat;
                         }
+                    } else {
+                        warn!("SelectStat: unknown stat '{}'", stat);
+                    }
+                }
+                Action::SelectMember(object) => {
+                    if let Some(index) = parse_member_index(&object)
+                        && let Some(ref mut cs) = ui_resources.p1()
+                    {
+                        cs.active_member = index;
+                    }
+                }
+                Action::IncrementStat => {
+                    use crate::game::ui::char_creation::STAT_MAX;
+                    let info = ui_resources.p1().as_ref().map(|cs| {
+                        (
+                            cs.active_member,
+                            cs.selected_stat[cs.active_member],
+                            cs.bonus_points[cs.active_member],
+                        )
+                    });
+                    let did_increment = if let Some((index, stat, points)) = info {
+                        if points > 0 {
+                            let idx = stat.attr_index();
+                            let ok = ui_resources.p2().as_mut().map(|p| {
+                                if p.members[index].base_attrs[idx] < STAT_MAX {
+                                    p.members[index].base_attrs[idx] += 1;
+                                    true
+                                } else {
+                                    false
+                                }
+                            });
+                            ok == Some(true)
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+                    if did_increment && let Some(ref mut cs) = ui_resources.p1() {
+                        let index = cs.active_member;
+                        cs.bonus_points[index] -= 1;
+                    }
+                }
+                Action::DecrementStat => {
+                    use crate::game::ui::char_creation::STAT_MIN_DEFICIT;
+                    let info = ui_resources
+                        .p1()
+                        .as_ref()
+                        .map(|cs| (cs.active_member, cs.selected_stat[cs.active_member]));
+                    let did_decrement = if let Some((index, stat)) = info {
+                        let idx = stat.attr_index();
+                        let ok = ui_resources.p2().as_mut().map(|p| {
+                            let current = p.members[index].base_attrs[idx];
+                            let class_base =
+                                crate::game::player::party::creation::class_base_attrs(p.members[index].class)[idx];
+                            if current > class_base - STAT_MIN_DEFICIT {
+                                p.members[index].base_attrs[idx] -= 1;
+                                true
+                            } else {
+                                false
+                            }
+                        });
+                        ok == Some(true)
+                    } else {
+                        false
+                    };
+                    if did_decrement && let Some(ref mut cs) = ui_resources.p1() {
+                        let index = cs.active_member;
+                        cs.bonus_points[index] += 1;
                     }
                 }
                 Action::GreetingSound => {
@@ -899,12 +974,12 @@ fn proxy_evt_action(evt_str: &str, event_queue: &mut crate::game::events::script
     warn!("evt: unknown proxy action: '{}'", s);
 }
 
-fn parse_char_object_index(object: &str) -> Option<usize> {
+fn parse_member_index(object: &str) -> Option<usize> {
     match object {
-        "char0" => Some(0),
-        "char1" => Some(1),
-        "char2" => Some(2),
-        "char3" => Some(3),
+        "member0" => Some(0),
+        "member1" => Some(1),
+        "member2" => Some(2),
+        "member3" => Some(3),
         _ => None,
     }
 }

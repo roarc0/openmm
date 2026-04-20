@@ -53,11 +53,11 @@ impl Plugin for ScreenRuntimePlugin {
             .add_systems(Update, video_tick.run_if(screen_states.clone()))
             .add_systems(
                 Update,
-                crate::game::ui::char_creation::update_char_creation_registry.run_if(screen_states.clone()),
+                crate::game::ui::char_creation::update_party_creation_registry.run_if(screen_states.clone()),
             )
             .add_systems(
                 Update,
-                crate::game::ui::char_creation::sync_char_creation_arrows.run_if(screen_states.clone()),
+                crate::game::ui::char_creation::sync_creation_arrows.run_if(screen_states.clone()),
             )
             .add_systems(Update, text_update.run_if(screen_states.clone()))
             .add_systems(Update, dynamic_texture_update.run_if(screen_states.clone()))

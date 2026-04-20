@@ -11,6 +11,7 @@
 //! are supported, e.g. `"Hello ${npc.name}!"`.
 
 use bevy::prelude::{Component, Resource};
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 /// A resource that exposes named properties to screen bindings.
@@ -50,10 +51,10 @@ impl PropertyRegistry {
 
 /// Interpolate all `${object.property}` placeholders in `template` using the registry.
 /// Placeholders that cannot be resolved are left as-is.
-/// If the template contains no `${`, it is returned unchanged (zero allocation).
-pub fn interpolate(template: &str, registry: &PropertyRegistry) -> String {
+/// Returns `Cow::Borrowed` when no `${` is present (zero allocation for static strings).
+pub fn interpolate<'a>(template: &'a str, registry: &PropertyRegistry) -> Cow<'a, str> {
     if !template.contains("${") {
-        return template.to_string();
+        return Cow::Borrowed(template);
     }
     let mut result = String::with_capacity(template.len());
     let mut rest = template;
@@ -75,11 +76,11 @@ pub fn interpolate(template: &str, registry: &PropertyRegistry) -> String {
             // Unclosed placeholder — emit literally and stop.
             result.push_str("${");
             result.push_str(rest);
-            break;
+            return Cow::Owned(result);
         }
     }
     result.push_str(rest);
-    result
+    Cow::Owned(result)
 }
 
 /// Marks an image entity whose texture name is a template string resolved each frame.
@@ -88,7 +89,7 @@ pub fn interpolate(template: &str, registry: &PropertyRegistry) -> String {
 /// the handle whenever the resolved name changes.
 #[derive(Component)]
 pub struct DynamicTexture {
-    /// Template string, e.g. `"icons/${char0.portrait}"`.
+    /// Template string, e.g. `"icons/${member0.portrait}"`.
     pub template: String,
     /// Transparent-color key passed to texture loader (empty = opaque).
     pub transparent_color: String,

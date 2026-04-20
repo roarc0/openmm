@@ -1,6 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::member::{ATTR_COUNT, CharacterClass};
+use super::portrait::PortraitId;
 
 /// Male character names — MM6-style mix of fantasy and classic.
 const MALE_NAMES: &[&str] = &[
@@ -50,21 +51,6 @@ const FEMALE_NAMES: &[&str] = &[
     "Evangeline",
 ];
 
-const ALL_PORTRAITS: &[&str] = &[
-    "icons/CCMALEA",
-    "icons/CCMALEB",
-    "icons/CCMALEC",
-    "icons/CCMALED",
-    "icons/CCMALEE",
-    "icons/CCMALEF",
-    "icons/CCMALEG",
-    "icons/CCMALEH",
-    "icons/CCGIRLA",
-    "icons/CCGIRLB",
-    "icons/CCGIRLC",
-    "icons/CCGIRLD",
-];
-
 const ALL_CLASSES: &[CharacterClass] = &[
     CharacterClass::Knight,
     CharacterClass::Paladin,
@@ -77,13 +63,9 @@ const ALL_CLASSES: &[CharacterClass] = &[
 #[derive(Debug, Clone, Copy)]
 pub struct CharCreationSeed {
     pub class: CharacterClass,
-    pub portrait: &'static str,
+    pub portrait: PortraitId,
     pub name: &'static str,
     pub base_attrs: [i16; ATTR_COUNT],
-}
-
-fn is_male_portrait(portrait: &str) -> bool {
-    portrait.contains("CCMALE")
 }
 
 pub fn class_base_attrs(class: CharacterClass) -> [i16; ATTR_COUNT] {
@@ -100,7 +82,7 @@ pub fn class_base_attrs(class: CharacterClass) -> [i16; ATTR_COUNT] {
 
 pub fn random_unique_char_creation_seeds() -> [CharCreationSeed; 4] {
     let mut classes = ALL_CLASSES.to_vec();
-    let mut portraits = ALL_PORTRAITS.to_vec();
+    let mut portraits = PortraitId::ALL.to_vec();
     let mut male_names = MALE_NAMES.to_vec();
     let mut female_names = FEMALE_NAMES.to_vec();
 
@@ -116,7 +98,7 @@ pub fn random_unique_char_creation_seeds() -> [CharCreationSeed; 4] {
     std::array::from_fn(|i| {
         let class = classes[i];
         let portrait = portraits[i];
-        let name = if is_male_portrait(portrait) {
+        let name = if portrait.is_male() {
             let n = male_names[male_idx % male_names.len()];
             male_idx += 1;
             n
@@ -134,12 +116,14 @@ pub fn random_unique_char_creation_seeds() -> [CharCreationSeed; 4] {
     })
 }
 
-struct SplitMix64 {
+// ── RNG ─────────────────────────────────────────────────────────────────────
+
+pub(crate) struct SplitMix64 {
     state: u64,
 }
 
 impl SplitMix64 {
-    fn seeded() -> Self {
+    pub fn seeded() -> Self {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_nanos() as u64)
@@ -149,12 +133,20 @@ impl SplitMix64 {
         }
     }
 
-    fn next_u64(&mut self) -> u64 {
+    pub fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
         let mut z = self.state;
         z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
         z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
         z ^ (z >> 31)
+    }
+
+    /// Pick a random index in `0..len`.
+    pub fn index(&mut self, len: usize) -> usize {
+        if len == 0 {
+            return 0;
+        }
+        self.next_u64() as usize % len
     }
 }
 
@@ -169,36 +161,5 @@ fn shuffle<T>(items: &mut [T], rng: &mut SplitMix64) {
 pub fn random_name(is_male: bool) -> &'static str {
     let mut rng = SplitMix64::seeded();
     let pool = if is_male { MALE_NAMES } else { FEMALE_NAMES };
-    pool[rng.next_u64() as usize % pool.len()]
-}
-
-/// Pick a random index into a slice of `len` elements.
-pub fn random_name_index(len: usize) -> usize {
-    if len == 0 {
-        return 0;
-    }
-    let mut rng = SplitMix64::seeded();
-    rng.next_u64() as usize % len
-}
-
-/// Return the sound variants (without extension) that exist for a given portrait texture key.
-/// Only variants confirmed present in Audio.snd are listed — missing variants are omitted.
-pub fn portrait_sound_variants(portrait: &str) -> &'static [&'static str] {
-    // portrait key is e.g. "icons/CCMALEA" — match the last segment case-insensitively
-    let key = portrait.trim_start_matches("icons/").to_uppercase();
-    match key.as_str() {
-        "CCMALEA" => &["MaleA42a", "MaleA42c"],
-        "CCMALEB" => &["MaleB42a", "MaleB42b"],
-        "CCMALEC" => &["MaleC42b", "MaleC42c"],
-        "CCMALED" => &["MaleD42a", "MaleD42c"],
-        "CCMALEE" => &["MaleE42a", "MaleE42b"],
-        "CCMALEF" => &["MaleF42a"],
-        "CCMALEG" => &["MaleG42a", "MaleG42b"],
-        "CCMALEH" => &["MaleH42a", "MaleH42b"],
-        "CCGIRLA" => &["GirlA42a", "GirlA42c"],
-        "CCGIRLB" => &["GirlB42a", "GirlB42c"],
-        "CCGIRLC" => &["GirlC42b", "GirlC42c"],
-        "CCGIRLD" => &["GirlD42a", "GirlD42c"],
-        _ => &[],
-    }
+    pool[rng.index(pool.len())]
 }

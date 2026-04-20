@@ -5,9 +5,9 @@ use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 use crate::screens::debug::console::ConsoleState;
 use crate::screens::runtime::ScreenLayers;
 
+pub mod char_creation;
 pub mod npc_dialogue;
 pub mod overlay;
-pub mod char_creation;
 
 /// Run condition: UiMode is World and no Modal screen is active.
 /// Use for systems that should pause during any overlay.

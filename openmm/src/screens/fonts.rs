@@ -31,6 +31,8 @@ pub const YELLOW: [u8; 4] = [255, 225, 80, 255];
 pub const RED: [u8; 4] = [255, 60, 60, 255];
 /// Green text color (positive effects).
 pub const GREEN: [u8; 4] = [80, 255, 80, 255];
+/// Lime text color (bright green, distinct from transparency key).
+pub const LIME: [u8; 4] = [0, 255, 0, 255];
 /// Blue text color (NPC names, links).
 pub const BLUE: [u8; 4] = [100, 150, 255, 255];
 /// Cyan text color.

@@ -220,7 +220,10 @@ fn flicker_system(
 /// Skips entities with SpriteSheet (those are handled by update_sprite_sheets).
 fn billboard_face_camera(
     camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
-    mut billboard_query: Query<(&mut Transform, &GlobalTransform, &Visibility), (With<Billboard>, Without<loading::SpriteSheet>)>,
+    mut billboard_query: Query<
+        (&mut Transform, &GlobalTransform, &Visibility),
+        (With<Billboard>, Without<loading::SpriteSheet>),
+    >,
     #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
 ) {
     #[cfg(feature = "perf_log")]

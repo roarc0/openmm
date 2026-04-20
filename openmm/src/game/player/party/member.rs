@@ -3,8 +3,9 @@ use openmm_data::enums::EvtVariable;
 pub const SKILL_COUNT: usize = 31; // EvtVariable 0x38..=0x56
 
 /// MM6 character classes (6 classes, matching the original game).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CharacterClass {
+    #[default]
     Knight,
     Paladin,
     Archer,
@@ -13,17 +14,45 @@ pub enum CharacterClass {
     Druid,
 }
 
-impl std::fmt::Display for CharacterClass {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
+impl CharacterClass {
+    pub fn name(self) -> &'static str {
+        match self {
             Self::Knight => "Knight",
             Self::Paladin => "Paladin",
             Self::Archer => "Archer",
             Self::Cleric => "Cleric",
             Self::Sorcerer => "Sorcerer",
             Self::Druid => "Druid",
-        };
-        write!(f, "{}", s)
+        }
+    }
+
+    pub fn icon(self) -> &'static str {
+        match self {
+            Self::Knight => "icons/IC_KNIG",
+            Self::Paladin => "icons/IC_PALAD",
+            Self::Archer => "icons/IC_ARCH",
+            Self::Cleric => "icons/IC_CLER",
+            Self::Druid => "icons/IC_DRUID",
+            Self::Sorcerer => "icons/IC_SORC",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "Knight" => Some(Self::Knight),
+            "Paladin" => Some(Self::Paladin),
+            "Archer" => Some(Self::Archer),
+            "Cleric" => Some(Self::Cleric),
+            "Druid" => Some(Self::Druid),
+            "Sorcerer" => Some(Self::Sorcerer),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for CharacterClass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
     }
 }
 
@@ -37,9 +66,9 @@ pub const COND_COUNT: usize = 18;
 /// A single party member. Skills are stored as raw levels (0 = untrained).
 #[derive(Debug, Clone)]
 pub struct PartyMember {
-    pub name: &'static str,
+    pub name: String,
     pub class: CharacterClass,
-    pub sex: u8, // 0 = male, 1 = female
+    pub portrait: super::portrait::PortraitId,
     pub level: u8,
     /// Raw skill levels, indexed by `EvtVariable::skill_index()`.
     pub skills: [u8; SKILL_COUNT],
@@ -77,11 +106,16 @@ pub struct PartyMember {
 }
 
 impl PartyMember {
-    pub fn new(name: &'static str, class: CharacterClass, level: u8) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        class: CharacterClass,
+        portrait: super::portrait::PortraitId,
+        level: u8,
+    ) -> Self {
         Self {
-            name,
+            name: name.into(),
             class,
-            sex: 0,
+            portrait,
             level,
             skills: [0; SKILL_COUNT],
             hp: 50,
@@ -117,7 +151,13 @@ impl PartyMember {
     /// Read a per-character EvtVariable value (0 if unrecognised).
     pub fn get_var(&self, var: EvtVariable) -> i32 {
         match var.0 {
-            0x01 => self.sex as i32,
+            0x01 => {
+                if self.portrait.is_male() {
+                    0
+                } else {
+                    1
+                }
+            }
             0x02 => self.class as i32,
             0x03 => self.hp as i32,
             0x04 => (self.hp >= self.max_hp) as i32,

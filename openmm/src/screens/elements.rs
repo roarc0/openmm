@@ -2,6 +2,7 @@
 
 use bevy::prelude::*;
 
+use super::PropertySource;
 use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding, SkyScrollBinding, TapBinding};
 use super::fonts::GameFonts;
 use super::property_source::DynamicTexture;
@@ -695,33 +696,11 @@ pub(super) fn text_update(
         let mut current = if let Some(dot) = rt.source.find('.') {
             let (src, path) = (&rt.source[..dot], &rt.source[dot + 1..]);
             match src {
-                "player" => world_state
-                    .as_ref()
-                    .and_then(|ws| {
-                        use crate::screens::PropertySource;
-                        ws.resolve(path)
-                    })
-                    .unwrap_or_default(),
-                "ui" => {
-                    use crate::screens::PropertySource;
-                    ui.resolve(path).unwrap_or_default()
-                }
-                "npc" => npc_profile
-                    .as_ref()
-                    .and_then(|p| {
-                        use crate::screens::PropertySource;
-                        p.resolve(path)
-                    })
-                    .unwrap_or_default(),
-                "house" => house_profile
-                    .as_ref()
-                    .and_then(|p| {
-                        use crate::screens::PropertySource;
-                        p.resolve(path)
-                    })
-                    .unwrap_or_default(),
+                "player" => world_state.as_ref().and_then(|ws| ws.resolve(path)).unwrap_or_default(),
+                "ui" => ui.resolve(path).unwrap_or_default(),
+                "npc" => npc_profile.as_ref().and_then(|p| p.resolve(path)).unwrap_or_default(),
+                "house" => house_profile.as_ref().and_then(|p| p.resolve(path)).unwrap_or_default(),
                 "loading" => loading_step.as_ref().map_or(String::new(), |s| s.label().to_string()),
-                // Unknown object → try dynamic registry
                 _ => registry.resolve(&rt.source).unwrap_or_default(),
             }
         } else {
@@ -733,7 +712,10 @@ pub(super) fn text_update(
             current = rt.value.clone();
         }
 
-        current = crate::screens::interpolate(&current, &registry);
+        let interpolated = crate::screens::interpolate(&current, &registry);
+        if let std::borrow::Cow::Owned(s) = interpolated {
+            current = s;
+        }
 
         // Re-render when text or color changed.
         if current != rt.last_text || rt.color != rt.last_color {
@@ -820,7 +802,7 @@ pub(super) fn dynamic_texture_update(
 ) {
     for (mut image_node, mut dyn_tex) in &mut query {
         let resolved = crate::screens::interpolate(&dyn_tex.template, &registry);
-        if resolved.is_empty() || resolved == dyn_tex.last_resolved {
+        if resolved.is_empty() || *resolved == dyn_tex.last_resolved {
             continue;
         }
         if let Some(handle) = load_texture_with_transparency(
@@ -832,7 +814,7 @@ pub(super) fn dynamic_texture_update(
             &cfg,
         ) {
             image_node.image = handle;
-            dyn_tex.last_resolved = resolved;
+            dyn_tex.last_resolved = resolved.into_owned();
         }
     }
 }

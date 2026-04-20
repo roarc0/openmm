@@ -972,7 +972,7 @@ fn draw_image_bindings(ui: &mut egui::Ui, editor: &mut EditorScreen, sel: usize)
     ui.separator();
     ui.heading("Bindings");
     ui.small(
-        "binding key \u{2192} value (e.g. scroll_x \u{2192} player.compass_yaw, texture \u{2192} ${char0.portrait})",
+        "binding key \u{2192} value (e.g. scroll_x \u{2192} player.compass_yaw, texture \u{2192} ${member0.portrait})",
     );
     let bind_keys: Vec<String> = editor.screen.elements[sel]
         .as_image()

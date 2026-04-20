@@ -93,6 +93,7 @@
 - [ ] **Text source registry** — `text_update()` hardcodes source names. Move to registry/dispatch.
 - [ ] **Condition evaluation for element states** — `ElementState.condition` stored but never evaluated
 - [ ] **Texture asset pooling** — Same texture loaded multiple times. Implement dedup.
+- [ ] **Action string variables** — Support `$variable` syntax in RON action strings (e.g. `IncrementStat($active_stat)`) resolved before execution. Would let RON files reference runtime state directly, reducing hardcoded action variants.
 
 ## Other
 - [ ] **Monster aggro range verification** — Cross-check hostile_type 4 range (6656.0)
