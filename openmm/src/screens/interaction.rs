@@ -301,17 +301,15 @@ pub(super) fn screen_click(
             Option<&mut ImageNode>,
             Option<&ClickedTexture>,
             Option<&mut ClickedAnimation>,
-            Option<&super::runtime::RuntimeText>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
     layers: Res<ScreenLayers>,
-    _flash_query: Query<&ClickFlash>,
     mut ui_sound: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
     sound_manager: Option<Res<crate::game::sound::SoundManager>>,
     mut actions: Option<bevy::ecs::message::MessageWriter<ScreenActions>>,
 ) {
-    for (entity, interaction, rt_elem, mut image_node, clicked_tex, mut clicked_anim, runtime_text) in &mut query {
+    for (entity, interaction, rt_elem, mut image_node, clicked_tex, mut clicked_anim) in &mut query {
         if *interaction != Interaction::Pressed {
             continue;
         }
@@ -332,23 +330,20 @@ pub(super) fn screen_click(
             sound.write(crate::game::sound::effects::PlayUiSoundEvent { sound_id });
         }
 
-        // Swap to "clicked" texture if available, otherwise hide briefly (unless it is text).
-        let is_text = runtime_text.is_some();
-        if let Some(ref mut node) = image_node {
-            if let Some(ref mut ca) = clicked_anim {
-                ca.elapsed = 0.0;
-                ca.current_frame = 0;
-                node.image = ca.handles[0].clone();
-            } else if let Some(ct) = clicked_tex {
-                node.image = ct.clicked.clone();
-            } else if !is_text {
-                commands.entity(entity).insert(Visibility::Hidden);
+        // Swap to "clicked" texture if available.
+        let has_click_visual = clicked_tex.is_some() || clicked_anim.is_some();
+        if has_click_visual {
+            if let Some(ref mut node) = image_node {
+                if let Some(ref mut ca) = clicked_anim {
+                    ca.elapsed = 0.0;
+                    ca.current_frame = 0;
+                    node.image = ca.handles[0].clone();
+                } else if let Some(ct) = clicked_tex {
+                    node.image = ct.clicked.clone();
+                }
             }
-        } else if !is_text {
-            commands.entity(entity).insert(Visibility::Hidden);
         }
 
-        let has_click_visual = clicked_tex.is_some() || clicked_anim.is_some();
         let click_actions = elem.on_click().to_vec();
 
         if has_click_visual {
@@ -358,7 +353,7 @@ pub(super) fn screen_click(
                 pending_actions: click_actions,
             });
         } else {
-            // No click visual — fire actions immediately.
+            // No click visual — fire actions immediately, no blocking timer.
             if let Some(ref mut act) = actions {
                 if !click_actions.is_empty() {
                     act.write(ScreenActions {
@@ -366,10 +361,6 @@ pub(super) fn screen_click(
                     });
                 }
             }
-            commands.entity(entity).insert(ClickFlash {
-                timer: Timer::from_seconds(0.2, TimerMode::Once),
-                pending_actions: vec![],
-            });
         }
     }
 }
