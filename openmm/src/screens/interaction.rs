@@ -301,6 +301,7 @@ pub(super) fn screen_click(
             Option<&mut ImageNode>,
             Option<&ClickedTexture>,
             Option<&mut ClickedAnimation>,
+            Option<&super::runtime::RuntimeText>,
         ),
         (Changed<Interaction>, With<Button>),
     >,
@@ -310,7 +311,7 @@ pub(super) fn screen_click(
     sound_manager: Option<Res<crate::game::sound::SoundManager>>,
     mut actions: Option<bevy::ecs::message::MessageWriter<ScreenActions>>,
 ) {
-    for (entity, interaction, rt_elem, mut image_node, clicked_tex, mut clicked_anim) in &mut query {
+    for (entity, interaction, rt_elem, mut image_node, clicked_tex, mut clicked_anim, runtime_text) in &mut query {
         if *interaction != Interaction::Pressed {
             continue;
         }
@@ -331,7 +332,8 @@ pub(super) fn screen_click(
             sound.write(crate::game::sound::effects::PlayUiSoundEvent { sound_id });
         }
 
-        // Swap to "clicked" texture if available, otherwise hide briefly.
+        // Swap to "clicked" texture if available, otherwise hide briefly (unless it is text).
+        let is_text = runtime_text.is_some();
         if let Some(ref mut node) = image_node {
             if let Some(ref mut ca) = clicked_anim {
                 ca.elapsed = 0.0;
@@ -339,10 +341,10 @@ pub(super) fn screen_click(
                 node.image = ca.handles[0].clone();
             } else if let Some(ct) = clicked_tex {
                 node.image = ct.clicked.clone();
-            } else {
+            } else if !is_text {
                 commands.entity(entity).insert(Visibility::Hidden);
             }
-        } else {
+        } else if !is_text {
             commands.entity(entity).insert(Visibility::Hidden);
         }
 
