@@ -28,20 +28,23 @@ pub enum PortraitId {
 
 impl PortraitId {
     /// All known portrait identities.
-    pub const ALL: &[PortraitId] = &[
-        Self::MaleA,
-        Self::MaleB,
-        Self::MaleC,
-        Self::MaleD,
-        Self::MaleE,
-        Self::MaleF,
-        Self::MaleG,
-        Self::MaleH,
-        Self::GirlA,
-        Self::GirlB,
-        Self::GirlC,
-        Self::GirlD,
-    ];
+    pub const ALL_ARR: [PortraitId; 12] = {
+        let mut all = [PortraitId::MaleA; 12];
+        let mut i = 0;
+        while i < Self::MALE.len() {
+            all[i] = Self::MALE[i];
+            i += 1;
+        }
+        let mut j = 0;
+        while j < Self::FEMALE.len() {
+            all[i] = Self::FEMALE[j];
+            i += 1;
+            j += 1;
+        }
+        all
+    };
+    
+    pub const ALL: &'static [PortraitId] = &Self::ALL_ARR;
 
     pub const MALE: &[PortraitId] = &[
         Self::MaleA,
@@ -173,59 +176,37 @@ impl SoundVariant {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Expression {
-    /// Cursed condition face
-    Cursed = 1,
-    /// Weak condition face
-    Weak = 2,
-    /// Asleep / unconscious face
-    Asleep = 3,
-    /// Fear / frightened face
-    Afraid = 4,
-    /// Drunk expression
-    Drunk = 5,
-    /// Insane expression
-    Insane = 6,
-    /// Poisoned expression (green tinge)
-    Poisoned = 7,
-    /// Diseased expression
-    Diseased = 8,
-    /// Paralyzed / petrified face
-    Paralyzed = 9,
-    /// Dead expression
-    Dead = 10,
-    /// Eradicated expression
-    Eradicated = 11,
-    /// Normal resting face
-    Normal = 12,
-    /// Blink animation frame 1
-    Blink1 = 13,
-    /// Blink animation frame 2
-    Blink2 = 14,
-    /// Blink animation frame 3 (eyes closed)
-    Blink3 = 15,
-    /// Talking / mouth open 1
-    Talk1 = 16,
-    /// Talking / mouth open 2
-    Talk2 = 17,
-    /// Talking / mouth wide
-    Talk3 = 18,
-    /// Smiling
-    Smile = 19,
-    /// Laughing
-    Laugh = 20,
+    Unk1 = 1,
+    Unk2 = 2,
+    Unk3 = 3,
+    Unk4 = 4,
+    Unk5 = 5,
+    Unk6 = 6,
+    Unk7 = 7,
+    Unk8 = 8,
+    Unk9 = 9,
+    Unk10 = 10,
+    Unk11 = 11,
+    Unk12 = 12,
+    Unk13 = 13,
+    Unk14 = 14,
+    Unk15 = 15,
+    Unk16 = 16,
+    Unk17 = 17,
+    Unk18 = 18,
+    Unk19 = 19,
+    Unk20 = 20,
     Unk21 = 21,
     Unk22 = 22,
     Unk23 = 23,
-    /// Damaged / wince
-    Damaged = 24,
+    Unk24 = 24,
     Unk25 = 25,
     Unk26 = 26,
     Unk27 = 27,
     Unk28 = 28,
     Unk29 = 29,
     Unk30 = 30,
-    /// Greeting / hello (NPC interaction)
-    Greeting = 31,
+    Unk31 = 31,
     Unk32 = 32,
     Unk33 = 33,
     Unk34 = 34,
@@ -274,52 +255,50 @@ impl Expression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Speech {
-    KillWeak = 1,
-    KillStrong = 2,
-    StoreClosed = 3,
-    TrapDisarmed = 4,
-    TrapExploded = 5,
-    AvoidDamage = 6,
-    IdItemWeak = 7,
-    IdItemStrong = 8,
-    IdItemFail = 9,
-    RepairSuccess = 10,
-    RepairFail = 11,
-    SetQuickSpell = 12,
-    CantRestHere = 13,
-    SkillIncrease = 14,
-    NoRoom = 15,
-    PotionSuccess = 16,
-    PotionExplode = 17,
-    DoorLocked = 18,
-    WontBudge = 19,
-    CantLearnSpell = 20,
-    LearnSpell = 21,
-    GoodDay = 22,
-    GoodEvening = 23,
-    Damaged = 24,
-    Weak = 25,
-    Fear = 26,
-    Poisoned = 27,
-    Diseased = 28,
-    Insane = 29,
-    Cursed = 30,
-    /// NPC greeting — "Good day!" / "Hello there!"
-    Greeting = 31,
-    Drunk = 32,
-    Unconscious = 33,
-    Dead = 34,
-    Petrified = 35,
-    Eradicated = 36,
-    DrinkPotion = 37,
-    ReadScroll = 38,
-    NotEnoughGold = 39,
-    CantEquip = 40,
-    ItemBroken = 41,
-    /// "Pick me!" — character creation selection
-    PickMe = 42,
-    SpellFailed = 43,
-    DamagedParty = 44,
+    Yes = 1,         // Yes
+    No = 2,          // No
+    Success = 3,     // It Worked
+    CallOut = 4,     // Hey you!
+    Tired = 5,       // Ahh tired
+    Thinking = 6,    // Hmmm
+    Aha = 7,         // Ha!
+    Humph = 8,       // Humph!
+    Closed = 9,      // Closed!
+    GotIt = 10,      // Got it!
+    UhOh = 11,       // Oh oh!
+    UhOhStrong = 12, // Oh oh!!! stronger
+    Sigh = 13,       // Ahhh
+    Groan = 14,      // Uuuuh!
+    Moan = 15,       // OOOOohhhuu
+    Unk16 = 16,
+    Unk17 = 17,
+    Unk18 = 18,
+    Unk19 = 19,
+    Unk20 = 20,
+    Unk21 = 21,
+    Unk22 = 22,
+    Unk23 = 23,
+    Unk24 = 24,
+    Unk25 = 25,
+    Unk26 = 26,
+    Unk27 = 27,
+    Unk28 = 28,
+    Unk29 = 29,
+    Unk30 = 30,
+    Unk31 = 31,
+    Unk32 = 32,
+    Unk33 = 33,
+    Unk34 = 34,
+    Unk35 = 35,
+    Unk36 = 36,
+    Unk37 = 37,
+    Unk38 = 38,
+    Unk39 = 39,
+    Unk40 = 40,
+    Unk41 = 41,
+    PickMe = 42, // "Pick me!" — character creation selection
+    Unk43 = 43,
+    Unk44 = 44,
 }
 
 impl Speech {

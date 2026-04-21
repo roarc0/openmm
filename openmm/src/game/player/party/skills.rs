@@ -1,0 +1,48 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Skill {
+    Staff, Sword, Dagger, Axe, Spear, Bow, Mace, Blaster,
+    Shield, Leather, Chain, Plate,
+    FireMagic, AirMagic, WaterMagic, EarthMagic,
+    SpiritMagic, MindMagic, BodyMagic, LightMagic, DarkMagic,
+    IdentifyItem, Merchant, RepairItem, Bodybuilding, Meditation,
+    Perception, Diplomacy, Thievery, DisarmTrap, Learning,
+}
+
+impl std::fmt::Display for Skill {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Staff => "Staff",
+            Self::Sword => "Sword",
+            Self::Dagger => "Dagger",
+            Self::Axe => "Axe",
+            Self::Spear => "Spear",
+            Self::Bow => "Bow",
+            Self::Mace => "Mace",
+            Self::Blaster => "Blaster",
+            Self::Shield => "Shield",
+            Self::Leather => "Leather",
+            Self::Chain => "Chain",
+            Self::Plate => "Plate",
+            Self::FireMagic => "Fire",
+            Self::AirMagic => "Air",
+            Self::WaterMagic => "Water",
+            Self::EarthMagic => "Earth",
+            Self::SpiritMagic => "Spirit",
+            Self::MindMagic => "Mind",
+            Self::BodyMagic => "Body",
+            Self::LightMagic => "Light",
+            Self::DarkMagic => "Dark",
+            Self::IdentifyItem => "Identify",
+            Self::Merchant => "Merchant",
+            Self::RepairItem => "Repair",
+            Self::Bodybuilding => "Bodybuilding",
+            Self::Meditation => "Meditation",
+            Self::Perception => "Perception",
+            Self::Diplomacy => "Diplomacy",
+            Self::Thievery => "Thievery",
+            Self::DisarmTrap => "Disarm",
+            Self::Learning => "Learning",
+        };
+        write!(f, "{}", s)
+    }
+}

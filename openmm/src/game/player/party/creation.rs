@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::member::{ATTR_COUNT, CharacterClass};
+use super::member::{ATTR_COUNT, Class, Skill};
 use super::portrait::PortraitId;
 
 /// Male character names — MM6-style mix of fantasy and classic.
@@ -51,115 +51,117 @@ const FEMALE_NAMES: &[&str] = &[
     "Evangeline",
 ];
 
-const ALL_CLASSES: &[CharacterClass] = &[
-    CharacterClass::Knight,
-    CharacterClass::Paladin,
-    CharacterClass::Archer,
-    CharacterClass::Cleric,
-    CharacterClass::Druid,
-    CharacterClass::Sorcerer,
+const ALL_CLASSES: &[Class] = &[
+    Class::Knight,
+    Class::Paladin,
+    Class::Archer,
+    Class::Cleric,
+    Class::Druid,
+    Class::Sorcerer,
 ];
 
 #[derive(Debug, Clone, Copy)]
 pub struct CharCreationSeed {
-    pub class: CharacterClass,
+    pub class: Class,
     pub portrait: PortraitId,
     pub name: &'static str,
     pub base_attrs: [i16; ATTR_COUNT],
 }
 
-pub fn class_base_attrs(class: CharacterClass) -> [i16; ATTR_COUNT] {
+pub fn class_base_attrs(class: Class) -> [i16; ATTR_COUNT] {
     // [Might, Intellect, Personality, Endurance, Speed, Accuracy, Luck]
     match class {
-        CharacterClass::Knight => [14, 7, 7, 14, 11, 11, 9],
-        CharacterClass::Paladin => [14, 7, 14, 11, 11, 9, 7],
-        CharacterClass::Archer => [9, 14, 7, 11, 14, 11, 7],
-        CharacterClass::Cleric => [7, 9, 14, 11, 11, 7, 14],
-        CharacterClass::Druid => [11, 15, 15, 12, 12, 11, 12],
-        CharacterClass::Sorcerer => [7, 14, 14, 11, 7, 11, 9],
+        Class::Knight => [15, 7, 7, 15, 9, 15, 7],
+        Class::Paladin => [13, 7, 11, 13, 9, 13, 7],
+        Class::Archer => [11, 9, 7, 11, 13, 15, 9],
+        Class::Cleric => [9, 7, 15, 11, 9, 7, 13],
+        Class::Druid => [9, 11, 11, 9, 9, 9, 13],
+        Class::Sorcerer => [7, 15, 7, 9, 11, 7, 9],
     }
 }
 
 /// Fixed starting skills a class always begins with (2 per class in MM6).
-pub fn class_starting_skills(class: CharacterClass) -> &'static [&'static str] {
+pub fn class_starting_skills(class: Class) -> &'static [Skill] {
+    use Skill::*;
     match class {
-        CharacterClass::Knight => &["Sword", "Leather"],
-        CharacterClass::Paladin => &["Sword", "Spirit Magic"],
-        CharacterClass::Archer => &["Bow", "Air Magic"],
-        CharacterClass::Cleric => &["Mace", "Body Magic"],
-        CharacterClass::Sorcerer => &["Dagger", "Fire Magic"],
-        CharacterClass::Druid => &["Staff", "Earth Magic"],
+        Class::Knight => &[Sword, Leather],
+        Class::Paladin => &[Sword, SpiritMagic],
+        Class::Archer => &[Bow, AirMagic],
+        Class::Cleric => &[Mace, BodyMagic],
+        Class::Sorcerer => &[Dagger, FireMagic],
+        Class::Druid => &[Staff, EarthMagic],
     }
 }
 
 /// Selectable skill pool during party creation (pick 2 additional from these).
-pub fn class_available_skills(class: CharacterClass) -> &'static [&'static str] {
+pub fn class_available_skills(class: Class) -> &'static [Skill] {
+    use Skill::*;
     match class {
-        CharacterClass::Knight => &[
-            "Dagger",
-            "Bow",
-            "Body",
-            "Axe",
-            "Shield",
-            "Perception",
-            "Spear",
-            "Chain",
-            "Disarm",
+        Class::Knight => &[
+            Dagger,
+            Bow,
+            Bodybuilding,
+            Axe,
+            Shield,
+            Perception,
+            Spear,
+            Chain,
+            DisarmTrap,
         ],
-        CharacterClass::Paladin => &[
-            "Dagger",
-            "Shield",
-            "Perception",
-            "Spear",
-            "Leather",
-            "Diplomacy",
-            "Mace",
-            "Chain",
-            "Disarm",
+        Class::Paladin => &[
+            Dagger,
+            Shield,
+            Perception,
+            Spear,
+            Leather,
+            Diplomacy,
+            Mace,
+            Chain,
+            DisarmTrap,
         ],
-        CharacterClass::Archer => &[
-            "Sword",
-            "Dagger",
-            "Axe",
-            "Leather",
-            "Fire Magic",
-            "Identify Item",
-            "Perception",
-            "Diplomacy",
-            "Disarm Trap",
+        Class::Archer => &[
+            Sword,
+            Leather,
+            Perception,
+            Dagger,
+            FireMagic,
+            Diplomacy,
+            Axe,
+            IdentifyItem,
+            DisarmTrap,
         ],
-        CharacterClass::Cleric => &[
-            "Staff",
-            "Shield",
-            "Leather",
-            "Spirit Magic",
-            "Mind Magic",
-            "Identify Item",
-            "Repair",
-            "Meditation",
-            "Diplomacy",
+        Class::Cleric => &[
+            Staff,
+            SpiritMagic,
+            RepairItem,
+            Shield,
+            MindMagic,
+            Meditation,
+            Leather,
+            IdentifyItem,
+            Diplomacy,
         ],
-        CharacterClass::Sorcerer => &[
-            "Dagger",
-            "Leather",
-            "Water Magic",
-            "Earth Magic",
-            "Air Magic",
-            "Identify Item",
-            "Repair",
-            "Meditation",
-            "Learning",
+        Class::Sorcerer => &[
+            Staff,
+            WaterMagic,
+            RepairItem,
+            Leather,
+            EarthMagic,
+            Meditation,
+            AirMagic,
+            IdentifyItem,
+            Diplomacy,
         ],
-        CharacterClass::Druid => &[
-            "Dagger",
-            "Staff",
-            "Leather",
-            "Water Magic",
-            "Earth Magic",
-            "Air Magic",
-            "Spirit Magic",
-            "Mind Magic",
-            "Body Magic",
+        Class::Druid => &[
+            Mace,
+            SpiritMagic,
+            RepairItem,
+            Leather,
+            BodyMagic,
+            Meditation,
+            WaterMagic,
+            IdentifyItem,
+            Learning,
         ],
     }
 }

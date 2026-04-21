@@ -10,7 +10,7 @@ mod overlay;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
-use bevy_inspector_egui::bevy_egui::{EguiContexts, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext, egui};
+use bevy_inspector_egui::bevy_egui::{egui, EguiContext, EguiContexts, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext};
 
 use crate::GameState;
 use crate::assets::GameAssets;
@@ -131,11 +131,13 @@ fn editor_setup(
     for entity in &primary_contexts {
         previous_primary.0.push(entity);
         commands.entity(entity).remove::<PrimaryEguiContext>();
+        commands.entity(entity).remove::<EguiContext>();
     }
 
     commands.spawn((
         Name::new("editor_camera"),
         Camera2d,
+        EguiContext::default(),
         PrimaryEguiContext,
         bevy::picking::Pickable::IGNORE,
         InEditor,

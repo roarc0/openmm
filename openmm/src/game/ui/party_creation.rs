@@ -12,7 +12,7 @@ use bevy::prelude::*;
 
 use crate::game::player::party::Party;
 use crate::game::player::party::creation;
-use crate::game::player::party::member::{CharStat, CharacterClass, PartyMember};
+use crate::game::player::party::member::{CharStat, Class, PartyMember};
 use crate::game::player::party::portrait::PortraitId;
 use crate::screens::PropertySource;
 use crate::screens::runtime::RuntimeElement;
@@ -36,7 +36,7 @@ impl Default for PartyCreationState {
         Self {
             active_member: 0,
             selected_stat: [CharStat::default(); 4],
-            bonus_points: 50,
+            bonus_points: 52,
             chosen_skills: [[None; 2]; 4],
         }
     }
@@ -70,7 +70,7 @@ impl PartyMemberSource {
         stat_value_color(self.member.base_attrs[idx], self.class_base_attrs[idx])
     }
 
-    fn selected_class_color(&self, class: CharacterClass) -> &'static str {
+    fn selected_class_color(&self, class: Class) -> &'static str {
         if self.member.class == class { "cyan" } else { "white" }
     }
 }
@@ -93,12 +93,12 @@ impl PropertySource for PartyMemberSource {
             "portrait" => Some(m.portrait.creation_texture().to_string()),
             "class" => Some(m.class.name().to_string()),
             "class_icon" => Some(m.class.icon().to_string()),
-            "class_color_knight" => Some(self.selected_class_color(CharacterClass::Knight).to_string()),
-            "class_color_paladin" => Some(self.selected_class_color(CharacterClass::Paladin).to_string()),
-            "class_color_archer" => Some(self.selected_class_color(CharacterClass::Archer).to_string()),
-            "class_color_cleric" => Some(self.selected_class_color(CharacterClass::Cleric).to_string()),
-            "class_color_druid" => Some(self.selected_class_color(CharacterClass::Druid).to_string()),
-            "class_color_sorcerer" => Some(self.selected_class_color(CharacterClass::Sorcerer).to_string()),
+            "class_color_knight" => Some(self.selected_class_color(Class::Knight).to_string()),
+            "class_color_paladin" => Some(self.selected_class_color(Class::Paladin).to_string()),
+            "class_color_archer" => Some(self.selected_class_color(Class::Archer).to_string()),
+            "class_color_cleric" => Some(self.selected_class_color(Class::Cleric).to_string()),
+            "class_color_druid" => Some(self.selected_class_color(Class::Druid).to_string()),
+            "class_color_sorcerer" => Some(self.selected_class_color(Class::Sorcerer).to_string()),
             "gender" => Some(if m.portrait.is_male() { "male" } else { "female" }.to_string()),
             "selected_stat" => Some(self.selected_stat.name().to_string()),
             "stat_color_might" => Some(self.stat_label_color(CharStat::Might).to_string()),
@@ -127,14 +127,14 @@ impl PropertySource for PartyMemberSource {
             "skill_0" | "skill_1" => {
                 let idx: usize = path[6..].parse().ok()?;
                 let skills = creation::class_starting_skills(m.class);
-                Some(skills.get(idx).unwrap_or(&"None").to_string())
+                Some(skills.get(idx).map(|s| s.to_string()).unwrap_or_else(|| "None".to_string()))
             }
             // Chosen optional skills (slots 2-3)
             "skill_2" | "skill_3" => {
                 let slot: usize = path[6..].parse::<usize>().ok()? - 2;
                 let avail = creation::class_available_skills(m.class);
                 match self.chosen_skills[slot] {
-                    Some(ai) => Some(avail.get(ai).unwrap_or(&"None").to_string()),
+                    Some(ai) => Some(avail.get(ai).map(|s| s.to_string()).unwrap_or_else(|| "None".to_string())),
                     None => Some("None".to_string()),
                 }
             }
@@ -161,7 +161,7 @@ impl PropertySource for PartyMemberSource {
             | "av_skill_7" | "av_skill_8" => {
                 let idx: usize = path[9..].parse().ok()?;
                 let avail = creation::class_available_skills(m.class);
-                Some(avail.get(idx).unwrap_or(&"").to_string())
+                Some(avail.get(idx).map(|s| s.to_string()).unwrap_or_else(|| "".to_string()))
             }
             // Color for available skill: cyan if already chosen, white otherwise
             "av_skill_0_color" | "av_skill_1_color" | "av_skill_2_color" | "av_skill_3_color" | "av_skill_4_color"
@@ -273,7 +273,7 @@ pub fn cycle_member_portrait(party: &mut Party, member_idx: usize, delta: i32) {
 
 /// Set the class for a party member (resets base attrs to class defaults).
 /// Returns the bonus points that should be refunded (caller updates PartyCreationState).
-pub fn set_member_class(party: &mut Party, member_idx: usize, class: CharacterClass) {
+pub fn set_member_class(party: &mut Party, member_idx: usize, class: Class) {
     party.members[member_idx].class = class;
     party.members[member_idx].base_attrs = creation::class_base_attrs(class);
 }
@@ -316,12 +316,71 @@ pub fn handle_creation_actions(
     mut party: Option<ResMut<Party>>,
     sound_manager: Option<Res<crate::game::sound::SoundManager>>,
     mut sound_writer: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
+    keys: Res<ButtonInput<KeyCode>>,
 ) {
     use crate::screens::scripting::{parse_string_arg, parse_string_int_args, parse_two_string_args};
 
     let Some(ref mut cs) = creation_state else {
         return;
     };
+
+    // Handle keyboard navigation
+    if keys.just_pressed(KeyCode::ArrowLeft) {
+        cs.active_member = (cs.active_member + 3) % 4;
+    }
+    if keys.just_pressed(KeyCode::ArrowRight) {
+        cs.active_member = (cs.active_member + 1) % 4;
+    }
+    if keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::ArrowDown) {
+        let delta = if keys.just_pressed(KeyCode::ArrowUp) { -1 } else { 1 };
+        let order = [
+            CharStat::Might,
+            CharStat::Intellect,
+            CharStat::Personality,
+            CharStat::Endurance,
+            CharStat::Accuracy,
+            CharStat::Speed,
+            CharStat::Luck,
+        ];
+        let active = cs.active_member;
+        let p = order.iter().position(|&s| s == cs.selected_stat[active]).unwrap_or(0);
+        let next_pos = (p as isize + delta).rem_euclid(order.len() as isize) as usize;
+        cs.selected_stat[active] = order[next_pos];
+    }
+
+    let do_increment_stat = |cs: &mut PartyCreationState, p: &mut Party| {
+        let index = cs.active_member;
+        let stat = cs.selected_stat[index];
+        if cs.bonus_points > 0 {
+            let idx = stat.attr_index();
+            if p.members[index].base_attrs[idx] < STAT_MAX {
+                p.members[index].base_attrs[idx] += 1;
+                cs.bonus_points -= 1;
+            }
+        }
+    };
+
+    let do_decrement_stat = |cs: &mut PartyCreationState, p: &mut Party| {
+        let index = cs.active_member;
+        let stat = cs.selected_stat[index];
+        let idx = stat.attr_index();
+        let class_base = creation::class_base_attrs(p.members[index].class)[idx];
+        if p.members[index].base_attrs[idx] > class_base - STAT_MIN_DEFICIT {
+            p.members[index].base_attrs[idx] -= 1;
+            cs.bonus_points += 1;
+        }
+    };
+
+    if keys.just_pressed(KeyCode::NumpadAdd) || keys.just_pressed(KeyCode::Equal) {
+        if let Some(ref mut p) = party {
+            do_increment_stat(cs, p);
+        }
+    }
+    if keys.just_pressed(KeyCode::NumpadSubtract) || keys.just_pressed(KeyCode::Minus) {
+        if let Some(ref mut p) = party {
+            do_decrement_stat(cs, p);
+        }
+    }
 
     for ScreenActionEvent(action) in events.read() {
         let s = action.trim();
@@ -341,7 +400,7 @@ pub fn handle_creation_actions(
 
         // SelectClass("Knight")
         if let Some(class_name) = parse_string_arg(s, "SelectClass") {
-            if let Some(class) = CharacterClass::from_name(class_name) {
+            if let Some(class) = Class::from_name(class_name) {
                 let index = cs.active_member;
                 if let Some(ref mut p) = party {
                     // Refund any points spent on the old class before switching.
@@ -395,32 +454,16 @@ pub fn handle_creation_actions(
 
         // IncrementStat()
         if s == "IncrementStat()" {
-            let index = cs.active_member;
-            let stat = cs.selected_stat[index];
-            if cs.bonus_points > 0 {
-                let idx = stat.attr_index();
-                if let Some(ref mut p) = party
-                    && p.members[index].base_attrs[idx] < STAT_MAX
-                {
-                    p.members[index].base_attrs[idx] += 1;
-                    cs.bonus_points -= 1;
-                }
+            if let Some(ref mut p) = party {
+                do_increment_stat(cs, p);
             }
             continue;
         }
 
         // DecrementStat()
         if s == "DecrementStat()" {
-            let index = cs.active_member;
-            let stat = cs.selected_stat[index];
-            let idx = stat.attr_index();
             if let Some(ref mut p) = party {
-                let current = p.members[index].base_attrs[idx];
-                let class_base = creation::class_base_attrs(p.members[index].class)[idx];
-                if current > class_base - STAT_MIN_DEFICIT {
-                    p.members[index].base_attrs[idx] -= 1;
-                    cs.bonus_points += 1;
-                }
+                do_decrement_stat(cs, p);
             }
             continue;
         }
