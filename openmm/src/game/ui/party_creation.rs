@@ -1,18 +1,18 @@
 //! Party creation UI state — controls the "makeme" character creation screen.
 //!
 //! The actual character data lives in [`Party`] — this module only holds
-//! transient UI state: which member is selected, which stat is highlighted,
+//! transient UI state: which member is selected, which attribute is highlighted,
 //! and how many bonus points remain to allocate.
 //!
 //! Exposes property bindings `member0`–`char3` via [`PropertySource`] so RON
-//! screens can display portrait, class, stats, etc.
+//! screens can display portrait, class, attributes, etc.
 
 use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 
 use crate::game::player::party::Party;
 use crate::game::player::party::creation;
-use crate::game::player::party::member::{CharStat, Class, PartyMember};
+use crate::game::player::party::member::{Attribute, Class, PartyMember};
 use crate::game::player::party::portrait::PortraitId;
 use crate::screens::PropertySource;
 use crate::screens::runtime::RuntimeElement;
@@ -21,10 +21,10 @@ use crate::screens::runtime::ScreenActionEvent;
 /// Transient UI state for party creation. Does NOT hold character data — that's in `Party`.
 #[derive(Resource)]
 pub struct PartyCreationState {
-    /// Which party member (0–3) is currently focused for stat allocation.
+    /// Which party member (0–3) is currently focused for attribute allocation.
     pub active_member: usize,
-    /// Currently highlighted stat for the active member.
-    pub selected_stat: [CharStat; 4],
+    /// Currently highlighted attribute for the active member.
+    pub selected_attribute: [Attribute; 4],
     /// Remaining bonus points shared across all members.
     pub bonus_points: u8,
     /// Chosen optional skills per member (index into class_available_skills, or None).
@@ -35,7 +35,7 @@ impl Default for PartyCreationState {
     fn default() -> Self {
         Self {
             active_member: 0,
-            selected_stat: [CharStat::default(); 4],
+            selected_attribute: [Attribute::default(); 4],
             bonus_points: 52,
             chosen_skills: [[None; 2]; 4],
         }
@@ -51,27 +51,27 @@ const ACTIVE_SOURCE_INDEX: usize = 99;
 struct PartyMemberSource {
     index: usize,
     member: PartyMember,
-    selected_stat: CharStat,
+    selected_attribute: Attribute,
     class_base_attrs: [i16; 7],
     /// Which optional skill slots have been filled (indices into class_available_skills).
     chosen_skills: [Option<usize>; 2],
 }
 
 impl PartyMemberSource {
-    /// Color for a stat label: green if above base, red if below, white if equal.
-    fn stat_label_color(&self, stat: CharStat) -> &'static str {
-        let idx = stat.attr_index();
-        stat_value_color(self.member.base_attrs[idx], self.class_base_attrs[idx])
+    /// Color for a attribute label: green if above base, red if below, white if equal.
+    fn attribute_label_color(&self, attribute: Attribute) -> &'static str {
+        let idx = attribute.attr_index();
+        attribute_value_color(self.member.base_attrs[idx], self.class_base_attrs[idx])
     }
 
-    /// Color for a stat value: green if above base, red if below, white if equal.
-    fn stat_value_color(&self, stat: CharStat) -> &'static str {
-        let idx = stat.attr_index();
-        stat_value_color(self.member.base_attrs[idx], self.class_base_attrs[idx])
+    /// Color for a attribute value: green if above base, red if below, white if equal.
+    fn attribute_value_color(&self, attribute: Attribute) -> &'static str {
+        let idx = attribute.attr_index();
+        attribute_value_color(self.member.base_attrs[idx], self.class_base_attrs[idx])
     }
 
     fn selected_class_color(&self, class: Class) -> &'static str {
-        if self.member.class == class { "cyan" } else { "white" }
+        if self.member.class.base_class() == class.base_class() { "cyan" } else { "white" }
     }
 }
 
@@ -93,28 +93,28 @@ impl PropertySource for PartyMemberSource {
             "portrait" => Some(m.portrait.creation_texture().to_string()),
             "class" => Some(m.class.name().to_string()),
             "class_icon" => Some(m.class.icon().to_string()),
-            "class_color_knight" => Some(self.selected_class_color(Class::Knight).to_string()),
-            "class_color_paladin" => Some(self.selected_class_color(Class::Paladin).to_string()),
-            "class_color_archer" => Some(self.selected_class_color(Class::Archer).to_string()),
-            "class_color_cleric" => Some(self.selected_class_color(Class::Cleric).to_string()),
-            "class_color_druid" => Some(self.selected_class_color(Class::Druid).to_string()),
-            "class_color_sorcerer" => Some(self.selected_class_color(Class::Sorcerer).to_string()),
+            "class_color_knight" => Some(self.selected_class_color(Class::Knight(0)).to_string()),
+            "class_color_paladin" => Some(self.selected_class_color(Class::Paladin(0)).to_string()),
+            "class_color_archer" => Some(self.selected_class_color(Class::Archer(0)).to_string()),
+            "class_color_cleric" => Some(self.selected_class_color(Class::Cleric(0)).to_string()),
+            "class_color_druid" => Some(self.selected_class_color(Class::Druid(0)).to_string()),
+            "class_color_sorcerer" => Some(self.selected_class_color(Class::Sorcerer(0)).to_string()),
             "gender" => Some(if m.portrait.is_male() { "male" } else { "female" }.to_string()),
-            "selected_stat" => Some(self.selected_stat.name().to_string()),
-            "stat_color_might" => Some(self.stat_label_color(CharStat::Might).to_string()),
-            "stat_color_intellect" => Some(self.stat_label_color(CharStat::Intellect).to_string()),
-            "stat_color_personality" => Some(self.stat_label_color(CharStat::Personality).to_string()),
-            "stat_color_endurance" => Some(self.stat_label_color(CharStat::Endurance).to_string()),
-            "stat_color_accuracy" => Some(self.stat_label_color(CharStat::Accuracy).to_string()),
-            "stat_color_speed" => Some(self.stat_label_color(CharStat::Speed).to_string()),
-            "stat_color_luck" => Some(self.stat_label_color(CharStat::Luck).to_string()),
-            "val_color_might" => Some(self.stat_value_color(CharStat::Might).to_string()),
-            "val_color_intellect" => Some(self.stat_value_color(CharStat::Intellect).to_string()),
-            "val_color_personality" => Some(self.stat_value_color(CharStat::Personality).to_string()),
-            "val_color_endurance" => Some(self.stat_value_color(CharStat::Endurance).to_string()),
-            "val_color_accuracy" => Some(self.stat_value_color(CharStat::Accuracy).to_string()),
-            "val_color_speed" => Some(self.stat_value_color(CharStat::Speed).to_string()),
-            "val_color_luck" => Some(self.stat_value_color(CharStat::Luck).to_string()),
+            "selected_attribute" => Some(self.selected_attribute.name().to_string()),
+            "attribute_color_might" => Some(self.attribute_label_color(Attribute::Might).to_string()),
+            "attribute_color_intellect" => Some(self.attribute_label_color(Attribute::Intellect).to_string()),
+            "attribute_color_personality" => Some(self.attribute_label_color(Attribute::Personality).to_string()),
+            "attribute_color_endurance" => Some(self.attribute_label_color(Attribute::Endurance).to_string()),
+            "attribute_color_accuracy" => Some(self.attribute_label_color(Attribute::Accuracy).to_string()),
+            "attribute_color_speed" => Some(self.attribute_label_color(Attribute::Speed).to_string()),
+            "attribute_color_luck" => Some(self.attribute_label_color(Attribute::Luck).to_string()),
+            "val_color_might" => Some(self.attribute_value_color(Attribute::Might).to_string()),
+            "val_color_intellect" => Some(self.attribute_value_color(Attribute::Intellect).to_string()),
+            "val_color_personality" => Some(self.attribute_value_color(Attribute::Personality).to_string()),
+            "val_color_endurance" => Some(self.attribute_value_color(Attribute::Endurance).to_string()),
+            "val_color_accuracy" => Some(self.attribute_value_color(Attribute::Accuracy).to_string()),
+            "val_color_speed" => Some(self.attribute_value_color(Attribute::Speed).to_string()),
+            "val_color_luck" => Some(self.attribute_value_color(Attribute::Luck).to_string()),
             "name" => Some(m.name.clone()),
             "might" => Some(m.base_attrs[0].to_string()),
             "intellect" => Some(m.base_attrs[1].to_string()),
@@ -207,7 +207,7 @@ pub fn update_party_creation_registry(
             index: i,
             class_base_attrs: creation::class_base_attrs(member.class),
             member: member.clone(),
-            selected_stat: creation_state.selected_stat[i],
+            selected_attribute: creation_state.selected_attribute[i],
             chosen_skills: creation_state.chosen_skills[i],
         }));
     }
@@ -218,7 +218,7 @@ pub fn update_party_creation_registry(
         index: ACTIVE_SOURCE_INDEX,
         class_base_attrs: creation::class_base_attrs(active_member.class),
         member: active_member.clone(),
-        selected_stat: creation_state.selected_stat[active],
+        selected_attribute: creation_state.selected_attribute[active],
         chosen_skills: creation_state.chosen_skills[active],
     }));
     // Register global creation state.
@@ -227,20 +227,20 @@ pub fn update_party_creation_registry(
     }));
 }
 
-/// Move the stat selector arrows to the selected stat row for the active member.
+/// Move the attribute selector arrows to the selected attribute row for the active member.
 pub fn sync_creation_arrows(creation_state: Res<PartyCreationState>, mut query: Query<(&RuntimeElement, &mut Node)>) {
     if !creation_state.is_changed() {
         return;
     }
     let active = creation_state.active_member;
-    let y = match creation_state.selected_stat[active] {
-        CharStat::Might => 154.0,
-        CharStat::Intellect => 171.0,
-        CharStat::Personality => 188.0,
-        CharStat::Endurance => 205.0,
-        CharStat::Accuracy => 222.0,
-        CharStat::Speed => 239.0,
-        CharStat::Luck => 256.0,
+    let y = match creation_state.selected_attribute[active] {
+        Attribute::Might => 154.0,
+        Attribute::Intellect => 171.0,
+        Attribute::Personality => 188.0,
+        Attribute::Endurance => 205.0,
+        Attribute::Accuracy => 222.0,
+        Attribute::Speed => 239.0,
+        Attribute::Luck => 256.0,
     };
 
     const CHAR_COL_WIDTH: f32 = 158.0;
@@ -278,14 +278,14 @@ pub fn set_member_class(party: &mut Party, member_idx: usize, class: Class) {
     party.members[member_idx].base_attrs = creation::class_base_attrs(class);
 }
 
-/// Maximum value a stat can reach during character creation.
+/// Maximum value a attribute can reach during character creation.
 pub const STAT_MAX: i16 = 25;
-/// Maximum points a stat can be reduced below its class base.
+/// Maximum points a attribute can be reduced below its class base.
 pub const STAT_MIN_DEFICIT: i16 = 2;
 
-/// Determine the color for a stat value relative to its class base.
+/// Determine the color for a attribute value relative to its class base.
 /// Green = above base, red = below base, white = at base.
-pub fn stat_value_color(current: i16, class_base: i16) -> &'static str {
+pub fn attribute_value_color(current: i16, class_base: i16) -> &'static str {
     if current > class_base {
         "green"
     } else if current < class_base {
@@ -334,25 +334,25 @@ pub fn handle_creation_actions(
     if keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::ArrowDown) {
         let delta = if keys.just_pressed(KeyCode::ArrowUp) { -1 } else { 1 };
         let order = [
-            CharStat::Might,
-            CharStat::Intellect,
-            CharStat::Personality,
-            CharStat::Endurance,
-            CharStat::Accuracy,
-            CharStat::Speed,
-            CharStat::Luck,
+            Attribute::Might,
+            Attribute::Intellect,
+            Attribute::Personality,
+            Attribute::Endurance,
+            Attribute::Accuracy,
+            Attribute::Speed,
+            Attribute::Luck,
         ];
         let active = cs.active_member;
-        let p = order.iter().position(|&s| s == cs.selected_stat[active]).unwrap_or(0);
+        let p = order.iter().position(|&s| s == cs.selected_attribute[active]).unwrap_or(0);
         let next_pos = (p as isize + delta).rem_euclid(order.len() as isize) as usize;
-        cs.selected_stat[active] = order[next_pos];
+        cs.selected_attribute[active] = order[next_pos];
     }
 
-    let do_increment_stat = |cs: &mut PartyCreationState, p: &mut Party| {
+    let do_increment_attribute = |cs: &mut PartyCreationState, p: &mut Party| {
         let index = cs.active_member;
-        let stat = cs.selected_stat[index];
+        let attribute = cs.selected_attribute[index];
         if cs.bonus_points > 0 {
-            let idx = stat.attr_index();
+            let idx = attribute.attr_index();
             if p.members[index].base_attrs[idx] < STAT_MAX {
                 p.members[index].base_attrs[idx] += 1;
                 cs.bonus_points -= 1;
@@ -360,10 +360,10 @@ pub fn handle_creation_actions(
         }
     };
 
-    let do_decrement_stat = |cs: &mut PartyCreationState, p: &mut Party| {
+    let do_decrement_attribute = |cs: &mut PartyCreationState, p: &mut Party| {
         let index = cs.active_member;
-        let stat = cs.selected_stat[index];
-        let idx = stat.attr_index();
+        let attribute = cs.selected_attribute[index];
+        let idx = attribute.attr_index();
         let class_base = creation::class_base_attrs(p.members[index].class)[idx];
         if p.members[index].base_attrs[idx] > class_base - STAT_MIN_DEFICIT {
             p.members[index].base_attrs[idx] -= 1;
@@ -373,12 +373,12 @@ pub fn handle_creation_actions(
 
     if keys.just_pressed(KeyCode::NumpadAdd) || keys.just_pressed(KeyCode::Equal) {
         if let Some(ref mut p) = party {
-            do_increment_stat(cs, p);
+            do_increment_attribute(cs, p);
         }
     }
     if keys.just_pressed(KeyCode::NumpadSubtract) || keys.just_pressed(KeyCode::Minus) {
         if let Some(ref mut p) = party {
-            do_decrement_stat(cs, p);
+            do_decrement_attribute(cs, p);
         }
     }
 
@@ -420,26 +420,26 @@ pub fn handle_creation_actions(
             continue;
         }
 
-        // SelectStat("might", 0) -> specify member and stat
-        if let Some((stat_name, member_idx)) = parse_string_int_args(s, "SelectStat") {
-            if let Some(stat) = CharStat::from_name(stat_name) {
+        // SelectAttribute("might", 0) -> specify member and attribute
+        if let Some((attribute_name, member_idx)) = parse_string_int_args(s, "SelectAttribute") {
+            if let Some(attribute) = Attribute::from_name(attribute_name) {
                 let active = member_idx as usize;
                 // Shift focus to the character clicked
                 cs.active_member = active;
-                cs.selected_stat[active] = stat;
+                cs.selected_attribute[active] = attribute;
             } else {
-                warn!("SelectStat: unknown stat '{}'", stat_name);
+                warn!("SelectAttribute: unknown attribute '{}'", attribute_name);
             }
             continue;
         }
 
-        // Backward compatibility: SelectStat("might")
-        if let Some(stat_name) = parse_string_arg(s, "SelectStat") {
-            if let Some(stat) = CharStat::from_name(stat_name) {
+        // Backward compatibility: SelectAttribute("might")
+        if let Some(attribute_name) = parse_string_arg(s, "SelectAttribute") {
+            if let Some(attribute) = Attribute::from_name(attribute_name) {
                 let active = cs.active_member;
-                cs.selected_stat[active] = stat;
+                cs.selected_attribute[active] = attribute;
             } else {
-                warn!("SelectStat: unknown stat '{}'", stat_name);
+                warn!("SelectAttribute: unknown attribute '{}'", attribute_name);
             }
             continue;
         }
@@ -452,18 +452,18 @@ pub fn handle_creation_actions(
             continue;
         }
 
-        // IncrementStat()
-        if s == "IncrementStat()" {
+        // IncrementAttribute()
+        if s == "IncrementAttribute()" {
             if let Some(ref mut p) = party {
-                do_increment_stat(cs, p);
+                do_increment_attribute(cs, p);
             }
             continue;
         }
 
-        // DecrementStat()
-        if s == "DecrementStat()" {
+        // DecrementAttribute()
+        if s == "DecrementAttribute()" {
             if let Some(ref mut p) = party {
-                do_decrement_stat(cs, p);
+                do_decrement_attribute(cs, p);
             }
             continue;
         }

@@ -10,60 +10,8 @@ pub const RESIST_COUNT: usize = 5;
 /// Number of condition bits (CondCursed=0 .. CondMain=17), matching EvtVariable 0x57..=0x68.
 pub const COND_COUNT: usize = 18;
 
-/// All selectable primary stats for point distribution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum CharStat {
-    #[default]
-    Might,
-    Intellect,
-    Personality,
-    Endurance,
-    Accuracy,
-    Speed,
-    Luck,
-}
-
-impl CharStat {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Might => "might",
-            Self::Intellect => "intellect",
-            Self::Personality => "personality",
-            Self::Endurance => "endurance",
-            Self::Accuracy => "accuracy",
-            Self::Speed => "speed",
-            Self::Luck => "luck",
-        }
-    }
-
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "might" => Some(Self::Might),
-            "intellect" => Some(Self::Intellect),
-            "personality" => Some(Self::Personality),
-            "endurance" => Some(Self::Endurance),
-            "accuracy" => Some(Self::Accuracy),
-            "speed" => Some(Self::Speed),
-            "luck" => Some(Self::Luck),
-            _ => None,
-        }
-    }
-
-    /// Index into PartyMember.base_attrs array.
-    pub fn attr_index(self) -> usize {
-        match self {
-            Self::Might => 0,
-            Self::Intellect => 1,
-            Self::Personality => 2,
-            Self::Endurance => 3,
-            Self::Speed => 4,
-            Self::Accuracy => 5,
-            Self::Luck => 6,
-        }
-    }
-}
-
 pub use super::skills::Skill;
+pub use super::attributes::Attribute;
 
 /// A single party member. Skills are stored as raw levels (0 = untrained).
 #[derive(Debug, Clone)]
@@ -108,12 +56,7 @@ pub struct PartyMember {
 }
 
 impl PartyMember {
-    pub fn new(
-        name: impl Into<String>,
-        class: Class,
-        portrait: super::portrait::PortraitId,
-        level: u8,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, class: Class, portrait: super::portrait::PortraitId, level: u8) -> Self {
         Self {
             name: name.into(),
             class,
@@ -160,7 +103,7 @@ impl PartyMember {
                     1
                 }
             }
-            0x02 => self.class as i32,
+            0x02 => self.class.id() as i32,
             0x03 => self.hp as i32,
             0x04 => (self.hp >= self.max_hp) as i32,
             0x05 => self.sp as i32,

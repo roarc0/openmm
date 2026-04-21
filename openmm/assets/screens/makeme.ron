@@ -267,7 +267,7 @@
             source: "",
             value: "Might",
             on_click: [
-                "SelectStat(\"might\", 0)",
+                "SelectAttribute(\"might\", 0)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -283,7 +283,7 @@
             source: "",
             value: "Intellect",
             on_click: [
-                "SelectStat(\"intellect\", 0)",
+                "SelectAttribute(\"intellect\", 0)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -299,7 +299,7 @@
             source: "",
             value: "Personality",
             on_click: [
-                "SelectStat(\"personality\", 0)",
+                "SelectAttribute(\"personality\", 0)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -315,7 +315,7 @@
             source: "",
             value: "Speed",
             on_click: [
-                "SelectStat(\"speed\", 0)",
+                "SelectAttribute(\"speed\", 0)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -331,7 +331,7 @@
             source: "",
             value: "Endurance",
             on_click: [
-                "SelectStat(\"endurance\", 0)",
+                "SelectAttribute(\"endurance\", 0)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -347,7 +347,7 @@
             source: "",
             value: "Accuracy",
             on_click: [
-                "SelectStat(\"accuracy\", 0)",
+                "SelectAttribute(\"accuracy\", 0)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -363,7 +363,7 @@
             source: "",
             value: "Luck",
             on_click: [
-                "SelectStat(\"luck\", 0)",
+                "SelectAttribute(\"luck\", 0)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -936,7 +936,7 @@
                 ),
             },
             on_click: [
-                "IncrementStat()",
+                "IncrementAttribute()",
             ],
             on_hover: [],
             bindings: {},
@@ -953,7 +953,7 @@
                 ),
             },
             on_click: [
-                "DecrementStat()",
+                "DecrementAttribute()",
             ],
             on_hover: [],
             bindings: {},
@@ -967,7 +967,7 @@
             source: "",
             value: "Might",
             on_click: [
-                "SelectStat(\"might\", 1)",
+                "SelectAttribute(\"might\", 1)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -983,7 +983,7 @@
             source: "",
             value: "Intellect",
             on_click: [
-                "SelectStat(\"intellect\", 1)",
+                "SelectAttribute(\"intellect\", 1)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -999,7 +999,7 @@
             source: "",
             value: "Personality",
             on_click: [
-                "SelectStat(\"personality\", 1)",
+                "SelectAttribute(\"personality\", 1)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1015,7 +1015,7 @@
             source: "",
             value: "Endurance",
             on_click: [
-                "SelectStat(\"endurance\", 1)",
+                "SelectAttribute(\"endurance\", 1)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1031,7 +1031,7 @@
             source: "",
             value: "Accuracy",
             on_click: [
-                "SelectStat(\"accuracy\", 1)",
+                "SelectAttribute(\"accuracy\", 1)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1047,7 +1047,7 @@
             source: "",
             value: "Speed",
             on_click: [
-                "SelectStat(\"speed\", 1)",
+                "SelectAttribute(\"speed\", 1)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1063,7 +1063,7 @@
             source: "",
             value: "Luck",
             on_click: [
-                "SelectStat(\"luck\", 1)",
+                "SelectAttribute(\"luck\", 1)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1199,7 +1199,7 @@
             source: "",
             value: "Might",
             on_click: [
-                "SelectStat(\"might\", 2)",
+                "SelectAttribute(\"might\", 2)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1215,7 +1215,7 @@
             source: "",
             value: "Intellect",
             on_click: [
-                "SelectStat(\"intellect\", 2)",
+                "SelectAttribute(\"intellect\", 2)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1231,7 +1231,7 @@
             source: "",
             value: "Personality",
             on_click: [
-                "SelectStat(\"personality\", 2)",
+                "SelectAttribute(\"personality\", 2)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1247,7 +1247,7 @@
             source: "",
             value: "Endurance",
             on_click: [
-                "SelectStat(\"endurance\", 2)",
+                "SelectAttribute(\"endurance\", 2)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1263,7 +1263,7 @@
             source: "",
             value: "Accuracy",
             on_click: [
-                "SelectStat(\"accuracy\", 2)",
+                "SelectAttribute(\"accuracy\", 2)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1279,7 +1279,7 @@
             source: "",
             value: "Speed",
             on_click: [
-                "SelectStat(\"speed\", 2)",
+                "SelectAttribute(\"speed\", 2)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1295,7 +1295,7 @@
             source: "",
             value: "Luck",
             on_click: [
-                "SelectStat(\"luck\", 2)",
+                "SelectAttribute(\"luck\", 2)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1395,7 +1395,7 @@
             source: "",
             value: "Might",
             on_click: [
-                "SelectStat(\"might\", 3)",
+                "SelectAttribute(\"might\", 3)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1411,7 +1411,7 @@
             source: "",
             value: "Intellect",
             on_click: [
-                "SelectStat(\"intellect\", 3)",
+                "SelectAttribute(\"intellect\", 3)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1427,7 +1427,7 @@
             source: "",
             value: "Personality",
             on_click: [
-                "SelectStat(\"personality\", 3)",
+                "SelectAttribute(\"personality\", 3)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1443,7 +1443,7 @@
             source: "",
             value: "Endurance",
             on_click: [
-                "SelectStat(\"endurance\", 3)",
+                "SelectAttribute(\"endurance\", 3)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1459,7 +1459,7 @@
             source: "",
             value: "Accuracy",
             on_click: [
-                "SelectStat(\"accuracy\", 3)",
+                "SelectAttribute(\"accuracy\", 3)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1475,7 +1475,7 @@
             source: "",
             value: "Speed",
             on_click: [
-                "SelectStat(\"speed\", 3)",
+                "SelectAttribute(\"speed\", 3)",
             ],
             font: "smallnum",
             font_size: 14.0,
@@ -1491,7 +1491,7 @@
             source: "",
             value: "Luck",
             on_click: [
-                "SelectStat(\"luck\", 3)",
+                "SelectAttribute(\"luck\", 3)",
             ],
             font: "smallnum",
             font_size: 14.0,

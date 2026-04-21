@@ -52,12 +52,12 @@ const FEMALE_NAMES: &[&str] = &[
 ];
 
 const ALL_CLASSES: &[Class] = &[
-    Class::Knight,
-    Class::Paladin,
-    Class::Archer,
-    Class::Cleric,
-    Class::Druid,
-    Class::Sorcerer,
+    Class::Knight(0),
+    Class::Paladin(0),
+    Class::Archer(0),
+    Class::Cleric(0),
+    Class::Druid(0),
+    Class::Sorcerer(0),
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -71,12 +71,12 @@ pub struct CharCreationSeed {
 pub fn class_base_attrs(class: Class) -> [i16; ATTR_COUNT] {
     // [Might, Intellect, Personality, Endurance, Speed, Accuracy, Luck]
     match class {
-        Class::Knight => [15, 7, 7, 15, 9, 15, 7],
-        Class::Paladin => [13, 7, 11, 13, 9, 13, 7],
-        Class::Archer => [11, 9, 7, 11, 13, 15, 9],
-        Class::Cleric => [9, 7, 15, 11, 9, 7, 13],
-        Class::Druid => [9, 11, 11, 9, 9, 9, 13],
-        Class::Sorcerer => [7, 15, 7, 9, 11, 7, 9],
+        Class::Knight(_) => [15, 7, 7, 15, 9, 15, 7],
+        Class::Paladin(_) => [13, 7, 11, 13, 9, 13, 7],
+        Class::Archer(_) => [11, 9, 7, 11, 13, 15, 9],
+        Class::Cleric(_) => [9, 7, 15, 11, 9, 7, 13],
+        Class::Druid(_) => [9, 11, 11, 9, 9, 9, 13],
+        Class::Sorcerer(_) => [7, 15, 7, 9, 11, 7, 9],
     }
 }
 
@@ -84,12 +84,12 @@ pub fn class_base_attrs(class: Class) -> [i16; ATTR_COUNT] {
 pub fn class_starting_skills(class: Class) -> &'static [Skill] {
     use Skill::*;
     match class {
-        Class::Knight => &[Sword, Leather],
-        Class::Paladin => &[Sword, SpiritMagic],
-        Class::Archer => &[Bow, AirMagic],
-        Class::Cleric => &[Mace, BodyMagic],
-        Class::Sorcerer => &[Dagger, FireMagic],
-        Class::Druid => &[Staff, EarthMagic],
+        Class::Knight(_) => &[Sword, Leather],
+        Class::Paladin(_) => &[Sword, SpiritMagic],
+        Class::Archer(_) => &[Bow, AirMagic],
+        Class::Cleric(_) => &[Mace, BodyMagic],
+        Class::Sorcerer(_) => &[Dagger, FireMagic],
+        Class::Druid(_) => &[Staff, EarthMagic],
     }
 }
 
@@ -97,7 +97,7 @@ pub fn class_starting_skills(class: Class) -> &'static [Skill] {
 pub fn class_available_skills(class: Class) -> &'static [Skill] {
     use Skill::*;
     match class {
-        Class::Knight => &[
+        Class::Knight(_) => &[
             Dagger,
             Bow,
             Bodybuilding,
@@ -108,7 +108,7 @@ pub fn class_available_skills(class: Class) -> &'static [Skill] {
             Chain,
             DisarmTrap,
         ],
-        Class::Paladin => &[
+        Class::Paladin(_) => &[
             Dagger,
             Shield,
             Perception,
@@ -119,7 +119,7 @@ pub fn class_available_skills(class: Class) -> &'static [Skill] {
             Chain,
             DisarmTrap,
         ],
-        Class::Archer => &[
+        Class::Archer(_) => &[
             Sword,
             Leather,
             Perception,
@@ -130,7 +130,7 @@ pub fn class_available_skills(class: Class) -> &'static [Skill] {
             IdentifyItem,
             DisarmTrap,
         ],
-        Class::Cleric => &[
+        Class::Cleric(_) => &[
             Staff,
             SpiritMagic,
             RepairItem,
@@ -141,7 +141,7 @@ pub fn class_available_skills(class: Class) -> &'static [Skill] {
             IdentifyItem,
             Diplomacy,
         ],
-        Class::Sorcerer => &[
+        Class::Sorcerer(_) => &[
             Staff,
             WaterMagic,
             RepairItem,
@@ -152,7 +152,7 @@ pub fn class_available_skills(class: Class) -> &'static [Skill] {
             IdentifyItem,
             Diplomacy,
         ],
-        Class::Druid => &[
+        Class::Druid(_) => &[
             Mace,
             SpiritMagic,
             RepairItem,
