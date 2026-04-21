@@ -1,9 +1,9 @@
+pub mod attributes;
+pub mod class;
 pub mod creation;
 pub mod member;
 pub mod portrait;
-pub mod class;
 pub mod skills;
-pub mod attributes;
 
 use bevy::prelude::*;
 use openmm_data::enums::{EvtTargetCharacter, EvtVariable};

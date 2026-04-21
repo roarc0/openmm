@@ -89,7 +89,12 @@ impl Class {
 
     pub fn tier(self) -> u8 {
         match self {
-            Self::Knight(t) | Self::Paladin(t) | Self::Archer(t) | Self::Cleric(t) | Self::Sorcerer(t) | Self::Druid(t) => t,
+            Self::Knight(t)
+            | Self::Paladin(t)
+            | Self::Archer(t)
+            | Self::Cleric(t)
+            | Self::Sorcerer(t)
+            | Self::Druid(t) => t,
         }
     }
 

@@ -1,17 +1,17 @@
 use openmm_data::enums::EvtVariable;
 
-pub const SKILL_COUNT: usize = 31; // EvtVariable 0x38..=0x56
+pub const SKILL_COUNT: usize = 31; // EvtVariable::SKILL_STAFF..=EvtVariable::SKILL_MISC
 
 pub use super::class::Class;
 /// Index mapping for base/cur attribute arrays: [Might, Intellect, Personality, Endurance, Speed, Accuracy, Luck]
 pub const ATTR_COUNT: usize = 7;
 /// Index mapping for resistance arrays: [Fire, Elec, Cold, Poison, Magic]
 pub const RESIST_COUNT: usize = 5;
-/// Number of condition bits (CondCursed=0 .. CondMain=17), matching EvtVariable 0x57..=0x68.
+/// Number of condition bits (CondCursed=0 .. CondMain=17), matching EvtVariable::COND_CURSED..=EvtVariable::COND_MAIN.
 pub const COND_COUNT: usize = 18;
 
-pub use super::skills::Skill;
 pub use super::attributes::Attribute;
+pub use super::skills::Skill;
 
 /// A single party member. Skills are stored as raw levels (0 = untrained).
 #[derive(Debug, Clone)]
@@ -51,7 +51,7 @@ pub struct PartyMember {
 
     // ── Conditions ──────────────────────────────────────────────────────
     /// Bitmask of active conditions.
-    /// Bit N corresponds to EvtVariable(0x57 + N): bit 0=Cursed, 1=Weak, …, 17=CondMain.
+    /// Bit N corresponds to EvtVariable(EvtVariable::COND_CURSED.0 + N): bit 0=Cursed, 1=Weak, …, 17=CondMain.
     pub conditions: u32,
 }
 
@@ -95,69 +95,89 @@ impl PartyMember {
 
     /// Read a per-character EvtVariable value (0 if unrecognised).
     pub fn get_var(&self, var: EvtVariable) -> i32 {
-        match var.0 {
-            0x01 => {
+        match var {
+            EvtVariable::SEX_IS => {
                 if self.portrait.is_male() {
                     0
                 } else {
                     1
                 }
             }
-            0x02 => self.class.id() as i32,
-            0x03 => self.hp as i32,
-            0x04 => (self.hp >= self.max_hp) as i32,
-            0x05 => self.sp as i32,
-            0x06 => (self.sp >= self.max_sp) as i32,
-            0x08 => self.ac_bonus as i32,
-            0x09 => self.level as i32,
-            0x0A => self.level_bonus as i32,
-            0x0B => self.age_bonus as i32,
-            0x0C => self.awards,
-            0x0D => self.experience as i32,
-            0xE1 => self.skill_points,
-            // Attr bonuses: 0x19..=0x1F → index 0..6
-            0x19..=0x1F => self.attr_bonuses[(var.0 - 0x19) as usize] as i32,
-            // Base attrs: 0x20..=0x26 → index 0..6
-            0x20..=0x26 => self.base_attrs[(var.0 - 0x20) as usize] as i32,
-            // Cur attrs (base + bonus): 0x27..=0x2D → index 0..6
-            0x27..=0x2D => {
-                let idx = (var.0 - 0x27) as usize;
+            EvtVariable::CLASS_IS => self.class.id() as i32,
+            EvtVariable::HP => self.hp as i32,
+            EvtVariable::HAS_FULL_HP => (self.hp >= self.max_hp) as i32,
+            EvtVariable::SP => self.sp as i32,
+            EvtVariable::HAS_FULL_SP => (self.sp >= self.max_sp) as i32,
+            EvtVariable::AC_BONUS => self.ac_bonus as i32,
+            EvtVariable::BASE_LEVEL => self.level as i32,
+            EvtVariable::LEVEL_BONUS => self.level_bonus as i32,
+            EvtVariable::AGE_BONUS => self.age_bonus as i32,
+            EvtVariable::AWARDS => self.awards,
+            EvtVariable::EXPERIENCE => self.experience as i32,
+            EvtVariable::SKILL_POINTS => self.skill_points,
+            // Attr bonuses: index 0..6
+            _ if (EvtVariable::MIGHT_BONUS.0..=EvtVariable::LUCK_BONUS.0).contains(&var.0) => {
+                self.attr_bonuses[(var.0 - EvtVariable::MIGHT_BONUS.0) as usize] as i32
+            }
+            // Base attrs: index 0..6
+            _ if (EvtVariable::BASE_MIGHT.0..=EvtVariable::BASE_LUCK.0).contains(&var.0) => {
+                self.base_attrs[(var.0 - EvtVariable::BASE_MIGHT.0) as usize] as i32
+            }
+            // Cur attrs (base + bonus): index 0..6
+            _ if (EvtVariable::CUR_MIGHT.0..=EvtVariable::CUR_LUCK.0).contains(&var.0) => {
+                let idx = (var.0 - EvtVariable::CUR_MIGHT.0) as usize;
                 (self.base_attrs[idx] + self.attr_bonuses[idx]) as i32
             }
-            // Resistances: 0x2E..=0x32 → index 0..4
-            0x2E..=0x32 => self.resistances[(var.0 - 0x2E) as usize] as i32,
-            // Resistance bonuses: 0x33..=0x37 → index 0..4
-            0x33..=0x37 => self.resistance_bonuses[(var.0 - 0x33) as usize] as i32,
+            // Resistances: index 0..4
+            _ if (EvtVariable::FIRE_RESISTANCE.0..=EvtVariable::MAGIC_RESISTANCE.0).contains(&var.0) => {
+                self.resistances[(var.0 - EvtVariable::FIRE_RESISTANCE.0) as usize] as i32
+            }
+            // Resistance bonuses: index 0..4
+            _ if (EvtVariable::FIRE_RESISTANCE_BONUS.0..=EvtVariable::MAGIC_RESISTANCE_BONUS.0).contains(&var.0) => {
+                self.resistance_bonuses[(var.0 - EvtVariable::FIRE_RESISTANCE_BONUS.0) as usize] as i32
+            }
             // Skills: 0x38..=0x56
-            0x38..=0x56 => self.get_skill(var) as i32,
+            _ if var.is_skill() => self.get_skill(var) as i32,
             // Conditions: 0x57..=0x68
-            0x57..=0x68 => ((self.conditions >> (var.0 - 0x57)) & 1) as i32,
+            _ if (EvtVariable::COND_CURSED.0..=EvtVariable::COND_MAIN.0).contains(&var.0) => {
+                ((self.conditions >> (var.0 - EvtVariable::COND_CURSED.0)) & 1) as i32
+            }
             _ => 0,
         }
     }
 
     /// Write a per-character EvtVariable value.
     pub fn set_var(&mut self, var: EvtVariable, value: i32) {
-        match var.0 {
-            0x03 => self.hp = value as i16,
-            0x05 => self.sp = value as i16,
-            0x08 => self.ac_bonus = value as i16,
-            0x09 => self.level = value as u8,
-            0x0A => self.level_bonus = value as u8,
-            0x0B => self.age_bonus = value as i16,
-            0x0C => self.awards = value,
-            0x0D => self.experience = value as i64,
-            0xE1 => self.skill_points = value,
-            0x19..=0x1F => self.attr_bonuses[(var.0 - 0x19) as usize] = value as i16,
-            0x20..=0x26 => self.base_attrs[(var.0 - 0x20) as usize] = value as i16,
+        match var {
+            EvtVariable::HP => self.hp = value as i16,
+            EvtVariable::SP => self.sp = value as i16,
+            EvtVariable::AC_BONUS => self.ac_bonus = value as i16,
+            EvtVariable::BASE_LEVEL => self.level = value as u8,
+            EvtVariable::LEVEL_BONUS => self.level_bonus = value as u8,
+            EvtVariable::AGE_BONUS => self.age_bonus = value as i16,
+            EvtVariable::AWARDS => self.awards = value,
+            EvtVariable::EXPERIENCE => self.experience = value as i64,
+            EvtVariable::SKILL_POINTS => self.skill_points = value,
+            _ if (EvtVariable::MIGHT_BONUS.0..=EvtVariable::LUCK_BONUS.0).contains(&var.0) => {
+                self.attr_bonuses[(var.0 - EvtVariable::MIGHT_BONUS.0) as usize] = value as i16
+            }
+            _ if (EvtVariable::BASE_MIGHT.0..=EvtVariable::BASE_LUCK.0).contains(&var.0) => {
+                self.base_attrs[(var.0 - EvtVariable::BASE_MIGHT.0) as usize] = value as i16
+            }
             // cur attrs — write to base (no separate cur storage)
-            0x27..=0x2D => self.base_attrs[(var.0 - 0x27) as usize] = value as i16,
-            0x2E..=0x32 => self.resistances[(var.0 - 0x2E) as usize] = value as i16,
-            0x33..=0x37 => self.resistance_bonuses[(var.0 - 0x33) as usize] = value as i16,
-            0x38..=0x56 => self.set_skill(var, value as u8),
+            _ if (EvtVariable::CUR_MIGHT.0..=EvtVariable::CUR_LUCK.0).contains(&var.0) => {
+                self.base_attrs[(var.0 - EvtVariable::CUR_MIGHT.0) as usize] = value as i16
+            }
+            _ if (EvtVariable::FIRE_RESISTANCE.0..=EvtVariable::MAGIC_RESISTANCE.0).contains(&var.0) => {
+                self.resistances[(var.0 - EvtVariable::FIRE_RESISTANCE.0) as usize] = value as i16
+            }
+            _ if (EvtVariable::FIRE_RESISTANCE_BONUS.0..=EvtVariable::MAGIC_RESISTANCE_BONUS.0).contains(&var.0) => {
+                self.resistance_bonuses[(var.0 - EvtVariable::FIRE_RESISTANCE_BONUS.0) as usize] = value as i16
+            }
+            _ if var.is_skill() => self.set_skill(var, value as u8),
             // Conditions: set bit
-            0x57..=0x68 => {
-                let bit = var.0 - 0x57;
+            _ if (EvtVariable::COND_CURSED.0..=EvtVariable::COND_MAIN.0).contains(&var.0) => {
+                let bit = var.0 - EvtVariable::COND_CURSED.0;
                 if value != 0 {
                     self.conditions |= 1 << bit;
                 } else {
@@ -170,19 +190,29 @@ impl PartyMember {
 
     /// Add delta to a per-character EvtVariable.
     pub fn add_var(&mut self, var: EvtVariable, delta: i32) {
-        match var.0 {
-            0x03 => self.hp = self.hp.saturating_add(delta as i16),
-            0x05 => self.sp = self.sp.saturating_add(delta as i16),
-            0x09 => self.level = self.level.saturating_add(delta as u8),
-            0x0C => self.awards = self.awards.wrapping_add(delta),
-            0x0D => self.experience = self.experience.wrapping_add(delta as i64),
-            0xE1 => self.skill_points = self.skill_points.wrapping_add(delta),
-            0x19..=0x1F => self.attr_bonuses[(var.0 - 0x19) as usize] += delta as i16,
-            0x20..=0x26 => self.base_attrs[(var.0 - 0x20) as usize] += delta as i16,
-            0x27..=0x2D => self.base_attrs[(var.0 - 0x27) as usize] += delta as i16,
-            0x2E..=0x32 => self.resistances[(var.0 - 0x2E) as usize] += delta as i16,
-            0x33..=0x37 => self.resistance_bonuses[(var.0 - 0x33) as usize] += delta as i16,
-            0x38..=0x56 => {
+        match var {
+            EvtVariable::HP => self.hp = self.hp.saturating_add(delta as i16),
+            EvtVariable::SP => self.sp = self.sp.saturating_add(delta as i16),
+            EvtVariable::BASE_LEVEL => self.level = self.level.saturating_add(delta as u8),
+            EvtVariable::AWARDS => self.awards = self.awards.wrapping_add(delta),
+            EvtVariable::EXPERIENCE => self.experience = self.experience.wrapping_add(delta as i64),
+            EvtVariable::SKILL_POINTS => self.skill_points = self.skill_points.wrapping_add(delta),
+            _ if (EvtVariable::MIGHT_BONUS.0..=EvtVariable::LUCK_BONUS.0).contains(&var.0) => {
+                self.attr_bonuses[(var.0 - EvtVariable::MIGHT_BONUS.0) as usize] += delta as i16
+            }
+            _ if (EvtVariable::BASE_MIGHT.0..=EvtVariable::BASE_LUCK.0).contains(&var.0) => {
+                self.base_attrs[(var.0 - EvtVariable::BASE_MIGHT.0) as usize] += delta as i16
+            }
+            _ if (EvtVariable::CUR_MIGHT.0..=EvtVariable::CUR_LUCK.0).contains(&var.0) => {
+                self.base_attrs[(var.0 - EvtVariable::CUR_MIGHT.0) as usize] += delta as i16
+            }
+            _ if (EvtVariable::FIRE_RESISTANCE.0..=EvtVariable::MAGIC_RESISTANCE.0).contains(&var.0) => {
+                self.resistances[(var.0 - EvtVariable::FIRE_RESISTANCE.0) as usize] += delta as i16
+            }
+            _ if (EvtVariable::FIRE_RESISTANCE_BONUS.0..=EvtVariable::MAGIC_RESISTANCE_BONUS.0).contains(&var.0) => {
+                self.resistance_bonuses[(var.0 - EvtVariable::FIRE_RESISTANCE_BONUS.0) as usize] += delta as i16
+            }
+            _ if var.is_skill() => {
                 if let Some(idx) = var.skill_index() {
                     self.skills[idx as usize] = self.skills[idx as usize].saturating_add(delta as u8);
                 }

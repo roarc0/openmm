@@ -332,15 +332,13 @@ pub(super) fn screen_click(
 
         // Swap to "clicked" texture if available.
         let has_click_visual = clicked_tex.is_some() || clicked_anim.is_some();
-        if has_click_visual {
-            if let Some(ref mut node) = image_node {
-                if let Some(ref mut ca) = clicked_anim {
-                    ca.elapsed = 0.0;
-                    ca.current_frame = 0;
-                    node.image = ca.handles[0].clone();
-                } else if let Some(ct) = clicked_tex {
-                    node.image = ct.clicked.clone();
-                }
+        if has_click_visual && let Some(ref mut node) = image_node {
+            if let Some(ref mut ca) = clicked_anim {
+                ca.elapsed = 0.0;
+                ca.current_frame = 0;
+                node.image = ca.handles[0].clone();
+            } else if let Some(ct) = clicked_tex {
+                node.image = ct.clicked.clone();
             }
         }
 
@@ -354,12 +352,10 @@ pub(super) fn screen_click(
             });
         } else {
             // No click visual — fire actions immediately, no blocking timer.
-            if let Some(ref mut act) = actions {
-                if !click_actions.is_empty() {
-                    act.write(ScreenActions {
-                        actions: click_actions,
-                    });
-                }
+            if let Some(ref mut act) = actions
+                && !click_actions.is_empty()
+            {
+                act.write(ScreenActions { actions: click_actions });
             }
         }
     }

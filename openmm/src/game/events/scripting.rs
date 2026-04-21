@@ -634,7 +634,7 @@ fn process_events(
                 jump_step,
             } => {
                 // Check skill level of current active character.
-                let var = openmm_data::enums::EvtVariable(0x38 + *skill_id);
+                let var = openmm_data::enums::EvtVariable(EvtVariable::SKILL_STAFF.0 + *skill_id);
                 let current = party.get_member_var(party.active_target, var);
                 if current >= *skill_level as i32
                     && !execute_conditional_jump(steps, &mut pc, *jump_step, "CheckSkill jump")

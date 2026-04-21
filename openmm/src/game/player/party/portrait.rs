@@ -43,7 +43,7 @@ impl PortraitId {
         }
         all
     };
-    
+
     pub const ALL: &'static [PortraitId] = &Self::ALL_ARR;
 
     pub const MALE: &[PortraitId] = &[

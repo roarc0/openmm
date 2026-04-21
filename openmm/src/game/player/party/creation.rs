@@ -109,15 +109,7 @@ pub fn class_available_skills(class: Class) -> &'static [Skill] {
             DisarmTrap,
         ],
         Class::Paladin(_) => &[
-            Dagger,
-            Shield,
-            Perception,
-            Spear,
-            Leather,
-            Diplomacy,
-            Mace,
-            Chain,
-            DisarmTrap,
+            Dagger, Shield, Perception, Spear, Leather, Diplomacy, Mace, Chain, DisarmTrap,
         ],
         Class::Archer(_) => &[
             Sword,

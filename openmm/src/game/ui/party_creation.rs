@@ -71,7 +71,11 @@ impl PartyMemberSource {
     }
 
     fn selected_class_color(&self, class: Class) -> &'static str {
-        if self.member.class.base_class() == class.base_class() { "cyan" } else { "white" }
+        if self.member.class.base_class() == class.base_class() {
+            "cyan"
+        } else {
+            "white"
+        }
     }
 }
 
@@ -127,14 +131,24 @@ impl PropertySource for PartyMemberSource {
             "skill_0" | "skill_1" => {
                 let idx: usize = path[6..].parse().ok()?;
                 let skills = creation::class_starting_skills(m.class);
-                Some(skills.get(idx).map(|s| s.to_string()).unwrap_or_else(|| "None".to_string()))
+                Some(
+                    skills
+                        .get(idx)
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "None".to_string()),
+                )
             }
             // Chosen optional skills (slots 2-3)
             "skill_2" | "skill_3" => {
                 let slot: usize = path[6..].parse::<usize>().ok()? - 2;
                 let avail = creation::class_available_skills(m.class);
                 match self.chosen_skills[slot] {
-                    Some(ai) => Some(avail.get(ai).map(|s| s.to_string()).unwrap_or_else(|| "None".to_string())),
+                    Some(ai) => Some(
+                        avail
+                            .get(ai)
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| "None".to_string()),
+                    ),
                     None => Some("None".to_string()),
                 }
             }
@@ -161,13 +175,13 @@ impl PropertySource for PartyMemberSource {
             | "av_skill_7" | "av_skill_8" => {
                 let idx: usize = path[9..].parse().ok()?;
                 let avail = creation::class_available_skills(m.class);
-                Some(avail.get(idx).map(|s| s.to_string()).unwrap_or_else(|| "".to_string()))
+                Some(avail.get(idx).map(|s| s.to_string()).unwrap_or_default())
             }
             // Color for available skill: cyan if already chosen, white otherwise
             "av_skill_0_color" | "av_skill_1_color" | "av_skill_2_color" | "av_skill_3_color" | "av_skill_4_color"
             | "av_skill_5_color" | "av_skill_6_color" | "av_skill_7_color" | "av_skill_8_color" => {
                 let idx: usize = path[9..path.len() - 6].parse().ok()?;
-                let is_chosen = self.chosen_skills.iter().any(|c| *c == Some(idx));
+                let is_chosen = self.chosen_skills.contains(&Some(idx));
                 Some(if is_chosen { "cyan" } else { "white" }.to_string())
             }
             _ => None,
@@ -318,7 +332,7 @@ pub fn handle_creation_actions(
     mut sound_writer: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
     keys: Res<ButtonInput<KeyCode>>,
 ) {
-    use crate::screens::scripting::{parse_string_arg, parse_string_int_args, parse_two_string_args};
+    use crate::screens::scripting::{parse_string_arg, parse_string_int_args};
 
     let Some(ref mut cs) = creation_state else {
         return;
@@ -343,7 +357,10 @@ pub fn handle_creation_actions(
             Attribute::Luck,
         ];
         let active = cs.active_member;
-        let p = order.iter().position(|&s| s == cs.selected_attribute[active]).unwrap_or(0);
+        let p = order
+            .iter()
+            .position(|&s| s == cs.selected_attribute[active])
+            .unwrap_or(0);
         let next_pos = (p as isize + delta).rem_euclid(order.len() as isize) as usize;
         cs.selected_attribute[active] = order[next_pos];
     }
@@ -371,15 +388,15 @@ pub fn handle_creation_actions(
         }
     };
 
-    if keys.just_pressed(KeyCode::NumpadAdd) || keys.just_pressed(KeyCode::Equal) {
-        if let Some(ref mut p) = party {
-            do_increment_attribute(cs, p);
-        }
+    if (keys.just_pressed(KeyCode::NumpadAdd) || keys.just_pressed(KeyCode::Equal))
+        && let Some(ref mut p) = party
+    {
+        do_increment_attribute(cs, p);
     }
-    if keys.just_pressed(KeyCode::NumpadSubtract) || keys.just_pressed(KeyCode::Minus) {
-        if let Some(ref mut p) = party {
-            do_decrement_attribute(cs, p);
-        }
+    if (keys.just_pressed(KeyCode::NumpadSubtract) || keys.just_pressed(KeyCode::Minus))
+        && let Some(ref mut p) = party
+    {
+        do_decrement_attribute(cs, p);
     }
 
     for ScreenActionEvent(action) in events.read() {
@@ -476,7 +493,7 @@ pub fn handle_creation_actions(
                     party.as_ref().map(|p| p.members[member].class).unwrap_or_default(),
                 );
                 // Only allow if index is valid and not already chosen.
-                if skill_idx < avail.len() && !cs.chosen_skills[member].iter().any(|c| *c == Some(skill_idx)) {
+                if skill_idx < avail.len() && !cs.chosen_skills[member].contains(&Some(skill_idx)) {
                     // Fill first empty slot.
                     if cs.chosen_skills[member][0].is_none() {
                         cs.chosen_skills[member][0] = Some(skill_idx);
@@ -494,7 +511,7 @@ pub fn handle_creation_actions(
             if let Some(member) = parse_member_index(member_str) {
                 cs.active_member = member;
                 // Slot 2 maps to chosen_skills[0], slot 3 to chosen_skills[1]
-                if slot >= 2 && slot <= 3 {
+                if (2..=3).contains(&slot) {
                     cs.chosen_skills[member][slot as usize - 2] = None;
                 }
             }

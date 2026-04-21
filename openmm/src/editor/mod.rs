@@ -10,7 +10,9 @@ mod overlay;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::input::EguiWantsInput;
-use bevy_inspector_egui::bevy_egui::{egui, EguiContext, EguiContexts, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext};
+use bevy_inspector_egui::bevy_egui::{
+    EguiContext, EguiContexts, EguiPlugin, EguiPrimaryContextPass, PrimaryEguiContext, egui,
+};
 
 use crate::GameState;
 use crate::assets::GameAssets;
