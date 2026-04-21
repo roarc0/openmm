@@ -12,7 +12,7 @@ use bevy::prelude::*;
 
 use crate::game::player::party::Party;
 use crate::game::player::party::creation;
-use crate::game::player::party::member::{CharacterClass, PartyMember, CharStat};
+use crate::game::player::party::member::{CharStat, CharacterClass, PartyMember};
 use crate::game::player::party::portrait::PortraitId;
 use crate::screens::PropertySource;
 use crate::screens::runtime::RuntimeElement;
@@ -27,6 +27,8 @@ pub struct PartyCreationState {
     pub selected_stat: [CharStat; 4],
     /// Remaining bonus points shared across all members.
     pub bonus_points: u8,
+    /// Chosen optional skills per member (index into class_available_skills, or None).
+    pub chosen_skills: [[Option<usize>; 2]; 4],
 }
 
 impl Default for PartyCreationState {
@@ -34,7 +36,8 @@ impl Default for PartyCreationState {
         Self {
             active_member: 0,
             selected_stat: [CharStat::default(); 4],
-            bonus_points: 52,
+            bonus_points: 50,
+            chosen_skills: [[None; 2]; 4],
         }
     }
 }
@@ -50,6 +53,8 @@ struct PartyMemberSource {
     member: PartyMember,
     selected_stat: CharStat,
     class_base_attrs: [i16; 7],
+    /// Which optional skill slots have been filled (indices into class_available_skills).
+    chosen_skills: [Option<usize>; 2],
 }
 
 impl PartyMemberSource {
@@ -118,6 +123,53 @@ impl PropertySource for PartyMemberSource {
             "speed" => Some(m.base_attrs[4].to_string()),
             "accuracy" => Some(m.base_attrs[5].to_string()),
             "luck" => Some(m.base_attrs[6].to_string()),
+            // Fixed starting skills (slots 0-1)
+            "skill_0" | "skill_1" => {
+                let idx: usize = path[6..].parse().ok()?;
+                let skills = creation::class_starting_skills(m.class);
+                Some(skills.get(idx).unwrap_or(&"None").to_string())
+            }
+            // Chosen optional skills (slots 2-3)
+            "skill_2" | "skill_3" => {
+                let slot: usize = path[6..].parse::<usize>().ok()? - 2;
+                let avail = creation::class_available_skills(m.class);
+                match self.chosen_skills[slot] {
+                    Some(ai) => Some(avail.get(ai).unwrap_or(&"None").to_string()),
+                    None => Some("None".to_string()),
+                }
+            }
+            // Colors for skill slots: fixed=white, chosen=green, empty=white
+            "skill_0_color" | "skill_1_color" => Some("white".to_string()),
+            "skill_2_color" => Some(
+                if self.chosen_skills[0].is_some() {
+                    "green"
+                } else {
+                    "cyan"
+                }
+                .to_string(),
+            ),
+            "skill_3_color" => Some(
+                if self.chosen_skills[1].is_some() {
+                    "green"
+                } else {
+                    "cyan"
+                }
+                .to_string(),
+            ),
+            // Available skills for the active member's class (9 slots)
+            "av_skill_0" | "av_skill_1" | "av_skill_2" | "av_skill_3" | "av_skill_4" | "av_skill_5" | "av_skill_6"
+            | "av_skill_7" | "av_skill_8" => {
+                let idx: usize = path[9..].parse().ok()?;
+                let avail = creation::class_available_skills(m.class);
+                Some(avail.get(idx).unwrap_or(&"").to_string())
+            }
+            // Color for available skill: cyan if already chosen, white otherwise
+            "av_skill_0_color" | "av_skill_1_color" | "av_skill_2_color" | "av_skill_3_color" | "av_skill_4_color"
+            | "av_skill_5_color" | "av_skill_6_color" | "av_skill_7_color" | "av_skill_8_color" => {
+                let idx: usize = path[9..path.len() - 6].parse().ok()?;
+                let is_chosen = self.chosen_skills.iter().any(|c| *c == Some(idx));
+                Some(if is_chosen { "cyan" } else { "white" }.to_string())
+            }
             _ => None,
         }
     }
@@ -156,6 +208,7 @@ pub fn update_party_creation_registry(
             class_base_attrs: creation::class_base_attrs(member.class),
             member: member.clone(),
             selected_stat: creation_state.selected_stat[i],
+            chosen_skills: creation_state.chosen_skills[i],
         }));
     }
     // Register "active" as alias for the currently selected member.
@@ -166,6 +219,7 @@ pub fn update_party_creation_registry(
         class_base_attrs: creation::class_base_attrs(active_member.class),
         member: active_member.clone(),
         selected_stat: creation_state.selected_stat[active],
+        chosen_skills: creation_state.chosen_skills[active],
     }));
     // Register global creation state.
     registry.register(Box::new(CreationSource {
@@ -189,9 +243,16 @@ pub fn sync_creation_arrows(creation_state: Res<PartyCreationState>, mut query: 
         CharStat::Luck => 256.0,
     };
 
+    const CHAR_COL_WIDTH: f32 = 158.0;
     for (elem, mut node) in &mut query {
-        if elem.element_id == "icons/ARROWL0" || elem.element_id == "icons/ARROWR0" {
+        if elem.element_id == "icons/ARROWL0" {
+            let xorig = 11.0;
             node.top = Val::Percent(y / crate::screens::REF_H * 100.0);
+            node.left = Val::Percent((xorig + active as f32 * CHAR_COL_WIDTH) / crate::screens::REF_W * 100.0);
+        } else if elem.element_id == "icons/ARROWR0" {
+            let xorig = 135.0;
+            node.top = Val::Percent(y / crate::screens::REF_H * 100.0);
+            node.left = Val::Percent((xorig + active as f32 * CHAR_COL_WIDTH) / crate::screens::REF_W * 100.0);
         }
     }
 }
@@ -249,13 +310,14 @@ fn parse_member_index(object: &str) -> Option<usize> {
 /// Handle screen actions specific to the party creation screen.
 /// Only active when `PartyCreationState` exists (i.e. during character creation).
 pub fn handle_creation_actions(
+    mut commands: Commands,
     mut events: MessageReader<ScreenActionEvent>,
     mut creation_state: Option<ResMut<PartyCreationState>>,
     mut party: Option<ResMut<Party>>,
     sound_manager: Option<Res<crate::game::sound::SoundManager>>,
     mut sound_writer: Option<bevy::ecs::message::MessageWriter<crate::game::sound::effects::PlayUiSoundEvent>>,
 ) {
-    use crate::screens::scripting::{parse_string_arg, parse_string_int_args};
+    use crate::screens::scripting::{parse_string_arg, parse_string_int_args, parse_two_string_args};
 
     let Some(ref mut cs) = creation_state else {
         return;
@@ -290,6 +352,8 @@ pub fn handle_creation_actions(
                         .sum();
                     cs.bonus_points = cs.bonus_points.saturating_add(spent as u8);
                     set_member_class(p, index, class);
+                    // Clear chosen optional skills when switching class.
+                    cs.chosen_skills[index] = [None; 2];
                 }
             } else {
                 warn!("SelectClass: unknown class '{}'", class_name);
@@ -297,7 +361,20 @@ pub fn handle_creation_actions(
             continue;
         }
 
-        // SelectStat("might")
+        // SelectStat("might", 0) -> specify member and stat
+        if let Some((stat_name, member_idx)) = parse_string_int_args(s, "SelectStat") {
+            if let Some(stat) = CharStat::from_name(stat_name) {
+                let active = member_idx as usize;
+                // Shift focus to the character clicked
+                cs.active_member = active;
+                cs.selected_stat[active] = stat;
+            } else {
+                warn!("SelectStat: unknown stat '{}'", stat_name);
+            }
+            continue;
+        }
+
+        // Backward compatibility: SelectStat("might")
         if let Some(stat_name) = parse_string_arg(s, "SelectStat") {
             if let Some(stat) = CharStat::from_name(stat_name) {
                 let active = cs.active_member;
@@ -345,6 +422,55 @@ pub fn handle_creation_actions(
                     cs.bonus_points += 1;
                 }
             }
+            continue;
+        }
+
+        // SelectAvailableSkill("3") — pick from available pool
+        if let Some(idx_str) = parse_string_arg(s, "SelectAvailableSkill") {
+            if let Ok(skill_idx) = idx_str.parse::<usize>() {
+                let member = cs.active_member;
+                let avail = creation::class_available_skills(
+                    party.as_ref().map(|p| p.members[member].class).unwrap_or_default(),
+                );
+                // Only allow if index is valid and not already chosen.
+                if skill_idx < avail.len() && !cs.chosen_skills[member].iter().any(|c| *c == Some(skill_idx)) {
+                    // Fill first empty slot.
+                    if cs.chosen_skills[member][0].is_none() {
+                        cs.chosen_skills[member][0] = Some(skill_idx);
+                    } else if cs.chosen_skills[member][1].is_none() {
+                        cs.chosen_skills[member][1] = Some(skill_idx);
+                    }
+                    // else: both slots full, ignore click
+                }
+            }
+            continue;
+        }
+
+        // RemoveChosenSkill("member0", 2) — remove from slot and focus that member
+        if let Some((member_str, slot)) = parse_string_int_args(s, "RemoveChosenSkill") {
+            if let Some(member) = parse_member_index(member_str) {
+                cs.active_member = member;
+                // Slot 2 maps to chosen_skills[0], slot 3 to chosen_skills[1]
+                if slot >= 2 && slot <= 3 {
+                    cs.chosen_skills[member][slot as usize - 2] = None;
+                }
+            }
+            continue;
+        }
+
+        // ConfirmCreation() — proceed to game only if all points & skills allocated
+        if s == "ConfirmCreation()" {
+            if cs.bonus_points > 0 {
+                warn!("ConfirmCreation blocked: {} bonus points unspent", cs.bonus_points);
+                continue;
+            }
+            let all_skills_picked = cs.chosen_skills.iter().all(|slots| slots.iter().all(|s| s.is_some()));
+            if !all_skills_picked {
+                warn!("ConfirmCreation blocked: not all members have 2 chosen skills");
+                continue;
+            }
+            info!("ConfirmCreation: all points and skills allocated, starting game");
+            commands.set_state(crate::GameState::Loading);
             continue;
         }
 
