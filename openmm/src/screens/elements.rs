@@ -705,11 +705,8 @@ pub(super) fn text_update(
         }
 
         // Skip source resolution if no data source changed and we already have cached text.
-        if !any_source_changed && !rt.last_text.is_empty() && rt.color == rt.last_color {
-            // Still need to reposition if window resized — but skip source/interpolation work.
-            if rt.last_text.is_empty() {
-                continue;
-            }
+        // The "\x00" sentinel means "never rendered yet" — always fall through on first frame.
+        if !any_source_changed && rt.last_text != "\x00" && !rt.last_text.is_empty() && rt.color == rt.last_color {
             reposition_text(&rt, &game_fonts, sx, sy, &mut node);
             continue;
         }
@@ -827,11 +824,12 @@ pub(super) fn dynamic_texture_update(
     mut images: ResMut<Assets<Image>>,
     mut query: Query<(&mut ImageNode, &mut DynamicTexture)>,
 ) {
-    // Skip all work when registry unchanged — templates only depend on registry.
-    if !registry.is_changed() {
-        return;
-    }
+    let registry_changed = registry.is_changed();
     for (mut image_node, mut dyn_tex) in &mut query {
+        // Skip when registry unchanged and this texture was already resolved once.
+        if !registry_changed && !dyn_tex.last_resolved.is_empty() {
+            continue;
+        }
         let resolved = crate::screens::interpolate(&dyn_tex.template, &registry);
         if resolved.is_empty() || *resolved == dyn_tex.last_resolved {
             continue;
