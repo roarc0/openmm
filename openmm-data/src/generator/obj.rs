@@ -21,7 +21,7 @@
 //!
 //! # Example
 //! ```no_run
-//! use openmm_data::codegen::obj::{import_obj, CoordConv};
+//! use openmm_data::generator::obj::{import_obj, CoordConv};
 //!
 //! let bytes = std::fs::read("house.obj").unwrap();
 //! let model = import_obj(&bytes, "brick", CoordConv::BlenderYUp, [0, 0, 512])
