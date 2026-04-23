@@ -22,7 +22,8 @@ use crate::game::ui::{self, HouseProfile, UiMode, UiState};
 use crate::prepare::loading::LoadRequest;
 
 use super::events::MapEvents;
-use super::scripting::{AudioParams, EventQueue, MapEntityParams, TransitionParams};
+use super::scripting::EventQueue;
+use super::scripting::dispatch::{AudioParams, MapEntityParams, TransitionParams};
 
 /// Show the autonote text in the footer when a note is newly acquired.
 pub(super) fn show_autonote_text(id: i32, assets: &GameAssets, ui: &mut UiState, time_secs: f64) {

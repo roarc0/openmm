@@ -1,7 +1,6 @@
 # OpenMM Roadmap & TODOs
 
 ## Gameplay (Priority)
-- [ ] **NPC dialogue text rendering** — Wire up font from LOD, scrolling lines
 - [ ] **Monster combat stats** — HP, speed, attack logic
 - [ ] **Ground items / pickable objects** — Parse DDM `MapObject`, spawn `GroundItem` entities
 - [ ] **Chest / item system** — Items inside chests, inventory logic
@@ -18,50 +17,20 @@
 - [ ] **HUD GameTime integration** — Tap frame switching (morning/day/evening/night), date/time text
 - [ ] **Post-process AA fix** — FXAA/SMAA/TAA break terrain rendering
 
-## Package Restructuring (Master Plan)
-### Phase 1: High-Level Organization
-- [x] **Rendering Move** — Move root `engine.rs` → `src/game/rendering/`
-- [x] **State Transition Rename** — Rename `src/states/` → `src/prepare/` (Transition/Loading states)
-
-### Phase 2: Game Module Decoupling
-- [x] **Simulation State** — Rename `src/game/world/` → `src/game/state/` (Handles Time, Variables, Scripting)
-- [x] **Map Umbrella**: Created `src/game/map/` — moved `indoor/`, `outdoor/`, `collision.rs`, `coords.rs`, `spatial_index.rs` into it.
-- [x] **Player/Party Umbrella**: Nest `src/game/party/` into `src/game/player/party/`.
-- [x] **State Decomposition**: Split `state/` into focused modules:
-    - [x] `game/events/` — EVT scripting, event handlers, MapEvents (from `state/scripting.rs`, `state/event_handlers.rs`, `state/events.rs`)
-    - [x] `game/ui/` — UiState, UiMode, FooterText, OverlayImage (from `state/ui_state.rs`)
-    - [x] `game/actors/npc_dialogue.rs` — NPC dialogue data prep (from `state/npc_dialogue.rs`)
-    - `state/` now holds only: WorldState, GameVariables, GameTime, variables
-- [ ] **Spawning & Actor Logic**: Create `src/game/spawn/` with subfolders for specialized logic:
-    - [ ] `actor/`: Nest all monster/npc logic here (`actors/`)
-    - [ ] `decoration/`: Nest prop spawning logic
-    - [ ] `sprite/`: Nest world-sprite registration logic (move from `src/game/sprites/`)
-- [x] **Input & UI** — Created `src/game/controls/` and moved `input.rs` there.
-
-### Phase 3: Structural Refinements
-- [ ] **Scripting Split**: Split `scripting.rs` monolith → `src/game/state/scripting/` (Trigger vs Runtime)
+## Package Restructuring
+- [ ] **Scripting handlers**: Extract handler groups from `events/scripting/dispatch.rs` (665 lines) into focused modules as they grow beyond stubs
 - [ ] **Consolidate Geometries**: Move `collision.rs` 2D helpers + `interaction/raycast.rs` 3D equivalents → `game/map/geom.rs`
 - [ ] **Modular HUD**: Split `hud/mod.rs` into `layout.rs`, `builder.rs`, `constants.rs`
 
-## Refactoring (High Impact)
-- [x] **Deduplicate actor spawning (3 sites → 1 helper)** — Shared `spawn_actor()` in `game/spawn/monster.rs` covers monsters + NPCs. ~200 lines saved.
-- [x] **Deduplicate decoration spawning** ��� Shared `spawn_decoration()` in `game/spawn/decoration.rs`. Indoor gains triggers, flicker, material caching. ~250 lines saved.
-- [x] **Split `loading.rs` (1211 lines)** — Split into `loading/mod.rs` + `loading/outdoor.rs` + `loading/indoor.rs` + `loading/helpers.rs`. Extracted `build_textured_mesh()`, `indoor_material()`, `outdoor_material()` helpers.
-
-## Refactoring (Medium Impact)
+## Refactoring
 - [ ] **Split `sprites/loading.rs` (857 lines)** — Animation runtime (`update_sprite_sheets`) is different concern from load-time decoding. Split into `sprites/decode.rs` + `sprites/animation.rs`.
 - [ ] **`handle_move_to_map` split** — `event_handlers.rs` handles same-map teleport AND cross-map transition in one function. Separate them.
-
-## Refactoring (Low Impact)
-- [x] **Overlay image pattern** — `handle_speak_in_house` and `handle_open_chest` share identical OverlayImage + cursor logic. Extract helper.
-- [x] **Indoor sprite caching** — Now uses shared `DecSpriteCache` via `spawn_decoration()`.
-- [x] **Texture size collection** — 2 near-identical HashMap-building loops for indoor vs outdoor texture sizes. Extract `collect_texture_sizes()`.
 
 ## Architecture (Bevy Best Practices)
 *Note: identified improvements, not immediate priority.*
 
 ### Systems & Scheduling
-- [ ] **Deconstruct `process_events` (scripting.rs)** — ~600 line monolith. Convert side-effects (door state, map transition, overlay, sound) to events consumed by specialized handlers.
+- [ ] **Deconstruct `process_events`** — dispatch.rs match arms are mostly 1-5 line stubs now but will grow as features land. Convert heavy side-effects to Bevy events consumed by specialized handler systems.
 - [ ] **Deconstruct `player.rs` systems** — Split into "Input Capture" (keys → Intent/Actions) and "Kinematics/Physics" (Actions → Transform).
 - [ ] **Migrate physics to `FixedUpdate`** — `gravity_system` and `player_movement` run in `Update`. Use `Time<Fixed>` for determinism.
 - [ ] **Action-based input** — Replace direct `ButtonInput<KeyCode>` polling with `PlayerAction` enum mapping.
@@ -70,8 +39,6 @@
 - [ ] **Split `WorldState` bag-of-state** — Combines player runtime, map runtime, quest bits, inventory, NPC overrides, actor flags, chest flags. Split into focused resources.
 - [ ] **Group player config** — Consolidate `PlayerSettings`, `PlayerKeyBindings`, `MouseLookEnabled`, `MouseSensitivity` into single resource or entity components.
 - [ ] **Decouple `spawn_player`** — God function for player + camera + fog + lighting. Split into modular setup systems.
-- [ ] **Split `loading_step` (~880 lines, 7 phases)** — Split phases into individual systems driven by `LoadingPhase` state enum.
-- [ ] **Split `indoor/indoor.rs` (1166 lines)** — Door animation, raycasts, and indoor world spawning are separate concerns.
 
 ### Cleanups
 - [ ] **`update_hud_layout` 8-way `ParamSet`** — Replace with tag enum/component; gate on `Changed<Window>`.
@@ -80,7 +47,6 @@
 - [ ] **Introduce `CurrentEnvironment` resource** — Replaces scattered `resource_exists::<PreparedWorld>` checks.
 - [ ] **NPC dialogue string cloning** — Use `&str`/`Cow` from parsed tables instead of eager clone.
 - [ ] **Change detection** — Use `Changed<T>` and `Added<T>` filters more broadly.
-- [ ] **Dead code / unused field warnings** — Resolve remaining ~24 items.
 
 ## Screen Editor
 - [ ] **Inline text element editing** — Floating edit panel on canvas for Text elements
@@ -99,4 +65,3 @@
 - [ ] **Monster aggro range verification** — Cross-check hostile_type 4 range (6656.0)
 - [ ] **Street NPC randomization** — Seed identity from per-load RNG
 - [ ] **World variable ops** — Move read/write helpers out of dispatcher to dedicated module
-- [ ] **BSP collision** — Move outdoor BSP collision setup to `game/world/collision.rs`
