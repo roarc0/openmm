@@ -9,6 +9,9 @@ use bevy::prelude::*;
 use crate::GameState;
 use crate::game::actors::Actor;
 use crate::game::map::collision::{BuildingColliders, MAX_STEP_UP, TerrainHeightMap, WaterMap, sample_terrain_height};
+use crate::game::player::Player;
+use crate::game::state::tick::{GameTickConfig, GameTickSet, position_phase, should_tick_actor};
+use crate::system::config::GameConfig;
 
 /// Gravity acceleration for actors (world units/sec²). Matches player gravity.
 pub const ACTOR_GRAVITY: f32 = 9800.0;
@@ -22,8 +25,9 @@ pub struct ActorPhysicsPlugin;
 impl Plugin for ActorPhysicsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            Update,
+            FixedUpdate,
             actor_gravity_system
+                .after(GameTickSet)
                 .run_if(in_state(GameState::Game))
                 .run_if(crate::game::ui::is_world_mode),
         );
@@ -90,18 +94,36 @@ pub fn is_passable(actor: &Actor, from_y: f32, dest: Vec3, dest_y: f32, wm: Opti
 /// Dead flying actors lose lift and fall like everything else.
 fn actor_gravity_system(
     time: Res<Time>,
+    tick_cfg: Res<GameTickConfig>,
+    cfg: Res<GameConfig>,
     height_map: Option<Res<TerrainHeightMap>>,
     colliders: Option<Res<BuildingColliders>>,
-    mut query: Query<(&mut Transform, &mut Actor)>,
+    player: Query<&Transform, With<Player>>,
+    mut query: Query<(&mut Transform, &mut Actor), Without<Player>>,
 ) {
     if height_map.is_none() && colliders.is_none() {
         return;
     }
 
+    let Ok(player_tf) = player.single() else {
+        return;
+    };
+    let player_pos = player_tf.translation;
     let dt = time.delta_secs();
+    let tick = tick_cfg.tick;
+    let close_sq = tick_cfg.close_range_sq;
+    let medium_sq = tick_cfg.medium_range_sq;
+    let draw_dist_sq = cfg.draw_distance * cfg.draw_distance;
 
     for (mut transform, mut actor) in query.iter_mut() {
         if actor.can_fly && actor.hp > 0 {
+            continue;
+        }
+
+        // Distance-tiered ticking.
+        let dist_sq = transform.translation.distance_squared(player_pos);
+        let phase = position_phase(actor.initial_position.x, actor.initial_position.z);
+        if !should_tick_actor(tick, phase, dist_sq, close_sq, medium_sq, draw_dist_sq) {
             continue;
         }
 

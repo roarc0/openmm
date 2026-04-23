@@ -232,6 +232,9 @@ struct ConfigFile {
     window_mode: Option<String>,
     vsync: Option<String>,
     fps_cap: Option<u32>,
+    game_tick_rate: Option<f64>,
+    close_actor_range: Option<f32>,
+    medium_actor_range: Option<f32>,
     render_scale: Option<f32>,
     draw_distance: Option<f32>,
     fog_start: Option<f32>,
@@ -296,6 +299,12 @@ pub struct GameConfig {
     /// VSync mode: "auto", "fast", "off"
     pub vsync: String,
     pub fps_cap: u32,
+    /// Game logic tick rate in Hz (AI, combat, physics run at this rate).
+    pub game_tick_rate: f64,
+    /// Distance threshold for "close" actors that update every tick (Bevy units).
+    pub close_actor_range: f32,
+    /// Distance threshold for "medium" actors that update every 2nd tick (Bevy units).
+    pub medium_actor_range: f32,
     /// 3D render scale (0.25–1.0). Viewport is scaled down; HUD stays native.
     pub render_scale: f32,
     pub draw_distance: f32,
@@ -384,6 +393,9 @@ impl Default for GameConfig {
             window_mode: "borderless".into(),
             vsync: "auto".into(),
             fps_cap: 60,
+            game_tick_rate: crate::game::state::tick::DEFAULT_GAME_TICK_RATE,
+            close_actor_range: crate::game::state::tick::DEFAULT_CLOSE_RANGE,
+            medium_actor_range: crate::game::state::tick::DEFAULT_MEDIUM_RANGE,
             render_scale: 1.0,
             draw_distance: 16000.0,
             fog_start: 12000.0,
@@ -486,6 +498,9 @@ impl GameConfig {
             window_mode: resolve!(cli.window_mode, file_cfg.window_mode, d.window_mode),
             vsync: resolve!(cli.vsync, file_cfg.vsync, d.vsync),
             fps_cap: resolve!(cli.fps_cap, file_cfg.fps_cap, d.fps_cap),
+            game_tick_rate: resolve!(None::<f64>, file_cfg.game_tick_rate, d.game_tick_rate),
+            close_actor_range: resolve!(None::<f32>, file_cfg.close_actor_range, d.close_actor_range),
+            medium_actor_range: resolve!(None::<f32>, file_cfg.medium_actor_range, d.medium_actor_range),
             render_scale: resolve!(cli.render_scale, file_cfg.render_scale, d.render_scale),
             draw_distance: resolve!(cli.draw_distance, file_cfg.draw_distance, d.draw_distance),
             fog_start: resolve!(cli.fog_start, file_cfg.fog_start, d.fog_start),

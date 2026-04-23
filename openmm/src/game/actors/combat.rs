@@ -9,6 +9,8 @@ use crate::game::optional::OptionalWrite;
 use crate::game::player::Player;
 use crate::game::sound::effects::PlayOnceSoundEvent;
 use crate::game::sprites::AnimationState;
+use crate::game::state::tick::{GameTickConfig, GameTickSet, position_phase, should_tick_actor};
+use crate::system::config::GameConfig;
 use openmm_data::ActorSoundSlot;
 
 /// Per-attack animation duration in seconds (approx 5 frames at 0.15s).
@@ -48,8 +50,9 @@ impl Plugin for ActorCombatPlugin {
         app.add_message::<KillActorEvent>()
             .init_resource::<AttackBudget>()
             .add_systems(
-                Update,
+                FixedUpdate,
                 (monster_attack_system, monster_die_system, dying_to_dead_system)
+                    .after(GameTickSet)
                     .run_if(in_state(GameState::Game))
                     .run_if(crate::game::ui::is_world_mode),
             );
@@ -58,6 +61,8 @@ impl Plugin for ActorCombatPlugin {
 
 fn monster_attack_system(
     time: Res<Time>,
+    tick_cfg: Res<GameTickConfig>,
+    cfg: Res<GameConfig>,
     mut budget: ResMut<AttackBudget>,
     mut actors: Query<(&Transform, &mut Actor, &mut AnimationState), (Without<DyingTimer>, Without<ActorDead>)>,
     player: Query<&Transform, With<Player>>,
@@ -75,8 +80,20 @@ fn monster_attack_system(
         budget.timer = ATTACK_BUDGET_WINDOW;
     }
 
+    let tick = tick_cfg.tick;
+    let close_sq = tick_cfg.close_range_sq;
+    let medium_sq = tick_cfg.medium_range_sq;
+    let draw_dist_sq = cfg.draw_distance * cfg.draw_distance;
+
     for (transform, mut actor, mut anim_state) in actors.iter_mut() {
         if !actor.hostile || actor.attack_range <= 0.0 {
+            continue;
+        }
+
+        // Distance-tiered ticking.
+        let dist_sq = transform.translation.distance_squared(player_pos);
+        let phase = position_phase(actor.initial_position.x, actor.initial_position.z);
+        if !should_tick_actor(tick, phase, dist_sq, close_sq, medium_sq, draw_dist_sq) {
             continue;
         }
 

@@ -5,6 +5,7 @@ use super::effects::PlayOnceSoundEvent;
 use crate::GameState;
 use crate::game::actors::Actor;
 use crate::game::player::Player;
+use crate::game::state::tick::GameTickSet;
 
 /// Hear actor fidget sounds within this radius (Bevy units).
 const ACTOR_SOUND_RANGE: f32 = 1500.0;
@@ -27,8 +28,9 @@ pub struct ActorSoundsPlugin;
 impl Plugin for ActorSoundsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ActorSoundBudget>().add_systems(
-            Update,
+            FixedUpdate,
             actor_fidget_sounds
+                .after(GameTickSet)
                 .run_if(in_state(GameState::Game))
                 .run_if(crate::game::ui::is_world_mode),
         );

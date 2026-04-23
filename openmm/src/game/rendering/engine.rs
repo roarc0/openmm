@@ -1,7 +1,7 @@
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
 use bevy::window::{PresentMode, Window, WindowMode, WindowResolution};
-use bevy_framepace::{FramepacePlugin, FramepaceSettings, Limiter};
+use bevy_framepace::{FramepacePlugin, FramepaceSettings, FrametimeLimit, Limiter};
 use std::time::Duration;
 
 use crate::APP_NAME;
@@ -25,13 +25,30 @@ fn limiter_from_cap(fps_cap: u32) -> Limiter {
 fn sync_framepace_settings(
     cfg: Res<GameConfig>,
     mut settings: ResMut<FramepaceSettings>,
+    limit: Res<FrametimeLimit>,
     mut last_cap: Local<Option<u32>>,
+    mut log_timer: Local<f32>,
+    time: Res<Time>,
 ) {
+    // Log framepace diagnostics periodically.
+    *log_timer -= time.delta_secs();
+    if *log_timer <= 0.0 {
+        *log_timer = 10.0;
+        let current_limit = limit.0.try_lock().map(|l| format!("{l:?}")).unwrap_or("locked".into());
+        let fps = 1.0 / time.delta_secs().max(0.0001);
+        debug!(
+            "Framepace: limiter={}, limit={current_limit}, actual_fps={fps:.0}",
+            settings.limiter
+        );
+    }
+
     if *last_cap == Some(cfg.fps_cap) {
         return;
     }
     *last_cap = Some(cfg.fps_cap);
-    settings.limiter = limiter_from_cap(cfg.fps_cap);
+    let limiter = limiter_from_cap(cfg.fps_cap);
+    info!("Framepace limiter set: {limiter} (fps_cap={})", cfg.fps_cap);
+    settings.limiter = limiter;
 }
 
 pub struct EngineConfigPlugin;
@@ -95,8 +112,23 @@ impl Plugin for EngineConfigPlugin {
 
         app.add_plugins(plugins)
             .add_plugins(FramepacePlugin)
-            .insert_resource(initial_framepace)
-            .add_systems(Update, sync_framepace_settings);
+            .insert_resource(initial_framepace);
+
+        // Pre-populate the FrametimeLimit so the render-thread limiter is active
+        // from the very first frame. Without this, the limit stays at 0ns until
+        // `get_display_refresh_rate` runs, causing an initial burst of uncapped
+        // frames that spike CPU.
+        if let Some(limit_res) = app.world().get_resource::<FrametimeLimit>() {
+            if let Ok(mut limit) = limit_res.0.try_lock() {
+                *limit = Duration::from_secs_f64(1.0 / cfg.fps_cap.max(1) as f64);
+                info!(
+                    "Framepace: pre-set limit to {:?} (fps_cap={})",
+                    *limit, cfg.fps_cap
+                );
+            }
+        }
+
+        app.add_systems(Update, sync_framepace_settings);
     }
 }
 

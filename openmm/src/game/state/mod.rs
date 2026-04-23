@@ -1,6 +1,7 @@
 //! World simulation state: persistent variables, player/map runtime, and game time.
 
 pub mod state;
+pub mod tick;
 pub mod time;
 pub(in crate::game) mod variables;
 
@@ -14,6 +15,7 @@ pub struct GameStatePlugin;
 
 impl Plugin for GameStatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((time::GameTimePlugin, state::WorldStatePlugin));
+        app.add_plugins((time::GameTimePlugin, state::WorldStatePlugin, tick::GameTickPlugin))
+            .add_systems(Update, tick::sync_tick_config);
     }
 }

@@ -86,15 +86,21 @@ impl EntitySpatialIndex {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpatialIndexSet;
 
-/// Rebuild the spatial index and perform distance culling in a single pass.
+/// Rebuild the spatial index and perform distance + frustum culling in a single pass.
 ///
 /// This replaces the old standalone `distance_culling` system — we already
 /// have the entity list and transform in hand while rebuilding, so we set
 /// `Visibility` at the same time. `set_if_neq` keeps this cheap: on frames
 /// where nothing crossed the draw boundary there are zero writes.
+///
+/// Frustum culling uses a wide-angle dot-product check (≈120° half-angle)
+/// so entities behind the camera are hidden even if within draw distance.
+/// This prevents downstream systems (billboard rotation, sprite animation,
+/// AI steering) from burning CPU on entities the player can't see.
 pub fn rebuild_and_cull(
     cfg: Res<crate::system::config::GameConfig>,
     player_query: Query<&GlobalTransform, With<Player>>,
+    camera_query: Query<&GlobalTransform, With<crate::game::player::PlayerCamera>>,
     mut index: ResMut<EntitySpatialIndex>,
     mut entities: Query<(Entity, &GlobalTransform, &mut Visibility), With<WorldEntity>>,
     #[cfg(feature = "perf_log")] mut perf: ResMut<crate::screens::debug::perf_log::PerfCounters>,
@@ -108,6 +114,7 @@ pub fn rebuild_and_cull(
         Ok(gt) => Some(gt.translation()),
         Err(_) => None,
     };
+    let cam_fwd = camera_query.single().ok().map(|gt| gt.forward().as_vec3());
     let draw_dist_sq = cfg.draw_distance * cfg.draw_distance;
 
     for (entity, g_tf, mut vis) in entities.iter_mut() {
@@ -119,7 +126,22 @@ pub fn rebuild_and_cull(
         }
 
         if let Some(player_pos) = player_pos {
-            let new_vis = if pos.distance_squared(player_pos) < draw_dist_sq {
+            let to_entity = pos - player_pos;
+            let dist_sq = to_entity.length_squared();
+
+            // Distance cull: beyond draw distance.
+            // Frustum cull: behind camera (dot < -0.2 ≈ 102° half-angle).
+            // Entities very close (< 2 tiles) skip the frustum check so
+            // nearby sprites don't pop when turning quickly.
+            let in_range = dist_sq < draw_dist_sq;
+            let in_frustum = dist_sq < (1024.0 * 1024.0)
+                || cam_fwd.is_none_or(|fwd| {
+                    let dir = Vec3::new(to_entity.x, 0.0, to_entity.z);
+                    let fwd_flat = Vec3::new(fwd.x, 0.0, fwd.z);
+                    dir.dot(fwd_flat) > -0.2 * dir.length() * fwd_flat.length()
+                });
+
+            let new_vis = if in_range && in_frustum {
                 Visibility::Inherited
             } else {
                 Visibility::Hidden
