@@ -368,6 +368,7 @@ fn execute_command(
 
         // System
         "debug" => commands::cmd_debug(state, world, cfg, arg),
+        "debug_wireframes" | "dw" => commands::cmd_debug_wireframes(state, world, arg),
         "lighting" => commands::cmd_lighting(state, cfg, arg),
         "filtering" => commands::cmd_filtering(state, cfg, arg),
         "terrain_filtering" | "tf" => commands::cmd_terrain_filtering(state, cfg, arg),

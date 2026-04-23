@@ -97,6 +97,8 @@ pub struct MapRuntimeState {
 pub struct DebugRuntimeState {
     pub show_play_area: bool,
     pub show_events: bool,
+    /// Event/collider/decoration wireframes — expensive gizmo draws, off by default.
+    pub show_wireframes: bool,
 }
 
 impl Default for DebugRuntimeState {
@@ -104,6 +106,7 @@ impl Default for DebugRuntimeState {
         Self {
             show_play_area: true,
             show_events: true,
+            show_wireframes: false,
         }
     }
 }

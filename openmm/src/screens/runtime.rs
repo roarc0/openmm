@@ -167,6 +167,8 @@ pub(super) struct RuntimeText {
     pub(super) last_text: String,
     /// Last rendered color — skip re-render if unchanged.
     pub(super) last_color: [u8; 4],
+    /// Cached text width in font pixels — avoids per-frame `measure()` calls.
+    pub(super) cached_measure_px: f32,
 }
 
 /// Element starts hidden (from `hidden: true` in RON). Restored to Hidden on unhover.

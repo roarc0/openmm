@@ -635,6 +635,7 @@ pub(super) fn spawn_text_element(
             bounds: (txt.position.0, txt.position.1, txt.size.0, txt.size.1),
             last_text: "\x00".to_string(), // sentinel — forces first update
             last_color: txt.color_rgba(),
+            cached_measure_px: 0.0,
         },
     ));
 
@@ -643,7 +644,7 @@ pub(super) fn spawn_text_element(
     }
 }
 
-/// Read data sources, re-render text when content changes, reposition every frame.
+/// Read data sources, re-render text when content changes, reposition when needed.
 pub(super) fn text_update(
     ui: Res<UiState>,
     world_state: Option<Res<crate::game::state::WorldState>>,
@@ -668,18 +669,31 @@ pub(super) fn text_update(
     let sx = win_w / REF_W;
     let sy = win_h / REF_H;
 
+    // Check which data sources actually changed this frame.
+    let registry_changed = registry.is_changed();
+    let ui_changed = ui.is_changed();
+    let world_changed = world_state.as_ref().is_some_and(|ws| ws.is_changed());
+    let npc_changed = npc_profile.as_ref().is_some_and(|p| p.is_changed());
+    let house_changed = house_profile.as_ref().is_some_and(|p| p.is_changed());
+    let loading_changed = loading_step.as_ref().is_some_and(|s| s.is_changed());
+    let any_source_changed =
+        registry_changed || ui_changed || world_changed || npc_changed || house_changed || loading_changed;
+
     for (mut rt, mut img_node, mut vis, mut node, interaction) in &mut query {
-        let resolved_color = crate::screens::interpolate(&rt.color_expr, &registry);
-        if !resolved_color.is_empty() {
-            let rgba = crate::screens::TextElement::resolve_color(&resolved_color);
-            rt.base_color = rgba;
-            let is_hovered = matches!(interaction, Some(Interaction::Hovered) | Some(Interaction::Pressed));
-            if (!is_hovered || rt.hover_color.is_none()) && rt.color != rgba {
-                rt.color = rgba;
+        // Resolve dynamic color only when registry changed or color uses interpolation.
+        if !rt.color_expr.is_empty() && (registry_changed || rt.color_expr.contains("${")) {
+            let resolved_color = crate::screens::interpolate(&rt.color_expr, &registry);
+            if !resolved_color.is_empty() {
+                let rgba = crate::screens::TextElement::resolve_color(&resolved_color);
+                rt.base_color = rgba;
+                let is_hovered = matches!(interaction, Some(Interaction::Hovered) | Some(Interaction::Pressed));
+                if (!is_hovered || rt.hover_color.is_none()) && rt.color != rgba {
+                    rt.color = rgba;
+                }
             }
         }
 
-        if rt.source == "ui.footer" {
+        if rt.source == "ui.footer" && ui_changed {
             let footer_color = ui.footer.color();
             let rgba = crate::screens::TextElement::resolve_color(footer_color);
             rt.base_color = rgba;
@@ -690,9 +704,17 @@ pub(super) fn text_update(
             }
         }
 
+        // Skip source resolution if no data source changed and we already have cached text.
+        if !any_source_changed && !rt.last_text.is_empty() && rt.color == rt.last_color {
+            // Still need to reposition if window resized — but skip source/interpolation work.
+            if rt.last_text.is_empty() {
+                continue;
+            }
+            reposition_text(&rt, &game_fonts, sx, sy, &mut node);
+            continue;
+        }
+
         // "object.property" bindings — object name dispatches to the matching resource.
-        // Core resources resolve inline (no clone needed).
-        // Unknown objects fall through to the dynamic registry.
         let mut current = if let Some(dot) = rt.source.find('.') {
             let (src, path) = (&rt.source[..dot], &rt.source[dot + 1..]);
             match src {
@@ -704,7 +726,6 @@ pub(super) fn text_update(
                 _ => registry.resolve(&rt.source).unwrap_or_default(),
             }
         } else {
-            // Unknown bare name: fall back to the element's static value.
             rt.value.clone()
         };
 
@@ -724,69 +745,75 @@ pub(super) fn text_update(
 
             if current.is_empty() {
                 *vis = Visibility::Hidden;
+                // Invalidate cached width.
+                rt.cached_measure_px = 0.0;
                 continue;
             }
 
             if let Some(handle) = game_fonts.render(&current, &rt.font, rt.color, &mut images) {
                 img_node.image = handle;
                 *vis = Visibility::Inherited;
+                // Update cached measurement.
+                rt.cached_measure_px = game_fonts.measure(&current, &rt.font) as f32;
             } else {
                 *vis = Visibility::Hidden;
+                rt.cached_measure_px = 0.0;
                 continue;
             }
         }
 
-        // Skip positioning if hidden.
         if rt.last_text.is_empty() {
             continue;
         }
 
-        // Bounding box in screen pixels.
-        let (bx, by, bw, bh) = rt.bounds;
-        let box_x = bx * sx;
-        let box_w = bw * sx;
-        let glyph_h_ref = if rt.font_size > 0.0 { rt.font_size } else { bh };
-        let display_h = glyph_h_ref * sy;
+        reposition_text(&rt, &game_fonts, sx, sy, &mut node);
+    }
+}
 
-        // Compute rendered text width in screen pixels.
-        let text_px_w = game_fonts.measure(&rt.last_text, &rt.font) as f32;
-        let display_w = if let Some(font) = game_fonts.get(&rt.font) {
-            text_px_w * (display_h / font.height as f32)
-        } else {
-            text_px_w * sx
-        };
+/// Reposition text using cached measurement — avoids per-frame `measure()` calls.
+fn reposition_text(rt: &RuntimeText, game_fonts: &GameFonts, sx: f32, sy: f32, node: &mut Node) {
+    let (bx, by, bw, bh) = rt.bounds;
+    let box_x = bx * sx;
+    let box_w = bw * sx;
+    let glyph_h_ref = if rt.font_size > 0.0 { rt.font_size } else { bh };
+    let display_h = glyph_h_ref * sy;
 
-        // Position text within bounding box based on alignment.
-        // Use set_if_neq to avoid triggering UI layout recalculation when values haven't changed.
-        let target_left = match rt.align.as_str() {
-            "right" => {
-                let right_edge = box_x + box_w;
-                Val::Px(right_edge - display_w)
-            }
-            "center" => {
-                let center_x = box_x + box_w / 2.0;
-                Val::Px(center_x - display_w / 2.0)
-            }
-            _ => Val::Px(box_x),
-        };
-        let target_top = Val::Px(by * sy);
-        let target_h = Val::Px(display_h);
+    // Use cached measurement instead of calling measure() every frame.
+    let text_px_w = rt.cached_measure_px;
+    let display_w = if let Some(font) = game_fonts.get(&rt.font) {
+        text_px_w * (display_h / font.height as f32)
+    } else {
+        text_px_w * sx
+    };
 
-        if node.width != Val::Auto {
-            node.width = Val::Auto;
+    let target_left = match rt.align.as_str() {
+        "right" => {
+            let right_edge = box_x + box_w;
+            Val::Px(right_edge - display_w)
         }
-        if node.height != target_h {
-            node.height = target_h;
+        "center" => {
+            let center_x = box_x + box_w / 2.0;
+            Val::Px(center_x - display_w / 2.0)
         }
-        if node.top != target_top {
-            node.top = target_top;
-        }
-        if node.left != target_left {
-            node.left = target_left;
-        }
-        if node.right != Val::Auto {
-            node.right = Val::Auto;
-        }
+        _ => Val::Px(box_x),
+    };
+    let target_top = Val::Px(by * sy);
+    let target_h = Val::Px(display_h);
+
+    if node.width != Val::Auto {
+        node.width = Val::Auto;
+    }
+    if node.height != target_h {
+        node.height = target_h;
+    }
+    if node.top != target_top {
+        node.top = target_top;
+    }
+    if node.left != target_left {
+        node.left = target_left;
+    }
+    if node.right != Val::Auto {
+        node.right = Val::Auto;
     }
 }
 
@@ -800,6 +827,10 @@ pub(super) fn dynamic_texture_update(
     mut images: ResMut<Assets<Image>>,
     mut query: Query<(&mut ImageNode, &mut DynamicTexture)>,
 ) {
+    // Skip all work when registry unchanged — templates only depend on registry.
+    if !registry.is_changed() {
+        return;
+    }
     for (mut image_node, mut dyn_tex) in &mut query {
         let resolved = crate::screens::interpolate(&dyn_tex.template, &registry);
         if resolved.is_empty() || *resolved == dyn_tex.last_resolved {

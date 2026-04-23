@@ -517,6 +517,14 @@ pub(super) fn cmd_debug(state: &mut ConsoleState, world: &mut WorldState, cfg: &
     state.push_output(format!("Debug HUD: {}", if cfg.debug { "on" } else { "off" }));
 }
 
+pub(super) fn cmd_debug_wireframes(state: &mut ConsoleState, world: &mut WorldState, arg: &str) {
+    world.debug.show_wireframes = parse_toggle(arg, world.debug.show_wireframes);
+    state.push_output(format!(
+        "Debug wireframes: {}",
+        if world.debug.show_wireframes { "on" } else { "off" }
+    ));
+}
+
 pub(super) fn cmd_lighting(state: &mut ConsoleState, cfg: &mut GameConfig, arg: &str) {
     if arg.is_empty() {
         state.push_output(format!("Lighting: {}", cfg.lighting));
