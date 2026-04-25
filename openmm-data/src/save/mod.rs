@@ -4,7 +4,7 @@
 //! and provides parse + round-trip serialization.
 
 pub mod character;
+pub mod clock;
+pub mod file;
 pub mod header;
-// pub mod party;     // Task 2
-// pub mod clock;     // Task 4
-// pub mod file;      // Task 4
+pub mod party;
