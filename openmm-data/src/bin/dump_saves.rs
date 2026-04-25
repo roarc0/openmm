@@ -47,11 +47,14 @@ fn dump_save(save: &SaveFile, out_root: &Path) {
 
     // --- info.json ---
     let header = save.header();
+    let raw_hex = header.raw.iter().map(|b| format!("{:02x}", b)).collect::<String>();
     let info = format!(
-        "{{\n  \"slot\": \"{}\",\n  \"save_name\": \"{}\",\n  \"map_name\": \"{}\"\n}}\n",
+        "{{\n  \"slot\": \"{}\",\n  \"save_name\": \"{}\",\n  \"map_name\": \"{}\",\n  \"playing_time\": {},\n  \"raw_hex\": \"{}\"\n}}\n",
         save.slot,
         header.save_name.replace('"', "\\\""),
         header.map_name.replace('"', "\\\""),
+        header.playing_time,
+        raw_hex,
     );
     let info_path = slot_dir.join("info.json");
     if let Err(e) = fs::write(&info_path, info) {
@@ -80,15 +83,21 @@ fn dump_save(save: &SaveFile, out_root: &Path) {
             }
             if let Err(e) = fs::write(&out, data) {
                 error!("failed to write file {}: {}", out.display(), e);
+            } else {
+                info!("    extracted {}", name);
             }
         }
     }
 
+    let total_minutes = (header.playing_time / 7680) as u64;
+    let formatted_time = openmm_data::utils::time::format(total_minutes);
+
     info!(
-        "  {} — map: {:?}  name: {:?}  ({} files)",
+        "  {} — map: {:?}  name: {:?}  time: {}  ({} files)",
         save.slot,
         header.map_name,
         header.save_name,
+        formatted_time,
         save.list_files().len(),
     );
 }

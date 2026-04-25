@@ -179,8 +179,10 @@ impl LodArchive {
                 fh.name_tail,
             ));
             offsets.push(entry_offset);
-            // Case-insensitive mapping by default
-            lookup.insert(original_name.to_lowercase(), i);
+            // Case-insensitive mapping: preserve the FIRST occurrence in the index.
+            // In MM6 saves, sometimes multiple header.bin exist; the first one 
+            // usually contains the user-provided save name and map info.
+            lookup.entry(original_name.to_lowercase()).or_insert(i);
         }
 
         log::debug!("LOD Archive opened: {} entries", entries.len());

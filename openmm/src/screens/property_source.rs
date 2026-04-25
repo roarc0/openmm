@@ -39,9 +39,12 @@ impl PropertyRegistry {
     /// Resolve an `"object.property"` spec. Returns `None` if object not found
     /// or property not handled.
     pub fn resolve(&self, spec: &str) -> Option<String> {
-        if let Some(i) = spec.find('.') {
-            let (name, path) = (&spec[..i], &spec[i + 1..]);
-            self.sources.get(name).and_then(|s| s.resolve(path))
+        let split_pos = spec.find(|c| c == '.' || c == '[');
+        if let Some(i) = split_pos {
+            let (name, path) = (&spec[..i], &spec[i..]);
+            // If we split on '.', strip it from the path. If we split on '[', keep it.
+            let clean_path = if path.starts_with('.') { &path[1..] } else { path };
+            self.sources.get(name).and_then(|s| s.resolve(clean_path))
         } else {
             // Bare object name — resolve with empty path (default property).
             self.sources.get(spec).and_then(|s| s.resolve(""))

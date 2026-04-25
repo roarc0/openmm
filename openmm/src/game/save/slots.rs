@@ -65,6 +65,7 @@ pub fn slot_path(slot: &str) -> PathBuf {
 #[derive(Resource, Default)]
 pub struct SaveManager {
     pub saves: Vec<SaveFile>,
+    pub headers: Vec<openmm_data::save::header::SaveHeader>,
     pub offset: usize,
     pub selected: Option<usize>,
 }
@@ -82,6 +83,16 @@ impl SaveManager {
             }
         }
         self.saves = all_saves;
+        // Re-sort the combined list to ensure consistent ordering across directories
+        self.saves.sort_by_key(|s| {
+            let slot = &s.slot;
+            match slot.as_str() {
+                s if s.starts_with("autosave") => (0, s.to_string()),
+                s if s.starts_with("quiksave") => (1, s.to_string()),
+                s => (2, s.to_string()),
+            }
+        });
+        self.headers = self.saves.iter().map(|s| s.header()).collect();
     }
 
     pub fn scroll_up(&mut self) {
@@ -98,8 +109,8 @@ impl SaveManager {
 
     pub fn get_slot_text(&self, index: usize) -> String {
         let actual_idx = self.offset + index;
-        if actual_idx < self.saves.len() {
-            let name = self.saves[actual_idx].header().save_name.clone();
+        if actual_idx < self.headers.len() {
+            let name = self.headers[actual_idx].save_name.clone();
             if name.is_empty() {
                 self.saves[actual_idx].slot.clone()
             } else {
@@ -145,10 +156,11 @@ impl PropertySource for SaveSlotSource {
     }
 }
 
-pub fn update_save_registry(save_manager: Res<SaveManager>, mut registry: ResMut<crate::screens::PropertyRegistry>) {
-    if !save_manager.is_changed() {
-        return;
-    }
+pub fn update_save_registry(
+    save_manager: Res<SaveManager>,
+    game_assets: Res<crate::assets::GameAssets>,
+    mut registry: ResMut<crate::screens::PropertyRegistry>,
+) {
     let mut slots = [
         String::new(),
         String::new(),
@@ -169,17 +181,33 @@ pub fn update_save_registry(save_manager: Res<SaveManager>, mut registry: ResMut
     if let Some(idx) = save_manager.selected {
         let actual_idx = save_manager.offset + idx;
         if let Some(save) = save_manager.saves.get(actual_idx) {
+            let header = &save_manager.headers[actual_idx];
+            
             selected_preview = Some(format!("saveslot:preview:{}", save.slot));
-            let header = save.header();
-            selected_location = if header.save_name.is_empty() {
-                header.map_name.clone()
-            } else {
-                header.save_name.clone()
-            };
+
+            let map_name = &header.map_name;
+            let mut resolved_name = None;
+
+            // Try lookup with extension if missing
+            for ext in ["", ".odm", ".blv"] {
+                let candidate = format!("{}{}", map_name, ext);
+                if let Some(info) = game_assets.data().mapstats.get(&candidate) {
+                    resolved_name = Some(info.name.clone());
+                    break;
+                }
+            }
+
+            selected_location = resolved_name.unwrap_or_else(|| {
+                if header.save_name.is_empty() {
+                    header.map_name.clone()
+                } else {
+                    header.save_name.clone()
+                }
+            });
 
             // MM6 ticks are 128 per second. 1 minute = 60s = 7680 ticks.
             let total_minutes = (header.playing_time / 7680) as u64;
-            selected_time = openmm_data::utils::time::format_full(total_minutes);
+            selected_time = openmm_data::utils::time::format(total_minutes);
         }
     }
 

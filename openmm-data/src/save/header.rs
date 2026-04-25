@@ -28,7 +28,7 @@ pub struct SaveHeader {
     /// Elapsed game ticks (128 ticks per real second).
     pub playing_time: i64,
     /// Raw 100-byte buffer for round-trip fidelity.
-    raw: [u8; HEADER_SIZE],
+    pub raw: [u8; HEADER_SIZE],
 }
 
 impl Default for SaveHeader {
