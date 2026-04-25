@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
+use openmm_data::assets::bsp_model::BSPModel;
+use openmm_data::enums::PolygonType;
 use openmm_data::odm::{ODM_HEIGHT_SCALE, ODM_SIZE, ODM_TILE_SCALE};
+
+use super::coords::mm6_fixed_normal_to_bevy;
 
 /// Maximum height the player can step up onto a BSP floor (e.g. climbing stairs).
 /// 128 units covers typical MM6 discrete stair step heights.
@@ -589,6 +593,92 @@ pub fn probe_ground_height(height_map: &[u8], colliders: Option<&BuildingCollide
         }
     }
     best
+}
+
+// --- Collision resource builders ---
+// Called from the loading pipeline so collision data is available before
+// spawn_player runs (needed for probe_ground_height on bridges/BSP floors).
+
+/// Build outdoor collision resources from BSP model faces.
+/// Uses authoritative polygon_type from game data to classify faces;
+/// InBetweenFloorAndWall (stairs/ramps) treated as walkable floor.
+pub fn build_outdoor_colliders(bsp_models: &[BSPModel]) -> BuildingColliders {
+    let mut walls = Vec::new();
+    let mut floors = Vec::new();
+    let mut ceilings = Vec::new();
+    for model in bsp_models {
+        for face in &model.faces {
+            if face.vertices_count < 3 || face.is_invisible() {
+                continue;
+            }
+            let normal = Vec3::from(mm6_fixed_normal_to_bevy(face.plane.normal));
+
+            let poly_type = face.polygon_type_enum();
+            let is_floor = matches!(
+                poly_type,
+                Some(PolygonType::Floor) | Some(PolygonType::InBetweenFloorAndWall)
+            );
+            let is_ceiling = matches!(
+                poly_type,
+                Some(PolygonType::Ceiling) | Some(PolygonType::InBetweenCeilingAndWall)
+            );
+            let is_wall = matches!(poly_type, Some(PolygonType::VerticalWall));
+
+            let vert_count = face.vertices_count as usize;
+            let verts: Vec<Vec3> = (0..vert_count)
+                .filter_map(|i| {
+                    let idx = face.vertices_ids[i] as usize;
+                    model.vertices.get(idx).map(|&v| Vec3::from(v))
+                })
+                .collect();
+            if verts.len() < 3 {
+                continue;
+            }
+
+            if is_wall {
+                let plane_dist = normal.dot(verts[0]);
+                walls.push(CollisionWall::new(normal, plane_dist, &verts));
+            }
+
+            if is_floor || is_ceiling {
+                for i in 0..verts.len().saturating_sub(2) {
+                    let tri = CollisionTriangle::new(verts[0], verts[i + 1], verts[i + 2], normal);
+                    if is_floor {
+                        floors.push(tri.clone());
+                    }
+                    if is_ceiling {
+                        ceilings.push(tri);
+                    }
+                }
+            }
+        }
+    }
+    let mut colliders = BuildingColliders {
+        walls,
+        floors,
+        ceilings,
+        ..default()
+    };
+    colliders.mark_step_walls();
+    colliders.build_grid();
+    colliders
+}
+
+/// Build indoor collision resources from pre-extracted BLV collision geometry.
+pub fn build_indoor_colliders(
+    walls: Vec<CollisionWall>,
+    floors: Vec<CollisionTriangle>,
+    ceilings: Vec<CollisionTriangle>,
+) -> BuildingColliders {
+    let mut colliders = BuildingColliders {
+        walls,
+        floors,
+        ceilings,
+        ..default()
+    };
+    colliders.mark_step_walls();
+    colliders.build_grid();
+    colliders
 }
 
 // --- Geometry helpers ---

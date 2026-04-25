@@ -167,6 +167,17 @@ pub(super) fn step_done(
             openmm_data::utils::MapName::Outdoor(odm) => odm.base_name(),
             other => other.to_string(),
         };
+        // Build collision resources during loading so they're available at
+        // spawn time (needed for probe_ground_height on bridges/BSP floors).
+        commands.insert_resource(crate::game::map::collision::TerrainHeightMap {
+            heights: map.height_map.to_vec(),
+        });
+        commands.insert_resource(crate::game::map::collision::build_outdoor_colliders(&map.bsp_models));
+        commands.insert_resource(crate::game::map::collision::WaterMap {
+            cells: water_cells.clone(),
+        });
+        commands.init_resource::<crate::game::map::collision::WaterWalking>();
+
         crate::game::events::load_map_events(commands, game_assets, &map_base, false);
         commands.insert_resource(PreparedWorld {
             map,

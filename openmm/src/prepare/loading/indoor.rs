@@ -272,6 +272,14 @@ pub(super) fn step_build_models_indoor(
     // Door face geometry is animated separately; their collision would block
     // the player even after a door opens.
     let (collision_walls, collision_floors, collision_ceilings) = extract_blv_collision(blv, &door_faces);
+
+    // Build collision resources during loading so they're available at spawn time.
+    commands.insert_resource(crate::game::map::collision::build_indoor_colliders(
+        collision_walls.clone(),
+        collision_floors.clone(),
+        collision_ceilings.clone(),
+    ));
+
     let map_base = match &load_request.map_name {
         openmm_data::utils::MapName::Indoor(name) => name.clone(),
         _ => load_request.map_name.to_string().replace(".blv", ""),

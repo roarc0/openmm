@@ -167,6 +167,9 @@ fn loading_setup(
     commands.remove_resource::<crate::game::map::indoor::TouchTriggerFaces>();
     commands.remove_resource::<crate::game::map::indoor::OccluderFaces>();
     commands.remove_resource::<crate::game::ui::MapOverviewImage>();
+    commands.remove_resource::<crate::game::map::collision::BuildingColliders>();
+    commands.remove_resource::<crate::game::map::collision::TerrainHeightMap>();
+    commands.remove_resource::<crate::game::map::collision::WaterMap>();
     commands.remove_resource::<CurrentMap>();
 
     // Consume and remove LoadRequest so it doesn't persist and block boundary crossing.

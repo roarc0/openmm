@@ -1,131 +1,23 @@
 use bevy::prelude::*;
 
-use openmm_data::enums::PolygonType;
-
 use crate::GameState;
-use crate::game::map::collision::{
-    BuildingColliders, CollisionTriangle, CollisionWall, TerrainHeightMap, WaterMap, WaterWalking,
-    sample_terrain_height,
-};
-use crate::game::map::coords::mm6_fixed_normal_to_bevy;
+use crate::game::map::collision::{BuildingColliders, TerrainHeightMap, sample_terrain_height};
 use crate::game::player::{Player, PlayerPhysics, PlayerSettings};
-use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
 
 pub struct PhysicsPlugin;
 
 impl Plugin for PhysicsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Game), setup_collision_data)
-            .add_systems(
-                Update,
-                gravity_system
-                    .run_if(in_state(GameState::Game))
-                    .run_if(crate::game::ui::is_world_mode),
-            );
+        // Collision resources (BuildingColliders, TerrainHeightMap, WaterMap)
+        // are built during the loading pipeline so they're available at
+        // spawn time for probe_ground_height (bridges, BSP floors).
+        app.add_systems(
+            Update,
+            gravity_system
+                .run_if(in_state(GameState::Game))
+                .run_if(crate::game::ui::is_world_mode),
+        );
     }
-}
-
-/// Build collision resources from the loaded map data.
-fn setup_collision_data(
-    mut commands: Commands,
-    prepared: Option<Res<PreparedWorld>>,
-    indoor: Option<Res<PreparedIndoorWorld>>,
-) {
-    if let Some(indoor) = &indoor {
-        // Indoor map: collision from pre-extracted BLV faces
-        let mut colliders = BuildingColliders {
-            walls: indoor.collision_walls.clone(),
-            floors: indoor.collision_floors.clone(),
-            ceilings: indoor.collision_ceilings.clone(),
-            ..default()
-        };
-        colliders.mark_step_walls();
-        colliders.build_grid();
-        commands.insert_resource(colliders);
-        return;
-    }
-
-    let Some(prepared) = &prepared else {
-        return;
-    };
-
-    commands.insert_resource(TerrainHeightMap {
-        heights: prepared.map.height_map.to_vec(),
-    });
-
-    // Build collision geometry from BSP model faces
-    let mut walls = Vec::new();
-    let mut floors = Vec::new();
-    let mut ceilings = Vec::new();
-    for model in &prepared.map.bsp_models {
-        for face in &model.faces {
-            if face.vertices_count < 3 || face.is_invisible() {
-                continue;
-            }
-            let normal = Vec3::from(mm6_fixed_normal_to_bevy(face.plane.normal));
-
-            // Use the authoritative polygon_type from game data to classify faces.
-            // InBetweenFloorAndWall (stairs/ramps) is treated as walkable floor so
-            // floor_height_at can interpolate height across the slope surface.
-            let poly_type = face.polygon_type_enum();
-            let is_floor = matches!(
-                poly_type,
-                Some(PolygonType::Floor) | Some(PolygonType::InBetweenFloorAndWall)
-            );
-            let is_ceiling = matches!(
-                poly_type,
-                Some(PolygonType::Ceiling) | Some(PolygonType::InBetweenCeilingAndWall)
-            );
-            let is_wall = matches!(poly_type, Some(PolygonType::VerticalWall));
-
-            let vert_count = face.vertices_count as usize;
-            let verts: Vec<Vec3> = (0..vert_count)
-                .filter_map(|i| {
-                    let idx = face.vertices_ids[i] as usize;
-                    if idx < model.vertices.len() {
-                        Some(Vec3::from(model.vertices[idx]))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            if verts.len() < 3 {
-                continue;
-            }
-
-            if is_wall {
-                let plane_dist = normal.dot(verts[0]);
-                walls.push(CollisionWall::new(normal, plane_dist, &verts));
-            }
-
-            if is_floor || is_ceiling {
-                for i in 0..verts.len().saturating_sub(2) {
-                    let tri = CollisionTriangle::new(verts[0], verts[i + 1], verts[i + 2], normal);
-                    if is_floor {
-                        floors.push(tri.clone());
-                    }
-                    if is_ceiling {
-                        ceilings.push(tri);
-                    }
-                }
-            }
-        }
-    }
-    let mut colliders = BuildingColliders {
-        walls,
-        floors,
-        ceilings,
-        ..default()
-    };
-    colliders.mark_step_walls();
-    colliders.build_grid();
-    commands.insert_resource(colliders);
-
-    // Water map (outdoor only)
-    commands.insert_resource(WaterMap {
-        cells: prepared.water_cells.clone(),
-    });
-    commands.init_resource::<WaterWalking>();
 }
 
 /// Maximum terrain slope angle (radians) the player can stand on.
