@@ -163,6 +163,15 @@ impl MapStats {
         Ok(MapStats { maps })
     }
 
+    /// Get map info by 1-based index (as stored in party.bin offset 0x88).
+    pub fn get_by_index(&self, index: i32) -> Option<&MapInfo> {
+        if index >= 1 {
+            self.maps.get((index - 1) as usize)
+        } else {
+            None
+        }
+    }
+
     /// Get map info for a specific map file.
     pub fn get(&self, map_filename: &str) -> Option<&MapInfo> {
         let lower = map_filename.to_lowercase();

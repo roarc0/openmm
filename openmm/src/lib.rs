@@ -34,16 +34,17 @@ impl Plugin for GamePlugin {
         let cfg = GameConfig::load();
         let game_assets = GameAssets::new(openmm_data::get_data_path().into()).expect("unable to load game data files");
         let game_fonts = screens::fonts::GameFonts::load(&game_assets);
+        let assets = game_assets.assets();
         let active_save = if let Some(ref save_name) = cfg.save {
             let path = slots::slot_path(save_name);
-            ActiveSave::from_file(path.clone())
+            ActiveSave::from_file(path.clone(), assets)
                 .unwrap_or_else(|e| panic!("failed to load save '{}': {e}", path.display()))
         } else {
-            match ActiveSave::from_file(slots::slot_path("autosave1")) {
+            match ActiveSave::from_file(slots::slot_path("autosave1"), assets) {
                 Ok(save) => save,
                 Err(_) => {
                     let path = slots::create_new_game_save().expect("failed to create initial save from new.lod");
-                    ActiveSave::from_file(path).expect("failed to load new game save")
+                    ActiveSave::from_file(path, assets).expect("failed to load new game save")
                 }
             }
         };
