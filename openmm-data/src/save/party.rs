@@ -116,7 +116,7 @@ impl SaveParty {
         let minute = read_i32(data, 0x00B4);
         let second = read_i32(data, 0x00B8);
 
-        let current_map_index = read_i32(data, 0x0088);
+        let current_map_index = data[0x008B] as i32;
 
         let food = read_i32(data, 0x00BC);
         let reputation = read_i32(data, 0x00D8);
