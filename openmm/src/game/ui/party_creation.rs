@@ -13,7 +13,7 @@ use bevy::prelude::*;
 use crate::game::player::party::Party;
 use crate::game::player::party::creation;
 use crate::game::player::party::member::{Attribute, Class, PartyMember};
-use crate::game::player::party::portrait::PortraitId;
+use crate::game::player::party::portrait::{Expression, PortraitId};
 use crate::screens::PropertySource;
 use crate::screens::runtime::RuntimeElement;
 use crate::screens::runtime::ScreenActionEvent;
@@ -95,6 +95,7 @@ impl PropertySource for PartyMemberSource {
         let m = &self.member;
         match path {
             "portrait" => Some(m.portrait.creation_texture().to_string()),
+            "face" => Some(m.portrait.expression_texture(Expression::Unk1)),
             "class" => Some(m.class.name().to_string()),
             "class_icon" => Some(m.class.icon().to_string()),
             "class_color_knight" => Some(self.selected_class_color(Class::Knight(0)).to_string()),

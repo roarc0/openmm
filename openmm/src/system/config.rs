@@ -205,6 +205,10 @@ struct Cli {
     #[arg(long)]
     world_inspector: Option<bool>,
 
+    /// Load a save file by name (without .mm6 extension), e.g. "autosave1"
+    #[arg(long)]
+    save: Option<String>,
+
     /// Launch the screen editor instead of the game
     #[arg(long)]
     editor: bool,
@@ -279,6 +283,9 @@ pub struct GameConfig {
     #[serde(skip)]
     pub config_path: PathBuf,
     pub map: Option<String>,
+    /// Save file to load (name without .mm6), e.g. "autosave1"
+    #[serde(skip)]
+    pub save: Option<String>,
     /// Log level: "error", "warn", "info", "debug", "trace"
     pub log_level: String,
     pub skip_intro: bool,
@@ -380,6 +387,7 @@ impl Default for GameConfig {
         Self {
             config_path: PathBuf::from(CONFIG_PATH),
             map: None,
+            save: None,
             log_level: "info".into(),
             skip_intro: false,
             skip_logo: false,
@@ -485,6 +493,7 @@ impl GameConfig {
         let resolved = GameConfig {
             config_path: config_path.clone(),
             map: cli.map.or(file_cfg.map).or(d.map),
+            save: cli.save,
             log_level: resolve!(cli.log_level, file_cfg.log_level, d.log_level),
             skip_intro: resolve!(cli.skip_intro, file_cfg.skip_intro, d.skip_intro),
             skip_logo: resolve!(cli.skip_logo, file_cfg.skip_logo, d.skip_logo),

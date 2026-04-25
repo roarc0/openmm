@@ -38,8 +38,11 @@ impl ActiveSave {
         let pos = &party.position;
         let spawn_position = Vec3::new(pos[0] as f32, pos[2] as f32, -(pos[1] as f32));
 
-        // MM6 direction: 0-2047, 0=east, 512=north. Bevy yaw: radians, 0 = -Z (north).
-        let spawn_yaw = -((party.direction as f32) * std::f32::consts::TAU / 2048.0) + std::f32::consts::FRAC_PI_2;
+        // MM6 direction: 0-2047, 0=east, 512=north (counterclockwise).
+        // Bevy rotation_y: 0 = -Z (north), positive = counterclockwise from above.
+        // Convert: bevy_yaw = (mm6_dir * TAU / 2048) - PI/2
+        let spawn_yaw = (party.direction as f32) * std::f32::consts::TAU / 2048.0
+            - std::f32::consts::FRAC_PI_2;
 
         let map_name = MapName::try_from(header.map_stem()).unwrap_or(MapName::Indoor("oute3".into()));
 
@@ -59,9 +62,9 @@ impl ActiveSave {
         // Bevy -> MM6: mm6_x = bevy_x, mm6_y = -bevy_z, mm6_z = bevy_y
         self.party.position = [pos.x as i32, -(pos.z as i32), pos.y as i32];
 
-        // Bevy yaw -> MM6 direction (0-2047)
+        // Bevy yaw -> MM6 direction (0-2047): mm6_dir = (yaw + PI/2) * 2048 / TAU
         let (_, yaw, _) = transform.rotation.to_euler(EulerRot::YXZ);
-        let mm6_dir = ((-yaw + std::f32::consts::FRAC_PI_2) * 2048.0 / std::f32::consts::TAU) as i32;
+        let mm6_dir = ((yaw + std::f32::consts::FRAC_PI_2) * 2048.0 / std::f32::consts::TAU) as i32;
         self.party.direction = mm6_dir.rem_euclid(2048);
 
         self.spawn_position = pos;

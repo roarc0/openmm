@@ -88,12 +88,21 @@ impl GameTime {
     }
 
     /// Create GameTime from MM6 calendar fields.
-    /// `month_0` and `day_0` are 0-indexed (from party.bin).
+    /// `month_0` is 0-indexed (0=Jan), `day_0` is 0-indexed (from party.bin).
     /// Epoch: midnight Jan 1, Year 1000.
     pub fn from_calendar(year: u32, month_0: u32, day_0: u32, hour: u32, minute: u32) -> Self {
-        let years_since_epoch = year.saturating_sub(1000);
-        let total_days = years_since_epoch * 336 + month_0 * 28 + day_0;
-        let total_minutes = (total_days as u64) * 1440 + (hour as u64) * 60 + minute as u64;
+        let mut total_days: u64 = 0;
+        for y in 1000..year {
+            total_days += if time::is_leap_year(y) { 366 } else { 365 };
+        }
+        for m in 0..month_0 {
+            total_days += time::DAYS_IN_MONTH[m as usize] as u64;
+            if m == 1 && time::is_leap_year(year) {
+                total_days += 1;
+            }
+        }
+        total_days += day_0 as u64;
+        let total_minutes = total_days * 1440 + (hour as u64) * 60 + minute as u64;
         Self {
             start_minute: total_minutes,
             elapsed_secs: 0.0,
@@ -105,15 +114,12 @@ impl GameTime {
     /// Returns `(year, month_0, day_0, hour, minute)`.
     pub fn to_calendar(&self) -> (u32, u32, u32, u32, u32) {
         let total = self.total_minutes();
-        let total_days = (total / 1440) as u32;
         let day_minutes = (total % 1440) as u32;
         let hour = day_minutes / 60;
         let minute = day_minutes % 60;
-        let year = 1000 + total_days / 336;
-        let year_day = total_days % 336;
-        let month_0 = year_day / 28;
-        let day_0 = year_day % 28;
-        (year, month_0, day_0, hour, minute)
+        // date() returns 1-indexed month and day
+        let (year, month_1, day_1) = time::date(total);
+        (year, month_1 - 1, day_1 - 1, hour, minute)
     }
 }
 

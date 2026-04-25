@@ -25,6 +25,25 @@ pub fn create_new_game_save() -> Result<PathBuf, Box<dyn Error>> {
 }
 
 /// Full path for a named save slot, e.g. `"save000"` -> `data/saves/save000.mm6`.
+/// Also checks the MM6 `Saves/` directory (sibling of the data/LOD path) as fallback.
 pub fn slot_path(slot: &str) -> PathBuf {
-    saves_dir().join(format!("{slot}.mm6"))
+    let filename = format!("{slot}.mm6");
+
+    // Check openmm saves dir first
+    let openmm_path = saves_dir().join(&filename);
+    if openmm_path.exists() {
+        return openmm_path;
+    }
+
+    // Fallback: MM6 Saves/ directory (sibling of the LOD data path)
+    let data_path = std::path::PathBuf::from(openmm_data::get_data_path());
+    if let Some(parent) = data_path.parent() {
+        let mm6_path = parent.join("Saves").join(&filename);
+        if mm6_path.exists() {
+            return mm6_path;
+        }
+    }
+
+    // Return openmm path even if missing (caller gets a clear "not found" error)
+    openmm_path
 }

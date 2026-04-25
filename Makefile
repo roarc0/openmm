@@ -15,7 +15,9 @@ release-native:
 	RUSTFLAGS="-C target-cpu=native $$RUSTFLAGS" cargo build --release -p openmm
 
 run:
-ifdef map
+ifdef save
+	cargo run -p openmm --features $(DEV_FEATURES) -- --save $(save) --skip-intro true
+else ifdef map
 	cargo run -p openmm --features $(DEV_FEATURES) -- --map $(map) --skip-intro true
 else
 	cargo run -p openmm --features $(DEV_FEATURES)

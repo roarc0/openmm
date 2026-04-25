@@ -87,7 +87,7 @@
                 ),
             },
             on_click: [
-            	"ShowScreen(\"camp\")",
+                "ShowScreen(\"camp\")",
             ],
             on_hover: [
                 "evt:Hint(\"Rest\")",
@@ -136,7 +136,7 @@
                 ),
             },
             on_click: [
-            	"ShowScreen(\"game_options\")",
+                "ShowScreen(\"game_options\")",
             ],
             on_hover: [
                 "evt:Hint(\"Game Options\")",
@@ -212,13 +212,13 @@
             align: "right",
         )),
         Image((
-            id: "icons/DEAD",
+            id: "member1",
             position: (135.0, 383.0),
             size: (59.0, 79.0),
             z: 11,
             states: {
                 "default": (
-                    texture: "icons/DEAD",
+                    texture: "icons/${member1.face}",
                 ),
             },
             on_click: [],
@@ -226,13 +226,13 @@
             bindings: {},
         )),
         Image((
-            id: "icons/DEAD",
+            id: "member2",
             position: (248.0, 383.0),
             size: (59.0, 79.0),
             z: 12,
             states: {
                 "default": (
-                    texture: "icons/DEAD",
+                    texture: "icons/${member2.face}",
                 ),
             },
             on_click: [],
@@ -240,13 +240,13 @@
             bindings: {},
         )),
         Image((
-            id: "icons/DEAD",
+            id: "member3",
             position: (360.0, 383.0),
             size: (59.0, 79.0),
             z: 13,
             states: {
                 "default": (
-                    texture: "icons/DEAD",
+                    texture: "icons/${member3.face}",
                 ),
             },
             on_click: [],
@@ -267,7 +267,7 @@
                 ),
             },
             on_click: [
-            	"ShowScreen(\"quickref\")",
+                "ShowScreen(\"quickref\")",
             ],
             on_hover: [
                 "evt:Hint(\"Quick Reference\")",
@@ -275,13 +275,13 @@
             bindings: {},
         )),
         Image((
-            id: "icons/CCMALEA",
+            id: "member0",
             position: (22.0, 383.0),
             size: (59.0, 79.0),
             z: 2,
             states: {
                 "default": (
-                    texture: "icons/CCMALEA",
+                    texture: "icons/${member0.face}",
                 ),
             },
             on_click: [
@@ -294,7 +294,7 @@
             bindings: {},
         )),
         Image((
-            id: "icons/MANAFULLA",
+            id: "member0_mana",
             position: (102.0, 383.0),
             size: (6.0, 78.0),
             z: 22,
@@ -308,7 +308,7 @@
             bindings: {},
         )),
         Image((
-            id: "icons/HITSFULLA",
+            id: "member0_hits",
             position: (93.0, 383.0),
             size: (6.0, 78.0),
             z: 18,
@@ -322,7 +322,7 @@
             bindings: {},
         )),
         Image((
-            id: "icons/HITSFULLB",
+            id: "member1_hits",
             position: (206.0, 383.0),
             size: (6.0, 78.0),
             z: 18,
@@ -336,7 +336,7 @@
             bindings: {},
         )),
         Image((
-            id: "icons/MANAFULLB",
+            id: "member1_mana",
             position: (215.0, 383.0),
             size: (6.0, 78.0),
             z: 22,
@@ -350,7 +350,7 @@
             bindings: {},
         )),
         Image((
-            id: "icons/HITSFULLC",
+            id: "member2_hits",
             position: (319.0, 383.0),
             size: (6.0, 78.0),
             z: 18,
@@ -364,7 +364,7 @@
             bindings: {},
         )),
         Image((
-            id: "icons/MANAFULLC",
+            id: "member2_mana",
             position: (328.0, 383.0),
             size: (6.0, 78.0),
             z: 22,
@@ -378,7 +378,7 @@
             bindings: {},
         )),
         Image((
-            id: "icons/HITSFULLD",
+            id: "member3_hits",
             position: (431.0, 383.0),
             size: (6.0, 78.0),
             z: 18,
@@ -392,7 +392,7 @@
             bindings: {},
         )),
         Image((
-            id: "icons/MANAFULLD",
+            id: "member3_mana",
             position: (440.0, 383.0),
             size: (6.0, 78.0),
             z: 22,

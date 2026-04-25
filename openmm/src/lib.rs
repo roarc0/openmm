@@ -34,11 +34,18 @@ impl Plugin for GamePlugin {
         let cfg = GameConfig::load();
         let game_assets = GameAssets::new(openmm_data::get_data_path().into()).expect("unable to load game data files");
         let game_fonts = screens::fonts::GameFonts::load(&game_assets);
-        let active_save = match ActiveSave::from_file(slots::slot_path("autosave1")) {
-            Ok(save) => save,
-            Err(_) => {
-                let path = slots::create_new_game_save().expect("failed to create initial save from new.lod");
-                ActiveSave::from_file(path).expect("failed to load new game save")
+        let active_save = if let Some(ref save_name) = cfg.save {
+            let path = slots::slot_path(save_name);
+            ActiveSave::from_file(path.clone())
+                .unwrap_or_else(|e| panic!("failed to load save '{}': {e}", path.display()))
+        } else {
+            match ActiveSave::from_file(slots::slot_path("autosave1")) {
+                Ok(save) => save,
+                Err(_) => {
+                    let path =
+                        slots::create_new_game_save().expect("failed to create initial save from new.lod");
+                    ActiveSave::from_file(path).expect("failed to load new game save")
+                }
             }
         };
 
@@ -54,7 +61,7 @@ impl Plugin for GamePlugin {
                 bevy::log::warn!("--editor requires the 'editor' feature; starting normally");
                 GameState::Menu
             }
-        } else if cfg.map.is_some() {
+        } else if cfg.map.is_some() || cfg.save.is_some() {
             #[cfg(feature = "editor")]
             bevy::log::info!("starting game mode (editor is isolated; use --editor for screen editor)");
             GameState::Loading
