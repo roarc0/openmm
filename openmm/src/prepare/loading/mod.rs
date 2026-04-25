@@ -501,26 +501,8 @@ pub(super) fn try_load_actors_from_save(
     state: Option<&openmm_data::assets::provider::actors::MapStateSnapshot>,
     game_assets: &GameAssets,
 ) -> Option<openmm_data::assets::Actors> {
-    let ddm_filename = format!("{}.ddm", map_name);
-    let dlv_filename = format!("{}.dlv", map_name);
     let save_file = openmm_data::save::SaveFile::open(&active_save.path).ok()?;
-    let (data, is_dlv) = if let Some(d) = save_file.get_file_ci(&ddm_filename) {
-        (d, false)
-    } else if let Some(d) = save_file.get_file_ci(&dlv_filename) {
-        (d, true)
-    } else {
-        return None;
-    };
-
-    info!(
-        "loaded {} for '{}' from save file ({} bytes)",
-        if is_dlv { "DLV" } else { "DDM" },
-        map_name,
-        data.len()
-    );
-
-    let raw_actors = openmm_data::assets::ddm::Ddm::parse_from_data(&data).ok()?;
-    openmm_data::assets::Actors::from_raw_actors(game_assets.assets(), &raw_actors, state, game_assets.data()).ok()
+    save_file.actors(map_name, game_assets.assets(), state, game_assets.data())
 }
 
 /// First-frame initialization for PreloadSprites: resolve actors and monsters,
@@ -549,10 +531,14 @@ fn build_preload_queue(
     // fall back to LOD archives for maps not yet visited.
     let mut loaded_from_save = false;
     let lod_actors = try_load_actors_from_save(active_save, &map_key, snapshot.as_ref(), game_assets)
-        .inspect(|a| {
+        .inspect(|actors| {
             loaded_from_save = true;
+            let dead = actors.get_actors().iter().filter(|a| a.hp <= 0).count();
+            let moved = actors.get_actors().len();
+            info!("loaded {} actors from save DDM ({} dead)", moved, dead);
         })
         .or_else(|| {
+            warn!("no save DDM for '{}' — falling back to fresh LOD", map_key);
             openmm_data::assets::Actors::new(game_assets.assets(), &map_key, snapshot.as_ref(), game_assets.data()).ok()
         });
 

@@ -60,9 +60,17 @@ fn decompress_with_8_bytes_header(data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>
     if data.len() < 8 {
         return Err("data too short for 8-byte header".into());
     }
-    let compressed_size = u32::from_le_bytes(data[0..=3].try_into()?) as usize;
+    let header_compressed_size = u32::from_le_bytes(data[0..=3].try_into()?) as usize;
     let decompressed_size = u32::from_le_bytes(data[4..=7].try_into()?) as usize;
-    crate::assets::zlib::decompress(&data[8..], compressed_size, decompressed_size)
+    let payload = &data[8..];
+    // MM6 save LOD entries store total size (including header) in compressed_size.
+    // Normal LOD entries store just the payload size. Handle both.
+    let compressed_size = if header_compressed_size == data.len() {
+        payload.len()
+    } else {
+        header_compressed_size
+    };
+    crate::assets::zlib::decompress(payload, compressed_size, decompressed_size)
 }
 
 impl LodData {

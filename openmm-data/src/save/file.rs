@@ -11,6 +11,10 @@ use crate::assets::provider::archive::Archive;
 use crate::assets::provider::archive::lod::{LodArchive, LodWriter};
 use image::DynamicImage;
 
+use crate::Assets;
+use crate::assets::GameData;
+use crate::assets::provider::actors::{Actors, MapStateSnapshot};
+
 use super::clock::SaveClock;
 use super::header::SaveHeader;
 use super::party::SaveParty;
@@ -65,19 +69,65 @@ impl SaveFile {
         crate::assets::pcx::decode(&data)
     }
 
-    /// Get raw file data by exact name.
+    /// Get file data by exact name, decompressing if needed.
     pub fn get_file(&self, name: &str) -> Option<Vec<u8>> {
-        self.lod.get_file(name)
+        self.lod.get_file(name).map(Self::try_decompress)
     }
 
-    /// Get raw file data by case-insensitive name lookup.
+    /// Get file data by case-insensitive name, decompressing if needed.
     pub fn get_file_ci(&self, name: &str) -> Option<Vec<u8>> {
-        self.lod.get_file_case_insensitive(name)
+        self.lod.get_file_case_insensitive(name).map(Self::try_decompress)
+    }
+
+    /// Decompress LOD entry data if it has a zlib header, otherwise return as-is.
+    fn try_decompress(raw: Vec<u8>) -> Vec<u8> {
+        crate::assets::lod_data::LodData::try_from(raw.as_slice())
+            .map(|ld| ld.data)
+            .unwrap_or(raw)
     }
 
     /// List all file names in the save archive.
     pub fn list_files(&self) -> Vec<String> {
         self.lod.list_files().iter().map(|e| e.name.clone()).collect()
+    }
+
+    /// Load resolved actors for a map from the save's DDM/DLV data.
+    /// Handles DDM vs DLV lookup (case-insensitive), decompression, and actor resolution.
+    /// Returns `None` if no DDM/DLV exists for this map in the save.
+    pub fn actors(
+        &self,
+        map_name: &str,
+        assets: &Assets,
+        state: Option<&MapStateSnapshot>,
+        game_data: &GameData,
+    ) -> Option<Actors> {
+        // Strip .odm/.blv/.ddm/.dlv extension if present — callers may pass full filenames.
+        let stem = map_name
+            .strip_suffix(".odm")
+            .or_else(|| map_name.strip_suffix(".blv"))
+            .or_else(|| map_name.strip_suffix(".ddm"))
+            .or_else(|| map_name.strip_suffix(".dlv"))
+            .unwrap_or(map_name);
+        let ddm_name = format!("{}.ddm", stem);
+        let dlv_name = format!("{}.dlv", stem);
+        let (data, is_dlv) = if let Some(d) = self.get_file_ci(&ddm_name) {
+            (d, false)
+        } else if let Some(d) = self.get_file_ci(&dlv_name) {
+            (d, true)
+        } else {
+            return None;
+        };
+
+        log::info!(
+            "loaded {} for '{}' from save '{}' ({} bytes)",
+            if is_dlv { "DLV" } else { "DDM" },
+            map_name,
+            self.slot,
+            data.len()
+        );
+
+        let raw_actors = crate::assets::ddm::Ddm::parse_from_data(&data).ok()?;
+        Actors::from_raw_actors(assets, &raw_actors, state, game_data).ok()
     }
 
     /// Detect the current map from the save archive.

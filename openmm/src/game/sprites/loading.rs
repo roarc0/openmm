@@ -600,7 +600,8 @@ pub fn update_sprite_sheets(
         // Reset frame when state changes
         if state_idx != sprites.current_state {
             sprites.current_state = state_idx;
-            sprites.current_frame = 0;
+            // Dead corpses jump to last frame of dying animation (the corpse-on-ground frame).
+            sprites.current_frame = if is_dead && frame_count > 0 { frame_count - 1 } else { 0 };
             sprites.frame_timer = 0.0;
         }
 
