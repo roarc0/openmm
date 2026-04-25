@@ -1,5 +1,50 @@
 # OpenMM Roadmap & TODOs
 
+## Save System
+
+### Phase 1 — Load from .mm6 ✅
+- [x] Parse party.bin (position, calendar, gold/food, quest bits, characters)
+- [x] Parse header.bin (map name, save name)
+- [x] Parse clock.bin (passthrough for round-trip)
+- [x] ActiveSave resource replaces JSON GameSave
+- [x] Centralized state sync: save → WorldState + Party + GameTime (via `populate_state_from_save()`)
+- [x] DDM/DLV loading from save file (killed monsters persist)
+- [x] NewGame creates save from new.lod template
+
+### Phase 2 — Save to .mm6
+- [ ] Collect runtime state back into SaveParty/SaveHeader
+- [ ] WorldState → party.bin (position, calendar, gold, quest bits)
+- [ ] Party → party.bin characters (HP, SP, skills, experience)
+- [ ] GameTime → party.bin calendar fields
+- [ ] Snapshot current map DDM (actor state: dead, position, HP)
+- [ ] LodWriter::patch() to write modified .mm6 file
+- [ ] Autosave on map transition (rotate autosave1→autosave6)
+- [ ] Quicksave console command
+- [ ] Sync dead_actor_ids from DDM actor ai_state on map exit
+
+### Phase 3 — Save/Load UI
+- [ ] Save slot selection UI
+- [ ] Screenshot capture (viewport only, no HUD) → PCX encoding
+- [ ] Load game from UI (slot list with screenshot previews)
+- [ ] Named saves (user-chosen slot names)
+- [ ] Save slot display: name, map, date, screenshot thumbnail
+
+### Phase 4 — Full State Round-Trip
+- [ ] npcdata.bin parse/serialize (NPC roster state)
+- [ ] overlay.bin parse/serialize (active spell overlays)
+- [ ] Party creation → override party.bin in save before loading
+- [ ] Map state reset after N game months (respawn killed monsters)
+- [ ] Multiple save profiles
+- [ ] Autosave count configurable via openmm.toml
+
+### Known Format Details
+- party.bin = 64720 byte memory dump. Base addr 0x908C70.
+- Character struct: 0x161C (5660) bytes, 4 chars at offset 0x02C4
+- Calendar: 28-day months, 12 months/year, 336 days/year
+- MM6 direction: 0-2047, 0=east, 512=north, 1024=west, 1536=south
+- Skills: u8[31] (MM6), different from MM7 i16[37]
+- Conditions: i64[17] timestamps (MM6 has 17 vs MM7 20)
+
 ## Gameplay (Priority)
 - [ ] **Monster combat stats** — HP, speed, attack logic
 - [ ] **Ground items / pickable objects** — Parse DDM `MapObject`, spawn `GroundItem` entities

@@ -81,6 +81,15 @@ Event loading order (entries from later files extend, not override, per event_id
 - `push_front()` — for sub-events (depth-first, preserves ordering within a script)
 - `clear()` — abort the entire queue
 
+## Save System
+
+- `ActiveSave` resource holds path to current .mm6 file + cached parsed data
+- Save files are LOD archives containing: header.bin, party.bin, clock.bin, per-map DDM/DLV, image.pcx, npcdata.bin, overlay.bin
+- State flow: .mm6 → SaveParty/SaveHeader → WorldState + Party + GameTime (via `populate_state_from_save()`)
+- DDM/DLV loaded from save file first, falling back to games.lod for unvisited maps
+- Old JSON GameSave has been removed
+- New game: copies `new.lod` template → `data/saves/autosave1.mm6`
+
 ## Map Names and Save
 
 - `MapName` enum: `Outdoor(OdmName)` or `Indoor(String)`

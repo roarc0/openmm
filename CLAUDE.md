@@ -47,6 +47,7 @@ Cargo workspace with two crates:
   - `game/player/` — input, physics, party
   - `game/spawn/` — shared actor/decoration spawning
   - `game/interaction/` — click/hover detection, raycasting
+  - `game/save/` — save/load system, ActiveSave resource, .mm6 file bridge
 
 ## Useful Resources
 
@@ -254,7 +255,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 ### WorldState and game variables
 
-- `WorldState` = runtime source of truth; `GameSave` = JSON at `data/saves/{slot}.json`.
+- `WorldState` = runtime source of truth; `ActiveSave` = current .mm6 LOD archive (replaces old JSON GameSave).
 - `GameVariables`: `map_vars[100]` (reset on map change), `quest_bits`, `autonotes`, gold=200, food=7.
 - `Party`: 4 fixed members; `active_target` set by `ForPartyMember` EVT opcode.
 
@@ -266,7 +267,7 @@ MM6 coordinate system: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6
 
 - `MapName` enum: `Outdoor(OdmName)` or `Indoor(String)`. `TryFrom<&str>` parses `"oute3"` (5 chars, starts with `"out"`) as outdoor; anything else as indoor.
 - `OdmName` supports directional navigation: `go_north/go_south/go_east/go_west` return `Option<OdmName>` (None at boundary). Valid columns `'a'–'e'`, rows `'1'–'3'`.
-- `GameSave` → JSON at `data/saves/{slot}.json`. Default spawn: `[-10178, 340, 11206]` yaw -38.7°.
+- `ActiveSave` resource: current .mm6 LOD archive. Default spawn: `[-10178, 340, 11206]` yaw -38.7°. New game copies `new.lod` → `data/saves/autosave1.mm6`.
 - `GameAssets` resource: wraps `Assets` + quest bit names. `lod()` for decoded sprites, bitmaps, icons, fonts.
 
 ### Developer console
