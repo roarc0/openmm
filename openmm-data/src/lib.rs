@@ -11,6 +11,7 @@ pub use assets::provider::Assets;
 pub use assets::*;
 
 pub mod generator;
+pub mod save;
 pub mod utils;
 pub use utils::find_path_case_insensitive;
 
