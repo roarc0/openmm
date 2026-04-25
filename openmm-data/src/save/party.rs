@@ -40,8 +40,6 @@ pub struct SaveParty {
     pub bank_gold: i32,
     /// Food rations.
     pub food: i32,
-    /// Current map index into MapStats.txt (1-based). Offset 0x88.
-    pub current_map_index: i32,
     /// Party reputation.
     pub reputation: i32,
     /// Total party deaths.
@@ -116,8 +114,6 @@ impl SaveParty {
         let minute = read_i32(data, 0x00B4);
         let second = read_i32(data, 0x00B8);
 
-        let current_map_index = data[0x008B] as i32;
-
         let food = read_i32(data, 0x00BC);
         let reputation = read_i32(data, 0x00D8);
         let gold = read_i32(data, 0x00E0);
@@ -145,7 +141,6 @@ impl SaveParty {
             second,
             gold,
             bank_gold,
-            current_map_index,
             food,
             reputation,
             deaths,

@@ -41,6 +41,7 @@ impl SmkArchive {
                 name: name.clone(),
                 size: 0, // Calculated correctly next step
                 decompressed_size: 0,
+                name_tail: [0; 4],
             });
             offsets.push(offset);
         }

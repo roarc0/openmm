@@ -7,6 +7,10 @@ pub struct ArchiveEntry {
     pub size: usize,
     /// Uncompressed size, if known/stored (0 if unknown or uncompressed).
     pub decompressed_size: usize,
+    /// Bytes 12-15 of the LOD directory name field (after the null terminator).
+    /// MM6 save LODs use this to tag entries written in the same save cycle —
+    /// the current map's DDM/DLV shares its name_tail with party.bin.
+    pub name_tail: [u8; 4],
 }
 
 impl ArchiveEntry {
@@ -15,6 +19,16 @@ impl ArchiveEntry {
             name,
             size,
             decompressed_size,
+            name_tail: [0; 4],
+        }
+    }
+
+    pub fn with_name_tail(name: String, size: usize, decompressed_size: usize, name_tail: [u8; 4]) -> Self {
+        Self {
+            name,
+            size,
+            decompressed_size,
+            name_tail,
         }
     }
 }

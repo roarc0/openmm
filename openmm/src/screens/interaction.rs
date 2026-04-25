@@ -613,7 +613,7 @@ pub(super) fn process_pending_actions(
                 Action::NewGame => {
                     info!("action: NewGame — creating save from template");
                     match crate::game::save::slots::create_new_game_save() {
-                        Ok(path) => match crate::game::save::ActiveSave::from_file(path, game_assets.assets()) {
+                        Ok(path) => match crate::game::save::ActiveSave::from_file(path) {
                             Ok(save) => {
                                 commands.insert_resource(save);
                                 commands.set_state(GameState::Loading);

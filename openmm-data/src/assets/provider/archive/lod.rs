@@ -65,6 +65,9 @@ fn try_read_string(reader: &mut impl Read) -> Result<String, Box<dyn Error>> {
 #[derive(Debug)]
 struct FileHeader {
     name: String,
+    /// Bytes 12-15 of the 16-byte name field (after the null terminator).
+    /// MM6 save LODs use this to tag entries written in the same save cycle.
+    name_tail: [u8; 4],
     offset: i32,
     size: usize,
     count: i32,
@@ -76,6 +79,7 @@ impl TryFrom<&[u8; FILE_HEADER_SIZE]> for FileHeader {
     fn try_from(data: &[u8; FILE_HEADER_SIZE]) -> Result<Self, Self::Error> {
         let first_zero_idx = data.iter().position(|&x| x == 0).unwrap_or(data.len());
         let name: &str = std::str::from_utf8(&data[0..first_zero_idx])?;
+        let name_tail: [u8; 4] = [data[12], data[13], data[14], data[15]];
 
         let mut cursor = Cursor::new(&data[16..]);
         let offset = cursor.read_i32::<LittleEndian>()?;
@@ -85,6 +89,7 @@ impl TryFrom<&[u8; FILE_HEADER_SIZE]> for FileHeader {
         let count = cursor.read_i32::<LittleEndian>()?;
         Ok(FileHeader {
             name: name.to_string(),
+            name_tail,
             offset,
             size,
             count,
@@ -167,7 +172,12 @@ impl LodArchive {
                 );
             }
 
-            entries.push(ArchiveEntry::new(original_name.clone(), entry_size, 0));
+            entries.push(ArchiveEntry::with_name_tail(
+                original_name.clone(),
+                entry_size,
+                0,
+                fh.name_tail,
+            ));
             offsets.push(entry_offset);
             // Case-insensitive mapping by default
             lookup.insert(original_name.to_lowercase(), i);

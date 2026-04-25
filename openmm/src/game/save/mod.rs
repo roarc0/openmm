@@ -28,8 +28,7 @@ pub struct ActiveSave {
 
 impl ActiveSave {
     /// Open a `.mm6` save file, parse header + party, convert coords to Bevy space.
-    /// Uses `assets` to load MapStats.txt for resolving the current map index.
-    pub fn from_file(path: PathBuf, assets: &openmm_data::Assets) -> Result<Self, Box<dyn Error>> {
+    pub fn from_file(path: PathBuf) -> Result<Self, Box<dyn Error>> {
         let save_file = SaveFile::open(&path)?;
         let header = save_file.header();
         let party = save_file.party();
@@ -44,30 +43,16 @@ impl ActiveSave {
         // Convert: bevy_yaw = (mm6_dir * TAU / 2048) - PI/2
         let spawn_yaw = (party.direction as f32) * std::f32::consts::TAU / 2048.0 - std::f32::consts::FRAC_PI_2;
 
-        // Resolve current map from party.bin map index (0x88), NOT header.bin.
-        // header.bin stores the starting outdoor map, not the current location.
-        let mapstats = openmm_data::mapstats::MapStats::load(assets)?;
-        let map_info = mapstats.get_by_index(party.current_map_index).unwrap_or_else(|| {
-            panic!(
-                "party.bin map index {} not found in MapStats.txt",
-                party.current_map_index
-            );
+        // Detect current map from LOD directory name_tail matching.
+        // MM6 doesn't store the map name explicitly — the DDM/DLV written in
+        // the same save cycle as party.bin shares its name_tail bytes.
+        let map_stem = save_file.detect_current_map().unwrap_or_else(|| {
+            panic!("could not detect current map from save '{}'", path.display());
         });
-        let map_stem = map_info
-            .filename
-            .rsplit_once('.')
-            .map(|(stem, _)| stem)
-            .unwrap_or(&map_info.filename);
-        let map_name = MapName::try_from(map_stem).unwrap_or_else(|e| {
-            panic!(
-                "invalid map '{}' from MapStats index {}: {e}",
-                map_info.filename, party.current_map_index
-            );
+        let map_name = MapName::try_from(map_stem.as_str()).unwrap_or_else(|e| {
+            panic!("invalid map '{}' detected from save: {e}", map_stem);
         });
-        info!(
-            "save map: index={} '{}' ({}) -> {:?}",
-            party.current_map_index, map_info.name, map_info.filename, &map_name
-        );
+        info!("save map: '{}' -> {:?}", map_stem, &map_name);
 
         Ok(Self {
             path,

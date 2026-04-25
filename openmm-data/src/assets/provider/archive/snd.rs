@@ -73,6 +73,7 @@ impl SndArchive {
                     name: name.clone(),
                     size,
                     decompressed_size: decomp_size,
+                    name_tail: [0; 4],
                 });
                 _offsets.push(offset);
                 lookup.insert(name.to_lowercase(), entries.len() - 1);

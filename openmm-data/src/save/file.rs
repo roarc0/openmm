@@ -80,6 +80,63 @@ impl SaveFile {
         self.lod.list_files().iter().map(|e| e.name.clone()).collect()
     }
 
+    /// Detect the current map from the save archive.
+    ///
+    /// MM6 doesn't store the current map name explicitly. Instead, the LOD
+    /// directory entry for `party.bin` shares its `name_tail` bytes (12-15 of
+    /// the 16-byte name field) with the DDM/DLV of the current map — both are
+    /// written in the same save cycle. We find the map file whose name_tail
+    /// matches party.bin's.
+    ///
+    /// Returns the map filename stem (e.g. "oute3", "d01"), or None if
+    /// detection fails.
+    pub fn detect_current_map(&self) -> Option<String> {
+        use crate::assets::provider::archive::Archive;
+        let entries = self.lod.list_files();
+
+        // Find party.bin's name_tail
+        let party_tail = entries
+            .iter()
+            .find(|e| e.name.eq_ignore_ascii_case("party.bin"))?
+            .name_tail;
+
+        // Find DDM/DLV entries whose name_tail matches
+        let candidates: Vec<&str> = entries
+            .iter()
+            .filter(|e| {
+                let lower = e.name.to_lowercase();
+                (lower.ends_with(".ddm") || lower.ends_with(".dlv")) && e.name_tail == party_tail
+            })
+            .map(|e| e.name.as_str())
+            .collect();
+
+        // If exactly one match, use it. If multiple (e.g. all zeros for
+        // unvisited maps), fall back to header.bin.
+        let map_file = if candidates.len() == 1 {
+            candidates[0]
+        } else {
+            // Fallback: use header.bin map name
+            let header = self.header();
+            let stem = header.map_stem().to_string();
+            log::info!(
+                "detect_current_map: {} DDM/DLV candidates with name_tail {:?}, falling back to header '{}'",
+                candidates.len(),
+                party_tail,
+                stem
+            );
+            return Some(stem);
+        };
+
+        // Strip extension to get stem
+        let stem = map_file.rsplit_once('.').map(|(s, _)| s).unwrap_or(map_file);
+        log::info!(
+            "detect_current_map: matched '{}' via name_tail {:?}",
+            map_file,
+            party_tail
+        );
+        Some(stem.to_lowercase())
+    }
+
     /// Write a patched copy of `src` save to `dest`, replacing named entries.
     ///
     /// Entries not in `overrides` are copied verbatim from `src`.
