@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 
 use crate::game::InGame;
+use crate::game::actors::combat::ActorDead;
 use crate::game::actors::{Actor, ActorParams, MonsterAiMode, MonsterAiType, collision_radius_from_sprite_width};
 use crate::game::interaction::{MonsterInteractable, NpcInteractable};
 use crate::game::sprites::{
@@ -148,6 +149,11 @@ pub fn spawn_actor(
                 npc_id: *npc_id,
             });
         }
+    }
+
+    // Dead actors from save data need ActorDead so combat/AI systems skip them.
+    if params.hp <= 0 {
+        commands.entity(ent).insert(ActorDead);
     }
 
     apply_shadow_config(commands, ent, ctx.actor_shadows);
