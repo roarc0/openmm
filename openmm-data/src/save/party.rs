@@ -199,7 +199,7 @@ mod tests {
 
     /// Load party.bin from new.lod test data.
     fn load_party_bin() -> Vec<u8> {
-        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("open new.lod");
+        let save = crate::save::file::SaveFile::open("../data/mm6/data/new.lod").expect("open new.lod");
         save.get_file("party.bin").expect("party.bin missing")
     }
 

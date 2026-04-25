@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn parse_new_lod_header() {
-        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
+        let save = crate::save::file::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
         let data = save.get_file("header.bin").expect("header.bin missing");
         assert_eq!(data.len(), HEADER_SIZE);
 
@@ -126,7 +126,7 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
+        let save = crate::save::file::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
         let data = save.get_file("header.bin").expect("header.bin missing");
         let header = SaveHeader::parse(&data);
 
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn round_trip_after_mutation() {
-        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
+        let save = crate::save::file::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
         let data = save.get_file("header.bin").expect("header.bin missing");
         let mut header = SaveHeader::parse(&data);
 

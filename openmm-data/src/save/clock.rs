@@ -32,7 +32,7 @@ mod tests {
 
     #[test]
     fn clock_roundtrip() {
-        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
+        let save = crate::save::file::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
         let data = save.get_file("clock.bin").expect("clock.bin missing");
 
         let clock = SaveClock::parse(&data);

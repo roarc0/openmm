@@ -239,6 +239,7 @@ fn loading_step(
     mut meshes: ResMut<Assets<Mesh>>,
     mut sprite_materials: Option<ResMut<Assets<crate::game::sprites::material::SpriteMaterial>>>,
     world_state: Option<Res<crate::game::state::WorldState>>,
+    active_save: Res<crate::game::save::ActiveSave>,
 ) {
     // Keep the public resource in sync with internal progress.
     step_res.set_if_neq(progress.step);
@@ -280,6 +281,7 @@ fn loading_step(
                 &mut meshes,
                 sprite_materials.as_deref_mut(),
                 world_state.as_deref(),
+                &active_save,
             );
         }
         LoadingStep::Done => {
@@ -376,6 +378,7 @@ fn step_preload_sprites(
     meshes: &mut Assets<Mesh>,
     mut sprite_materials: Option<&mut Assets<crate::game::sprites::material::SpriteMaterial>>,
     world_state: Option<&crate::game::state::WorldState>,
+    active_save: &crate::game::save::ActiveSave,
 ) {
     // Time-budgeted sprite preloading: process a batch each frame so
     // the window event loop keeps running and GNOME doesn't flag us.
@@ -384,7 +387,7 @@ fn step_preload_sprites(
 
     // First frame: build the preload queue from map-specific data
     if progress.preload_queue.is_none() {
-        build_preload_queue(progress, game_assets, load_request, world_state);
+        build_preload_queue(progress, game_assets, load_request, world_state, active_save);
     }
 
     // Resolve music track (cheap, do once)
@@ -475,6 +478,34 @@ fn step_preload_sprites(
     }
 }
 
+/// Try loading DDM actors from the active save file. Returns `Some(Actors)` if the save
+/// contains a DDM for this map (i.e. the map was previously visited and saved), `None` otherwise.
+fn try_load_actors_from_save(
+    active_save: &crate::game::save::ActiveSave,
+    map_name: &str,
+    state: Option<&openmm_data::assets::provider::actors::MapStateSnapshot>,
+    game_assets: &GameAssets,
+) -> Option<openmm_data::assets::Actors> {
+    let ddm_filename = format!("{}.ddm", map_name);
+    let save_file = openmm_data::save::SaveFile::open(&active_save.path).ok()?;
+    let ddm_data = save_file.get_file_ci(&ddm_filename)?;
+
+    info!(
+        "loaded DDM for '{}' from save file ({} bytes)",
+        map_name,
+        ddm_data.len()
+    );
+
+    let raw_actors = openmm_data::assets::ddm::Ddm::parse_from_data(&ddm_data).ok()?;
+    openmm_data::assets::Actors::from_raw_actors(
+        game_assets.assets(),
+        &raw_actors,
+        state,
+        game_assets.data(),
+    )
+    .ok()
+}
+
 /// First-frame initialization for PreloadSprites: resolve actors and monsters,
 /// collect unique sprite roots, and build the preload queue.
 fn build_preload_queue(
@@ -482,6 +513,7 @@ fn build_preload_queue(
     game_assets: &GameAssets,
     load_request: &LoadRequest,
     world_state: Option<&crate::game::state::WorldState>,
+    active_save: &crate::game::save::ActiveSave,
 ) {
     let mut sprite_roots: Vec<(String, u8, u16)> = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -496,13 +528,24 @@ fn build_preload_queue(
                 dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
             })
     });
-    let lod_actors = openmm_data::assets::Actors::new(
-        game_assets.assets(),
-        &load_request.map_name.to_string(),
+
+    // Try loading DDM from save file first (preserves killed monster state),
+    // fall back to games.lod for maps not yet visited.
+    let lod_actors = try_load_actors_from_save(
+        active_save,
+        &map_key,
         snapshot.as_ref(),
-        game_assets.data(),
+        game_assets,
     )
-    .ok();
+    .or_else(|| {
+        openmm_data::assets::Actors::new(
+            game_assets.assets(),
+            &load_request.map_name.to_string(),
+            snapshot.as_ref(),
+            game_assets.data(),
+        )
+        .ok()
+    });
     // Collect unique sprite roots from a set of entities with sprite fields.
     let mut collect_sprites = |sprites: &[(String, String, String, String, u8, u16)]| {
         for (standing, walking, attacking, dying, variant, palette_id) in sprites {
