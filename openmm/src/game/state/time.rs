@@ -86,6 +86,35 @@ impl GameTime {
     pub fn format_datetime(&self) -> String {
         time::format(self.total_minutes())
     }
+
+    /// Create GameTime from MM6 calendar fields.
+    /// `month_0` and `day_0` are 0-indexed (from party.bin).
+    /// Epoch: midnight Jan 1, Year 1000.
+    pub fn from_calendar(year: u32, month_0: u32, day_0: u32, hour: u32, minute: u32) -> Self {
+        let years_since_epoch = year.saturating_sub(1000);
+        let total_days = years_since_epoch * 336 + month_0 * 28 + day_0;
+        let total_minutes = (total_days as u64) * 1440 + (hour as u64) * 60 + minute as u64;
+        Self {
+            start_minute: total_minutes,
+            elapsed_secs: 0.0,
+            paused: false,
+        }
+    }
+
+    /// Export calendar fields (0-indexed month/day) for saving back to party.bin.
+    /// Returns `(year, month_0, day_0, hour, minute)`.
+    pub fn to_calendar(&self) -> (u32, u32, u32, u32, u32) {
+        let total = self.total_minutes();
+        let total_days = (total / 1440) as u32;
+        let day_minutes = (total % 1440) as u32;
+        let hour = day_minutes / 60;
+        let minute = day_minutes % 60;
+        let year = 1000 + total_days / 336;
+        let year_day = total_days % 336;
+        let month_0 = year_day / 28;
+        let day_0 = year_day % 28;
+        (year, month_0, day_0, hour, minute)
+    }
 }
 
 impl Default for GameTime {
@@ -119,5 +148,61 @@ impl Plugin for GameTimePlugin {
 fn advance_game_time(time: Res<Time>, mut game_time: ResMut<GameTime>) {
     if !game_time.paused {
         game_time.elapsed_secs += time.delta_secs_f64();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_calendar_default_matches() {
+        // existing Default starts at 9:00am Jan 1 Year 1000
+        let default = GameTime::default();
+        let from_cal = GameTime::from_calendar(1000, 0, 0, 9, 0);
+        assert_eq!(default.total_minutes(), from_cal.total_minutes());
+    }
+
+    #[test]
+    fn to_calendar_roundtrip() {
+        let gt = GameTime::from_calendar(1168, 5, 14, 15, 30);
+        let (year, month_0, day_0, hour, minute) = gt.to_calendar();
+        assert_eq!(year, 1168);
+        assert_eq!(month_0, 5);
+        assert_eq!(day_0, 14);
+        assert_eq!(hour, 15);
+        assert_eq!(minute, 30);
+    }
+
+    #[test]
+    fn from_calendar_epoch() {
+        let gt = GameTime::from_calendar(1000, 0, 0, 0, 0);
+        assert_eq!(gt.total_minutes(), 0);
+        assert_eq!(gt.hour(), 0);
+        assert_eq!(gt.minute(), 0);
+    }
+
+    #[test]
+    fn to_calendar_epoch() {
+        let gt = GameTime::from_calendar(1000, 0, 0, 0, 0);
+        let (year, month_0, day_0, hour, minute) = gt.to_calendar();
+        assert_eq!((year, month_0, day_0, hour, minute), (1000, 0, 0, 0, 0));
+    }
+
+    #[test]
+    fn roundtrip_many_values() {
+        // test several dates round-trip through from_calendar -> to_calendar
+        for &(y, m, d, h, min) in &[
+            (1000, 0, 0, 0, 0),
+            (1000, 0, 0, 9, 0),
+            (1000, 11, 27, 23, 59),
+            (1165, 0, 0, 9, 0),
+            (1200, 6, 15, 12, 30),
+        ] {
+            let gt = GameTime::from_calendar(y, m, d, h, min);
+            let (ry, rm, rd, rh, rmin) = gt.to_calendar();
+            assert_eq!((ry, rm, rd, rh, rmin), (y, m, d, h, min),
+                "roundtrip failed for ({y}, {m}, {d}, {h}, {min})");
+        }
     }
 }
