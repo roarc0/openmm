@@ -236,11 +236,24 @@ fn spawn_player(
     let is_indoor = indoor.is_some();
 
     // Resolve spawn position
-    let (start_x, start_y, start_z, start_yaw) = if let Some(ref indoor) = indoor {
-        // Indoor: always use start_points (set from LoadRequest.spawn_position
-        // for MoveToMap, or sector center fallback for console/direct load).
-        if let Some(sp) = indoor.start_points.first() {
-            info!("Indoor spawn: pos={:?} yaw={:.1}", sp.position, sp.yaw.to_degrees());
+    let (start_x, start_y, start_z, start_yaw) = if let Some(ref _indoor) = indoor {
+        // Indoor: prefer save position if non-zero (loading a save),
+        // otherwise use start_points (MoveToMap / console load).
+        let pos = active_save.spawn_position;
+        let has_save_pos = pos.x != 0.0 || pos.y != 0.0 || pos.z != 0.0;
+        if has_save_pos {
+            info!(
+                "Indoor spawn from save: pos={:?} yaw={:.1}",
+                pos,
+                active_save.spawn_yaw.to_degrees()
+            );
+            (pos.x, pos.y + settings.eye_height, pos.z, active_save.spawn_yaw)
+        } else if let Some(sp) = _indoor.start_points.first() {
+            info!(
+                "Indoor spawn from start_point: pos={:?} yaw={:.1}",
+                sp.position,
+                sp.yaw.to_degrees()
+            );
             (
                 sp.position.x,
                 sp.position.y + settings.eye_height,
