@@ -7,8 +7,7 @@ use super::bindings::{ArrowBinding, CompassBinding, CroppedImage, MinimapBinding
 use super::fonts::GameFonts;
 use super::property_source::DynamicTexture;
 use super::runtime::{
-    FrameAnimation, HiddenByDefault, HoverOverlay, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer,
-    ScreenMusic,
+    FrameAnimation, HiddenByDefault, RuntimeElement, RuntimeText, ScreenCrosshair, ScreenLayer, ScreenMusic,
 };
 use super::video::spawn_video_element;
 use super::{
@@ -70,7 +69,8 @@ pub(super) fn spawn_image_element(
     let (w, h) = resolve_image_size(img, ui_assets);
 
     let default_tex = img.texture_for_state("default").unwrap_or("").to_string();
-    let default_handle = if !default_tex.is_empty() {
+    let is_dynamic = default_tex.contains('$');
+    let default_handle = if !default_tex.is_empty() && !is_dynamic {
         load_texture_with_transparency(
             &default_tex,
             &img.transparent_color,
@@ -82,21 +82,6 @@ pub(super) fn spawn_image_element(
     } else {
         None
     };
-
-    let hover_handle = img.states.get("hover").and_then(|state| {
-        if state.texture.is_empty() {
-            None
-        } else {
-            load_texture_with_transparency(
-                &state.texture,
-                &img.transparent_color,
-                ui_assets,
-                game_assets,
-                images,
-                cfg,
-            )
-        }
-    });
 
     let clicked_state = img.states.get("clicked");
     let clicked_handle = clicked_state.and_then(|state| {
@@ -142,11 +127,11 @@ pub(super) fn spawn_image_element(
         })
     });
 
-    let has_interaction = hover_handle.is_some()
+    let has_interaction = !img.on_click.is_empty()
+        || clicked_handle.is_some()
+        || clicked_anim_data.is_some()
         || hover_texture_handle.is_some()
         || hover_anim_data.is_some()
-        || clicked_handle.is_some()
-        || !img.on_click.is_empty()
         || !img.on_hover.is_empty();
 
     let initial_vis = if img.hidden {
@@ -248,8 +233,10 @@ pub(super) fn spawn_image_element(
             let tile_w_pct = if w > crop_w { w / crop_w * 100.0 } else { 100.0 };
             let inner_w = if w > crop_w {
                 Val::Percent(w / crop_w * 100.0)
+            } else if binding == Some("minimap") {
+                Val::Percent(100.0) // minimap fills the crop area
             } else {
-                Val::Percent(100.0)
+                Val::Percent(tile_w_pct)
             };
             let inner_h = if h > crop_h {
                 Val::Percent(h / crop_h * 100.0)
@@ -335,96 +322,44 @@ pub(super) fn spawn_image_element(
     }
 
     let z = ZIndex(img.z);
-    if let Some(handle) = default_handle {
-        // Crop mode: outer node clips, inner child holds texture at native size.
-        if let Some((tw, th)) = native_size {
-            let mut entity =
-                commands.spawn((node, z, marker, layer_tag.clone(), initial_vis, bevy::ui::FocusPolicy::Pass));
-            if has_interaction {
-                entity.insert((Button, BackgroundColor(Color::NONE)));
-            }
-            if img.hidden {
-                entity.insert(HiddenByDefault);
-            }
-            if let Some(mask) = ui_assets.mask(&default_tex) {
-                entity.insert(super::runtime::ElementAlphaMask(mask));
-            }
-            entity.with_children(|parent| {
-                let mut inner = parent.spawn((
-                    ImageNode::new(handle.clone()),
-                    Node {
-                        width: Val::Percent(tw / w * 100.0),
-                        height: Val::Percent(th / h * 100.0),
-                        ..default()
-                    },
-                ));
-                if let Some(clicked) = &clicked_handle {
-                    inner.insert(super::runtime::ClickedTexture {
-                        clicked: clicked.clone(),
-                        default: Some(handle.clone()),
-                    });
-                }
-                if let Some((handles, fps)) = clicked_anim_data {
-                    inner.insert(super::runtime::ClickedAnimation {
-                        handles,
-                        fps,
-                        default: Some(handle.clone()),
-                        elapsed: 0.0,
-                        current_frame: 0,
-                    });
-                }
-                if let Some(hover) = &hover_texture_handle {
-                    inner.insert(super::runtime::HoverTexture {
-                        hover: hover.clone(),
-                        default: Some(handle.clone()),
-                    });
-                }
-                if let Some((handles, fps, ping_pong)) = hover_anim_data {
-                    inner.insert(super::runtime::HoverAnimation {
-                        handles,
-                        fps,
-                        default: Some(handle.clone()),
-                        elapsed: 0.0,
-                        current_frame: 0,
-                        ping_pong,
-                    });
-                }
-                if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
-                    inner.insert(anim);
-                }
-            });
-        } else {
-            let mut entity = commands.spawn((
+
+    if let Some((tw, th)) = native_size {
+        // native_size is only Some if default_handle is Some.
+        let handle = default_handle.clone().unwrap();
+        let mut entity = commands.spawn((
+            node,
+            z,
+            marker,
+            layer_tag.clone(),
+            initial_vis,
+            bevy::ui::FocusPolicy::Pass,
+        ));
+        if has_interaction {
+            entity.insert((Button, BackgroundColor(Color::NONE)));
+        }
+        if img.hidden {
+            entity.insert(HiddenByDefault);
+        }
+        if let Some(mask) = ui_assets.mask(&default_tex) {
+            entity.insert(super::runtime::ElementAlphaMask(mask));
+        }
+        entity.with_children(|parent| {
+            let mut inner = parent.spawn((
                 ImageNode::new(handle.clone()),
-                node,
-                z,
-                marker,
-                layer_tag.clone(),
-                initial_vis,
-                bevy::ui::FocusPolicy::Pass,
+                Node {
+                    width: Val::Percent(tw / w * 100.0),
+                    height: Val::Percent(th / h * 100.0),
+                    ..default()
+                },
             ));
-            // Dynamic texture: template contains ${...} placeholders resolved each frame.
-            if default_tex.contains("${") {
-                entity.insert(DynamicTexture {
-                    template: default_tex.clone(),
-                    transparent_color: img.transparent_color.clone(),
-                    last_resolved: String::new(),
-                });
-            }
-            if has_interaction {
-                entity.insert((Button, BackgroundColor(Color::NONE)));
-            }
-            if let Some(mask) = ui_assets.mask(&default_tex) {
-                entity.insert(super::runtime::ElementAlphaMask(mask));
-            }
-            if let Some(clicked) = clicked_handle {
-                entity.insert(super::runtime::ClickedTexture {
-                    clicked,
+            if let Some(clicked) = &clicked_handle {
+                inner.insert(super::runtime::ClickedTexture {
+                    clicked: clicked.clone(),
                     default: Some(handle.clone()),
                 });
             }
             if let Some((handles, fps)) = clicked_anim_data {
-                entity.insert(super::runtime::ClickedAnimation {
+                inner.insert(super::runtime::ClickedAnimation {
                     handles,
                     fps,
                     default: Some(handle.clone()),
@@ -432,14 +367,14 @@ pub(super) fn spawn_image_element(
                     current_frame: 0,
                 });
             }
-            if let Some(hover) = hover_texture_handle {
-                entity.insert(super::runtime::HoverTexture {
-                    hover,
+            if let Some(hover) = &hover_texture_handle {
+                inner.insert(super::runtime::HoverTexture {
+                    hover: hover.clone(),
                     default: Some(handle.clone()),
                 });
             }
             if let Some((handles, fps, ping_pong)) = hover_anim_data {
-                entity.insert(super::runtime::HoverAnimation {
+                inner.insert(super::runtime::HoverAnimation {
                     handles,
                     fps,
                     default: Some(handle.clone()),
@@ -448,48 +383,45 @@ pub(super) fn spawn_image_element(
                     ping_pong,
                 });
             }
-            if img.hidden {
-                entity.insert(HiddenByDefault);
-            }
-            match img.bindings.get("source").map(|s| s.as_str()) {
-                Some("arrow") => {
-                    entity.insert(ArrowBinding);
-                }
-                Some("tap") => {
-                    entity.insert(TapBinding);
-                }
-                Some("loading") => {
-                    let frame = img
-                        .bindings
-                        .get("frame")
-                        .and_then(|f| f.parse::<u32>().ok())
-                        .unwrap_or(0);
-                    entity.insert(super::bindings::LoadingFrameBinding { frame });
-                }
-                _ => {}
-            }
             if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
-                entity.insert(anim);
+                inner.insert(anim);
             }
-            if let Some(h_handle) = hover_handle {
-                entity.with_children(|parent| {
-                    parent.spawn((
-                        ImageNode::new(h_handle),
-                        Node {
-                            width: Val::Percent(100.0),
-                            height: Val::Percent(100.0),
-                            ..default()
-                        },
-                        Visibility::Hidden,
-                        HoverOverlay,
-                    ));
-                });
+        });
+
+        match img.bindings.get("source").map(|s| s.as_str()) {
+            Some("arrow") => {
+                entity.insert(ArrowBinding);
             }
+            Some("tap") => {
+                entity.insert(TapBinding);
+            }
+            Some("loading") => {
+                let frame = img
+                    .bindings
+                    .get("frame")
+                    .and_then(|f| f.parse::<u32>().ok())
+                    .unwrap_or(0);
+                entity.insert(super::bindings::LoadingFrameBinding { frame });
+            }
+            _ => {}
         }
     } else {
-        let mut entity = commands.spawn((ImageNode::default(), node, z, marker, layer_tag.clone(), initial_vis));
-        // Dynamic texture: template contains ${...} placeholders resolved each frame.
-        if default_tex.contains("${") {
+        let img_node = if let Some(h) = default_handle.clone() {
+            ImageNode::new(h)
+        } else {
+            ImageNode::default()
+        };
+        let mut entity = commands.spawn((
+            img_node,
+            node,
+            z,
+            marker,
+            layer_tag.clone(),
+            initial_vis,
+            bevy::ui::FocusPolicy::Pass,
+        ));
+        // Dynamic texture: template contains placeholders resolved each frame.
+        if is_dynamic {
             entity.insert(DynamicTexture {
                 template: default_tex.clone(),
                 transparent_color: img.transparent_color.clone(),
@@ -503,25 +435,31 @@ pub(super) fn spawn_image_element(
             entity.insert(super::runtime::ElementAlphaMask(mask));
         }
         if let Some(clicked) = clicked_handle {
-            entity.insert(super::runtime::ClickedTexture { clicked, default: None });
+            entity.insert(super::runtime::ClickedTexture {
+                clicked,
+                default: default_handle.clone(),
+            });
         }
         if let Some((handles, fps)) = clicked_anim_data {
             entity.insert(super::runtime::ClickedAnimation {
                 handles,
                 fps,
-                default: None,
+                default: default_handle.clone(),
                 elapsed: 0.0,
                 current_frame: 0,
             });
         }
         if let Some(hover) = hover_texture_handle {
-            entity.insert(super::runtime::HoverTexture { hover, default: None });
+            entity.insert(super::runtime::HoverTexture {
+                hover,
+                default: default_handle.clone(),
+            });
         }
         if let Some((handles, fps, ping_pong)) = hover_anim_data {
             entity.insert(super::runtime::HoverAnimation {
                 handles,
                 fps,
-                default: None,
+                default: default_handle.clone(),
                 elapsed: 0.0,
                 current_frame: 0,
                 ping_pong,

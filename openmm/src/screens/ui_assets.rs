@@ -104,6 +104,34 @@ impl UiAssets {
         Some(handle)
     }
 
+    /// Load a save file screenshot (`image.pcx`) into a cached handle.
+    pub fn get_or_load_screenshot(
+        &mut self,
+        slot_name: &str,
+        images: &mut Assets<Image>,
+        cfg: &GameConfig,
+    ) -> Option<Handle<Image>> {
+        let cache_key = format!("saveslot:preview:{}", slot_name);
+        if let Some(handle) = self.textures.get(&cache_key) {
+            if images.get(handle).is_some() {
+                return Some(handle.clone());
+            }
+            self.textures.remove(&cache_key);
+        }
+
+        let path = crate::game::save::slots::slot_path(slot_name);
+        let save = openmm_data::save::file::SaveFile::open(path).ok()?;
+        let img = save.screenshot()?;
+        let (w, h) = img.dimensions();
+
+        let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
+        bevy_img.sampler = hud_sampler(cfg);
+        let handle = images.add(bevy_img);
+        self.textures.insert(cache_key, handle.clone());
+        self.dimensions.insert(slot_name.to_string(), (w, h));
+        Some(handle)
+    }
+
     /// Get the original pixel dimensions of a loaded asset.
     pub fn dimensions(&self, name: &str) -> Option<(u32, u32)> {
         self.dimensions.get(name).copied()

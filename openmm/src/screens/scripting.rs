@@ -22,7 +22,12 @@ pub enum Action {
     HideScreen(String),
     ShowSprite(String),
     HideSprite(String),
-    NewGame,
+    NewGame(Option<String>),
+    LoadGame(String),
+    LoadSelectedGame,
+    SelectSave(usize),
+    SaveScrollUp,
+    SaveScrollDown,
     Quit,
     /// Close the active UI overlay and return to World mode.
     CloseWindow,
@@ -84,7 +89,27 @@ pub fn parse_action(input: &str) -> Action {
         return Action::EnterTurnBattle;
     }
     if s == "NewGame()" {
-        return Action::NewGame;
+        return Action::NewGame(None);
+    }
+    if let Some(cfg) = parse_string_arg(s, "NewGame") {
+        return Action::NewGame(Some(cfg.to_string()));
+    }
+    if let Some(name) = parse_string_arg(s, "LoadGame") {
+        return Action::LoadGame(name.to_string());
+    }
+    if s == "LoadSelectedGame()" {
+        return Action::LoadSelectedGame;
+    }
+    if let Some(idx) = parse_string_arg(s, "SelectSave") {
+        if let Ok(i) = idx.parse() {
+            return Action::SelectSave(i);
+        }
+    }
+    if s == "SaveScrollUp()" {
+        return Action::SaveScrollUp;
+    }
+    if s == "SaveScrollDown()" {
+        return Action::SaveScrollDown;
     }
     if let Some(id) = parse_string_arg(s, "LoadScreen") {
         return Action::LoadScreen(id.to_string());

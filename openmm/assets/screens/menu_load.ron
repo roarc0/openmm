@@ -31,7 +31,7 @@
                 ),
             },
             on_click: [
-                "LoadGame(\"a\")",
+                "LoadSelectedGame()",
             ],
             on_hover: [],
             bindings: {},
@@ -47,7 +47,9 @@
                     texture: "icons/sarr1_pr",
                 ),
             },
-            on_click: [],
+            on_click: [
+                "SaveScrollUp()",
+            ],
             on_hover: [],
             bindings: {},
             click_sound: "clickout",
@@ -62,7 +64,9 @@
                     texture: "icons/sarr2_pr",
                 ),
             },
-            on_click: [],
+            on_click: [
+                "SaveScrollDown()",
+            ],
             on_hover: [],
             bindings: {},
             click_sound: "clickout",
@@ -94,6 +98,10 @@
             font: "smallnum",
             font_size: 18.0,
             color: "white",
+            on_click: [
+                "SelectSave(\"3\")",
+            ],
+            hover_color: Some("yellow"),
             align: "left",
         )),
         Image((
@@ -103,7 +111,7 @@
             z: 12,
             states: {
                 "default": (
-                    texture: "new/image.pcx",
+                    texture: "$saveslot.preview",
                 ),
             },
             on_click: [],
@@ -120,6 +128,10 @@
             font: "smallnum",
             font_size: 18.0,
             color: "white",
+            on_click: [
+                "SelectSave(\"0\")",
+            ],
+            hover_color: Some("yellow"),
             align: "left",
         )),
         Text((
@@ -132,6 +144,10 @@
             font: "smallnum",
             font_size: 18.0,
             color: "white",
+            on_click: [
+                "SelectSave(\"1\")",
+            ],
+            hover_color: Some("yellow"),
             align: "left",
         )),
         Text((
@@ -144,6 +160,10 @@
             font: "smallnum",
             font_size: 18.0,
             color: "white",
+            on_click: [
+                "SelectSave(\"2\")",
+            ],
+            hover_color: Some("yellow"),
             align: "left",
         )),
         Text((
@@ -156,6 +176,10 @@
             font: "smallnum",
             font_size: 18.0,
             color: "white",
+            on_click: [
+                "SelectSave(\"4\")",
+            ],
+            hover_color: Some("yellow"),
             align: "left",
         )),
         Text((
@@ -168,6 +192,10 @@
             font: "smallnum",
             font_size: 18.0,
             color: "white",
+            on_click: [
+                "SelectSave(\"5\")",
+            ],
+            hover_color: Some("yellow"),
             align: "left",
         )),
         Text((
@@ -180,6 +208,10 @@
             font: "smallnum",
             font_size: 18.0,
             color: "white",
+            on_click: [
+                "SelectSave(\"6\")",
+            ],
+            hover_color: Some("yellow"),
             align: "left",
         )),
         Text((
@@ -188,7 +220,7 @@
             size: (154.0, 14.0),
             z: 13,
             source: "",
-            value: "New Sorpigal",
+            value: "$saveslot.location",
             font: "smallnum",
             font_size: 16.0,
             color: "white",
@@ -200,7 +232,7 @@
             size: (154.0, 21.0),
             z: 13,
             source: "",
-            value: "Monday 9:00 AM \n1 January 1165",
+            value: "$saveslot.time",
             font: "smallnum",
             font_size: 16.0,
             color: "white",

@@ -17,8 +17,8 @@ use openmm_data::save::{SaveFile, list_saves};
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let out_root = Path::new("data/dump/saves");
-    fs::create_dir_all(out_root).expect("failed to create data/dump/saves");
+    let out_root = Path::new("data/dump/Saves");
+    fs::create_dir_all(out_root).expect("failed to create data/dump/Saves");
 
     let scan_dirs = candidate_save_dirs();
     if scan_dirs.is_empty() {
@@ -109,8 +109,8 @@ fn candidate_save_dirs() -> Vec<PathBuf> {
         }
     }
 
-    // OpenMM saves in ./saves/
-    let openmm_saves = PathBuf::from("saves");
+    // OpenMM saves in ./Saves/
+    let openmm_saves = PathBuf::from("Saves");
     if openmm_saves.is_dir() {
         info!("Scanning OpenMM saves: {}", openmm_saves.display());
         dirs.push(openmm_saves);

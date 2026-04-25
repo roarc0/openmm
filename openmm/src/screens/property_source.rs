@@ -49,39 +49,68 @@ impl PropertyRegistry {
     }
 }
 
-/// Interpolate all `${object.property}` placeholders in `template` using the registry.
+/// Interpolate all `${object.property}` and `$var` placeholders in `template`.
 /// Placeholders that cannot be resolved are left as-is.
-/// Returns `Cow::Borrowed` when no `${` is present (zero allocation for static strings).
+/// Returns `Cow::Borrowed` when no `$` is present.
 pub fn interpolate<'a>(template: &'a str, registry: &PropertyRegistry) -> Cow<'a, str> {
-    if !template.contains("${") {
+    if !template.contains('$') {
         return Cow::Borrowed(template);
     }
     let mut result = String::with_capacity(template.len());
     let mut rest = template;
-    while let Some(start) = rest.find("${") {
+    while let Some(start) = rest.find('$') {
         result.push_str(&rest[..start]);
-        rest = &rest[start + 2..];
-        if let Some(end) = rest.find('}') {
-            let expr = &rest[..end];
-            rest = &rest[end + 1..];
-            match registry.resolve(expr) {
-                Some(val) => result.push_str(&val),
-                None => {
-                    result.push_str("${");
-                    result.push_str(expr);
-                    result.push('}');
+        let mut inner = &rest[start + 1..];
+
+        if inner.starts_with('{') {
+            // Handle ${object.property}
+            inner = &inner[1..];
+            if let Some(end) = inner.find('}') {
+                let expr = &inner[..end];
+                rest = &inner[end + 1..];
+                match registry.resolve(expr) {
+                    Some(val) => result.push_str(&val),
+                    None => {
+                        result.push_str("${");
+                        result.push_str(expr);
+                        result.push('}');
+                    }
                 }
+            } else {
+                result.push_str("${");
+                result.push_str(inner);
+                return Cow::Owned(result);
             }
         } else {
-            // Unclosed placeholder — emit literally and stop.
-            result.push_str("${");
-            result.push_str(rest);
-            return Cow::Owned(result);
+            // Handle $var or $var[n]
+            // Read until next whitespace, punctuation (except . or [ or ]), or $
+            let end = inner
+                .find(|c: char| !c.is_alphanumeric() && c != '.' && c != '_' && c != '[' && c != ']')
+                .unwrap_or(inner.len());
+            let expr = &inner[..end];
+            rest = &inner[end..];
+
+            if expr.is_empty() {
+                result.push('$');
+                continue;
+            }
+
+            // Special case for $currentTime -> time.full (for backward compatibility if needed)
+            let resolved_expr = if expr == "currentTime" { "time.full" } else { expr };
+
+            match registry.resolve(resolved_expr) {
+                Some(val) => result.push_str(&val),
+                None => {
+                    result.push('$');
+                    result.push_str(expr);
+                }
+            }
         }
     }
     result.push_str(rest);
     Cow::Owned(result)
 }
+
 
 /// Marks an image entity whose texture name is a template string resolved each frame.
 /// Attach alongside the entity's [`bevy::prelude::ImageNode`].

@@ -15,6 +15,7 @@ use crate::assets::GameAssets;
 use crate::game::optional::OptionalWrite;
 use crate::game::ui::UiMode;
 use crate::system::config::GameConfig;
+use bevy::ecs::system::SystemParam;
 
 #[derive(Debug, PartialEq, Eq)]
 enum CloseWindowTarget {
@@ -562,28 +563,34 @@ fn tick_clicked_anim(anim: &mut ClickedAnimation, node: Option<&mut ImageNode>, 
     }
 }
 
+#[derive(SystemParam)]
+pub(super) struct ScreenActionParams<'w, 's> {
+    pub layers: ResMut<'w, ScreenLayers>,
+    pub layer_entities: Query<'w, 's, (Entity, &'static ScreenLayer)>,
+    pub sprite_query: Query<'w, 's, (&'static RuntimeElement, &'static mut Visibility)>,
+    pub cfg: ResMut<'w, GameConfig>,
+    pub game_assets: Res<'w, GameAssets>,
+    pub ui_assets: ResMut<'w, UiAssets>,
+    pub images: ResMut<'w, Assets<Image>>,
+    pub audio_sources: ResMut<'w, Assets<AudioSource>>,
+    pub exit_writer: bevy::ecs::message::MessageWriter<'w, bevy::app::AppExit>,
+    pub world_state: Option<Res<'w, crate::game::state::WorldState>>,
+    pub event_queue: Option<ResMut<'w, crate::game::events::scripting::EventQueue>>,
+    pub sound_manager: Option<Res<'w, crate::game::sound::SoundManager>>,
+    pub cursor_query: Query<'w, 's, &'static mut CursorOptions, With<PrimaryWindow>>,
+    pub save_manager: ResMut<'w, crate::game::save::slots::SaveManager>,
+}
+
 /// Process queued actions with full system access (commands, layers, entities, exit).
 /// Uses the scripting executor for Compare/Else/End control flow.
 pub(super) fn process_pending_actions(
     mut commands: Commands,
     mut actions_set: ParamSet<(MessageReader<ScreenActions>, Option<MessageWriter<ScreenActions>>)>,
-    mut layers: ResMut<ScreenLayers>,
-    layer_entities: Query<(Entity, &ScreenLayer)>,
-    mut sprite_query: Query<(&RuntimeElement, &mut Visibility)>,
-    mut cfg: ResMut<GameConfig>,
-    game_assets: Res<GameAssets>,
-    mut ui_assets: ResMut<UiAssets>,
-    mut images: ResMut<Assets<Image>>,
-    mut audio_sources: ResMut<Assets<AudioSource>>,
-    mut exit_writer: bevy::ecs::message::MessageWriter<bevy::app::AppExit>,
-    world_state: Option<Res<crate::game::state::WorldState>>,
-    mut event_queue: Option<ResMut<crate::game::events::scripting::EventQueue>>,
-    sound_manager: Option<Res<crate::game::sound::SoundManager>>,
+    mut params: ScreenActionParams,
     mut ui_action_set: ParamSet<(
         Option<ResMut<crate::game::ui::UiState>>,
         MessageWriter<ScreenActionEvent>,
     )>,
-    mut cursor_query: Query<&mut CursorOptions, With<PrimaryWindow>>,
 ) {
     use super::scripting::Action;
 
@@ -595,8 +602,8 @@ pub(super) fn process_pending_actions(
 
         // Build script context from available resources.
         let default_vars = crate::game::state::state::GameVariables::default();
-        let vars = world_state.as_ref().map(|ws| &ws.game_vars).unwrap_or(&default_vars);
-        let config_flags = build_config_flags(&cfg);
+        let vars = params.world_state.as_ref().map(|ws| &ws.game_vars).unwrap_or(&default_vars);
+        let config_flags = build_config_flags(&params.cfg);
         let ctx = super::scripting::ScriptContext {
             vars,
             config_flags: &config_flags,
@@ -608,10 +615,11 @@ pub(super) fn process_pending_actions(
             match action {
                 Action::Quit => {
                     info!("action: Quit");
-                    exit_writer.write(bevy::app::AppExit::Success);
+                    params.exit_writer.write(bevy::app::AppExit::Success);
                 }
-                Action::NewGame => {
-                    info!("action: NewGame — creating save from template");
+                Action::NewGame(cfg) => {
+                    info!("action: NewGame({:?}) — creating save from template", cfg);
+                    // For now, cfg is ignored, we always use new.lod
                     match crate::game::save::slots::create_new_game_save() {
                         Ok(path) => match crate::game::save::ActiveSave::from_file(path) {
                             Ok(save) => {
@@ -623,19 +631,75 @@ pub(super) fn process_pending_actions(
                         Err(e) => error!("Failed to create new game save: {e}"),
                     }
                 }
+                Action::LoadGame(name) => {
+                    info!("action: LoadGame(\"{}\")", name);
+                    let path = crate::game::save::slots::slot_path(&name);
+                    match crate::game::save::ActiveSave::from_file(path) {
+                        Ok(save) => {
+                            commands.insert_resource(save);
+                            commands.set_state(GameState::Loading);
+                        }
+                        Err(e) => error!("Failed to load save: {e}"),
+                    }
+                }
+                Action::LoadSelectedGame => {
+                    if let Some(name) = params.save_manager.get_selected_save_name() {
+                        info!("action: LoadSelectedGame — loading \"{}\"", name);
+                        let path = crate::game::save::slots::slot_path(&name);
+                        match crate::game::save::ActiveSave::from_file(path) {
+                            Ok(save) => {
+                                commands.insert_resource(save);
+                                commands.set_state(GameState::Loading);
+                            }
+                            Err(e) => error!("Failed to load save: {e}"),
+                        }
+                    } else {
+                        warn!("LoadSelectedGame: no save selected");
+                    }
+                }
+                Action::SelectSave(idx) => {
+                    let already_selected = params.save_manager.selected == Some(idx);
+                    params.save_manager.selected = Some(idx);
+                    if already_selected {
+                        if let Some(name) = params.save_manager.get_selected_save_name() {
+                            info!("action: SelectSave({}) — already selected, loading \"{}\"", idx, name);
+                            let path = crate::game::save::slots::slot_path(&name);
+                            match crate::game::save::ActiveSave::from_file(path) {
+                                Ok(save) => {
+                                    commands.insert_resource(save);
+                                    commands.set_state(GameState::Loading);
+                                }
+                                Err(e) => error!("Failed to load save: {e}"),
+                            }
+                        }
+                    } else {
+                        info!("action: SelectSave({}) — selecting", idx);
+                    }
+                }
+                Action::SaveScrollUp => {
+                    params.save_manager.scroll_up();
+                }
+                Action::SaveScrollDown => {
+                    params.save_manager.scroll_down();
+                }
                 Action::LoadScreen(id) => {
                     info!("action: LoadScreen(\"{}\")", id);
+                    if id == "menu_load" {
+                        params.save_manager.refresh();
+                        params.save_manager.selected = None;
+                        params.save_manager.offset = 0;
+                    }
                     load_screen_replace_all(
                         &id,
                         &mut commands,
-                        &mut layers,
-                        &layer_entities,
-                        &mut ui_assets,
-                        &game_assets,
-                        &mut images,
-                        &mut audio_sources,
-                        &cfg,
-                        &mut cursor_query,
+                        &mut params.layers,
+                        &params.layer_entities,
+                        &mut params.ui_assets,
+                        &params.game_assets,
+                        &mut params.images,
+                        &mut params.audio_sources,
+                        &params.cfg,
+                        &mut params.cursor_query,
                         &mut actions,
                     );
                 }
@@ -644,13 +708,13 @@ pub(super) fn process_pending_actions(
                     show_screen(
                         &id,
                         &mut commands,
-                        &mut layers,
-                        &mut ui_assets,
-                        &game_assets,
-                        &mut images,
-                        &mut audio_sources,
-                        &cfg,
-                        &mut cursor_query,
+                        &mut params.layers,
+                        &mut params.ui_assets,
+                        &params.game_assets,
+                        &mut params.images,
+                        &mut params.audio_sources,
+                        &params.cfg,
+                        &mut params.cursor_query,
                         &mut actions,
                     );
                 }
@@ -660,71 +724,73 @@ pub(super) fn process_pending_actions(
                     hide_screen(
                         &id,
                         &mut commands,
-                        &mut layers,
-                        &layer_entities,
-                        &mut cursor_query,
+                        &mut params.layers,
+                        &params.layer_entities,
+                        &mut params.cursor_query,
                         ui_mode,
                         &mut actions,
                     );
                 }
-                Action::ShowSprite(ref id) => {
-                    for (elem, mut vis) in &mut sprite_query {
-                        if elem.element_id == *id {
+                Action::ShowSprite(id) => {
+                    for (marker, mut vis) in &mut params.sprite_query {
+                        if marker.element_id == id {
                             *vis = Visibility::Inherited;
                         }
                     }
                 }
-                Action::HideSprite(ref id) => {
-                    for (elem, mut vis) in &mut sprite_query {
-                        if elem.element_id == *id {
+                Action::HideSprite(id) => {
+                    for (marker, mut vis) in &mut params.sprite_query {
+                        if marker.element_id == id {
                             *vis = Visibility::Hidden;
                         }
                     }
                 }
-                Action::EvtProxy(evt_str) => {
-                    if let Some(ref mut eq) = event_queue {
-                        proxy_evt_action(&evt_str, eq);
+                Action::EvtProxy(raw) => {
+                    if let Some(ref mut q) = params.event_queue {
+                        info!("action: EvtProxy(\"{}\")", raw);
+                        proxy_evt_action(&raw, q);
                     }
                 }
                 Action::SaveConfig(key, value) => {
                     info!("action: SaveConfig(\"{}\", \"{}\")", key, value);
                     match key.as_str() {
                         "skipIntro" | "skip_intro" => {
-                            cfg.skip_intro = value == "true";
+                            params.cfg.skip_intro = value == "true";
                         }
                         "skipLogo" | "skip_logo" => {
-                            cfg.skip_logo = value == "true";
+                            params.cfg.skip_logo = value == "true";
                         }
                         "debug" => {
-                            cfg.debug = value == "true";
+                            params.cfg.debug = value == "true";
                         }
                         _ => {
                             warn!("SaveConfig: unknown key '{}'", key);
                         }
                     }
-                    if let Err(e) = cfg.save() {
+                    if let Err(e) = params.cfg.save() {
                         error!("SaveConfig: failed to save: {}", e);
                     }
                 }
                 Action::CloseWindow => {
                     info!("action: CloseWindow");
-                    let top_modal_id = layers.top_modal_id().map(str::to_string);
+                    let top_modal_id = params.layers.top_modal_id().map(str::to_string);
+                    let ui_mode = ui_action_set.p0().as_ref().map(|ui| ui.mode);
                     let target = resolve_close_window_target(
                         top_modal_id.as_deref(),
-                        ui_action_set.p0().as_ref().map(|ui| ui.mode),
+                        ui_mode,
                     );
                     match target {
                         CloseWindowTarget::UiModeWorld => {
                             if let Some(ref mut ui) = ui_action_set.p0() {
-                                crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::World);
+                                crate::game::ui::set_ui_mode(ui, &mut params.cursor_query, crate::game::ui::UiMode::World);
                             }
                             if let Some(ref modal_id) = top_modal_id {
                                 hide_screen(
                                     modal_id,
                                     &mut commands,
-                                    &mut layers,
-                                    &layer_entities,
-                                    &mut cursor_query,
+                                    &mut params.layers,
+                                    &params.layer_entities,
+                                    &mut params.cursor_query,
                                     Some(crate::game::ui::UiMode::World),
                                     &mut actions,
                                 );
@@ -735,13 +801,12 @@ pub(super) fn process_pending_actions(
                             commands.remove_resource::<crate::game::ui::HouseProfile>();
                         }
                         CloseWindowTarget::TopModal(top_modal_id) => {
-                            let ui_mode = ui_action_set.p0().as_ref().map(|ui| ui.mode);
                             hide_screen(
                                 &top_modal_id,
                                 &mut commands,
-                                &mut layers,
-                                &layer_entities,
-                                &mut cursor_query,
+                                &mut params.layers,
+                                &params.layer_entities,
+                                &mut params.cursor_query,
                                 ui_mode,
                                 &mut actions,
                             );
@@ -750,12 +815,12 @@ pub(super) fn process_pending_actions(
                     }
                 }
                 Action::PlaySoundNamed(ref name) => {
-                    push_sound_by_name(name, sound_manager.as_deref(), &mut event_queue);
+                    push_sound_by_name(name, params.sound_manager.as_deref(), &mut params.event_queue);
                 }
                 Action::EnterTurnBattle => {
                     info!("action: EnterTurnBattle");
                     if let Some(ref mut ui) = ui_action_set.p0() {
-                        crate::game::ui::set_ui_mode(ui, &mut cursor_query, crate::game::ui::UiMode::TurnBattle);
+                        crate::game::ui::set_ui_mode(ui, &mut params.cursor_query, crate::game::ui::UiMode::TurnBattle);
                     }
                 }
                 Action::GreetingSound => {
@@ -766,8 +831,8 @@ pub(super) fn process_pending_actions(
                         .subsec_nanos() as usize;
                     push_sound_by_name(
                         GREETING_SOUNDS[nanos % GREETING_SOUNDS.len()],
-                        sound_manager.as_deref(),
-                        &mut event_queue,
+                        params.sound_manager.as_deref(),
+                        &mut params.event_queue,
                     );
                 }
                 Action::Unknown(s) => {

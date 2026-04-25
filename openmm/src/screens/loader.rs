@@ -90,6 +90,11 @@ pub fn load_texture_with_transparency(
     images: &mut Assets<Image>,
     cfg: &GameConfig,
 ) -> Option<Handle<Image>> {
+    // Handle save file screenshots.
+    if let Some(slot_name) = tex_name.strip_prefix("saveslot:preview:") {
+        return ui_assets.get_or_load_screenshot(slot_name, images, cfg);
+    }
+
     // Strip `icons/` prefix — UiAssets.get_or_load already prepends it via lod.icon().
     let bare = tex_name
         .strip_prefix("icons/")

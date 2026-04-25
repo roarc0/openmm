@@ -35,6 +35,7 @@ impl Plugin for ScreenRuntimePlugin {
             .add_message::<ScreenActionEvent>()
             .init_resource::<ScreenLayers>()
             .init_resource::<ScreenUiHovered>()
+            .init_resource::<crate::game::save::slots::SaveManager>()
             .init_resource::<crate::screens::PropertyRegistry>()
             // Menu state: load "menu" screen.
             .add_systems(OnEnter(GameState::Menu), menu_screen_setup)
@@ -63,6 +64,7 @@ impl Plugin for ScreenRuntimePlugin {
             )
             .add_systems(Update, text_update.run_if(screen_states.clone()))
             .add_systems(Update, dynamic_texture_update.run_if(screen_states.clone()))
+            .add_systems(Update, crate::game::save::slots::update_save_registry.run_if(screen_states.clone()))
             .add_systems(Update, click_flash_tick.run_if(screen_states.clone()))
             .add_systems(Update, process_pending_actions.run_if(screen_states.clone()))
             .add_systems(

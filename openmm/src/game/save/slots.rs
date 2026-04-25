@@ -1,11 +1,31 @@
 //! Save slot helpers: directory paths, new-game template, slot naming.
 
+use bevy::prelude::*;
+use openmm_data::save::file::{SaveFile, list_saves};
 use std::error::Error;
 use std::path::PathBuf;
 
-/// Directory where save files are stored.
-pub fn saves_dir() -> PathBuf {
-    PathBuf::from("data/saves")
+use crate::screens::PropertySource;
+
+/// Directory where OpenMM-specific save files are stored.
+pub fn local_saves_dir() -> PathBuf {
+    PathBuf::from("data/Saves")
+}
+
+/// Directory where original MM6 save files are stored.
+pub fn original_saves_dir() -> Option<PathBuf> {
+    let data_path = PathBuf::from(openmm_data::get_data_path());
+    // get_data_path returns the data/ directory. Saves are typically in the root alongside it.
+    let root = data_path.parent()?;
+    let candidate = root.join("Saves");
+    if candidate.is_dir() {
+        return Some(candidate);
+    }
+    let candidate = root.join("saves");
+    if candidate.is_dir() {
+        return Some(candidate);
+    }
+    None
 }
 
 /// Path to the new-game template LOD (ships with MM6 data).
@@ -17,33 +37,156 @@ pub fn new_game_template() -> PathBuf {
 /// Returns the path to the created save file.
 pub fn create_new_game_save() -> Result<PathBuf, Box<dyn Error>> {
     let src = new_game_template();
-    let dir = saves_dir();
+    let dir = local_saves_dir();
     std::fs::create_dir_all(&dir)?;
-    let dest = dir.join("autosave1.mm6");
+    let dest = dir.join("autosave.mm6");
     std::fs::copy(&src, &dest)?;
     Ok(dest)
 }
 
-/// Full path for a named save slot, e.g. `"save000"` -> `data/saves/save000.mm6`.
-/// Also checks the MM6 `Saves/` directory (sibling of the data/LOD path) as fallback.
+/// Full path for a named save slot, searching multiple locations.
+/// Prioritizes local saves in data/Saves/.
 pub fn slot_path(slot: &str) -> PathBuf {
     let filename = format!("{slot}.mm6");
+    let local = local_saves_dir().join(&filename);
+    if local.exists() {
+        return local;
+    }
+    if let Some(orig) = original_saves_dir() {
+        let orig_path = orig.join(&filename);
+        if orig_path.exists() {
+            return orig_path;
+        }
+    }
+    // Fallback to local path if not found anywhere (so we create it there if needed)
+    local
+}
 
-    // Check openmm saves dir first
-    let openmm_path = saves_dir().join(&filename);
-    if openmm_path.exists() {
-        return openmm_path;
+#[derive(Resource, Default)]
+pub struct SaveManager {
+    pub saves: Vec<SaveFile>,
+    pub offset: usize,
+    pub selected: Option<usize>,
+}
+
+impl SaveManager {
+    pub fn refresh(&mut self) {
+        let mut all_saves = list_saves(local_saves_dir());
+        if let Some(orig) = original_saves_dir() {
+            let orig_saves = list_saves(orig);
+            // Append original saves, but avoid duplicates if slot name is same
+            for s in orig_saves {
+                if !all_saves.iter().any(|existing| existing.slot == s.slot) {
+                    all_saves.push(s);
+                }
+            }
+        }
+        self.saves = all_saves;
     }
 
-    // Fallback: MM6 Saves/ directory (sibling of the LOD data path)
-    let data_path = std::path::PathBuf::from(openmm_data::get_data_path());
-    if let Some(parent) = data_path.parent() {
-        let mm6_path = parent.join("Saves").join(&filename);
-        if mm6_path.exists() {
-            return mm6_path;
+    pub fn scroll_up(&mut self) {
+        if self.offset > 0 {
+            self.offset -= 1;
         }
     }
 
-    // Return openmm path even if missing (caller gets a clear "not found" error)
-    openmm_path
+    pub fn scroll_down(&mut self) {
+        if self.saves.len() > 7 && self.offset < self.saves.len() - 7 {
+            self.offset += 1;
+        }
+    }
+
+    pub fn get_slot_text(&self, index: usize) -> String {
+        let actual_idx = self.offset + index;
+        if actual_idx < self.saves.len() {
+            let name = self.saves[actual_idx].header().save_name.clone();
+            if name.is_empty() {
+                self.saves[actual_idx].slot.clone()
+            } else {
+                name
+            }
+        } else {
+            String::new()
+        }
+    }
+
+    pub fn get_selected_save_name(&self) -> Option<String> {
+        let idx = self.selected? + self.offset;
+        self.saves.get(idx).map(|s| s.slot.clone())
+    }
+}
+
+struct SaveSlotSource {
+    slots: [String; 7],
+    selected_preview: Option<String>,
+    selected_location: String,
+    selected_time: String,
+}
+
+impl PropertySource for SaveSlotSource {
+    fn source_name(&self) -> &str {
+        "saveslot"
+    }
+
+    fn resolve(&self, path: &str) -> Option<String> {
+        match path {
+            "preview" => self.selected_preview.clone(),
+            "location" => Some(self.selected_location.clone()),
+            "time" => Some(self.selected_time.clone()),
+            _ => {
+                let idx: usize = if path.starts_with('[') && path.ends_with(']') {
+                    path[1..path.len() - 1].parse().ok()?
+                } else {
+                    path.parse().ok()?
+                };
+                self.slots.get(idx).cloned()
+            }
+        }
+    }
+}
+
+pub fn update_save_registry(save_manager: Res<SaveManager>, mut registry: ResMut<crate::screens::PropertyRegistry>) {
+    if !save_manager.is_changed() {
+        return;
+    }
+    let mut slots = [
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+        String::new(),
+    ];
+    for i in 0..7 {
+        slots[i] = save_manager.get_slot_text(i);
+    }
+
+    let mut selected_preview = None;
+    let mut selected_location = String::new();
+    let mut selected_time = String::new();
+
+    if let Some(idx) = save_manager.selected {
+        let actual_idx = save_manager.offset + idx;
+        if let Some(save) = save_manager.saves.get(actual_idx) {
+            selected_preview = Some(format!("saveslot:preview:{}", save.slot));
+            let header = save.header();
+            selected_location = if header.save_name.is_empty() {
+                header.map_name.clone()
+            } else {
+                header.save_name.clone()
+            };
+
+            // MM6 ticks are 128 per second. 1 minute = 60s = 7680 ticks.
+            let total_minutes = (header.playing_time / 7680) as u64;
+            selected_time = openmm_data::utils::time::format_full(total_minutes);
+        }
+    }
+
+    registry.register(Box::new(SaveSlotSource {
+        slots,
+        selected_preview,
+        selected_location,
+        selected_time,
+    }));
 }
