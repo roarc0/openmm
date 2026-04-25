@@ -892,3 +892,40 @@ mod tests {
         assert_eq!(target, CloseWindowTarget::None);
     }
 }
+
+/// Dynamically updates the FocusPolicy of UI elements with alpha masks.
+/// If the cursor is over a transparent pixel, the policy is set to Pass,
+/// allowing interactions to "fall through" to elements below.
+pub(crate) fn pixel_perfect_focus(
+    window_query: Query<&Window, With<PrimaryWindow>>,
+    mut query: Query<(&ComputedNode, &GlobalTransform, &super::runtime::ElementAlphaMask, &mut bevy::ui::FocusPolicy)>,
+) {
+    let Ok(window) = window_query.single() else {
+        return;
+    };
+    let cursor_pos = window.cursor_position();
+
+    for (computed_node, transform, mask, mut focus_policy) in &mut query {
+        let mut hit = false;
+        if let Some(cursor_pos) = cursor_pos {
+            let size = computed_node.size;
+            let pos = transform.translation().xy();
+            let rect = Rect::from_center_size(pos, size);
+
+            if rect.contains(cursor_pos) {
+                let local_pos = cursor_pos - rect.min;
+                let u = local_pos.x / size.x;
+                let v = local_pos.y / size.y;
+                if mask.0.test(u, v) {
+                    hit = true;
+                }
+            }
+        }
+
+         *focus_policy = if hit {
+            bevy::ui::FocusPolicy::Block
+        } else {
+            bevy::ui::FocusPolicy::Pass
+        };
+    }
+}

@@ -57,6 +57,7 @@ pub(crate) struct AudioParams<'w> {
     pub texture_outdoors: bevy::ecs::message::MessageWriter<'w, ApplyTextureOutdoors>,
     pub sound_manager: Option<Res<'w, SoundManager>>,
     pub game_time: Option<Res<'w, crate::game::state::GameTime>>,
+    pub registry: Option<Res<'w, crate::screens::PropertyRegistry>>,
     pub meshes: ResMut<'w, Assets<Mesh>>,
 }
 
@@ -174,7 +175,17 @@ pub(crate) fn process_events(
             // ── UI / feedback ────────────────────────────────────────
             GameEvent::Hint { str_id, text } => {
                 debug!("Hint(id={}): {}", str_id, text);
-                ui.footer.set(text);
+                let mut resolved = if let Some(ref reg) = audio.registry {
+                    crate::screens::interpolate(text, reg).into_owned()
+                } else {
+                    text.clone()
+                };
+                // Fallback for $ placeholders
+                if let Some(ref gt) = audio.game_time {
+                    resolved = resolved.replace("$currentTime", &gt.format_full());
+                    resolved = resolved.replace("$current_date", &gt.format_datetime());
+                }
+                ui.footer.set(&resolved);
             }
             GameEvent::StatusText { str_id, text } => {
                 debug!("StatusText(id={}): {}", str_id, text);

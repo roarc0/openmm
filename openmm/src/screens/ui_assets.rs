@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use image::{DynamicImage, GenericImageView};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::assets::{self, GameAssets};
+use crate::game::sprites::loading::AlphaMask;
 use crate::system::config::GameConfig;
 
 /// Resolve the image sampler from the `hud_filtering` config value.
@@ -22,6 +24,8 @@ pub struct UiAssets {
     textures: HashMap<String, Handle<Image>>,
     /// Original pixel dimensions (width, height) of each loaded asset.
     dimensions: HashMap<String, (u32, u32)>,
+    /// CPU-side alpha masks for pixel-perfect hit testing.
+    masks: HashMap<String, Arc<AlphaMask>>,
 }
 
 impl UiAssets {
@@ -32,6 +36,7 @@ impl UiAssets {
     pub fn clear_cache(&mut self) {
         self.textures.clear();
         self.dimensions.clear();
+        self.masks.clear();
     }
 
     /// Load a UI texture by name from the LOD icons archive.
@@ -53,11 +58,14 @@ impl UiAssets {
         }
         let img = game_assets.lod().icon(name)?;
         let (w, h) = img.dimensions();
+        let mask = Arc::new(AlphaMask::from_image(&img.to_rgba8()));
+
         let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
         bevy_img.sampler = hud_sampler(cfg);
         let handle = images.add(bevy_img);
         self.textures.insert(name.to_string(), handle.clone());
         self.dimensions.insert(name.to_string(), (w, h));
+        self.masks.insert(name.to_string(), mask);
         Some(handle)
     }
 
@@ -83,11 +91,15 @@ impl UiAssets {
         let mut img = game_assets.lod().icon(name)?;
         let (w, h) = img.dimensions();
         transform(&mut img);
+
+        let mask = Arc::new(AlphaMask::from_image(&img.to_rgba8()));
+
         let mut bevy_img = crate::assets::dynamic_to_bevy_image(img);
         bevy_img.sampler = hud_sampler(cfg);
         let handle = images.add(bevy_img);
         self.textures.insert(cache_key.to_string(), handle.clone());
         self.dimensions.insert(cache_key.to_string(), (w, h));
+        self.masks.insert(cache_key.to_string(), mask);
         self.dimensions.entry(name.to_string()).or_insert((w, h));
         Some(handle)
     }
@@ -95,6 +107,11 @@ impl UiAssets {
     /// Get the original pixel dimensions of a loaded asset.
     pub fn dimensions(&self, name: &str) -> Option<(u32, u32)> {
         self.dimensions.get(name).copied()
+    }
+
+    /// Get the alpha mask for a loaded asset by its name or cache key.
+    pub fn mask(&self, key: &str) -> Option<Arc<AlphaMask>> {
+        self.masks.get(key).cloned()
     }
 }
 

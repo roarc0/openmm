@@ -58,7 +58,7 @@
             },
             on_click: [],
             on_hover: [
-                "evt:Hint(\"$current_date\")",
+                "evt:Hint(\"$currentTime\")",
             ],
             bindings: {
                 "source": "compass",

@@ -83,36 +83,6 @@ pub(super) fn spawn_image_element(
         None
     };
 
-    // Crop mode: native texture dimensions for inner image, explicit size for clip container.
-    // Must be after load_texture_with_transparency — that populates ui_assets.dimensions().
-    let native_size = if img.crop && img.size.0 > 0.0 && img.size.1 > 0.0 {
-        img.texture_for_state("default").and_then(|name| {
-            let bare = name
-                .strip_prefix("icons/")
-                .unwrap_or_else(|| name.split('/').next_back().unwrap_or(name));
-            ui_assets
-                .dimensions(bare)
-                .or_else(|| ui_assets.dimensions(name))
-                .map(|(tw, th)| (tw as f32, th as f32))
-        })
-    } else {
-        None
-    };
-
-    let node = Node {
-        position_type: PositionType::Absolute,
-        left: Val::Percent(img.position.0 / REF_W * 100.0),
-        top: Val::Percent(img.position.1 / REF_H * 100.0),
-        width: Val::Percent(w / REF_W * 100.0),
-        height: Val::Percent(h / REF_H * 100.0),
-        overflow: if native_size.is_some() {
-            Overflow::clip()
-        } else {
-            Overflow::visible()
-        },
-        ..default()
-    };
-
     let hover_handle = img.states.get("hover").and_then(|state| {
         if state.texture.is_empty() {
             None
@@ -172,12 +142,59 @@ pub(super) fn spawn_image_element(
         })
     });
 
+    let has_interaction = hover_handle.is_some()
+        || hover_texture_handle.is_some()
+        || hover_anim_data.is_some()
+        || clicked_handle.is_some()
+        || !img.on_click.is_empty()
+        || !img.on_hover.is_empty();
+
+    let initial_vis = if img.hidden {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    };
+
+    // Crop mode: native texture dimensions for inner image, explicit size for clip container.
+    // Must be after load_texture_with_transparency — that populates ui_assets.dimensions().
+    let native_size = if img.crop && img.size.0 > 0.0 && img.size.1 > 0.0 {
+        img.texture_for_state("default").and_then(|name| {
+            let bare = name
+                .strip_prefix("icons/")
+                .unwrap_or_else(|| name.split('/').next_back().unwrap_or(name));
+            ui_assets
+                .dimensions(bare)
+                .or_else(|| ui_assets.dimensions(name))
+                .map(|(tw, th)| (tw as f32, th as f32))
+        })
+    } else {
+        None
+    };
+
+    let node = Node {
+        position_type: PositionType::Absolute,
+        left: Val::Percent(img.position.0 / REF_W * 100.0),
+        top: Val::Percent(img.position.1 / REF_H * 100.0),
+        width: Val::Percent(w / REF_W * 100.0),
+        height: Val::Percent(h / REF_H * 100.0),
+        overflow: if native_size.is_some() || img.crop_w > 0.0 || img.crop_h > 0.0 {
+            Overflow::clip()
+        } else {
+            Overflow::visible()
+        },
+        ..default()
+    };
+
     let binding = img.bindings.get("source").map(|s| s.as_str());
     let auto_sky_crop = binding == Some("sky_scroll") && img.crop_w <= 0.0 && img.crop_h <= 0.0;
-
-    // Cropped image: spawn as clip container + scrollable inner image.
-    // sky_scroll auto-enables this path using the authored image size as viewport.
     let has_crop = (img.crop_w > 0.0 && img.crop_h > 0.0) || auto_sky_crop;
+
+    let marker = RuntimeElement {
+        screen_id: screen_id.to_string(),
+        index,
+        element_id: img.id.clone(),
+    };
+
     if has_crop {
         let crop_w = if img.crop_w > 0.0 {
             img.crop_w
@@ -210,131 +227,127 @@ pub(super) fn spawn_image_element(
             overflow: Overflow::clip(),
             ..default()
         };
-        let marker = RuntimeElement {
-            screen_id: screen_id.to_string(),
-            index,
-            element_id: img.id.clone(),
-        };
-        commands
-            .spawn((clip_node, ZIndex(img.z), marker, layer_tag.clone()))
-            .with_children(|clip| {
-                // Inner image fills the crop area by default (bindings scroll it).
-                let tile_w_pct = if w > crop_w { w / crop_w * 100.0 } else { 100.0 };
-                let inner_w = if w > crop_w {
-                    Val::Percent(w / crop_w * 100.0)
-                } else {
-                    Val::Percent(100.0)
-                };
-                let inner_h = if h > crop_h {
-                    Val::Percent(h / crop_h * 100.0)
-                } else {
-                    Val::Percent(100.0)
-                };
+        let mut clip_node_entity = commands.spawn((
+            clip_node,
+            ZIndex(img.z),
+            marker,
+            layer_tag.clone(),
+            initial_vis,
+            bevy::ui::FocusPolicy::Pass,
+        ));
 
-                if binding == Some("sky_scroll") {
-                    let mut inner = clip.spawn((
-                        Node {
+        if has_interaction {
+            clip_node_entity.insert((Button, BackgroundColor(Color::NONE)));
+        }
+        if let Some(mask) = ui_assets.mask(&default_tex) {
+            clip_node_entity.insert(super::runtime::ElementAlphaMask(mask));
+        }
+
+        clip_node_entity.with_children(|clip| {
+            // Inner image fills the crop area by default (bindings scroll it).
+            let tile_w_pct = if w > crop_w { w / crop_w * 100.0 } else { 100.0 };
+            let inner_w = if w > crop_w {
+                Val::Percent(w / crop_w * 100.0)
+            } else {
+                Val::Percent(100.0)
+            };
+            let inner_h = if h > crop_h {
+                Val::Percent(h / crop_h * 100.0)
+            } else {
+                Val::Percent(100.0)
+            };
+
+            if binding == Some("sky_scroll") {
+                let mut inner = clip.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(0.0),
+                        top: Val::Px(0.0),
+                        width: Val::Percent(tile_w_pct * 2.0),
+                        height: inner_h,
+                        ..default()
+                    },
+                    CroppedImage { crop_w, crop_h },
+                    SkyScrollBinding,
+                ));
+
+                if let Some(handle) = image_handle {
+                    inner.with_children(|parent| {
+                        let tile_node = Node {
                             position_type: PositionType::Absolute,
-                            left: Val::Px(0.0),
                             top: Val::Px(0.0),
-                            width: Val::Percent(tile_w_pct * 2.0),
-                            height: inner_h,
+                            width: Val::Percent(50.0),
+                            height: Val::Percent(100.0),
                             ..default()
-                        },
-                        CroppedImage { crop_w, crop_h },
-                        SkyScrollBinding,
-                    ));
-
-                    if let Some(handle) = image_handle {
-                        inner.with_children(|parent| {
-                            let tile_node = Node {
-                                position_type: PositionType::Absolute,
-                                top: Val::Px(0.0),
-                                width: Val::Percent(50.0),
-                                height: Val::Percent(100.0),
-                                ..default()
-                            };
-                            parent.spawn((
-                                Node {
-                                    left: Val::Percent(0.0),
-                                    ..tile_node.clone()
-                                },
-                                ImageNode::new(handle.clone()),
-                            ));
-                            parent.spawn((
-                                Node {
-                                    left: Val::Percent(50.0),
-                                    ..tile_node
-                                },
-                                ImageNode::new(handle),
-                            ));
-                        });
-                    }
-                } else {
-                    let mut inner = clip.spawn((
-                        Node {
-                            position_type: PositionType::Absolute,
-                            left: Val::Px(0.0),
-                            top: Val::Px(0.0),
-                            width: inner_w,
-                            height: inner_h,
-                            ..default()
-                        },
-                        CroppedImage { crop_w, crop_h },
-                    ));
-
-                    if let Some(handle) = image_handle {
-                        inner.insert(ImageNode::new(handle));
-                    } else if binding == Some("minimap") {
-                        // Minimap gets a default ImageNode — texture set by minimap_scroll.
-                        inner.insert(ImageNode::default());
-                    }
-
-                    match binding {
-                        Some("compass") => {
-                            inner.insert(CompassBinding);
-                        }
-                        Some("minimap") => {
-                            inner.insert(MinimapBinding { zoom: 3.0 });
-                        }
-                        _ => {}
-                    }
-
-                    if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
-                        inner.insert(anim);
-                    }
+                        };
+                        parent.spawn((
+                            Node {
+                                left: Val::Percent(0.0),
+                                ..tile_node.clone()
+                            },
+                            ImageNode::new(handle.clone()),
+                        ));
+                        parent.spawn((
+                            Node {
+                                left: Val::Percent(50.0),
+                                ..tile_node
+                            },
+                            ImageNode::new(handle),
+                        ));
+                    });
                 }
-            });
+            } else {
+                let mut inner = clip.spawn((
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(0.0),
+                        top: Val::Px(0.0),
+                        width: inner_w,
+                        height: inner_h,
+                        ..default()
+                    },
+                    CroppedImage { crop_w, crop_h },
+                ));
+
+                if let Some(handle) = image_handle {
+                    inner.insert(ImageNode::new(handle));
+                } else if binding == Some("minimap") {
+                    // Minimap gets a default ImageNode — texture set by minimap_scroll.
+                    inner.insert(ImageNode::default());
+                }
+
+                match binding {
+                    Some("compass") => {
+                        inner.insert(CompassBinding);
+                    }
+                    Some("minimap") => {
+                        inner.insert(MinimapBinding { zoom: 3.0 });
+                    }
+                    _ => {}
+                }
+
+                if let Some(anim) = load_animation(img, ui_assets, game_assets, images, cfg) {
+                    inner.insert(anim);
+                }
+            }
+        });
         return;
     }
 
-    let has_interaction = hover_handle.is_some()
-        || hover_texture_handle.is_some()
-        || hover_anim_data.is_some()
-        || clicked_handle.is_some()
-        || !img.on_click.is_empty()
-        || !img.on_hover.is_empty();
     let z = ZIndex(img.z);
-    let marker = RuntimeElement {
-        screen_id: screen_id.to_string(),
-        index,
-        element_id: img.id.clone(),
-    };
-    let initial_vis = if img.hidden {
-        Visibility::Hidden
-    } else {
-        Visibility::Inherited
-    };
-
     if let Some(handle) = default_handle {
         // Crop mode: outer node clips, inner child holds texture at native size.
         if let Some((tw, th)) = native_size {
-            let mut entity = commands.spawn((node, z, marker, layer_tag.clone(), initial_vis));
+            let mut entity =
+                commands.spawn((node, z, marker, layer_tag.clone(), initial_vis, bevy::ui::FocusPolicy::Pass));
             if has_interaction {
                 entity.insert((Button, BackgroundColor(Color::NONE)));
             }
             if img.hidden {
                 entity.insert(HiddenByDefault);
+            }
+            if let Some(mask) = ui_assets.mask(&default_tex) {
+                entity.insert(super::runtime::ElementAlphaMask(mask));
             }
             entity.with_children(|parent| {
                 let mut inner = parent.spawn((
@@ -367,10 +380,6 @@ pub(super) fn spawn_image_element(
                     });
                 }
                 if let Some((handles, fps, ping_pong)) = hover_anim_data {
-                    info!(
-                        "attaching hover animation to child of '{}' (ping_pong={})",
-                        img.id, ping_pong
-                    );
                     inner.insert(super::runtime::HoverAnimation {
                         handles,
                         fps,
@@ -392,6 +401,7 @@ pub(super) fn spawn_image_element(
                 marker,
                 layer_tag.clone(),
                 initial_vis,
+                bevy::ui::FocusPolicy::Pass,
             ));
             // Dynamic texture: template contains ${...} placeholders resolved each frame.
             if default_tex.contains("${") {
@@ -403,6 +413,9 @@ pub(super) fn spawn_image_element(
             }
             if has_interaction {
                 entity.insert((Button, BackgroundColor(Color::NONE)));
+            }
+            if let Some(mask) = ui_assets.mask(&default_tex) {
+                entity.insert(super::runtime::ElementAlphaMask(mask));
             }
             if let Some(clicked) = clicked_handle {
                 entity.insert(super::runtime::ClickedTexture {
@@ -485,6 +498,9 @@ pub(super) fn spawn_image_element(
         }
         if has_interaction {
             entity.insert((Button, BackgroundColor(Color::NONE)));
+        }
+        if let Some(mask) = ui_assets.mask(&default_tex) {
+            entity.insert(super::runtime::ElementAlphaMask(mask));
         }
         if let Some(clicked) = clicked_handle {
             entity.insert(super::runtime::ClickedTexture { clicked, default: None });

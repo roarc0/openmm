@@ -20,8 +20,8 @@ impl Plugin for ScreenRuntimePlugin {
     fn build(&self, app: &mut App) {
         use super::elements::{dynamic_texture_update, text_update, update_screen_crosshair};
         use super::interaction::{
-            click_flash_tick, hover_actions, hover_animate_tick, process_pending_actions, screen_click, screen_hover,
-            screen_keys, text_hover,
+            click_flash_tick, hover_actions, hover_animate_tick, pixel_perfect_focus, process_pending_actions,
+            screen_click, screen_hover, screen_keys, text_hover,
         };
         use super::setup::{game_screen_setup, loading_screen_setup, menu_screen_setup, screen_teardown};
         use super::video::video_tick;
@@ -46,6 +46,7 @@ impl Plugin for ScreenRuntimePlugin {
             .add_systems(OnEnter(GameState::Game), game_screen_setup)
             .add_systems(OnExit(GameState::Game), screen_teardown)
             // Interaction and text systems run in Menu, Loading, and Game states.
+            .add_systems(Update, pixel_perfect_focus.run_if(screen_states.clone()))
             .add_systems(Update, screen_hover.run_if(screen_states.clone()))
             .add_systems(Update, hover_actions.run_if(screen_states.clone()))
             .add_systems(Update, hover_animate_tick.run_if(screen_states.clone()))
@@ -98,6 +99,10 @@ pub(super) struct HoverOverlay;
 
 #[derive(Component)]
 pub(super) struct ScreenMusic(pub(super) String);
+
+/// CPU-side alpha mask for pixel-perfect hit testing on a UI image.
+#[derive(Component)]
+pub(crate) struct ElementAlphaMask(pub(crate) std::sync::Arc<crate::game::sprites::loading::AlphaMask>);
 
 #[derive(Component)]
 pub(crate) struct ClickFlash {

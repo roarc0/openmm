@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::GameState;
+use crate::screens::PropertySource;
 use openmm_data::utils::time;
 
 // ── Time scale ────────────────────────────────────────────────────────────────
@@ -19,7 +20,7 @@ const SECS_PER_GAME_MINUTE: f64 = 1.0;
 ///
 /// **Epoch:** midnight, 1 January, Year 1000 (Monday).
 /// **Default start:** 9:00am, 1 January, Year 1000.
-#[derive(Resource)]
+#[derive(Resource, Clone)]
 pub struct GameTime {
     /// Real seconds accumulated while the game clock is running.
     elapsed_secs: f64,
@@ -87,6 +88,11 @@ impl GameTime {
         time::format(self.total_minutes())
     }
 
+    /// Format the current date and time in full, e.g. `"9:00 am Monday 1 January 1000"`.
+    pub fn format_full(&self) -> String {
+        time::format_full(self.total_minutes())
+    }
+
     /// Create GameTime from MM6 calendar fields.
     /// `month_0` is 0-indexed (0=Jan), `day_0` is 0-indexed (from party.bin).
     /// Epoch: midnight Jan 1, Year 1000.
@@ -123,6 +129,20 @@ impl GameTime {
     }
 }
 
+impl PropertySource for GameTime {
+    fn source_name(&self) -> &str {
+        "time"
+    }
+
+    fn resolve(&self, path: &str) -> Option<String> {
+        match path {
+            "" | "current" => Some(self.format_datetime()),
+            "full" => Some(self.format_full()),
+            _ => None,
+        }
+    }
+}
+
 impl Default for GameTime {
     fn default() -> Self {
         Self {
@@ -141,11 +161,22 @@ impl Plugin for GameTimePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameTime>().add_systems(
             Update,
-            advance_game_time
-                .run_if(in_state(GameState::Game))
-                .run_if(crate::game::ui::is_world_mode),
+            (
+                advance_game_time
+                    .run_if(crate::game::ui::is_world_mode)
+                    .run_if(in_state(GameState::Game)),
+                update_time_registry.run_if(in_state(GameState::Game)),
+            ),
         );
     }
+}
+
+/// System to sync GameTime into the global PropertyRegistry.
+pub fn update_time_registry(game_time: Res<GameTime>, mut registry: ResMut<crate::screens::PropertyRegistry>) {
+    if !game_time.is_changed() {
+        return;
+    }
+    registry.register(Box::new(game_time.clone()));
 }
 
 /// Advance the game clock. 1 real second = 1 in-game minute.

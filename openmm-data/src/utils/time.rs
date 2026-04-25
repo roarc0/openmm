@@ -8,6 +8,20 @@ pub const DAYS_IN_MONTH: [u32; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30
 pub const MONTH_NAMES: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+pub const MONTH_NAMES_FULL: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
 // Jan 1, Year 1000 is defined as Monday.
 pub const DAY_NAMES: [&str; 7] = [
     "Monday",
@@ -105,5 +119,22 @@ pub fn format(total_minutes: u64) -> String {
         h12,
         minute(total_minutes),
         ampm
+    )
+}
+
+pub fn format_full(total_minutes: u64) -> String {
+    let (y, m, d) = date(total_minutes);
+    let dow = DAY_NAMES[day_of_week(total_minutes) as usize];
+    let month_name = MONTH_NAMES_FULL[(m - 1) as usize];
+    let (h12, ampm) = to_12_hour(hour(total_minutes));
+    format!(
+        "{}:{:02} {} {} {} {} {}",
+        h12,
+        minute(total_minutes),
+        ampm,
+        dow,
+        d,
+        month_name,
+        y
     )
 }
