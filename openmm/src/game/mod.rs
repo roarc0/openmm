@@ -8,6 +8,7 @@ pub(crate) mod map;
 pub(crate) mod optional;
 pub(crate) mod player;
 pub(crate) mod rendering;
+pub(crate) mod save;
 pub(crate) mod sound;
 pub(crate) mod spawn;
 pub(crate) mod sprites;

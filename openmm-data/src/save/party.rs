@@ -3,7 +3,7 @@
 // Contains party position, calendar, gold/food, quest bits, autonotes,
 // and 4 character records. Keeps raw bytes for round-trip fidelity.
 
-use super::character::{SaveCharacter, CHARACTER_SIZE};
+use super::character::{CHARACTER_SIZE, SaveCharacter};
 
 /// Total size of party.bin in bytes.
 pub const PARTY_BIN_SIZE: usize = 64720;
@@ -56,12 +56,7 @@ pub struct SaveParty {
 
 /// Read an i32 (little-endian) from a byte slice at the given offset.
 fn read_i32(data: &[u8], offset: usize) -> i32 {
-    i32::from_le_bytes([
-        data[offset],
-        data[offset + 1],
-        data[offset + 2],
-        data[offset + 3],
-    ])
+    i32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]])
 }
 
 /// Write an i32 (little-endian) into a byte slice at the given offset.
@@ -107,11 +102,7 @@ impl SaveParty {
 
         let raw = data[..PARTY_BIN_SIZE].to_vec();
 
-        let position = [
-            read_i32(data, 0x0028),
-            read_i32(data, 0x002C),
-            read_i32(data, 0x0030),
-        ];
+        let position = [read_i32(data, 0x0028), read_i32(data, 0x002C), read_i32(data, 0x0030)];
         let direction = read_i32(data, 0x0034);
         let look_angle = read_i32(data, 0x0038);
 
@@ -208,8 +199,7 @@ mod tests {
 
     /// Load party.bin from new.lod test data.
     fn load_party_bin() -> Vec<u8> {
-        let save =
-            crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("open new.lod");
+        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("open new.lod");
         save.get_file("party.bin").expect("party.bin missing")
     }
 

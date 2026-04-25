@@ -57,11 +57,7 @@ impl SaveHeader {
 
         let save_name = read_fixed_str(&raw[SAVE_NAME_OFFSET..SAVE_NAME_OFFSET + SAVE_NAME_LEN]);
         let map_name = read_fixed_str(&raw[MAP_NAME_OFFSET..MAP_NAME_OFFSET + MAP_NAME_LEN]);
-        let playing_time = i64::from_le_bytes(
-            raw[PLAYING_TIME_OFFSET..PLAYING_TIME_OFFSET + 8]
-                .try_into()
-                .unwrap(),
-        );
+        let playing_time = i64::from_le_bytes(raw[PLAYING_TIME_OFFSET..PLAYING_TIME_OFFSET + 8].try_into().unwrap());
 
         Self {
             save_name,
@@ -74,10 +70,15 @@ impl SaveHeader {
     /// Serialize back to 100 bytes, patching parsed fields into the raw copy.
     pub fn to_bytes(&self) -> [u8; HEADER_SIZE] {
         let mut out = self.raw;
-        write_fixed_str(&mut out[SAVE_NAME_OFFSET..SAVE_NAME_OFFSET + SAVE_NAME_LEN], &self.save_name);
-        write_fixed_str(&mut out[MAP_NAME_OFFSET..MAP_NAME_OFFSET + MAP_NAME_LEN], &self.map_name);
-        out[PLAYING_TIME_OFFSET..PLAYING_TIME_OFFSET + 8]
-            .copy_from_slice(&self.playing_time.to_le_bytes());
+        write_fixed_str(
+            &mut out[SAVE_NAME_OFFSET..SAVE_NAME_OFFSET + SAVE_NAME_LEN],
+            &self.save_name,
+        );
+        write_fixed_str(
+            &mut out[MAP_NAME_OFFSET..MAP_NAME_OFFSET + MAP_NAME_LEN],
+            &self.map_name,
+        );
+        out[PLAYING_TIME_OFFSET..PLAYING_TIME_OFFSET + 8].copy_from_slice(&self.playing_time.to_le_bytes());
         out
     }
 
@@ -113,8 +114,7 @@ mod tests {
 
     #[test]
     fn parse_new_lod_header() {
-        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod")
-            .expect("failed to open new.lod");
+        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
         let data = save.get_file("header.bin").expect("header.bin missing");
         assert_eq!(data.len(), HEADER_SIZE);
 
@@ -126,8 +126,7 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod")
-            .expect("failed to open new.lod");
+        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
         let data = save.get_file("header.bin").expect("header.bin missing");
         let header = SaveHeader::parse(&data);
 
@@ -137,8 +136,7 @@ mod tests {
 
     #[test]
     fn round_trip_after_mutation() {
-        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod")
-            .expect("failed to open new.lod");
+        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("failed to open new.lod");
         let data = save.get_file("header.bin").expect("header.bin missing");
         let mut header = SaveHeader::parse(&data);
 

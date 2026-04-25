@@ -121,10 +121,7 @@ impl Plugin for EngineConfigPlugin {
         if let Some(limit_res) = app.world().get_resource::<FrametimeLimit>() {
             if let Ok(mut limit) = limit_res.0.try_lock() {
                 *limit = Duration::from_secs_f64(1.0 / cfg.fps_cap.max(1) as f64);
-                info!(
-                    "Framepace: pre-set limit to {:?} (fps_cap={})",
-                    *limit, cfg.fps_cap
-                );
+                info!("Framepace: pre-set limit to {:?} (fps_cap={})", *limit, cfg.fps_cap);
             }
         }
 

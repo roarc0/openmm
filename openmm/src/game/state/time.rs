@@ -201,8 +201,11 @@ mod tests {
         ] {
             let gt = GameTime::from_calendar(y, m, d, h, min);
             let (ry, rm, rd, rh, rmin) = gt.to_calendar();
-            assert_eq!((ry, rm, rd, rh, rmin), (y, m, d, h, min),
-                "roundtrip failed for ({y}, {m}, {d}, {h}, {min})");
+            assert_eq!(
+                (ry, rm, rd, rh, rmin),
+                (y, m, d, h, min),
+                "roundtrip failed for ({y}, {m}, {d}, {h}, {min})"
+            );
         }
     }
 }

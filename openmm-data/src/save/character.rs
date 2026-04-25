@@ -98,8 +98,7 @@ impl SaveCharacter {
 
         let hp = i32::from_le_bytes([data[0x1414], data[0x1415], data[0x1416], data[0x1417]]);
         let sp = i32::from_le_bytes([data[0x1418], data[0x1419], data[0x141A], data[0x141B]]);
-        let birth_year =
-            i32::from_le_bytes([data[0x141C], data[0x141D], data[0x141E], data[0x141F]]);
+        let birth_year = i32::from_le_bytes([data[0x141C], data[0x141D], data[0x141E], data[0x141F]]);
         let experience = i64::from_le_bytes([
             data[0x1420],
             data[0x1421],
@@ -110,8 +109,7 @@ impl SaveCharacter {
             data[0x1426],
             data[0x1427],
         ]);
-        let skill_points =
-            i32::from_le_bytes([data[0x1410], data[0x1411], data[0x1412], data[0x1413]]);
+        let skill_points = i32::from_le_bytes([data[0x1410], data[0x1411], data[0x1412], data[0x1413]]);
 
         Self {
             raw,
@@ -186,8 +184,7 @@ mod tests {
 
     /// Load party.bin from new.lod test data.
     fn load_party_bin() -> Vec<u8> {
-        let save =
-            crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("open new.lod");
+        let save = crate::assets::save::SaveFile::open("../data/mm6/data/new.lod").expect("open new.lod");
         save.get_file("party.bin").expect("party.bin missing")
     }
 
