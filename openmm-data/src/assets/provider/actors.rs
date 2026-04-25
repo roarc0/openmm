@@ -119,6 +119,12 @@ impl Actors {
             // Do NOT filter by hp == 0 here. Fresh DDM files (never saved) have hp=0 for all
             // monsters because the original engine initialises HP from monsters.txt at load time.
             // Dead actors are tracked by dead_actor_ids once map-state persistence is implemented.
+            // However, ai_state == 5 (dead) is reliable — the OG engine sets it when killing,
+            // so saved DDMs from the original game correctly mark dead actors.
+            if raw.ai_state == 5 {
+                log::debug!("Actor '{}' idx={} is dead (ai_state=5) — skipping", raw.name, idx);
+                continue;
+            }
 
             let Some(entry) = super::monster::resolve_entry(raw.monlist_id, game_data, assets) else {
                 log::warn!(

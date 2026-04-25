@@ -14,14 +14,12 @@ fn main() {
 
     // OpenEnroth Party_MM7 struct: timePlayed is i64 at offset 0x2C
     let time_i64 = i64::from_le_bytes([
-        data[0x2C], data[0x2D], data[0x2E], data[0x2F],
-        data[0x30], data[0x31], data[0x32], data[0x33],
+        data[0x2C], data[0x2D], data[0x2E], data[0x2F], data[0x30], data[0x31], data[0x32], data[0x33],
     ]);
     println!("\n=== 0x2C timePlayed (i64, OpenEnroth) ===");
     println!(
         "raw: {:02X} {:02X} {:02X} {:02X}  {:02X} {:02X} {:02X} {:02X}",
-        data[0x2C], data[0x2D], data[0x2E], data[0x2F],
-        data[0x30], data[0x31], data[0x32], data[0x33],
+        data[0x2C], data[0x2D], data[0x2E], data[0x2F], data[0x30], data[0x31], data[0x32], data[0x33],
     );
     println!("i64 value: {}", time_i64);
 

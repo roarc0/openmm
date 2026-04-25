@@ -42,8 +42,7 @@ impl Plugin for GamePlugin {
             match ActiveSave::from_file(slots::slot_path("autosave1")) {
                 Ok(save) => save,
                 Err(_) => {
-                    let path =
-                        slots::create_new_game_save().expect("failed to create initial save from new.lod");
+                    let path = slots::create_new_game_save().expect("failed to create initial save from new.lod");
                     ActiveSave::from_file(path).expect("failed to load new game save")
                 }
             }

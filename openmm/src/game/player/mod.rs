@@ -11,7 +11,7 @@ use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 use crate::GameState;
 use crate::game::InGame;
-use crate::game::map::collision::sample_terrain_height;
+use crate::game::map::collision::{BuildingColliders, probe_ground_height};
 use crate::game::optional::OptionalWrite;
 use crate::game::save::ActiveSave;
 use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
@@ -228,6 +228,7 @@ fn spawn_player(
     mut commands: Commands,
     prepared: Option<Res<PreparedWorld>>,
     indoor: Option<Res<PreparedIndoorWorld>>,
+    colliders: Option<Res<BuildingColliders>>,
     settings: Res<PlayerSettings>,
     cfg: Res<crate::system::config::GameConfig>,
     active_save: Res<ActiveSave>,
@@ -255,15 +256,20 @@ fn spawn_player(
         let pos = active_save.spawn_position;
         let has_save_pos = pos.x != 0.0 || pos.y != 0.0 || pos.z != 0.0;
         if has_save_pos {
-            let y = sample_terrain_height(&prepared.map.height_map, pos.x, pos.z) + settings.eye_height;
+            let y =
+                probe_ground_height(&prepared.map.height_map, colliders.as_deref(), pos.x, pos.z) + settings.eye_height;
             (pos.x, y, pos.z, active_save.spawn_yaw)
         } else {
             let party_start = prepared.start_points.iter().find(|sp| {
                 sp.name.to_lowercase().contains("party start") || sp.name.to_lowercase().contains("party_start")
             });
             if let Some(sp) = party_start {
-                let y =
-                    sample_terrain_height(&prepared.map.height_map, sp.position.x, sp.position.z) + settings.eye_height;
+                let y = probe_ground_height(
+                    &prepared.map.height_map,
+                    colliders.as_deref(),
+                    sp.position.x,
+                    sp.position.z,
+                ) + settings.eye_height;
                 (sp.position.x, y, sp.position.z, sp.yaw)
             } else {
                 (0.0, settings.eye_height, 0.0, 0.0)

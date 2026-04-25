@@ -41,10 +41,22 @@ impl ActiveSave {
         // MM6 direction: 0-2047, 0=east, 512=north (counterclockwise).
         // Bevy rotation_y: 0 = -Z (north), positive = counterclockwise from above.
         // Convert: bevy_yaw = (mm6_dir * TAU / 2048) - PI/2
-        let spawn_yaw = (party.direction as f32) * std::f32::consts::TAU / 2048.0
-            - std::f32::consts::FRAC_PI_2;
+        let spawn_yaw = (party.direction as f32) * std::f32::consts::TAU / 2048.0 - std::f32::consts::FRAC_PI_2;
 
-        let map_name = MapName::try_from(header.map_stem()).unwrap_or(MapName::Indoor("oute3".into()));
+        let map_stem = header.map_stem();
+        let map_name = match MapName::try_from(map_stem) {
+            Ok(name) => {
+                info!("save header map: '{}' -> {:?}", header.map_name, &name);
+                name
+            }
+            Err(e) => {
+                warn!(
+                    "invalid map name '{}' in save header: {} — defaulting to oute3",
+                    map_stem, e
+                );
+                MapName::Outdoor(openmm_data::utils::OdmName::default())
+            }
+        };
 
         Ok(Self {
             path,
