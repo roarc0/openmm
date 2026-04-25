@@ -34,20 +34,20 @@ impl SaveFile {
 
     /// Parse the save header from `header.bin`.
     pub fn header(&self) -> SaveHeader {
-        self.lod
+        let data = self
+            .lod
             .get_file("header.bin")
-            .as_deref()
-            .map(SaveHeader::parse)
-            .unwrap_or_default()
+            .unwrap_or_else(|| panic!("save '{}' missing header.bin", self.path.display()));
+        SaveHeader::parse(&data)
     }
 
     /// Parse the party data from `party.bin`.
     pub fn party(&self) -> SaveParty {
-        self.lod
+        let data = self
+            .lod
             .get_file("party.bin")
-            .as_deref()
-            .map(SaveParty::parse)
-            .unwrap_or_else(|| SaveParty::parse(&vec![0u8; 0xB258]))
+            .unwrap_or_else(|| panic!("save '{}' missing party.bin", self.path.display()));
+        SaveParty::parse(&data)
     }
 
     /// Parse the clock data from `clock.bin`.

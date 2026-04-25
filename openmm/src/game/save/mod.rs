@@ -44,19 +44,10 @@ impl ActiveSave {
         let spawn_yaw = (party.direction as f32) * std::f32::consts::TAU / 2048.0 - std::f32::consts::FRAC_PI_2;
 
         let map_stem = header.map_stem();
-        let map_name = match MapName::try_from(map_stem) {
-            Ok(name) => {
-                info!("save header map: '{}' -> {:?}", header.map_name, &name);
-                name
-            }
-            Err(e) => {
-                warn!(
-                    "invalid map name '{}' in save header: {} — defaulting to oute3",
-                    map_stem, e
-                );
-                MapName::Outdoor(openmm_data::utils::OdmName::default())
-            }
-        };
+        let map_name = MapName::try_from(map_stem).unwrap_or_else(|e| {
+            panic!("invalid map name '{}' in save header: {e}", map_stem);
+        });
+        info!("save header map: '{}' -> {:?}", header.map_name, &map_name);
 
         Ok(Self {
             path,
