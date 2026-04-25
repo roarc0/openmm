@@ -3,9 +3,9 @@ use game::rendering::engine::EngineConfigPlugin;
 
 use assets::GameAssets;
 use game::InGamePlugin;
+use game::save::{ActiveSave, slots};
 use prepare::loading::LoadingPlugin;
 use system::config::GameConfig;
-use system::save::GameSave;
 
 pub(crate) mod assets;
 #[cfg(feature = "editor")]
@@ -34,7 +34,13 @@ impl Plugin for GamePlugin {
         let cfg = GameConfig::load();
         let game_assets = GameAssets::new(openmm_data::get_data_path().into()).expect("unable to load game data files");
         let game_fonts = screens::fonts::GameFonts::load(&game_assets);
-        let save_data = GameSave::load_or_default();
+        let active_save = match ActiveSave::from_file(slots::slot_path("autosave1")) {
+            Ok(save) => save,
+            Err(_) => {
+                let path = slots::create_new_game_save().expect("failed to create initial save from new.lod");
+                ActiveSave::from_file(path).expect("failed to load new game save")
+            }
+        };
 
         let editor_mode = cfg.editor;
         let initial_state = if editor_mode {
@@ -62,7 +68,7 @@ impl Plugin for GamePlugin {
             .insert_resource(cfg)
             .insert_resource(game_assets)
             .insert_resource(game_fonts)
-            .insert_resource(save_data)
+            .insert_resource(active_save)
             .init_resource::<screens::ui_assets::UiAssets>()
             .add_plugins(EngineConfigPlugin);
 

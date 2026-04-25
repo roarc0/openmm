@@ -10,7 +10,7 @@ use openmm_data::{
     blv::Blv,
     dtile::{Dtile, TileTable},
     odm::{Odm, OdmData},
-    utils::{MapName, OdmName},
+    utils::MapName,
 };
 
 // Re-export types so existing `crate::states::loading::X` paths keep working.
@@ -152,9 +152,11 @@ impl LoadingStep {
 fn loading_setup(
     mut commands: Commands,
     load_request: Option<Res<LoadRequest>>,
-    save_data: Res<crate::system::save::GameSave>,
+    active_save: Res<crate::game::save::ActiveSave>,
     cfg: Res<GameConfig>,
     mut world_state: ResMut<crate::game::state::WorldState>,
+    mut party: ResMut<crate::game::player::party::Party>,
+    mut game_time: ResMut<crate::game::state::GameTime>,
 ) {
     // Clean up resources from previous map (indoor or outdoor)
     commands.remove_resource::<PreparedWorld>();
@@ -179,14 +181,12 @@ fn loading_setup(
                     .inspect_err(|e| eprintln!("warning: invalid map in config: {e}"))
                     .ok()
             })
-            .unwrap_or_else(|| {
-                MapName::Outdoor(OdmName {
-                    x: save_data.map.map_x,
-                    y: save_data.map.map_y,
-                })
-            });
+            .unwrap_or_else(|| active_save.map_name.clone());
         (name, None, None)
     };
+
+    // Populate live game state from the save file
+    crate::game::save::load::populate_state_from_save(&active_save, &mut world_state, &mut party, &mut game_time);
 
     // Keep world_state in sync so spawn_world sees the correct map name
     world_state.map.name = map_name.clone();

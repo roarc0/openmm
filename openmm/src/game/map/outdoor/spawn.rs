@@ -24,7 +24,7 @@ pub(super) fn spawn_world(
     mut terrain_materials: Option<ResMut<Assets<spawn_terrain::TerrainMaterial>>>,
     mut bsp_water_materials: Option<ResMut<Assets<super::bsp_water::BspWaterMaterial>>>,
     mut prepared: ResMut<PreparedWorld>,
-    save_data: Res<crate::system::save::GameSave>,
+    active_save: Res<crate::game::save::ActiveSave>,
     cfg: Res<crate::system::config::GameConfig>,
     mut music_events: Option<bevy::ecs::message::MessageWriter<crate::game::sound::music::PlayMusicEvent>>,
 ) {
@@ -55,11 +55,7 @@ pub(super) fn spawn_world(
         &cfg,
     );
 
-    let player_spawn = Vec3::new(
-        save_data.player.position[0],
-        save_data.player.position[1],
-        save_data.player.position[2],
-    );
+    let player_spawn = active_save.spawn_position;
     let orders = compute_all_sprites_spawns(prepared, player_spawn);
 
     music_events.try_write(crate::game::sound::music::PlayMusicEvent {

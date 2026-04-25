@@ -14,11 +14,11 @@ use crate::GameState;
 use crate::game::InGame;
 use crate::game::map::outdoor::OdmName;
 use crate::game::rendering::viewport::viewport_inner_rect;
+use crate::game::save::ActiveSave;
 use crate::game::state::WorldState;
 use crate::screens::debug::hud::DebugHud;
 use crate::screens::ui_assets::UiAssets;
 use crate::system::config::GameConfig;
-use crate::system::save::GameSave;
 use openmm_data::utils::MapName;
 
 mod commands;
@@ -172,7 +172,7 @@ fn console_input(
     mut keyboard_events: MessageReader<KeyboardInput>,
     mut exit: MessageWriter<AppExit>,
     mut world_state: ResMut<WorldState>,
-    mut save_data: ResMut<GameSave>,
+    mut active_save: ResMut<ActiveSave>,
     mut commands: Commands,
     mut game_state: ResMut<NextState<GameState>>,
     mut cfg: ResMut<GameConfig>,
@@ -205,7 +205,7 @@ fn console_input(
                         &mut state,
                         &mut exit,
                         &mut world_state,
-                        &mut save_data,
+                        &mut active_save,
                         &mut commands,
                         &mut game_state,
                         &mut cfg,
@@ -307,7 +307,7 @@ fn execute_command(
     state: &mut ConsoleState,
     exit: &mut MessageWriter<AppExit>,
     world: &mut WorldState,
-    save_data: &mut GameSave,
+    active_save: &mut ActiveSave,
     cmds: &mut Commands,
     game_state: &mut NextState<GameState>,
     cfg: &mut GameConfig,
@@ -324,8 +324,8 @@ fn execute_command(
 
     match command {
         // Map loading
-        "reload" => commands::cmd_reload(state, world, save_data, cmds, game_state),
-        "load" | "map" => commands::cmd_load(state, &parts, world, save_data, cmds, game_state, game_assets),
+        "reload" => commands::cmd_reload(state, world, active_save, cmds, game_state),
+        "load" | "map" => commands::cmd_load(state, &parts, world, active_save, cmds, game_state, game_assets),
 
         // Graphics
         "msaa" | "aa" => commands::cmd_msaa(state, cfg, arg),

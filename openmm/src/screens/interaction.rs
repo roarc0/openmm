@@ -611,8 +611,17 @@ pub(super) fn process_pending_actions(
                     exit_writer.write(bevy::app::AppExit::Success);
                 }
                 Action::NewGame => {
-                    info!("action: NewGame");
-                    commands.set_state(GameState::Loading);
+                    info!("action: NewGame — creating save from template");
+                    match crate::game::save::slots::create_new_game_save() {
+                        Ok(path) => match crate::game::save::ActiveSave::from_file(path) {
+                            Ok(save) => {
+                                commands.insert_resource(save);
+                                commands.set_state(GameState::Loading);
+                            }
+                            Err(e) => error!("Failed to load new game save: {e}"),
+                        },
+                        Err(e) => error!("Failed to create new game save: {e}"),
+                    }
                 }
                 Action::LoadScreen(id) => {
                     info!("action: LoadScreen(\"{}\")", id);

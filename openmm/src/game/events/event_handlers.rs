@@ -171,15 +171,14 @@ pub(super) fn handle_move_to_map(
     );
 
     if let MapName::Outdoor(ref odm) = target {
-        transition.save_data.map.map_x = odm.x;
-        transition.save_data.map.map_y = odm.y;
         world_state.map.map_x = odm.x;
         world_state.map.map_y = odm.y;
     }
     world_state.map.name = target.clone();
 
-    transition.save_data.player.position = pos;
-    transition.save_data.player.yaw = yaw;
+    transition.active_save.spawn_position = Vec3::from(pos);
+    transition.active_save.spawn_yaw = yaw;
+    transition.active_save.update_map(&target);
 
     commands.insert_resource(LoadRequest {
         map_name: target,

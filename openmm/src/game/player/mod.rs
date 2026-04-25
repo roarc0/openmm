@@ -13,9 +13,9 @@ use crate::GameState;
 use crate::game::InGame;
 use crate::game::map::collision::sample_terrain_height;
 use crate::game::optional::OptionalWrite;
+use crate::game::save::ActiveSave;
 use crate::prepare::loading::{PreparedIndoorWorld, PreparedWorld};
 use crate::system::config::GameConfig;
-use crate::system::save::GameSave;
 
 use input::{cursor_grab, player_look, player_movement, toggle_fly_mode, toggle_mouse_look, toggle_run_mode};
 
@@ -230,7 +230,7 @@ fn spawn_player(
     indoor: Option<Res<PreparedIndoorWorld>>,
     settings: Res<PlayerSettings>,
     cfg: Res<crate::system::config::GameConfig>,
-    save_data: Res<GameSave>,
+    active_save: Res<ActiveSave>,
 ) {
     let is_indoor = indoor.is_some();
 
@@ -252,11 +252,11 @@ fn spawn_player(
     } else if let Some(ref prepared) = prepared {
         // Outdoor: prefer save_data position (set by MoveToMap / dungeon exit) if non-zero,
         // otherwise use the map's default "party start" spawn point
-        let pos = save_data.player.position;
-        let has_save_pos = pos[0] != 0.0 || pos[1] != 0.0 || pos[2] != 0.0;
+        let pos = active_save.spawn_position;
+        let has_save_pos = pos.x != 0.0 || pos.y != 0.0 || pos.z != 0.0;
         if has_save_pos {
-            let y = sample_terrain_height(&prepared.map.height_map, pos[0], pos[2]) + settings.eye_height;
-            (pos[0], y, pos[2], save_data.player.yaw)
+            let y = sample_terrain_height(&prepared.map.height_map, pos.x, pos.z) + settings.eye_height;
+            (pos.x, y, pos.z, active_save.spawn_yaw)
         } else {
             let party_start = prepared.start_points.iter().find(|sp| {
                 sp.name.to_lowercase().contains("party start") || sp.name.to_lowercase().contains("party_start")
@@ -271,10 +271,10 @@ fn spawn_player(
         }
     } else {
         (
-            save_data.player.position[0],
-            save_data.player.position[1],
-            save_data.player.position[2],
-            save_data.player.yaw,
+            active_save.spawn_position.x,
+            active_save.spawn_position.y,
+            active_save.spawn_position.z,
+            active_save.spawn_yaw,
         )
     };
 

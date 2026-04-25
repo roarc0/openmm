@@ -26,7 +26,7 @@ use crate::game::events::events::MapEvents;
 /// Bundles save + state transition to stay within Bevy's 16-param system limit.
 #[derive(SystemParam)]
 pub(crate) struct TransitionParams<'w> {
-    pub save_data: ResMut<'w, crate::system::save::GameSave>,
+    pub active_save: ResMut<'w, crate::game::save::ActiveSave>,
     pub game_state: ResMut<'w, NextState<GameState>>,
 }
 

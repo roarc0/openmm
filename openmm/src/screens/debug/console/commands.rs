@@ -10,10 +10,10 @@ use super::{ConsoleState, HELP_TEXT, NEEDS_RELOAD, parse_coords, parse_toggle, r
 use crate::GameState;
 use crate::game::map::outdoor::{OdmName, PLAY_WIDTH};
 use crate::game::player::SpeedMultiplier;
+use crate::game::save::ActiveSave;
 use crate::game::state::{GameTime, WorldState};
 use crate::prepare::loading::LoadRequest;
 use crate::system::config::GameConfig;
-use crate::system::save::GameSave;
 use openmm_data::utils::MapName;
 
 // --- Map loading ---
@@ -21,12 +21,12 @@ use openmm_data::utils::MapName;
 pub(super) fn cmd_reload(
     state: &mut ConsoleState,
     world: &mut WorldState,
-    save_data: &mut GameSave,
+    active_save: &mut ActiveSave,
     commands: &mut Commands,
     game_state: &mut NextState<GameState>,
 ) {
     let target = world.map.name.clone();
-    world.write_to_save(save_data);
+    active_save.update_map(&target);
     state.push_output(format!("Reloading map: {}", target));
     state.open = false;
     commands.insert_resource(LoadRequest {
@@ -41,7 +41,7 @@ pub(super) fn cmd_load(
     state: &mut ConsoleState,
     parts: &[&str],
     world: &mut WorldState,
-    save_data: &mut GameSave,
+    active_save: &mut ActiveSave,
     commands: &mut Commands,
     game_state: &mut NextState<GameState>,
     game_assets: &crate::GameAssets,
@@ -98,11 +98,8 @@ pub(super) fn cmd_load(
         Ok((target, pos)) => {
             state.push_output(format!("Loading map: {} at ({:.0}, {:.0})", target, pos[0], pos[2]));
             state.open = false;
-            save_data.player.position = pos;
-            if let MapName::Outdoor(ref odm) = target {
-                save_data.map.map_x = odm.x;
-                save_data.map.map_y = odm.y;
-            }
+            active_save.spawn_position = Vec3::new(pos[0], pos[1], pos[2]);
+            active_save.update_map(&target);
             commands.insert_resource(LoadRequest {
                 map_name: target.clone(),
                 spawn_position: None,

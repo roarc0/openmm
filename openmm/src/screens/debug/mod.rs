@@ -12,8 +12,8 @@ pub mod hud;
 pub mod perf_log;
 
 use crate::game::player::Player;
+use crate::game::save::ActiveSave;
 use crate::system::config::GameConfig;
-use crate::system::save::GameSave;
 use openmm_data::odm::{ODM_PLAY_SIZE, ODM_TILE_SCALE};
 
 /// Dedicated render layer for debug gizmos so they render only in the 3D player camera.
@@ -326,15 +326,15 @@ pub fn debug_log(
 
 pub fn quicksave(
     keys: Res<ButtonInput<KeyCode>>,
-    world_state: Res<crate::game::state::WorldState>,
-    mut save_data: ResMut<GameSave>,
+    player_query: Query<&Transform, With<Player>>,
+    mut active_save: ResMut<ActiveSave>,
 ) {
     if keys.just_pressed(KeyCode::F3) {
-        world_state.write_to_save(&mut save_data);
-        match save_data.autosave() {
-            Ok(()) => info!("Saved to data/saves/autosave.json"),
-            Err(e) => error!("Failed to save: {}", e),
+        if let Ok(transform) = player_query.single() {
+            active_save.update_from_transform(transform);
         }
+        // TODO: write ActiveSave back to disk once save writing is implemented
+        info!("Quicksave: position synced to ActiveSave (disk write not yet implemented)");
     }
 }
 

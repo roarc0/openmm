@@ -2,12 +2,10 @@ use bevy::prelude::*;
 
 use crate::game::map::outdoor::OdmName;
 use crate::screens::PropertySource;
-use crate::system::save::GameSave;
 use openmm_data::utils::MapName;
 
 /// Centralized live runtime state for the game world.
 /// The single source of truth for player state and current map.
-/// Save/load copies between this and GameSave.
 ///
 /// In-game time is owned by [`super::time::GameTime`], not here.
 #[derive(Resource, Default)]
@@ -198,33 +196,6 @@ impl GameVariables {
 
     pub fn item_count(&self, item_id: i32) -> i32 {
         self.items.get(&item_id).copied().unwrap_or(0)
-    }
-}
-
-impl WorldState {
-    /// Copy live state into GameSave for persistence.
-    pub fn write_to_save(&self, save: &mut GameSave) {
-        save.player.position = [self.player.position.x, self.player.position.y, self.player.position.z];
-        save.player.yaw = self.player.yaw;
-        save.map.map_x = self.map.map_x;
-        save.map.map_y = self.map.map_y;
-        save.progress.quest_bits = self.game_vars.quest_bits.iter().copied().collect();
-        save.progress.autonotes = self.game_vars.autonotes.iter().copied().collect();
-        save.progress.gold = self.game_vars.gold;
-        save.progress.food = self.game_vars.food;
-    }
-
-    /// Restore live state from GameSave after loading.
-    pub fn read_from_save(&mut self, save: &GameSave) {
-        let p = &save.player;
-        self.player.position = Vec3::new(p.position[0], p.position[1], p.position[2]);
-        self.player.yaw = p.yaw;
-        self.map.map_x = save.map.map_x;
-        self.map.map_y = save.map.map_y;
-        self.game_vars.quest_bits = save.progress.quest_bits.iter().copied().collect();
-        self.game_vars.autonotes = save.progress.autonotes.iter().copied().collect();
-        self.game_vars.gold = save.progress.gold;
-        self.game_vars.food = save.progress.food;
     }
 }
 

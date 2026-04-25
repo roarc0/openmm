@@ -12,7 +12,7 @@ pub const PLAY_WIDTH: f32 = openmm_data::odm::ODM_TILE_SCALE * openmm_data::odm:
 pub(super) fn check_map_boundary(
     mut commands: Commands,
     mut world_state: ResMut<crate::game::state::WorldState>,
-    mut save_data: ResMut<crate::system::save::GameSave>,
+    mut active_save: ResMut<crate::game::save::ActiveSave>,
     mut game_state: ResMut<NextState<GameState>>,
     player_query: Query<&Transform, With<crate::game::player::Player>>,
     load_request: Option<Res<crate::prepare::loading::LoadRequest>>,
@@ -62,7 +62,9 @@ pub(super) fn check_map_boundary(
     world_state.map.map_y = new_odm.y;
     world_state.player.position = Vec3::new(new_x, pos.y, new_z);
     world_state.player.yaw = yaw;
-    world_state.write_to_save(&mut save_data);
+    active_save.spawn_position = Vec3::new(new_x, pos.y, new_z);
+    active_save.spawn_yaw = yaw;
+    active_save.update_map(&world_state.map.name);
 
     commands.insert_resource(crate::prepare::loading::LoadRequest {
         map_name: world_state.map.name.clone(),
