@@ -39,7 +39,7 @@ impl PropertyRegistry {
     /// Resolve an `"object.property"` spec. Returns `None` if object not found
     /// or property not handled.
     pub fn resolve(&self, spec: &str) -> Option<String> {
-        let split_pos = spec.find(|c| c == '.' || c == '[');
+        let split_pos = spec.find(['.', '[']);
         if let Some(i) = split_pos {
             let (name, path) = (&spec[..i], &spec[i..]);
             // If we split on '.', strip it from the path. If we split on '[', keep it.
@@ -113,7 +113,6 @@ pub fn interpolate<'a>(template: &'a str, registry: &PropertyRegistry) -> Cow<'a
     result.push_str(rest);
     Cow::Owned(result)
 }
-
 
 /// Marks an image entity whose texture name is a template string resolved each frame.
 /// Attach alongside the entity's [`bevy::prelude::ImageNode`].

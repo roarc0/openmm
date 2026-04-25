@@ -11,6 +11,32 @@ use openmm_data::utils::MapName;
 use std::error::Error;
 use std::path::PathBuf;
 
+/// MM6 direction range: 0-2047 maps to a full circle (TAU radians).
+const MM6_DIRECTION_RANGE: f32 = 2048.0;
+
+/// Convert MM6 position [x, y, z] to Bevy Vec3.
+/// MM6: X right, Y forward, Z up. Bevy: X right, Y up, Z = -Y_mm6.
+fn mm6_to_bevy_position(mm6: &[i32; 3]) -> Vec3 {
+    Vec3::new(mm6[0] as f32, mm6[2] as f32, -(mm6[1] as f32))
+}
+
+/// Convert Bevy Vec3 back to MM6 position [x, y, z].
+fn bevy_to_mm6_position(pos: Vec3) -> [i32; 3] {
+    [pos.x as i32, -(pos.z as i32), pos.y as i32]
+}
+
+/// Convert MM6 direction (0=east, 512=north, counterclockwise) to Bevy yaw.
+/// Bevy rotation_y: 0 = -Z (north), positive = counterclockwise from above.
+fn mm6_to_bevy_yaw(mm6_dir: i32) -> f32 {
+    (mm6_dir as f32) * std::f32::consts::TAU / MM6_DIRECTION_RANGE - std::f32::consts::FRAC_PI_2
+}
+
+/// Convert Bevy yaw back to MM6 direction (0-2047).
+fn bevy_to_mm6_direction(yaw: f32) -> i32 {
+    let raw = ((yaw + std::f32::consts::FRAC_PI_2) * MM6_DIRECTION_RANGE / std::f32::consts::TAU) as i32;
+    raw.rem_euclid(MM6_DIRECTION_RANGE as i32)
+}
+
 /// Live save state loaded from a `.mm6` archive.
 /// Holds parsed header + party data and the converted Bevy-space spawn point.
 #[derive(Resource)]
@@ -33,25 +59,17 @@ impl ActiveSave {
         let header = save_file.header();
         let party = save_file.party();
 
-        // MM6 -> Bevy coordinate conversion:
-        // bevy_x = mm6_x, bevy_y = mm6_z (up), bevy_z = -mm6_y (forward)
-        let pos = &party.position;
-        let spawn_position = Vec3::new(pos[0] as f32, pos[2] as f32, -(pos[1] as f32));
-
-        // MM6 direction: 0-2047, 0=east, 512=north (counterclockwise).
-        // Bevy rotation_y: 0 = -Z (north), positive = counterclockwise from above.
-        // Convert: bevy_yaw = (mm6_dir * TAU / 2048) - PI/2
-        let spawn_yaw = (party.direction as f32) * std::f32::consts::TAU / 2048.0 - std::f32::consts::FRAC_PI_2;
+        let spawn_position = mm6_to_bevy_position(&party.position);
+        let spawn_yaw = mm6_to_bevy_yaw(party.direction);
 
         // Detect current map from LOD directory name_tail matching.
         // MM6 doesn't store the map name explicitly — the DDM/DLV written in
         // the same save cycle as party.bin shares its name_tail bytes.
-        let map_stem = save_file.detect_current_map().unwrap_or_else(|| {
-            panic!("could not detect current map from save '{}'", path.display());
-        });
-        let map_name = MapName::try_from(map_stem.as_str()).unwrap_or_else(|e| {
-            panic!("invalid map '{}' detected from save: {e}", map_stem);
-        });
+        let map_stem = save_file
+            .detect_current_map()
+            .ok_or_else(|| format!("could not detect current map from save '{}'", path.display()))?;
+        let map_name = MapName::try_from(map_stem.as_str())
+            .map_err(|e| format!("invalid map '{}' detected from save: {e}", map_stem))?;
         info!("save map: '{}' -> {:?}", map_stem, &map_name);
 
         Ok(Self {
@@ -67,13 +85,10 @@ impl ActiveSave {
     /// Sync spawn position from a Bevy transform back to MM6 coordinates.
     pub fn update_from_transform(&mut self, transform: &Transform) {
         let pos = transform.translation;
-        // Bevy -> MM6: mm6_x = bevy_x, mm6_y = -bevy_z, mm6_z = bevy_y
-        self.party.position = [pos.x as i32, -(pos.z as i32), pos.y as i32];
+        self.party.position = bevy_to_mm6_position(pos);
 
-        // Bevy yaw -> MM6 direction (0-2047): mm6_dir = (yaw + PI/2) * 2048 / TAU
         let (_, yaw, _) = transform.rotation.to_euler(EulerRot::YXZ);
-        let mm6_dir = ((yaw + std::f32::consts::FRAC_PI_2) * 2048.0 / std::f32::consts::TAU) as i32;
-        self.party.direction = mm6_dir.rem_euclid(2048);
+        self.party.direction = bevy_to_mm6_direction(yaw);
 
         self.spawn_position = pos;
         self.spawn_yaw = yaw;
@@ -90,9 +105,18 @@ impl ActiveSave {
     }
 }
 
-/// Empty plugin placeholder — no systems needed in Phase 1.
-pub struct SavePlugin;
-
-impl Plugin for SavePlugin {
-    fn build(&self, _app: &mut App) {}
+/// Try to load a save file and transition to the loading state.
+/// Returns true on success, false on error (logged).
+pub fn try_load_save(commands: &mut Commands, path: PathBuf) -> bool {
+    match ActiveSave::from_file(path) {
+        Ok(save) => {
+            commands.insert_resource(save);
+            commands.set_state(crate::GameState::Loading);
+            true
+        }
+        Err(e) => {
+            error!("Failed to load save: {e}");
+            false
+        }
+    }
 }

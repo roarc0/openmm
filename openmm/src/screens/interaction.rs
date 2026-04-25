@@ -10,7 +10,6 @@ use super::runtime::{
 };
 use super::setup::{hide_screen, load_screen_replace_all, show_screen};
 use super::ui_assets::UiAssets;
-use crate::GameState;
 use crate::assets::GameAssets;
 use crate::game::optional::OptionalWrite;
 use crate::game::ui::UiMode;
@@ -602,7 +601,11 @@ pub(super) fn process_pending_actions(
 
         // Build script context from available resources.
         let default_vars = crate::game::state::state::GameVariables::default();
-        let vars = params.world_state.as_ref().map(|ws| &ws.game_vars).unwrap_or(&default_vars);
+        let vars = params
+            .world_state
+            .as_ref()
+            .map(|ws| &ws.game_vars)
+            .unwrap_or(&default_vars);
         let config_flags = build_config_flags(&params.cfg);
         let ctx = super::scripting::ScriptContext {
             vars,
@@ -619,40 +622,23 @@ pub(super) fn process_pending_actions(
                 }
                 Action::NewGame(cfg) => {
                     info!("action: NewGame({:?}) — creating save from template", cfg);
-                    // For now, cfg is ignored, we always use new.lod
                     match crate::game::save::slots::create_new_game_save() {
-                        Ok(path) => match crate::game::save::ActiveSave::from_file(path) {
-                            Ok(save) => {
-                                commands.insert_resource(save);
-                                commands.set_state(GameState::Loading);
-                            }
-                            Err(e) => error!("Failed to load new game save: {e}"),
-                        },
+                        Ok(path) => {
+                            crate::game::save::try_load_save(&mut commands, path);
+                        }
                         Err(e) => error!("Failed to create new game save: {e}"),
                     }
                 }
                 Action::LoadGame(name) => {
                     info!("action: LoadGame(\"{}\")", name);
                     let path = crate::game::save::slots::slot_path(&name);
-                    match crate::game::save::ActiveSave::from_file(path) {
-                        Ok(save) => {
-                            commands.insert_resource(save);
-                            commands.set_state(GameState::Loading);
-                        }
-                        Err(e) => error!("Failed to load save: {e}"),
-                    }
+                    crate::game::save::try_load_save(&mut commands, path);
                 }
                 Action::LoadSelectedGame => {
                     if let Some(name) = params.save_manager.get_selected_save_name() {
                         info!("action: LoadSelectedGame — loading \"{}\"", name);
                         let path = crate::game::save::slots::slot_path(&name);
-                        match crate::game::save::ActiveSave::from_file(path) {
-                            Ok(save) => {
-                                commands.insert_resource(save);
-                                commands.set_state(GameState::Loading);
-                            }
-                            Err(e) => error!("Failed to load save: {e}"),
-                        }
+                        crate::game::save::try_load_save(&mut commands, path);
                     } else {
                         warn!("LoadSelectedGame: no save selected");
                     }
@@ -663,15 +649,9 @@ pub(super) fn process_pending_actions(
                     params.save_manager.absolute_selected = Some(absolute_idx);
                     if already_selected {
                         if let Some(name) = params.save_manager.get_selected_save_name() {
-                            info!("action: SelectSave({}) — already selected, loading \"{}\"", idx, name);
+                            info!("action: SelectSave({}) — double-click, loading \"{}\"", idx, name);
                             let path = crate::game::save::slots::slot_path(&name);
-                            match crate::game::save::ActiveSave::from_file(path) {
-                                Ok(save) => {
-                                    commands.insert_resource(save);
-                                    commands.set_state(GameState::Loading);
-                                }
-                                Err(e) => error!("Failed to load save: {e}"),
-                            }
+                            crate::game::save::try_load_save(&mut commands, path);
                         }
                     } else {
                         info!("action: SelectSave({}) — selecting (abs={})", idx, absolute_idx);
@@ -776,14 +756,15 @@ pub(super) fn process_pending_actions(
                     info!("action: CloseWindow");
                     let top_modal_id = params.layers.top_modal_id().map(str::to_string);
                     let ui_mode = ui_action_set.p0().as_ref().map(|ui| ui.mode);
-                    let target = resolve_close_window_target(
-                        top_modal_id.as_deref(),
-                        ui_mode,
-                    );
+                    let target = resolve_close_window_target(top_modal_id.as_deref(), ui_mode);
                     match target {
                         CloseWindowTarget::UiModeWorld => {
                             if let Some(ref mut ui) = ui_action_set.p0() {
-                                crate::game::ui::set_ui_mode(ui, &mut params.cursor_query, crate::game::ui::UiMode::World);
+                                crate::game::ui::set_ui_mode(
+                                    ui,
+                                    &mut params.cursor_query,
+                                    crate::game::ui::UiMode::World,
+                                );
                             }
                             if let Some(ref modal_id) = top_modal_id {
                                 hide_screen(
@@ -964,7 +945,12 @@ mod tests {
 /// allowing interactions to "fall through" to elements below.
 pub(crate) fn pixel_perfect_focus(
     window_query: Query<&Window, With<PrimaryWindow>>,
-    mut query: Query<(&ComputedNode, &GlobalTransform, &super::runtime::ElementAlphaMask, &mut bevy::ui::FocusPolicy)>,
+    mut query: Query<(
+        &ComputedNode,
+        &GlobalTransform,
+        &super::runtime::ElementAlphaMask,
+        &mut bevy::ui::FocusPolicy,
+    )>,
 ) {
     let Ok(window) = window_query.single() else {
         return;
@@ -988,7 +974,7 @@ pub(crate) fn pixel_perfect_focus(
             }
         }
 
-         *focus_policy = if hit {
+        *focus_policy = if hit {
             bevy::ui::FocusPolicy::Block
         } else {
             bevy::ui::FocusPolicy::Pass

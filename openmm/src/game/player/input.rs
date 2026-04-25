@@ -11,11 +11,11 @@ use crate::game::spawn::WorldObstacle;
 use crate::prepare::loading::PreparedIndoorWorld;
 use crate::system::config::GameConfig;
 
-use crate::game::actors::Actor;
 use super::{
     MouseLookEnabled, MouseSensitivity, Player, PlayerCamera, PlayerKeyBindings, PlayerPhysics, PlayerSettings,
     SpeedMultiplier,
 };
+use crate::game::actors::Actor;
 
 // --- Map collision bundle ---
 
@@ -162,10 +162,10 @@ fn push_out_of_obstacles(
     obstacles: &Query<(&Transform, &WorldObstacle, Option<&Actor>), Without<Player>>,
 ) -> Vec3 {
     for (obs_tf, obs, actor) in obstacles.iter() {
-        if let Some(actor) = actor {
-            if actor.hp <= 0 {
-                continue;
-            }
+        if let Some(actor) = actor
+            && actor.hp <= 0
+        {
+            continue;
         }
         let obs_pos = obs_tf.translation;
         if (obs_pos.y - pos.y).abs() > eye_height * 2.0 {

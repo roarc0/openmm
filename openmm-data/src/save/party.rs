@@ -8,8 +8,38 @@ use super::character::{CHARACTER_SIZE, SaveCharacter};
 /// Total size of party.bin in bytes.
 pub const PARTY_BIN_SIZE: usize = 64720;
 
+// ── Binary layout offsets ──────────────────────────────────────────
 /// Offset where the 4 character records begin.
 const PLAYERS_OFFSET: usize = 0x02C4;
+
+// Position / orientation
+const POSITION_X_OFFSET: usize = 0x0028;
+const POSITION_Y_OFFSET: usize = 0x002C;
+const POSITION_Z_OFFSET: usize = 0x0030;
+const DIRECTION_OFFSET: usize = 0x0034;
+const LOOK_ANGLE_OFFSET: usize = 0x0038;
+
+// Calendar fields (each i32)
+const YEAR_OFFSET: usize = 0x00A0;
+const MONTH_OFFSET: usize = 0x00A4;
+const WEEK_OFFSET: usize = 0x00A8;
+const DAY_OFFSET: usize = 0x00AC;
+const HOUR_OFFSET: usize = 0x00B0;
+const MINUTE_OFFSET: usize = 0x00B4;
+const SECOND_OFFSET: usize = 0x00B8;
+
+// Resources
+const FOOD_OFFSET: usize = 0x00BC;
+const REPUTATION_OFFSET: usize = 0x00D8;
+const GOLD_OFFSET: usize = 0x00E0;
+const BANK_GOLD_OFFSET: usize = 0x00E4;
+const DEATHS_OFFSET: usize = 0x00E8;
+
+// Bit fields
+const QUEST_BITS_OFFSET: usize = 0x00FD;
+const QUEST_BITS_LEN: usize = 64; // 512 bits
+const AUTONOTE_BITS_OFFSET: usize = 0x013D;
+const AUTONOTE_BITS_LEN: usize = 16; // 128 bits
 
 /// Parsed party.bin from an MM6 save file.
 #[derive(Debug, Clone)]
@@ -102,26 +132,30 @@ impl SaveParty {
 
         let raw = data[..PARTY_BIN_SIZE].to_vec();
 
-        let position = [read_i32(data, 0x0028), read_i32(data, 0x002C), read_i32(data, 0x0030)];
-        let direction = read_i32(data, 0x0034);
-        let look_angle = read_i32(data, 0x0038);
+        let position = [
+            read_i32(data, POSITION_X_OFFSET),
+            read_i32(data, POSITION_Y_OFFSET),
+            read_i32(data, POSITION_Z_OFFSET),
+        ];
+        let direction = read_i32(data, DIRECTION_OFFSET);
+        let look_angle = read_i32(data, LOOK_ANGLE_OFFSET);
 
-        let year = read_i32(data, 0x00A0);
-        let month = read_i32(data, 0x00A4);
-        let week = read_i32(data, 0x00A8);
-        let day = read_i32(data, 0x00AC);
-        let hour = read_i32(data, 0x00B0);
-        let minute = read_i32(data, 0x00B4);
-        let second = read_i32(data, 0x00B8);
+        let year = read_i32(data, YEAR_OFFSET);
+        let month = read_i32(data, MONTH_OFFSET);
+        let week = read_i32(data, WEEK_OFFSET);
+        let day = read_i32(data, DAY_OFFSET);
+        let hour = read_i32(data, HOUR_OFFSET);
+        let minute = read_i32(data, MINUTE_OFFSET);
+        let second = read_i32(data, SECOND_OFFSET);
 
-        let food = read_i32(data, 0x00BC);
-        let reputation = read_i32(data, 0x00D8);
-        let gold = read_i32(data, 0x00E0);
-        let bank_gold = read_i32(data, 0x00E4);
-        let deaths = read_i32(data, 0x00E8);
+        let food = read_i32(data, FOOD_OFFSET);
+        let reputation = read_i32(data, REPUTATION_OFFSET);
+        let gold = read_i32(data, GOLD_OFFSET);
+        let bank_gold = read_i32(data, BANK_GOLD_OFFSET);
+        let deaths = read_i32(data, DEATHS_OFFSET);
 
-        let quest_bits = extract_set_bits(&data[0x00FD..0x00FD + 64]);
-        let autonote_bits = extract_set_bits(&data[0x013D..0x013D + 16]);
+        let quest_bits = extract_set_bits(&data[QUEST_BITS_OFFSET..QUEST_BITS_OFFSET + QUEST_BITS_LEN]);
+        let autonote_bits = extract_set_bits(&data[AUTONOTE_BITS_OFFSET..AUTONOTE_BITS_OFFSET + AUTONOTE_BITS_LEN]);
 
         let characters = std::array::from_fn(|i| {
             let start = PLAYERS_OFFSET + i * CHARACTER_SIZE;
@@ -155,32 +189,31 @@ impl SaveParty {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = self.raw.clone();
 
-        write_i32(&mut buf, 0x0028, self.position[0]);
-        write_i32(&mut buf, 0x002C, self.position[1]);
-        write_i32(&mut buf, 0x0030, self.position[2]);
-        write_i32(&mut buf, 0x0034, self.direction);
-        write_i32(&mut buf, 0x0038, self.look_angle);
+        write_i32(&mut buf, POSITION_X_OFFSET, self.position[0]);
+        write_i32(&mut buf, POSITION_Y_OFFSET, self.position[1]);
+        write_i32(&mut buf, POSITION_Z_OFFSET, self.position[2]);
+        write_i32(&mut buf, DIRECTION_OFFSET, self.direction);
+        write_i32(&mut buf, LOOK_ANGLE_OFFSET, self.look_angle);
 
-        write_i32(&mut buf, 0x00A0, self.year);
-        write_i32(&mut buf, 0x00A4, self.month);
-        write_i32(&mut buf, 0x00A8, self.week);
-        write_i32(&mut buf, 0x00AC, self.day);
-        write_i32(&mut buf, 0x00B0, self.hour);
-        write_i32(&mut buf, 0x00B4, self.minute);
-        write_i32(&mut buf, 0x00B8, self.second);
+        write_i32(&mut buf, YEAR_OFFSET, self.year);
+        write_i32(&mut buf, MONTH_OFFSET, self.month);
+        write_i32(&mut buf, WEEK_OFFSET, self.week);
+        write_i32(&mut buf, DAY_OFFSET, self.day);
+        write_i32(&mut buf, HOUR_OFFSET, self.hour);
+        write_i32(&mut buf, MINUTE_OFFSET, self.minute);
+        write_i32(&mut buf, SECOND_OFFSET, self.second);
 
-        write_i32(&mut buf, 0x00BC, self.food);
-        write_i32(&mut buf, 0x00D8, self.reputation);
-        write_i32(&mut buf, 0x00E0, self.gold);
-        write_i32(&mut buf, 0x00E4, self.bank_gold);
-        write_i32(&mut buf, 0x00E8, self.deaths);
+        write_i32(&mut buf, FOOD_OFFSET, self.food);
+        write_i32(&mut buf, REPUTATION_OFFSET, self.reputation);
+        write_i32(&mut buf, GOLD_OFFSET, self.gold);
+        write_i32(&mut buf, BANK_GOLD_OFFSET, self.bank_gold);
+        write_i32(&mut buf, DEATHS_OFFSET, self.deaths);
 
-        // Pack quest bits and autonotes back.
-        let qbits = pack_bits(&self.quest_bits, 64);
-        buf[0x00FD..0x00FD + 64].copy_from_slice(&qbits);
+        let qbits = pack_bits(&self.quest_bits, QUEST_BITS_LEN);
+        buf[QUEST_BITS_OFFSET..QUEST_BITS_OFFSET + QUEST_BITS_LEN].copy_from_slice(&qbits);
 
-        let anotes = pack_bits(&self.autonote_bits, 16);
-        buf[0x013D..0x013D + 16].copy_from_slice(&anotes);
+        let anotes = pack_bits(&self.autonote_bits, AUTONOTE_BITS_LEN);
+        buf[AUTONOTE_BITS_OFFSET..AUTONOTE_BITS_OFFSET + AUTONOTE_BITS_LEN].copy_from_slice(&anotes);
 
         // Patch character data back.
         for i in 0..4 {

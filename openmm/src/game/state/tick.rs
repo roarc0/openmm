@@ -92,7 +92,7 @@ pub fn should_tick_actor(
     } else {
         FAR_DIVISOR
     };
-    (tick.wrapping_add(phase)) % divisor == 0
+    (tick.wrapping_add(phase)).is_multiple_of(divisor)
 }
 
 /// Derive a stable phase from an actor's position so each actor lands on a

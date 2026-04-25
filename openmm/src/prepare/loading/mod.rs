@@ -549,18 +549,11 @@ fn build_preload_queue(
     // fall back to LOD archives for maps not yet visited.
     let mut loaded_from_save = false;
     let lod_actors = try_load_actors_from_save(active_save, &map_key, snapshot.as_ref(), game_assets)
-        .map(|a| {
+        .inspect(|a| {
             loaded_from_save = true;
-            a
         })
         .or_else(|| {
-            openmm_data::assets::Actors::new(
-                game_assets.assets(),
-                &map_key,
-                snapshot.as_ref(),
-                game_assets.data(),
-            )
-            .ok()
+            openmm_data::assets::Actors::new(game_assets.assets(), &map_key, snapshot.as_ref(), game_assets.data()).ok()
         });
 
     // Collect unique sprite roots from a set of entities with sprite fields.
@@ -635,16 +628,7 @@ fn build_preload_queue(
             .unwrap()
             .entries()
             .iter()
-            .map(|d| {
-                (
-                    d.sprite_name.clone(),
-                    String::new(),
-                    String::new(),
-                    String::new(),
-                    1,
-                    0,
-                )
-            })
+            .map(|d| (d.sprite_name.clone(), String::new(), String::new(), String::new(), 1, 0))
             .collect();
         collect_sprites(&entries);
 

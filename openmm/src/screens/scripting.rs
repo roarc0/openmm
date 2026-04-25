@@ -100,10 +100,10 @@ pub fn parse_action(input: &str) -> Action {
     if s == "LoadSelectedGame()" {
         return Action::LoadSelectedGame;
     }
-    if let Some(idx) = parse_string_arg(s, "SelectSave") {
-        if let Ok(i) = idx.parse() {
-            return Action::SelectSave(i);
-        }
+    if let Some(idx) = parse_string_arg(s, "SelectSave")
+        && let Ok(i) = idx.parse()
+    {
+        return Action::SelectSave(i);
     }
     if s == "SaveScrollUp()" {
         return Action::SaveScrollUp;
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn parse_screen_actions() {
         assert_eq!(parse_action("Quit()"), Action::Quit);
-        assert_eq!(parse_action("NewGame()"), Action::NewGame);
+        assert_eq!(parse_action("NewGame()"), Action::NewGame(None));
         assert_eq!(parse_action("LoadScreen(\"menu\")"), Action::LoadScreen("menu".into()));
         assert_eq!(parse_action("ShowScreen(\"hud\")"), Action::ShowScreen("hud".into()));
         assert_eq!(parse_action("HideScreen(\"hud\")"), Action::HideScreen("hud".into()));

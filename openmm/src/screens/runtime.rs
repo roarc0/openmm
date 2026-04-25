@@ -64,7 +64,10 @@ impl Plugin for ScreenRuntimePlugin {
             )
             .add_systems(Update, text_update.run_if(screen_states.clone()))
             .add_systems(Update, dynamic_texture_update.run_if(screen_states.clone()))
-            .add_systems(Update, crate::game::save::slots::update_save_registry.run_if(screen_states.clone()))
+            .add_systems(
+                Update,
+                crate::game::save::slots::update_save_registry.run_if(screen_states.clone()),
+            )
             .add_systems(Update, click_flash_tick.run_if(screen_states.clone()))
             .add_systems(Update, process_pending_actions.run_if(screen_states.clone()))
             .add_systems(

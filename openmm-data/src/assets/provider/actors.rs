@@ -123,7 +123,11 @@ impl Actors {
             // so saved DDMs from the original game correctly mark dead actors.
             let is_dead = raw.ai_state == crate::assets::AIState::Dead as u16;
             if is_dead {
-                log::debug!("Actor '{}' idx={} is dead (ai_state=Dead) — loading as corpse", raw.name, idx);
+                log::debug!(
+                    "Actor '{}' idx={} is dead (ai_state=Dead) — loading as corpse",
+                    raw.name,
+                    idx
+                );
             }
 
             let Some(entry) = super::monster::resolve_entry(raw.monlist_id, game_data, assets) else {

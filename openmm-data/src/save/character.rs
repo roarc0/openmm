@@ -9,6 +9,27 @@
 /// Size of a single character record in bytes.
 pub const CHARACTER_SIZE: usize = 0x161C; // 5660
 
+// ── Binary layout offsets ──────────────────────────────────────────
+const FACE_OFFSET: usize = 0x0000;
+const NAME_OFFSET: usize = 0x0001;
+const NAME_LEN: usize = 16; // null-terminated, max 15 chars + null
+const SEX_OFFSET: usize = 0x0011;
+const CLASS_OFFSET: usize = 0x0012;
+const STATS_OFFSET: usize = 0x0014; // 7 × (base i16, bonus i16) = 28 bytes
+const STAT_COUNT: usize = 7;
+const STAT_PAIR_SIZE: usize = 4; // base i16 + bonus i16
+const LEVEL_OFFSET: usize = 0x001C;
+const SKILLS_OFFSET: usize = 0x0060;
+const SKILLS_LEN: usize = 31;
+const RESISTANCES_OFFSET: usize = 0x1254; // 5 × (base i16, bonus i16) = 20 bytes
+const RESISTANCE_COUNT: usize = 5;
+const RECOVERY_DELAY_OFFSET: usize = 0x137C;
+const SKILL_POINTS_OFFSET: usize = 0x1410;
+const HP_OFFSET: usize = 0x1414;
+const SP_OFFSET: usize = 0x1418;
+const BIRTH_YEAR_OFFSET: usize = 0x141C;
+const EXPERIENCE_OFFSET: usize = 0x1420;
+
 /// Parsed MM6 character from a save file.
 #[derive(Debug, Clone)]
 pub struct SaveCharacter {
@@ -24,15 +45,15 @@ pub struct SaveCharacter {
     /// Base character level.
     pub level: i16,
     /// Base stats: Might, Intellect, Personality, Endurance, Accuracy, Speed, Luck.
-    pub base_stats: [i16; 7],
+    pub base_stats: [i16; STAT_COUNT],
     /// Bonus stats (same order as base_stats).
-    pub stat_bonuses: [i16; 7],
+    pub stat_bonuses: [i16; STAT_COUNT],
     /// Skill levels (31 skills).
-    pub skills: [u8; 31],
+    pub skills: [u8; SKILLS_LEN],
     /// Base resistances: Fire, Elec, Cold, Poison, Magic.
-    pub resistances: [i16; 5],
+    pub resistances: [i16; RESISTANCE_COUNT],
     /// Bonus resistances (same order).
-    pub resistance_bonuses: [i16; 5],
+    pub resistance_bonuses: [i16; RESISTANCE_COUNT],
     /// Recovery delay in ticks.
     pub recovery_delay: i16,
     /// Current hit points.
@@ -47,6 +68,27 @@ pub struct SaveCharacter {
     pub skill_points: i32,
 }
 
+/// Read stat or resistance pairs (base i16, bonus i16) from contiguous memory.
+fn read_i16_pairs<const N: usize>(data: &[u8], offset: usize) -> ([i16; N], [i16; N]) {
+    let mut base = [0i16; N];
+    let mut bonus = [0i16; N];
+    for i in 0..N {
+        let off = offset + i * STAT_PAIR_SIZE;
+        base[i] = i16::from_le_bytes([data[off], data[off + 1]]);
+        bonus[i] = i16::from_le_bytes([data[off + 2], data[off + 3]]);
+    }
+    (base, bonus)
+}
+
+/// Write stat or resistance pairs back into a buffer.
+fn write_i16_pairs<const N: usize>(buf: &mut [u8], offset: usize, base: &[i16; N], bonus: &[i16; N]) {
+    for i in 0..N {
+        let off = offset + i * STAT_PAIR_SIZE;
+        buf[off..off + 2].copy_from_slice(&base[i].to_le_bytes());
+        buf[off + 2..off + 4].copy_from_slice(&bonus[i].to_le_bytes());
+    }
+}
+
 impl SaveCharacter {
     /// Parse a character from raw bytes. Panics if `data.len() < CHARACTER_SIZE`.
     pub fn parse(data: &[u8]) -> Self {
@@ -59,57 +101,31 @@ impl SaveCharacter {
 
         let raw = data[..CHARACTER_SIZE].to_vec();
 
-        let face = data[0x0000];
+        let face = data[FACE_OFFSET];
 
-        // Name: 16 bytes at 0x0001, null-terminated.
-        let name_bytes = &data[0x0001..0x0011];
-        let name_end = name_bytes.iter().position(|&b| b == 0).unwrap_or(16);
+        // Name: 16 bytes, null-terminated.
+        let name_bytes = &data[NAME_OFFSET..NAME_OFFSET + NAME_LEN];
+        let name_end = name_bytes.iter().position(|&b| b == 0).unwrap_or(NAME_LEN);
         let name = String::from_utf8_lossy(&name_bytes[..name_end]).into_owned();
 
-        let sex = data[0x0011];
-        let class = data[0x0012];
+        let sex = data[SEX_OFFSET];
+        let class = data[CLASS_OFFSET];
+        let level = i16::from_le_bytes([data[LEVEL_OFFSET], data[LEVEL_OFFSET + 1]]);
 
-        // Base level at 0x001C (i16 LE).
-        let level = i16::from_le_bytes([data[0x001C], data[0x001D]]);
+        let (base_stats, stat_bonuses) = read_i16_pairs::<STAT_COUNT>(data, STATS_OFFSET);
 
-        // Stats at 0x0014: 7 pairs of (base i16, bonus i16) = 28 bytes.
-        let mut base_stats = [0i16; 7];
-        let mut stat_bonuses = [0i16; 7];
-        for i in 0..7 {
-            let off = 0x0014 + i * 4;
-            base_stats[i] = i16::from_le_bytes([data[off], data[off + 1]]);
-            stat_bonuses[i] = i16::from_le_bytes([data[off + 2], data[off + 3]]);
-        }
+        let mut skills = [0u8; SKILLS_LEN];
+        skills.copy_from_slice(&data[SKILLS_OFFSET..SKILLS_OFFSET + SKILLS_LEN]);
 
-        // Skills at 0x0060: 31 bytes.
-        let mut skills = [0u8; 31];
-        skills.copy_from_slice(&data[0x0060..0x007F]);
+        let (resistances, resistance_bonuses) = read_i16_pairs::<RESISTANCE_COUNT>(data, RESISTANCES_OFFSET);
 
-        // Resistances at 0x1254: 5 pairs of (base i16, bonus i16) = 20 bytes.
-        let mut resistances = [0i16; 5];
-        let mut resistance_bonuses = [0i16; 5];
-        for i in 0..5 {
-            let off = 0x1254 + i * 4;
-            resistances[i] = i16::from_le_bytes([data[off], data[off + 1]]);
-            resistance_bonuses[i] = i16::from_le_bytes([data[off + 2], data[off + 3]]);
-        }
+        let recovery_delay = i16::from_le_bytes([data[RECOVERY_DELAY_OFFSET], data[RECOVERY_DELAY_OFFSET + 1]]);
 
-        let recovery_delay = i16::from_le_bytes([data[0x137C], data[0x137D]]);
-
-        let hp = i32::from_le_bytes([data[0x1414], data[0x1415], data[0x1416], data[0x1417]]);
-        let sp = i32::from_le_bytes([data[0x1418], data[0x1419], data[0x141A], data[0x141B]]);
-        let birth_year = i32::from_le_bytes([data[0x141C], data[0x141D], data[0x141E], data[0x141F]]);
-        let experience = i64::from_le_bytes([
-            data[0x1420],
-            data[0x1421],
-            data[0x1422],
-            data[0x1423],
-            data[0x1424],
-            data[0x1425],
-            data[0x1426],
-            data[0x1427],
-        ]);
-        let skill_points = i32::from_le_bytes([data[0x1410], data[0x1411], data[0x1412], data[0x1413]]);
+        let hp = i32::from_le_bytes(data[HP_OFFSET..HP_OFFSET + 4].try_into().unwrap());
+        let sp = i32::from_le_bytes(data[SP_OFFSET..SP_OFFSET + 4].try_into().unwrap());
+        let birth_year = i32::from_le_bytes(data[BIRTH_YEAR_OFFSET..BIRTH_YEAR_OFFSET + 4].try_into().unwrap());
+        let experience = i64::from_le_bytes(data[EXPERIENCE_OFFSET..EXPERIENCE_OFFSET + 8].try_into().unwrap());
+        let skill_points = i32::from_le_bytes(data[SKILL_POINTS_OFFSET..SKILL_POINTS_OFFSET + 4].try_into().unwrap());
 
         Self {
             raw,
@@ -137,39 +153,35 @@ impl SaveCharacter {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut buf = self.raw.clone();
 
-        buf[0x0000] = self.face;
+        buf[FACE_OFFSET] = self.face;
 
-        // Name: write up to 16 bytes, pad with zeroes.
+        // Name: write up to 15 chars, pad with zeroes + null terminator.
         let name_bytes = self.name.as_bytes();
-        let copy_len = name_bytes.len().min(15); // leave room for null terminator
-        buf[0x0001..0x0011].fill(0);
-        buf[0x0001..0x0001 + copy_len].copy_from_slice(&name_bytes[..copy_len]);
+        let copy_len = name_bytes.len().min(NAME_LEN - 1);
+        buf[NAME_OFFSET..NAME_OFFSET + NAME_LEN].fill(0);
+        buf[NAME_OFFSET..NAME_OFFSET + copy_len].copy_from_slice(&name_bytes[..copy_len]);
 
-        buf[0x0011] = self.sex;
-        buf[0x0012] = self.class;
+        buf[SEX_OFFSET] = self.sex;
+        buf[CLASS_OFFSET] = self.class;
+        buf[LEVEL_OFFSET..LEVEL_OFFSET + 2].copy_from_slice(&self.level.to_le_bytes());
 
-        buf[0x001C..0x001E].copy_from_slice(&self.level.to_le_bytes());
+        write_i16_pairs(&mut buf, STATS_OFFSET, &self.base_stats, &self.stat_bonuses);
 
-        for i in 0..7 {
-            let off = 0x0014 + i * 4;
-            buf[off..off + 2].copy_from_slice(&self.base_stats[i].to_le_bytes());
-            buf[off + 2..off + 4].copy_from_slice(&self.stat_bonuses[i].to_le_bytes());
-        }
+        buf[SKILLS_OFFSET..SKILLS_OFFSET + SKILLS_LEN].copy_from_slice(&self.skills);
 
-        buf[0x0060..0x007F].copy_from_slice(&self.skills);
+        write_i16_pairs(
+            &mut buf,
+            RESISTANCES_OFFSET,
+            &self.resistances,
+            &self.resistance_bonuses,
+        );
 
-        for i in 0..5 {
-            let off = 0x1254 + i * 4;
-            buf[off..off + 2].copy_from_slice(&self.resistances[i].to_le_bytes());
-            buf[off + 2..off + 4].copy_from_slice(&self.resistance_bonuses[i].to_le_bytes());
-        }
-
-        buf[0x137C..0x137E].copy_from_slice(&self.recovery_delay.to_le_bytes());
-        buf[0x1410..0x1414].copy_from_slice(&self.skill_points.to_le_bytes());
-        buf[0x1414..0x1418].copy_from_slice(&self.hp.to_le_bytes());
-        buf[0x1418..0x141C].copy_from_slice(&self.sp.to_le_bytes());
-        buf[0x141C..0x1420].copy_from_slice(&self.birth_year.to_le_bytes());
-        buf[0x1420..0x1428].copy_from_slice(&self.experience.to_le_bytes());
+        buf[RECOVERY_DELAY_OFFSET..RECOVERY_DELAY_OFFSET + 2].copy_from_slice(&self.recovery_delay.to_le_bytes());
+        buf[SKILL_POINTS_OFFSET..SKILL_POINTS_OFFSET + 4].copy_from_slice(&self.skill_points.to_le_bytes());
+        buf[HP_OFFSET..HP_OFFSET + 4].copy_from_slice(&self.hp.to_le_bytes());
+        buf[SP_OFFSET..SP_OFFSET + 4].copy_from_slice(&self.sp.to_le_bytes());
+        buf[BIRTH_YEAR_OFFSET..BIRTH_YEAR_OFFSET + 4].copy_from_slice(&self.birth_year.to_le_bytes());
+        buf[EXPERIENCE_OFFSET..EXPERIENCE_OFFSET + 8].copy_from_slice(&self.experience.to_le_bytes());
 
         buf
     }

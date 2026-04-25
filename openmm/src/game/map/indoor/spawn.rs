@@ -325,7 +325,7 @@ fn spawn_indoor_monsters(
     };
 
     // NOTE: Group spread (golden angle) is now pre-applied in the data layer
-    // during Monster -> Actor conversion (see Actors::from_monsters) or 
+    // during Monster -> Actor conversion (see Actors::from_monsters) or
     // preserved from individual positions in the saved DLV.
     for (idx, mon) in monsters.get_actors().iter().enumerate() {
         let [bx, by, bz] = mm6_position_to_bevy(mon.position[0], mon.position[1], mon.position[2]);

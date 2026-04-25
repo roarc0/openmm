@@ -7,6 +7,12 @@ use std::path::PathBuf;
 
 use crate::screens::PropertySource;
 
+/// Number of save slots visible at once in the load/save UI.
+const VISIBLE_SLOTS: usize = 7;
+
+/// MM6 ticks per second (128). 1 game minute = 128 * 60 = 7680 ticks.
+const MM6_TICKS_PER_MINUTE: i64 = 7680;
+
 /// Directory where OpenMM-specific save files are stored.
 pub fn local_saves_dir() -> PathBuf {
     PathBuf::from("data/Saves")
@@ -102,7 +108,7 @@ impl SaveManager {
     }
 
     pub fn scroll_down(&mut self) {
-        if self.saves.len() > 7 && self.offset < self.saves.len() - 7 {
+        if self.saves.len() > VISIBLE_SLOTS && self.offset < self.saves.len() - VISIBLE_SLOTS {
             self.offset += 1;
         }
     }
@@ -128,7 +134,7 @@ impl SaveManager {
 }
 
 struct SaveSlotSource {
-    slots: [String; 7],
+    slots: [String; VISIBLE_SLOTS],
     selected_preview: Option<String>,
     selected_location: String,
     selected_time: String,
@@ -180,18 +186,7 @@ pub fn update_save_registry(
     game_assets: Res<crate::assets::GameAssets>,
     mut registry: ResMut<crate::screens::PropertyRegistry>,
 ) {
-    let mut slots = [
-        String::new(),
-        String::new(),
-        String::new(),
-        String::new(),
-        String::new(),
-        String::new(),
-        String::new(),
-    ];
-    for i in 0..7 {
-        slots[i] = save_manager.get_slot_text(i);
-    }
+    let slots = std::array::from_fn(|i| save_manager.get_slot_text(i));
 
     let mut selected_preview = None;
     let mut selected_location = String::new();
@@ -201,7 +196,7 @@ pub fn update_save_registry(
         let actual_idx = idx;
         if let Some(save) = save_manager.saves.get(actual_idx) {
             let header = &save_manager.headers[actual_idx];
-            
+
             selected_preview = Some(format!("saveslot:preview:{}", save.slot));
 
             let map_name = &header.map_name;
@@ -224,8 +219,7 @@ pub fn update_save_registry(
                 }
             });
 
-            // MM6 ticks are 128 per second. 1 minute = 60s = 7680 ticks.
-            let total_minutes = (header.playing_time / 7680) as u64;
+            let total_minutes = (header.playing_time / MM6_TICKS_PER_MINUTE) as u64;
             selected_time = openmm_data::utils::time::format(total_minutes);
         }
     }

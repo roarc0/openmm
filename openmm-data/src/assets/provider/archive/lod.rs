@@ -180,7 +180,7 @@ impl LodArchive {
             ));
             offsets.push(entry_offset);
             // Case-insensitive mapping: preserve the FIRST occurrence in the index.
-            // In MM6 saves, sometimes multiple header.bin exist; the first one 
+            // In MM6 saves, sometimes multiple header.bin exist; the first one
             // usually contains the user-provided save name and map info.
             lookup.entry(original_name.to_lowercase()).or_insert(i);
         }
