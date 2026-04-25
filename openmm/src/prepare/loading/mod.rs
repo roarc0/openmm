@@ -497,13 +497,7 @@ fn try_load_actors_from_save(
     );
 
     let raw_actors = openmm_data::assets::ddm::Ddm::parse_from_data(&ddm_data).ok()?;
-    openmm_data::assets::Actors::from_raw_actors(
-        game_assets.assets(),
-        &raw_actors,
-        state,
-        game_assets.data(),
-    )
-    .ok()
+    openmm_data::assets::Actors::from_raw_actors(game_assets.assets(), &raw_actors, state, game_assets.data()).ok()
 }
 
 /// First-frame initialization for PreloadSprites: resolve actors and monsters,
@@ -531,13 +525,7 @@ fn build_preload_queue(
 
     // Try loading DDM from save file first (preserves killed monster state),
     // fall back to games.lod for maps not yet visited.
-    let lod_actors = try_load_actors_from_save(
-        active_save,
-        &map_key,
-        snapshot.as_ref(),
-        game_assets,
-    )
-    .or_else(|| {
+    let lod_actors = try_load_actors_from_save(active_save, &map_key, snapshot.as_ref(), game_assets).or_else(|| {
         openmm_data::assets::Actors::new(
             game_assets.assets(),
             &load_request.map_name.to_string(),
