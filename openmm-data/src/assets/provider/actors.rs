@@ -119,11 +119,11 @@ impl Actors {
             // Do NOT filter by hp == 0 here. Fresh DDM files (never saved) have hp=0 for all
             // monsters because the original engine initialises HP from monsters.txt at load time.
             // Dead actors are tracked by dead_actor_ids once map-state persistence is implemented.
-            // However, ai_state == 5 (dead) is reliable — the OG engine sets it when killing,
+            // However, ai_state == Dead is reliable — the OG engine sets it when killing,
             // so saved DDMs from the original game correctly mark dead actors.
-            if raw.ai_state == 5 {
-                log::debug!("Actor '{}' idx={} is dead (ai_state=5) — skipping", raw.name, idx);
-                continue;
+            let is_dead = raw.ai_state == crate::assets::AIState::Dead as u16;
+            if is_dead {
+                log::debug!("Actor '{}' idx={} is dead (ai_state=Dead) — loading as corpse", raw.name, idx);
             }
 
             let Some(entry) = super::monster::resolve_entry(raw.monlist_id, game_data, assets) else {
@@ -152,7 +152,9 @@ impl Actors {
             };
 
             // Initialise HP from monsters.txt when the DDM value is 0 (fresh/unvisited map).
-            let hp = if raw.hp > 0 {
+            let hp = if is_dead {
+                0
+            } else if raw.hp > 0 {
                 raw.hp
             } else {
                 let prefix = entry.internal_name.trim_end_matches(|c: char| c.is_ascii_uppercase());
@@ -227,6 +229,7 @@ impl Actors {
                 continue;
             }
             // See Actors::new — hp=0 means uninitialized in fresh DDM files, not dead.
+            let is_dead = raw.ai_state == 5;
 
             let Some(entry) = super::monster::resolve_entry(raw.monlist_id, game_data, assets) else {
                 log::warn!(
@@ -251,7 +254,9 @@ impl Actors {
                 (None, None, raw.name.clone())
             };
 
-            let hp = if raw.hp > 0 {
+            let hp = if is_dead {
+                0
+            } else if raw.hp > 0 {
                 raw.hp
             } else {
                 let prefix = entry.internal_name.trim_end_matches(|c: char| c.is_ascii_uppercase());
@@ -295,6 +300,57 @@ impl Actors {
         }
 
         Ok(Actors { actors })
+    }
+
+    pub fn from_monsters(monsters: &crate::assets::provider::monster::Monsters) -> Self {
+        let mut actors = Vec::with_capacity(monsters.len());
+        for m in monsters.iter() {
+            // Apply golden angle spread for group members (same as ODM spawning).
+            let angle = m.group_index as f32 * 2.399_f32;
+            let r = m.spawn_radius as f32;
+            let offset_x = (r * angle.cos()) as i32;
+            let offset_y = (r * angle.sin()) as i32;
+
+            actors.push(Actor {
+                position: [
+                    m.spawn_position[0] + offset_x,
+                    m.spawn_position[1] + offset_y,
+                    m.spawn_position[2],
+                ],
+                standing_sprite: m.standing_sprite.clone(),
+                walking_sprite: m.walking_sprite.clone(),
+                attacking_sprite: m.attacking_sprite.clone(),
+                dying_sprite: m.dying_sprite.clone(),
+                palette_id: m.palette_id,
+                variant: m.variant,
+                name: m.name.clone(),
+                portrait_name: None,
+                profession_id: None,
+                radius: m.radius,
+                height: m.height,
+                move_speed: m.move_speed,
+                hp: m.hp,
+                tether_distance: m.radius.saturating_mul(2),
+                npc_id: 0,
+                monlist_id: 0, // not strictly needed for spawn-point conversion
+                is_peasant: false,
+                is_female: false,
+                to_hit_radius: m.body_radius,
+                sound_ids: m.sound_ids,
+                attributes: 0,
+                range_attack: 0,
+                monster_id_type: 0,
+                group: 0,
+                ally: 0,
+                spell_buffs: [Default::default(); 14],
+                schedules: [Default::default(); 8],
+                aggro_range: m.aggro_range,
+                recovery_secs: m.recovery_secs,
+                can_fly: m.can_fly,
+                ai_type: m.ai_type.clone(),
+            });
+        }
+        Actors { actors }
     }
 
     pub fn get_actors(&self) -> &[Actor] {

@@ -67,7 +67,7 @@ pub struct SaveManager {
     pub saves: Vec<SaveFile>,
     pub headers: Vec<openmm_data::save::header::SaveHeader>,
     pub offset: usize,
-    pub selected: Option<usize>,
+    pub absolute_selected: Option<usize>,
 }
 
 impl SaveManager {
@@ -122,7 +122,7 @@ impl SaveManager {
     }
 
     pub fn get_selected_save_name(&self) -> Option<String> {
-        let idx = self.selected? + self.offset;
+        let idx = self.absolute_selected?;
         self.saves.get(idx).map(|s| s.slot.clone())
     }
 }
@@ -132,6 +132,8 @@ struct SaveSlotSource {
     selected_preview: Option<String>,
     selected_location: String,
     selected_time: String,
+    absolute_selected: Option<usize>,
+    offset: usize,
 }
 
 impl PropertySource for SaveSlotSource {
@@ -145,11 +147,28 @@ impl PropertySource for SaveSlotSource {
             "location" => Some(self.selected_location.clone()),
             "time" => Some(self.selected_time.clone()),
             _ => {
-                let idx: usize = if path.starts_with('[') && path.ends_with(']') {
-                    path[1..path.len() - 1].parse().ok()?
+                // Handle saveslot[idx] and saveslot[idx].color
+                let (idx_str, sub) = if let Some((idx_part, sub_part)) = path.split_once('.') {
+                    (idx_part, Some(sub_part))
                 } else {
-                    path.parse().ok()?
+                    (path, None)
                 };
+
+                let idx: usize = if idx_str.starts_with('[') && idx_str.ends_with(']') {
+                    idx_str[1..idx_str.len() - 1].parse().ok()?
+                } else {
+                    idx_str.parse().ok()?
+                };
+
+                if sub == Some("color") {
+                    let actual_idx = self.offset + idx;
+                    if self.absolute_selected == Some(actual_idx) {
+                        return Some("green".to_string());
+                    } else {
+                        return Some("white".to_string());
+                    }
+                }
+
                 self.slots.get(idx).cloned()
             }
         }
@@ -178,8 +197,8 @@ pub fn update_save_registry(
     let mut selected_location = String::new();
     let mut selected_time = String::new();
 
-    if let Some(idx) = save_manager.selected {
-        let actual_idx = save_manager.offset + idx;
+    if let Some(idx) = save_manager.absolute_selected {
+        let actual_idx = idx;
         if let Some(save) = save_manager.saves.get(actual_idx) {
             let header = &save_manager.headers[actual_idx];
             
@@ -216,5 +235,7 @@ pub fn update_save_registry(
         selected_preview,
         selected_location,
         selected_time,
+        absolute_selected: save_manager.absolute_selected,
+        offset: save_manager.offset,
     }));
 }

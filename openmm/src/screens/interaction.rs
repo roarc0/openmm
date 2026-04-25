@@ -658,8 +658,9 @@ pub(super) fn process_pending_actions(
                     }
                 }
                 Action::SelectSave(idx) => {
-                    let already_selected = params.save_manager.selected == Some(idx);
-                    params.save_manager.selected = Some(idx);
+                    let absolute_idx = params.save_manager.offset + idx;
+                    let already_selected = params.save_manager.absolute_selected == Some(absolute_idx);
+                    params.save_manager.absolute_selected = Some(absolute_idx);
                     if already_selected {
                         if let Some(name) = params.save_manager.get_selected_save_name() {
                             info!("action: SelectSave({}) — already selected, loading \"{}\"", idx, name);
@@ -673,7 +674,7 @@ pub(super) fn process_pending_actions(
                             }
                         }
                     } else {
-                        info!("action: SelectSave({}) — selecting", idx);
+                        info!("action: SelectSave({}) — selecting (abs={})", idx, absolute_idx);
                     }
                 }
                 Action::SaveScrollUp => {
@@ -686,7 +687,7 @@ pub(super) fn process_pending_actions(
                     info!("action: LoadScreen(\"{}\")", id);
                     if id == "menu_load" {
                         params.save_manager.refresh();
-                        params.save_manager.selected = None;
+                        params.save_manager.absolute_selected = None;
                         params.save_manager.offset = 0;
                     }
                     load_screen_replace_all(

@@ -324,15 +324,11 @@ fn spawn_indoor_monsters(
         actor_shadows: cfg.actor_shadows,
     };
 
-    for mon in monsters.iter() {
-        // Spread group members using golden angle (same as ODM, no terrain probe for indoor).
-        let angle = mon.group_index as f32 * 2.399_f32;
-        let r = mon.spawn_radius as f32;
-        let [bx, by, bz] = mm6_position_to_bevy(
-            mon.spawn_position[0] + (r * angle.cos()) as i32,
-            mon.spawn_position[1] + (r * angle.sin()) as i32,
-            mon.spawn_position[2],
-        );
+    // NOTE: Group spread (golden angle) is now pre-applied in the data layer
+    // during Monster -> Actor conversion (see Actors::from_monsters) or 
+    // preserved from individual positions in the saved DLV.
+    for (idx, mon) in monsters.get_actors().iter().enumerate() {
+        let [bx, by, bz] = mm6_position_to_bevy(mon.position[0], mon.position[1], mon.position[2]);
         let ground_pos = Vec3::new(bx, by, bz);
 
         let params = ActorSpawnParams {
@@ -348,18 +344,18 @@ fn spawn_indoor_monsters(
             hp: mon.hp,
             move_speed: mon.move_speed as f32,
             sound_ids: mon.sound_ids,
-            tether_distance: mon.radius as f32 * 2.0,
-            attack_range: mon.body_radius as f32,
+            tether_distance: mon.tether_distance as f32,
+            attack_range: mon.to_hit_radius as f32,
             aggro_range: mon.aggro_range,
             recovery_secs: mon.recovery_secs,
             can_fly: mon.can_fly,
             ai_type: &mon.ai_type,
-            ddm_id: -1,
+            ddm_id: idx as i32,
             group_id: 0,
             hostile: true,
         };
         if spawn_actor(commands, &mut ctx, &params, None).is_some() {
-            info!("Spawned indoor monster '{}' at {:?}", mon.name, ground_pos);
+            debug!("Spawned indoor monster '{}' at {:?}", mon.name, ground_pos);
         }
     }
 }

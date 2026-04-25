@@ -267,6 +267,8 @@ fn loading_step(
                 &load_request,
                 &mut commands,
                 &mut game_state,
+                &active_save,
+                world_state.as_deref(),
             );
         }
         LoadingStep::BuildBillboards => {
@@ -360,9 +362,19 @@ fn step_build_models(
     load_request: &LoadRequest,
     commands: &mut Commands,
     game_state: &mut NextState<GameState>,
+    active_save: &crate::game::save::ActiveSave,
+    world_state: Option<&crate::game::state::WorldState>,
 ) {
     if progress.blv.is_some() {
-        indoor::step_build_models_indoor(progress, game_assets, load_request, commands, game_state);
+        indoor::step_build_models_indoor(
+            progress,
+            game_assets,
+            load_request,
+            commands,
+            game_state,
+            active_save,
+            world_state,
+        );
         return;
     }
     if progress.odm.is_some() {
@@ -480,23 +492,31 @@ fn step_preload_sprites(
 
 /// Try loading DDM actors from the active save file. Returns `Some(Actors)` if the save
 /// contains a DDM for this map (i.e. the map was previously visited and saved), `None` otherwise.
-fn try_load_actors_from_save(
+pub(super) fn try_load_actors_from_save(
     active_save: &crate::game::save::ActiveSave,
     map_name: &str,
     state: Option<&openmm_data::assets::provider::actors::MapStateSnapshot>,
     game_assets: &GameAssets,
 ) -> Option<openmm_data::assets::Actors> {
     let ddm_filename = format!("{}.ddm", map_name);
+    let dlv_filename = format!("{}.dlv", map_name);
     let save_file = openmm_data::save::SaveFile::open(&active_save.path).ok()?;
-    let ddm_data = save_file.get_file_ci(&ddm_filename)?;
+    let (data, is_dlv) = if let Some(d) = save_file.get_file_ci(&ddm_filename) {
+        (d, false)
+    } else if let Some(d) = save_file.get_file_ci(&dlv_filename) {
+        (d, true)
+    } else {
+        return None;
+    };
 
     info!(
-        "loaded DDM for '{}' from save file ({} bytes)",
+        "loaded {} for '{}' from save file ({} bytes)",
+        if is_dlv { "DLV" } else { "DDM" },
         map_name,
-        ddm_data.len()
+        data.len()
     );
 
-    let raw_actors = openmm_data::assets::ddm::Ddm::parse_from_data(&ddm_data).ok()?;
+    let raw_actors = openmm_data::assets::ddm::Ddm::parse_from_data(&data).ok()?;
     openmm_data::assets::Actors::from_raw_actors(game_assets.assets(), &raw_actors, state, game_assets.data()).ok()
 }
 
@@ -512,7 +532,6 @@ fn build_preload_queue(
     let mut sprite_roots: Vec<(String, u8, u16)> = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
-    // DDM actors (NPCs): resolve once, cache for spawn_world reuse
     let map_key = load_request.map_name.to_string();
     let snapshot = world_state.and_then(|ws| {
         ws.game_vars
@@ -523,17 +542,24 @@ fn build_preload_queue(
             })
     });
 
-    // Try loading DDM from save file first (preserves killed monster state),
-    // fall back to games.lod for maps not yet visited.
-    let lod_actors = try_load_actors_from_save(active_save, &map_key, snapshot.as_ref(), game_assets).or_else(|| {
-        openmm_data::assets::Actors::new(
-            game_assets.assets(),
-            &load_request.map_name.to_string(),
-            snapshot.as_ref(),
-            game_assets.data(),
-        )
-        .ok()
-    });
+    // Try loading DDM/DLV from save file first (preserves killed monster state),
+    // fall back to LOD archives for maps not yet visited.
+    let mut loaded_from_save = false;
+    let lod_actors = try_load_actors_from_save(active_save, &map_key, snapshot.as_ref(), game_assets)
+        .map(|a| {
+            loaded_from_save = true;
+            a
+        })
+        .or_else(|| {
+            openmm_data::assets::Actors::new(
+                game_assets.assets(),
+                &map_key,
+                snapshot.as_ref(),
+                game_assets.data(),
+            )
+            .ok()
+        });
+
     // Collect unique sprite roots from a set of entities with sprite fields.
     let mut collect_sprites = |sprites: &[(String, String, String, String, u8, u16)]| {
         for (standing, walking, attacking, dying, variant, palette_id) in sprites {
@@ -563,10 +589,12 @@ fn build_preload_queue(
             .collect();
         collect_sprites(&entries);
     }
+
     progress.resolved_actors = lod_actors;
 
     // Spawn-point monsters (outdoor only — indoor transitions directly to Game).
-    let lod_monsters = if load_request.map_name.is_outdoor() {
+    // Skip if we already loaded the entire map state from a save file.
+    let lod_monsters = if load_request.map_name.is_outdoor() && !loaded_from_save {
         openmm_data::assets::Monsters::load(
             game_assets.assets(),
             &load_request.map_name.to_string(),
@@ -576,8 +604,10 @@ fn build_preload_queue(
     } else {
         None
     };
+
     if let Some(ref monsters) = lod_monsters {
         let entries: Vec<_> = monsters
+            .entries()
             .iter()
             .map(|m| {
                 (
@@ -593,6 +623,36 @@ fn build_preload_queue(
         collect_sprites(&entries);
     }
     progress.resolved_monsters = lod_monsters;
+
+    // Outdoor decorations
+    if let Some(ref _odm) = progress.odm {
+        let entries: Vec<_> = progress
+            .decorations
+            .as_ref()
+            .unwrap()
+            .entries()
+            .iter()
+            .map(|d| {
+                (
+                    d.sprite_name.clone(),
+                    String::new(),
+                    String::new(),
+                    String::new(),
+                    1,
+                    0,
+                )
+            })
+            .collect();
+        collect_sprites(&entries);
+
+        // Map music track
+        progress.music_track = game_assets
+            .data()
+            .mapstats
+            .get(&load_request.map_name.to_string())
+            .map(|mi| mi.music_track)
+            .unwrap_or(0);
+    }
 
     progress.preload_queue = Some(PreloadQueue {
         sprite_roots,

@@ -47,8 +47,8 @@ pub struct PreparedIndoorWorld {
     pub map_base: String,
     /// Resolved decorations from BLV decoration list.
     pub decorations: openmm_data::assets::Decorations,
-    /// Resolved monsters from BLV spawn_points → mapstats (same pipeline as ODM).
-    pub resolved_actors: Option<openmm_data::assets::Monsters>,
+    /// Resolved monsters (either from saved DLV or BLV spawn_points).
+    pub resolved_actors: Option<openmm_data::assets::Actors>,
     /// Static point lights from the BLV file (position in Bevy coords, brightness 0–65535).
     /// These are the designer-placed lights that illuminate campfires, cauldrons, etc.
     pub blv_lights: Vec<(Vec3, u16)>,

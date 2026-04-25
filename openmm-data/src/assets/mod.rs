@@ -84,6 +84,7 @@ pub use self::snd::SndArchive;
 pub use self::zlib::*;
 
 // Re-export specific types
+pub use self::actor_enums::AIState;
 pub use self::autonotes::AutonotesTable;
 pub use self::awards::AwardsTable;
 pub use self::billboard::BillboardData;

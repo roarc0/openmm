@@ -21,7 +21,32 @@ pub(super) fn step_build_models_indoor(
     load_request: &LoadRequest,
     commands: &mut Commands,
     game_state: &mut NextState<GameState>,
+    active_save: &crate::game::save::ActiveSave,
+    world_state: Option<&crate::game::state::WorldState>,
 ) {
+    let blv = progress.blv.as_ref().unwrap();
+    let map_key = load_request.map_name.to_string();
+    let snapshot = world_state.and_then(|ws| {
+        ws.game_vars
+            .dead_actor_ids
+            .get(&map_key)
+            .map(|ids| openmm_data::assets::provider::actors::MapStateSnapshot {
+                dead_actor_ids: ids.iter().filter_map(|&id| u16::try_from(id).ok()).collect(),
+            })
+    });
+
+    // Try loading from save first, then fall back to BLV spawn points.
+    let resolved_actors = super::try_load_actors_from_save(active_save, &map_key, snapshot.as_ref(), game_assets)
+        .or_else(|| {
+            openmm_data::assets::Monsters::load_for_blv(
+                &blv.spawn_points,
+                &map_key,
+                game_assets.data(),
+                game_assets.assets(),
+            )
+            .ok()
+            .map(|m| openmm_data::assets::Actors::from_monsters(&m))
+        });
     let blv = progress.blv.as_ref().unwrap();
 
     // Indoor: build meshes from BLV faces
@@ -291,15 +316,6 @@ pub(super) fn step_build_models_indoor(
             (pos, l.brightness)
         })
         .collect();
-
-    // Resolve BLV spawn-point actors (same pipeline as ODM monsters).
-    let resolved_actors = openmm_data::assets::Monsters::load_for_blv(
-        &blv.spawn_points,
-        &load_request.map_name.to_string(),
-        game_assets.data(),
-        game_assets.assets(),
-    )
-    .ok();
 
     crate::game::events::load_map_events(commands, game_assets, &map_base, true);
     commands.insert_resource(PreparedIndoorWorld {

@@ -376,7 +376,8 @@ impl Blv {
             let tex_h_f = tex_h as f32;
 
             let mm6_normal = face.normal_f32();
-            let is_ceiling = face.polygon_type == 5 || face.polygon_type == 6;
+            let is_ceiling = crate::assets::PolygonType::from_u8(face.polygon_type as u8)
+                .is_some_and(|pt| pt.is_ceiling());
             let sign = if is_ceiling { -1.0 } else { 1.0 };
             let normal = [mm6_normal[0] * sign, mm6_normal[2] * sign, -mm6_normal[1] * sign];
 
@@ -498,7 +499,8 @@ impl Blv {
             // for correct PBR lighting. MM6's original normals point outward (geometrically
             // correct but wrong for lighting ceilings from below).
             let mm6_normal = face.normal_f32();
-            let is_ceiling = face.polygon_type == 5 || face.polygon_type == 6;
+            let is_ceiling = crate::assets::PolygonType::from_u8(face.polygon_type as u8)
+                .is_some_and(|pt| pt.is_ceiling());
             let sign = if is_ceiling { -1.0 } else { 1.0 };
             let normal = [mm6_normal[0] * sign, mm6_normal[2] * sign, -mm6_normal[1] * sign];
 

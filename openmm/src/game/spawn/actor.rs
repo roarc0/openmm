@@ -101,7 +101,7 @@ pub fn spawn_actor(
             Transform::from_translation(pos),
             WorldEntity,
             entity_kind,
-            AnimationState::Idle,
+            if params.hp <= 0 { AnimationState::Dead } else { AnimationState::Idle },
             Billboard,
             SpriteSheet::new(states, vec![(sw, sh); state_count], state_masks),
             MonsterAiMode::Wander,

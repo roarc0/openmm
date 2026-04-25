@@ -604,22 +604,20 @@ pub fn update_sprite_sheets(
             sprites.frame_timer = 0.0;
         }
 
-        // Dead corpses: skip animation + rotation updates.
-        if is_dead {
-            continue;
-        }
-
-        // Advance animation timer; dying animation clamps on the last frame instead of looping.
-        let is_dying = *anim_state == AnimationState::Dying;
-        sprites.frame_timer += dt;
-        if sprites.frame_timer >= sprites.frame_duration {
-            sprites.frame_timer -= sprites.frame_duration;
-            let next = sprites.current_frame + 1;
-            sprites.current_frame = if is_dying && next >= frame_count {
-                frame_count - 1 // hold last frame
-            } else {
-                next % frame_count
-            };
+        // Dead corpses: skip animation advancement, but still allow rotation updates.
+        if !is_dead {
+            // Advance animation timer; dying animation clamps on the last frame instead of looping.
+            let is_dying = *anim_state == AnimationState::Dying;
+            sprites.frame_timer += dt;
+            if sprites.frame_timer >= sprites.frame_duration {
+                sprites.frame_timer -= sprites.frame_duration;
+                let next = sprites.current_frame + 1;
+                sprites.current_frame = if is_dying && next >= frame_count {
+                    frame_count - 1 // hold last frame
+                } else {
+                    next % frame_count
+                };
+            }
         }
 
         // Pick directional frame based on camera angle relative to entity facing.

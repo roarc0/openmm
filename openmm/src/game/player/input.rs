@@ -11,6 +11,7 @@ use crate::game::spawn::WorldObstacle;
 use crate::prepare::loading::PreparedIndoorWorld;
 use crate::system::config::GameConfig;
 
+use crate::game::actors::Actor;
 use super::{
     MouseLookEnabled, MouseSensitivity, Player, PlayerCamera, PlayerKeyBindings, PlayerPhysics, PlayerSettings,
     SpeedMultiplier,
@@ -158,9 +159,14 @@ fn push_out_of_obstacles(
     mut pos: Vec3,
     player_radius: f32,
     eye_height: f32,
-    obstacles: &Query<(&Transform, &WorldObstacle), Without<Player>>,
+    obstacles: &Query<(&Transform, &WorldObstacle, Option<&Actor>), Without<Player>>,
 ) -> Vec3 {
-    for (obs_tf, obs) in obstacles.iter() {
+    for (obs_tf, obs, actor) in obstacles.iter() {
+        if let Some(actor) = actor {
+            if actor.hp <= 0 {
+                continue;
+            }
+        }
         let obs_pos = obs_tf.translation;
         if (obs_pos.y - pos.y).abs() > eye_height * 2.0 {
             continue;
@@ -188,7 +194,7 @@ pub(super) fn player_movement(
     world_state: Res<crate::game::state::WorldState>,
     speed_mul: Res<SpeedMultiplier>,
     map: MapColliders<'_>,
-    obstacles: Query<(&Transform, &WorldObstacle), Without<Player>>,
+    obstacles: Query<(&Transform, &WorldObstacle, Option<&Actor>), Without<Player>>,
     cursor_query: Query<&CursorOptions, With<PrimaryWindow>>,
     gamepads: Query<&Gamepad>,
     mut query: Query<(&mut Transform, &mut PlayerPhysics), With<Player>>,
