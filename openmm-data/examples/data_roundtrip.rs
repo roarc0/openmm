@@ -14,7 +14,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dst_root = PathBuf::from("./data/mm6_serialized");
 
     if !src_root.exists() {
-        eprintln!("Source root {} not found. Set OPENMM_6_PATH?", src_root.display());
+        eprintln!("Source root {} not found. Set OPENMM_PATH_MM6?", src_root.display());
         return Ok(());
     }
 

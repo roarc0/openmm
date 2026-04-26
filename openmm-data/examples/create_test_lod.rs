@@ -12,7 +12,7 @@
 //!   cargo run -p lod --example create_test_lod -- [OUTPUT_DIR]
 //!
 //! OUTPUT_DIR defaults to `lod/testdata/generated/`.
-//! After running, point OPENMM_6_PATH to that directory to use it as a game source.
+//! After running, point OPENMM_PATH_MM6 to that directory to use it as a game source.
 
 use byteorder::{LittleEndian, WriteBytesExt};
 use openmm_data::Archive;
@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    println!("\nDone. Run with OPENMM_6_PATH={}", out_dir.display());
+    println!("\nDone. Run with OPENMM_PATH_MM6={}", out_dir.display());
     println!("Then: cargo run -p lod --example lod_roundtrip");
     Ok(())
 }

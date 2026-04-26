@@ -32,6 +32,9 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         let cfg = GameConfig::load();
+        unsafe {
+            std::env::set_var(openmm_data::ENV_OPENMM_PATH_MM6, &cfg.path_mm6);
+        }
         let game_assets = GameAssets::new(openmm_data::get_data_path().into()).expect("unable to load game data files");
         let game_fonts = screens::fonts::GameFonts::load(&game_assets);
         let active_save = if let Some(ref save_name) = cfg.save {

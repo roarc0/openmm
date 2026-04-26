@@ -52,9 +52,16 @@ OpenMM requires the original Might and Magic VI data files (`games.lod`, `bitmap
 
 The engine searches for game data in this order:
 
+**Option 0 - Config file (default):**
+```toml
+path_mm6 = "./mm6"
+```
+
+`path_mm6` points at the MM6 install root. OpenMM reads game data from `path_mm6/data/`.
+
 **Option 1 — Environment variable (any build):**
 ```bash
-export OPENMM_6_PATH=/path/to/your/mm6
+export OPENMM_PATH_MM6=/path/to/your/mm6
 ./openmm
 ```
 

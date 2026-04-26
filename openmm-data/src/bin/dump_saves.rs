@@ -1,7 +1,7 @@
 /// Dump MM6 save files (.mm6 LOD archives) to data/dump/saves/{slot}/.
 ///
 /// Scans two locations:
-///   - OPENMM_6_PATH/../Saves/  (original MM6 saves, default: data/mm6/Saves/)
+///   - OPENMM_PATH_MM6/../Saves/  (original MM6 saves, default: data/mm6/Saves/)
 ///   - ./saves/                  (OpenMM saves)
 ///
 /// For each save, outputs:
@@ -106,7 +106,7 @@ fn dump_save(save: &SaveFile, out_root: &Path) {
 fn candidate_save_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 
-    // Original MM6 saves: derive from OPENMM_6_PATH or default data path
+    // Original MM6 saves: derive from OPENMM_PATH_MM6 or default data path
     let data_path = openmm_data::get_data_path(); // e.g. "data/mm6/data"
     let data_path = PathBuf::from(&data_path);
     // data/mm6/data -> data/mm6/Saves

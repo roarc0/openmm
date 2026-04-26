@@ -222,6 +222,7 @@ struct Cli {
 /// Deserialized from openmm.toml.
 #[derive(Deserialize, Debug, Default)]
 struct ConfigFile {
+    path_mm6: Option<String>,
     map: Option<String>,
     log_level: Option<String>,
     skip_intro: Option<bool>,
@@ -282,6 +283,8 @@ pub struct GameConfig {
     /// Path to the config file (not serialized).
     #[serde(skip)]
     pub config_path: PathBuf,
+    /// Path to the MM6 install root. The engine reads data from `path_mm6/data`.
+    pub path_mm6: String,
     pub map: Option<String>,
     /// Save file to load (name without .mm6), e.g. "autosave1"
     #[serde(skip)]
@@ -386,6 +389,7 @@ impl Default for GameConfig {
     fn default() -> Self {
         Self {
             config_path: PathBuf::from(CONFIG_PATH),
+            path_mm6: "./mm6".into(),
             map: None,
             save: None,
             log_level: "info".into(),
@@ -492,6 +496,7 @@ impl GameConfig {
 
         let resolved = GameConfig {
             config_path: config_path.clone(),
+            path_mm6: resolve!(None::<String>, file_cfg.path_mm6, d.path_mm6),
             map: cli.map.or(file_cfg.map).or(d.map),
             save: cli.save,
             log_level: resolve!(cli.log_level, file_cfg.log_level, d.log_level),

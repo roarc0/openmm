@@ -15,7 +15,7 @@ pub mod save;
 pub mod utils;
 pub use utils::find_path_case_insensitive;
 
-pub const ENV_OPENMM_6_PATH: &str = "OPENMM_6_PATH";
+pub const ENV_OPENMM_PATH_MM6: &str = "OPENMM_PATH_MM6";
 
 fn has_mm6_lods(path: &Path) -> bool {
     ["games.lod", "Games.lod", "GAMES.LOD"]
@@ -24,7 +24,7 @@ fn has_mm6_lods(path: &Path) -> bool {
 }
 
 pub fn get_data_path() -> String {
-    if let Ok(p) = env::var(ENV_OPENMM_6_PATH) {
+    if let Ok(p) = env::var(ENV_OPENMM_PATH_MM6) {
         let env_path = PathBuf::from(p);
         if has_mm6_lods(&env_path) {
             return env_path.to_string_lossy().into_owned();

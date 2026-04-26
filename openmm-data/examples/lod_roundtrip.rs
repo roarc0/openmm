@@ -1,10 +1,10 @@
 //! LOD round-trip validation.
 //!
-//! Reads every .lod file from OPENMM_6_PATH, re-saves it via `LodWriter`,
+//! Reads every .lod file from OPENMM_PATH_MM6, re-saves it via `LodWriter`,
 //! then verifies that every entry's bytes are identical to the original.
 //!
 //! Usage:
-//!   OPENMM_6_PATH=/path/to/mm6/data cargo run -p openmm-data --example lod_roundtrip
+//!   OPENMM_PATH_MM6=/path/to/mm6/data cargo run -p openmm-data --example lod_roundtrip
 //!
 //! On success: prints a summary table and exits 0.
 //! On failure: prints which entries differ and exits 1.
@@ -17,8 +17,8 @@ fn main() {
     let lod_path = std::path::Path::new(&lod_path_str);
 
     if !lod_path.exists() {
-        eprintln!("OPENMM_6_PATH not set or does not exist: {}", lod_path.display());
-        eprintln!("Set OPENMM_6_PATH to your MM6 data directory (the folder with .lod files).");
+        eprintln!("OPENMM_PATH_MM6 not set or does not exist: {}", lod_path.display());
+        eprintln!("Set OPENMM_PATH_MM6 to your MM6 data directory (the folder with .lod files).");
         std::process::exit(1);
     }
 
