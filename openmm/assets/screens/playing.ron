@@ -5,23 +5,38 @@
         "Return": [
             "EnterTurnBattle()",
         ],
+        "A": [
+            "PlaySoundNamed(\"Pending\")",
+        ],
+        "S": [
+            "PlaySoundNamed(\"Pending\")",
+        ],
+        "Space": [
+            "PlaySoundNamed(\"Pending\")",
+        ],
+        "T": [
+            "ShowScreen(\"ingame_menu_calendar\")",
+        ],
+        "Z": [
+            "ShowScreen(\"reputation\")",
+        ],
+        "M": [
+            "ShowScreen(\"ingame_menu_map\")",
+        ],
+        "Q": [
+            "ShowScreen(\"quests\")",
+        ],
+        "R": [
+            "ShowScreen(\"ingame_menu_rest\")",
+        ],
+        "C": [
+            "ShowScreen(\"spellbook\")",
+        ],
         // Character sheet shortcuts — ShowScreen("chdetails") + the desired tab
         // in one batch so the tab is chosen by the entry point, not a default.
         "I": [
             "ShowScreen(\"chdetails\")",
             "ShowScreen(\"chdetails_inventory\")",
-        ],
-        "C": [
-            "ShowScreen(\"chdetails\")",
-            "ShowScreen(\"chdetails_stats\")",
-        ],
-        "S": [
-            "ShowScreen(\"chdetails\")",
-            "ShowScreen(\"chdetails_skills\")",
-        ],
-        "A": [
-            "ShowScreen(\"chdetails\")",
-            "ShowScreen(\"chdetails_award\")",
         ],
     },
     elements: [

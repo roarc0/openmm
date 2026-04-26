@@ -725,7 +725,9 @@ pub(super) fn text_update(
 fn reposition_text(rt: &RuntimeText, game_fonts: &GameFonts, sx: f32, sy: f32, node: &mut Node) {
     let (bx, by, bw, bh) = rt.bounds;
     let box_x = bx * sx;
+    let box_y = by * sy;
     let box_w = bw * sx;
+    let box_h = bh * sy;
     let glyph_h_ref = if rt.font_size > 0.0 { rt.font_size } else { bh };
     let display_h = glyph_h_ref * sy;
 
@@ -748,7 +750,9 @@ fn reposition_text(rt: &RuntimeText, game_fonts: &GameFonts, sx: f32, sy: f32, n
         }
         _ => Val::Px(box_x),
     };
-    let target_top = Val::Px(by * sy);
+    // Vertically center rendered text in its declared bounds.
+    // When text is taller than the box, pin to top to avoid negative offsets.
+    let target_top = Val::Px(box_y + ((box_h - display_h).max(0.0) * 0.5));
     let target_h = Val::Px(display_h);
 
     if node.width != Val::Auto {

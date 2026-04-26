@@ -14,6 +14,12 @@
 - 8 directional arrows: mapdir1=N … mapdir8=NW
 - Footer strip
 
+### Text Layout
+
+- Screen text elements are positioned from their declared `(position, size)` bounds.
+- Horizontal alignment follows `align` (`left`, `center`, `right`).
+- Vertical placement is centered within the text box height in runtime layout.
+
 ## Debug Gizmos
 
 - In debug mode, event gizmo rendering also draws collision overlays:
@@ -39,6 +45,7 @@
 - Tab buttons switch atomically: hide all tab layers first, then show the selected tab.
 - Entry points: `playing.ron` binds `I/C/S/A` to open `chdetails` + `inventory/stats/skills/award` respectively. Portrait clicks open to `stats` by default.
 - `CloseWindow()` is UiMode-aware: when game UI mode is not `World` (building, npc_speak, chest, turnbattle, etc.), close transitions `UiMode` back to `World` first, and cursor capture follows UiMode (world = grabbed, overlay = free).
+- `ingame_menu_rest` date/time labels are live bindings from `GameTime`: `time.day`, `time.month`, `time.year`, and `time.hour_ampm`.
 
 ## StatsBar
 

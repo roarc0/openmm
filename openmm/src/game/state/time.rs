@@ -135,9 +135,24 @@ impl PropertySource for GameTime {
     }
 
     fn resolve(&self, path: &str) -> Option<String> {
+        let (year, month, day) = self.calendar_date();
+        let hour24 = self.hour();
+        let minute = self.minute();
+        let hour12 = match hour24 % 12 {
+            0 => 12,
+            h => h,
+        };
+        let ampm = if hour24 < 12 { "am" } else { "pm" };
+
         match path {
             "" | "current" => Some(self.format_datetime()),
             "full" => Some(self.format_full()),
+            "year" => Some(year.to_string()),
+            "month" => Some(month.to_string()),
+            "day" => Some(day.to_string()),
+            "hour" => Some(hour24.to_string()),
+            "minute" => Some(minute.to_string()),
+            "hour_ampm" => Some(format!("{}:{:02}{}", hour12, minute, ampm)),
             _ => None,
         }
     }
@@ -244,5 +259,17 @@ mod tests {
                 "roundtrip failed for ({y}, {m}, {d}, {h}, {min})"
             );
         }
+    }
+
+    #[test]
+    fn property_source_exposes_exact_calendar_fields() {
+        // 0-indexed month/day input -> Jan 1, 1000 9:05am
+        let gt = GameTime::from_calendar(1000, 0, 0, 9, 5);
+        assert_eq!(gt.resolve("year").as_deref(), Some("1000"));
+        assert_eq!(gt.resolve("month").as_deref(), Some("1"));
+        assert_eq!(gt.resolve("day").as_deref(), Some("1"));
+        assert_eq!(gt.resolve("hour").as_deref(), Some("9"));
+        assert_eq!(gt.resolve("minute").as_deref(), Some("5"));
+        assert_eq!(gt.resolve("hour_ampm").as_deref(), Some("9:05am"));
     }
 }

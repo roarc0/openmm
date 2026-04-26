@@ -25,10 +25,14 @@ Default values from `PlayerSettings`:
 
 - `PlayerInputSet` system set label — all systems that read player position or react to player input must run `.after(PlayerInputSet)`
 - Walk speed is half of `settings.speed`; `cfg.always_run` skips the halving
+- Jump key default is `X` (not Space)
 - Fly mode: toggle with F2 or gamepad Select; stored in `WorldState.player.fly_mode`
 - `MouseLookEnabled` resource: initialized from `cfg.mouse_look`, toggled at runtime with CapsLock (if `cfg.capslock_toggle_mouse_look`)
 - `MouseSensitivity` resource: adjusted with Home (increase) / End (decrease) in 5-unit steps
 - Gamepad: left stick moves, right stick looks. Unmapped controllers (e.g. GameSir) expose right stick as LeftZ/RightZ axes — the code has a fallback
+- In-game HUD hotkeys: `Q` opens `quests`, `R` opens `ingame_menu_rest`, `C` opens `spellbook`, `I` opens character inventory (`chdetails` + `chdetails_inventory`)
+- In-game HUD hotkeys: `A`/`S` = attack placeholder (`PlaySoundNamed("Pending")`), `Space` = loot placeholder (`PlaySoundNamed("Pending")`)
+- In-game HUD hotkeys: `T` opens `ingame_menu_calendar`, `Z` opens `reputation`, `M` opens `ingame_menu_map`
 
 ## Gravity and Vertical Movement
 

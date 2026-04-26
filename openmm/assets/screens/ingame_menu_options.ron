@@ -1,8 +1,8 @@
 (
-    id: "options_main",
+    id: "ingame_menu_options",
     kind: Modal,
     keys: {
-        "Escape": ["HideScreen(\"options_main\")"],
+        "Escape": ["HideScreen(\"ingame_menu_options\")"],
     },
     elements: [
         Image((

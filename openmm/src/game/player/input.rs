@@ -526,7 +526,7 @@ pub(super) fn cursor_grab(
         // Second ESC: open options (keep cursor unlocked).
         if let Some(ref mut writer) = actions {
             writer.write(crate::screens::runtime::ScreenActions {
-                actions: vec!["ShowScreen(\"options_main\")".to_string()],
+                actions: vec!["ShowScreen(\"ingame_menu_options\")".to_string()],
             });
         }
     }

@@ -139,7 +139,7 @@ impl Default for PlayerKeyBindings {
             strafe_right: KeyCode::ArrowRight,
             rotate_left: KeyCode::ArrowLeft,
             rotate_right: KeyCode::ArrowRight,
-            jump: KeyCode::Space,
+            jump: KeyCode::KeyX,
             fly_up: KeyCode::Insert,
             fly_down: KeyCode::PageUp,
             toggle_fly: KeyCode::Home,

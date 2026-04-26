@@ -185,7 +185,7 @@ impl<'de> serde::Deserialize<'de> for Sound {
 /// Screen layer kind — controls stacking priority and mutual exclusivity.
 ///
 /// - `Hud`: persistent layer, lowest key priority (e.g. playing, ingame)
-/// - `Modal`: exclusive overlay, highest key priority (e.g. options_main, npc_speak)
+/// - `Modal`: exclusive overlay, highest key priority (e.g. ingame_menu_options, npc_speak)
 /// - `Base`: default — splash screens, menus
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ScreenKind {

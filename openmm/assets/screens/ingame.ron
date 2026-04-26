@@ -31,21 +31,6 @@
             transparent_color: "black",
         )),
         Image((
-            id: "BORDER6",
-            position: (461.0, 8.0),
-            size: (7.0, 21.0),
-            z: -93,
-            states: {
-                "default": (
-                    texture: "BORDER6",
-                ),
-            },
-            on_click: [],
-            on_hover: [],
-            bindings: {},
-            transparent_color: "black",
-        )),
-        Image((
             id: "BORDER3",
             position: (0.0, 0.0),
             size: (468.0, 8.0),
@@ -193,8 +178,8 @@
         )),
         Text((
             id: "food",
-            position: (511.0, 357.0),
-            size: (35.0, 12.0),
+            position: (513.0, 357.0),
+            size: (33.0, 12.0),
             z: 7,
             source: "player.food",
             font: "smallnum",
@@ -405,10 +390,24 @@
             on_hover: [],
             bindings: {},
         )),
+        Image((
+            id: "icons/BORDER6",
+            position: (461.0, 8.0),
+            size: (7.0, 21.0),
+            z: 23,
+            states: {
+                "default": (
+                    texture: "icons/BORDER6",
+                ),
+            },
+            on_click: [],
+            on_hover: [],
+            bindings: {},
+            transparent_color: "black",
+        )),
     ],
     editor: (
         locked: [
-            "BORDER6",
             "FOOTER",
             "icons/Border2.pcx",
             "BORDER3",
@@ -417,6 +416,7 @@
             "icons/BUTTREF",
             "icons/TAP1",
             "gold",
+            "icons/BORDER6",
             "food",
         ],
     ),

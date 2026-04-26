@@ -27,8 +27,8 @@ fn resolve_close_window_target(top_modal_id: Option<&str>, ui_mode: Option<UiMod
     if let Some(mode) = ui_mode
         && mode != UiMode::World
     {
-        if top_modal_id == Some("options_main") {
-            return CloseWindowTarget::TopModal("options_main".to_string());
+        if top_modal_id == Some("ingame_menu_options") {
+            return CloseWindowTarget::TopModal("ingame_menu_options".to_string());
         }
 
         let active_modal = match mode {
@@ -914,14 +914,14 @@ mod tests {
 
     #[test]
     fn close_window_in_non_world_closes_top_modal_if_not_active_overlay() {
-        let target = resolve_close_window_target(Some("options_main"), Some(UiMode::NpcDialogue));
-        assert_eq!(target, CloseWindowTarget::TopModal("options_main".to_string()));
+        let target = resolve_close_window_target(Some("ingame_menu_options"), Some(UiMode::NpcDialogue));
+        assert_eq!(target, CloseWindowTarget::TopModal("ingame_menu_options".to_string()));
     }
 
     #[test]
     fn close_window_hides_top_modal_in_world_mode() {
-        let target = resolve_close_window_target(Some("options_main"), Some(UiMode::World));
-        assert_eq!(target, CloseWindowTarget::TopModal("options_main".to_string()));
+        let target = resolve_close_window_target(Some("ingame_menu_options"), Some(UiMode::World));
+        assert_eq!(target, CloseWindowTarget::TopModal("ingame_menu_options".to_string()));
     }
 
     #[test]

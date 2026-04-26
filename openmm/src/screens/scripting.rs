@@ -76,7 +76,7 @@ pub fn parse_action(input: &str) -> Action {
     if s == "Quit()" {
         return Action::Quit;
     }
-    if s == "CloseWindow()" {
+    if s == "CloseWindow()" || s == "CloseModal()" {
         return Action::CloseWindow;
     }
     if let Some(name) = parse_string_arg(s, "PlaySoundNamed") {
@@ -278,6 +278,7 @@ mod tests {
     fn parse_screen_actions() {
         assert_eq!(parse_action("Quit()"), Action::Quit);
         assert_eq!(parse_action("NewGame()"), Action::NewGame(None));
+        assert_eq!(parse_action("CloseModal()"), Action::CloseWindow);
         assert_eq!(parse_action("LoadScreen(\"menu\")"), Action::LoadScreen("menu".into()));
         assert_eq!(parse_action("ShowScreen(\"hud\")"), Action::ShowScreen("hud".into()));
         assert_eq!(parse_action("HideScreen(\"hud\")"), Action::HideScreen("hud".into()));
